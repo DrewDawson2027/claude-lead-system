@@ -5,11 +5,14 @@ INPUT=$(cat)
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
 INBOX=~/.claude/terminals/inbox/${SESSION_ID:0:8}.jsonl
 
+# Atomic drain: move inbox to temp file first so messages aren't lost if hook crashes mid-delivery
 if [ -f "$INBOX" ] && [ -s "$INBOX" ]; then
+  TMP_INBOX=$(mktemp)
+  mv "$INBOX" "$TMP_INBOX"
   echo "--- INCOMING MESSAGES FROM COORDINATOR ---"
-  cat "$INBOX"
+  cat "$TMP_INBOX"
   echo "--- END MESSAGES ---"
-  > "$INBOX"
+  rm -f "$TMP_INBOX"
 fi
 
 # Fix 2: Check for completed workers and notify lead

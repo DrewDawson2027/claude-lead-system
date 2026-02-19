@@ -101,7 +101,6 @@ def get_explore_dirs(session_id):
     dirs = []
     for agent in guard_state.get("agents", []):
         if agent.get("type") == "Explore":
-            desc = agent.get("description", "")
             # Extract directory hints from the agent description
             # Common patterns: "Explore trust-engine codebase", "Explore atlas/"
             # We track the directories the Explore was pointed at
