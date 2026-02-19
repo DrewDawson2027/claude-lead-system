@@ -69,6 +69,14 @@ check_contains     "has jq safe-args"         "$REPO_ROOT/hooks/terminal-heartbe
 check_contains     "has rate-limit logic"     "$REPO_ROOT/hooks/terminal-heartbeat.sh" "COOLDOWN"
 
 echo ""
+echo "Token guard privacy contract:"
+check_not_contains "no ssrn-researcher in token-guard"    "$REPO_ROOT/hooks/token-guard.py" "ssrn-researcher"
+check_not_contains "no trust-engine in token-guard"       "$REPO_ROOT/hooks/token-guard.py" "trust-engine"
+check_not_contains "no statusline-setup in token-guard"   "$REPO_ROOT/hooks/token-guard.py" "statusline-setup"
+check_not_contains "no trust-engine in read-efficiency"   "$REPO_ROOT/hooks/read-efficiency-guard.py" "trust-engine"
+check_not_contains "no trust-engine in lead.md"           "$REPO_ROOT/commands/lead.md" "trust-engine"
+
+echo ""
 echo "MCP coordinator contract:"
 check_contains "sanitizeId exported in lib"   "$REPO_ROOT/mcp-coordinator/lib.js" "export function sanitizeId"
 check_contains "sanitizeModel exported"       "$REPO_ROOT/mcp-coordinator/lib.js" "export function sanitizeModel"

@@ -17,14 +17,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `mcp-coordinator/tests/unit.test.js`: 28 unit tests for `lib.js` (via Node.js built-in `node:test`)
 - `mcp-coordinator/tests/e2e.test.js`: 8 e2e tests for filesystem protocol (session files, inbox, workers, pipelines)
 - `mcp-coordinator/package-lock.json`: lock file committed so `npm ci` works reliably in CI
-- `tests/hooks-smoke.sh`: CI-safe smoke test for all hook files, Node/Python syntax, and private-reference checks
-- `tests/health-check-regression.sh`: regression test verifying settings contract, hook contract, and CI workflow coverage
+- `tests/hooks-smoke.sh`: CI-safe smoke test for all hook files, Node/Python syntax, and private-reference checks (hooks, commands, settings)
+- `tests/health-check-regression.sh`: regression test verifying settings contract, hook contract, token-guard privacy contract, and CI workflow coverage
 - `docs/RELEASE_HARDENING.md`: release gate checklist (security, privacy, portability, tests)
 
 ### Fixed
 - `hooks/session-register.sh`: removed raw input debug logging that could expose sensitive session metadata; replaced with structured field logging
 - `hooks/check-inbox.sh`: atomic inbox drain via `mv` before read — prevents message loss if hook crashes mid-delivery
 - `mcp-coordinator/index.js`: added input sanitization (`sanitizeId`/`sanitizeModel`) to all tool handlers that use user-controlled values in file paths or shell arguments — prevents path traversal and command injection
+- `hooks/token-guard.py`: replaced `ssrn-researcher` with generic `web-researcher`; removed `statusline-setup` from `ALWAYS_ALLOWED`; replaced private project path examples (`trust-engine`, `Desktop`) with generic equivalents
+- `hooks/read-efficiency-guard.py`: replaced private project name examples in comments with generic placeholders
+- `commands/lead.md`: replaced private project name example with generic placeholder
 
 ### Changed
 - `README.md`: complete rewrite with badges, hero description, architecture diagram, platform table, enriched session file example, one-line install, and full components reference

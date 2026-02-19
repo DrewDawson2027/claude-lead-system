@@ -50,16 +50,24 @@ check "settings.local.json valid"   node -e "JSON.parse(require('fs').readFileSy
 
 echo ""
 echo "No private references:"
-# Fail if Atlas-specific private paths are found in hook scripts
-if grep -rqE "Desktop/Atlas|atlas-betting|atlas-terminals" "$REPO_ROOT/hooks/" 2>/dev/null; then
-  echo "  FAIL  private Atlas references found in hooks/"
+# Fail if private project paths are found in hook scripts
+if grep -rqE "Desktop/Atlas|atlas-betting|atlas-terminals|trust-engine|ssrn-researcher|statusline-setup" "$REPO_ROOT/hooks/" 2>/dev/null; then
+  echo "  FAIL  private project references found in hooks/"
   FAIL=$((FAIL + 1))
 else
-  echo "  PASS  no private Atlas references in hooks/"
+  echo "  PASS  no private project references in hooks/"
+  PASS=$((PASS + 1))
+fi
+# Fail if private project references appear in commands/
+if grep -rqE "trust-engine|atlas-betting|ssrn-researcher|/Users/drewdawson" "$REPO_ROOT/commands/" 2>/dev/null; then
+  echo "  FAIL  private references found in commands/"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS  no private references in commands/"
   PASS=$((PASS + 1))
 fi
 # Fail if personal paths like /Users/drewdawson are found in settings
-if grep -q "/Users/drewdawson\|Atlas Strategic\|ATLAS STRATEGIC" "$REPO_ROOT/settings/settings.local.json" 2>/dev/null; then
+if grep -qE "/Users/drewdawson|Atlas Strategic|ATLAS STRATEGIC|ATLAS" "$REPO_ROOT/settings/settings.local.json" 2>/dev/null; then
   echo "  FAIL  private personal references found in settings/settings.local.json"
   FAIL=$((FAIL + 1))
 else
