@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Minimal permissions: read-only checkout is sufficient for all CI jobs
+permissions:
+  contents: read
+
 jobs:
   lint-shell:
     name: Lint shell scripts
