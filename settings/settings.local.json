@@ -1,0 +1,434 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:*)",
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Task",
+      "WebFetch(domain:mplsoccer.readthedocs.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:unabated.com)",
+      "WebFetch(domain:soccerprop.com)",
+      "WebFetch(domain:www.dailyfantasyfuel.com)",
+      "WebFetch(domain:outlier.bet)",
+      "WebFetch(domain:www.props.cash)",
+      "WebFetch(domain:www.pickfinder.app)",
+      "WebFetch(domain:opticodds.com)",
+      "WebFetch(domain:mckayjohns.substack.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:blog.devgenius.io)",
+      "WebFetch(domain:realsoccerexpand.netlify.app)",
+      "WebFetch(domain:theanalyst.com)",
+      "WebFetch(domain:soccerdata.readthedocs.io)",
+      "WebFetch(domain:www.frontiersin.org)",
+      "WebFetch(domain:statsbomb.com)",
+      "WebFetch(domain:fbref.com)",
+      "WebFetch(domain:dataglossary.wyscout.com)",
+      "WebFetch(domain:www.hudl.com)",
+      "WebFetch(domain:link.springer.com)",
+      "WebFetch(domain:www.fe.training)",
+      "WebFetch(domain:www.wallstreetprep.com)",
+      "WebFetch(domain:mergersandinquisitions.com)",
+      "WebFetch(domain:ibvine.io)",
+      "WebFetch(domain:www.pff.com)",
+      "WebFetch(domain:www.nature.com)",
+      "WebFetch(domain:tomdecroos.github.io)",
+      "WebFetch(domain:towardsdatascience.com)",
+      "WebFetch(domain:www.planetfootball.com)",
+      "WebFetch(domain:fivda.com)",
+      "WebFetch(domain:www.mclachbot.com)",
+      "WebFetch(domain:www.squawka.com)",
+      "WebFetch(domain:www.fotmob.com)",
+      "WebFetch(domain:cline.bot)",
+      "WebFetch(domain:jowwii.medium.com)",
+      "WebFetch(domain:www.moesif.com)",
+      "WebFetch(domain:registry.modelcontextprotocol.io)",
+      "WebFetch(domain:smithery.ai)",
+      "WebFetch(domain:mcpize.com)",
+      "WebFetch(domain:mcp.so)",
+      "WebFetch(domain:www.pulsemcp.com)",
+      "mcp__filesystem__list_directory",
+      "mcp__filesystem__directory_tree",
+      "mcp__filesystem__read_text_file",
+      "mcp__filesystem__search_files",
+      "WebFetch(domain:www.webshare.io)",
+      "WebFetch(domain:brightdata.com)",
+      "WebFetch(domain:scrape.do)",
+      "WebFetch(domain:www.scraperapi.com)",
+      "WebFetch(domain:scrapfly.io)",
+      "mcp__memory__create_entities",
+      "Skill(Notion:notion-create-database-row)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Skill(Notion:notion-search)",
+      "Skill(Notion:notion-find)",
+      "mcp__memory__search_nodes",
+      "mcp__filesystem__list_allowed_directories",
+      "mcp__filesystem__read_media_file",
+      "WebFetch(domain:www.propsmadness.com)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "Skill(frontend-design)",
+      "mcp__playwright__browser_press_key",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_close",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "WebFetch(domain:igotanoffer.com)",
+      "WebFetch(domain:www.wallstreetoasis.com)",
+      "WebFetch(domain:www.lumovest.com)",
+      "WebFetch(domain:www.efinancialcareers.com)",
+      "WebFetch(domain:www.glassdoor.com)",
+      "mcp__plugin_serena_serena__activate_project",
+      "mcp__plugin_serena_serena__check_onboarding_performed",
+      "mcp__plugin_serena_serena__list_dir",
+      "mcp__plugin_serena_serena__read_file",
+      "mcp__plugin_serena_serena__get_current_config",
+      "mcp__plugin_playwright_playwright__browser_run_code",
+      "mcp__playwright__browser_run_code",
+      "WebFetch(domain:www.amazon.com)",
+      "WebFetch(domain:www.target.com)",
+      "WebFetch(domain:www.ikea.com)",
+      "WebFetch(domain:www.homedepot.com)",
+      "WebFetch(domain:www.containerstore.com)",
+      "WebFetch(domain:yawnder.com)",
+      "WebFetch(domain:duuupe.com)",
+      "WebFetch(domain:www.decorilla.com)",
+      "mcp__plugin_playwright_playwright__browser_press_key",
+      "mcp__plugin_figma_figma__whoami",
+      "Skill(gsd:new-project)",
+      "Skill(gsd:map-codebase)",
+      "mcp__plugin_figma_figma__get_design_context",
+      "mcp__plugin_figma_figma__get_metadata",
+      "WebFetch(domain:www.totalcorner.com)",
+      "WebFetch(domain:setpiecetakers.com)",
+      "WebFetch(domain:footystats.org)",
+      "mcp__plugin_figma_figma__get_screenshot",
+      "WebFetch(domain:jaseziv.github.io)",
+      "WebFetch(domain:www.api-football.com)",
+      "mcp__playwright__browser_wait_for",
+      "WebFetch(domain:xclsvmedia.com)",
+      "WebFetch(domain:www.oddsshark.com)",
+      "WebFetch(domain:help.outlier.bet)",
+      "WebFetch(domain:propfirmreviews.net)",
+      "WebFetch(domain:www.betsmart.co)",
+      "mcp__playwright__browser_close",
+      "mcp__plugin_figma_figma-desktop__get_design_context",
+      "Skill(gsd:progress)",
+      "WebFetch(domain:linear.app)",
+      "WebFetch(domain:muz.li)",
+      "WebFetch(domain:www.bloomberg.com)",
+      "WebFetch(domain:www.figma.com)",
+      "WebFetch(domain:mobbin.com)",
+      "WebFetch(domain:docs.stripe.com)",
+      "WebFetch(domain:www.untitledui.com)",
+      "WebFetch(domain:linear.style)",
+      "WebFetch(domain:vercel.com)",
+      "WebFetch(domain:nicelydone.club)",
+      "WebFetch(domain:www.radix-ui.com)",
+      "mcp__plugin_figma_figma__get_figjam",
+      "WebFetch(domain:chromewebstore.google.com)",
+      "WebFetch(domain:v0.app)",
+      "WebFetch(domain:salesdoe.com)",
+      "WebFetch(domain:blog.marmalead.com)",
+      "WebFetch(domain:ehunt.ai)",
+      "WebFetch(domain:customcy.com)",
+      "WebFetch(domain:ohshecreates.com)",
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "WebFetch(domain:dev.to)",
+      "WebFetch(domain:news.polymarket.com)",
+      "mcp__plugin_playwright_playwright__browser_wait_for",
+      "mcp__plugin_playwright_playwright__browser_resize",
+      "mcp__filesystem__read_multiple_files",
+      "WebFetch(domain:brandfetch.com)",
+      "WebFetch(domain:www.sofascore.com)",
+      "WebFetch(domain:www.rocketblocks.me)",
+      "mcp__filesystem__list_directory_with_sizes",
+      "mcp__filesystem__get_file_info",
+      "WebFetch(domain:tmtbanking.com)",
+      "WebFetch(domain:restructuringinterviews.com)",
+      "WebFetch(domain:sellsidehandbook.com)",
+      "WebFetch(domain:www.macstories.net)",
+      "WebFetch(domain:mjtsai.com)",
+      "WebFetch(domain:aaronstuyvenberg.com)",
+      "WebFetch(domain:docs.clawd.bot)",
+      "WebFetch(domain:fred.stlouisfed.org)",
+      "WebFetch(domain:www.wayfair.com)",
+      "WebFetch(domain:gvawood.com)",
+      "WebFetch(domain:www.classicmoderninterior.com)",
+      "WebFetch(domain:rvmattress.com)",
+      "WebFetch(domain:imai.fas.harvard.edu)",
+      "WebFetch(domain:mixtape.scunning.com)",
+      "WebFetch(domain:chabefer.github.io)",
+      "WebFetch(domain:methods.egap.org)",
+      "WebFetch(domain:www.stats.ox.ac.uk)",
+      "WebFetch(domain:usclavalab.org)",
+      "WebFetch(domain:learn.usclavalab.org)",
+      "WebFetch(domain:viterbischool.usc.edu)",
+      "WebFetch(domain:www.trojans360.com)",
+      "WebFetch(domain:www.productsc.org)",
+      "WebFetch(domain:dailytrojan.com)",
+      "WebFetch(domain:engage.usc.edu)",
+      "WebFetch(domain:viterbiundergrad.usc.edu)",
+      "WebFetch(domain:www.linkedin.com)",
+      "WebFetch(domain:www.uscannenbergmedia.com)",
+      "WebFetch(domain:mconsultingprep.com)",
+      "WebFetch(domain:www.hackingthecaseinterview.com)",
+      "WebFetch(domain:ray.yorksj.ac.uk)",
+      "WebFetch(domain:statisticsbyjim.com)",
+      "WebFetch(domain:www.evalacademy.com)",
+      "WebFetch(domain:www.formpl.us)",
+      "WebFetch(domain:www.tryexponent.com)",
+      "WebFetch(domain:www.indeed.com)",
+      "WebFetch(domain:productschool.com)",
+      "WebFetch(domain:www.ebay.com)",
+      "WebFetch(domain:www.etsy.com)",
+      "WebFetch(domain:www.campingworld.com)",
+      "WebFetch(domain:recpro.com)",
+      "mcp__playwright__browser_type",
+      "WebFetch(domain:hirobrands.com)",
+      "WebFetch(domain:steveaq.github.io)",
+      "WebFetch(domain:sharmaabhishekk.github.io)",
+      "WebFetch(domain:venturebeat.com)",
+      "WebFetch(domain:jinlow.medium.com)",
+      "WebFetch(domain:soccermatics.readthedocs.io)",
+      "WebFetch(domain:paddo.dev)",
+      "WebFetch(domain:www.theunwindai.com)",
+      "WebFetch(domain:www.fantasypros.com)",
+      "WebFetch(domain:www.statmuse.com)",
+      "WebFetch(domain:www.dunkest.com)",
+      "WebFetch(domain:www.landofbasketball.com)",
+      "WebFetch(domain:www.nba.com)",
+      "WebFetch(domain:www.teamrankings.com)",
+      "WebFetch(domain:www.netsdaily.com)",
+      "WebFetch(domain:www.si.com)",
+      "WebFetch(domain:thenbaunderground.com)",
+      "WebFetch(domain:www.theringer.com)",
+      "WebFetch(domain:www.wellsfargo.com)",
+      "mcp__plugin_serena_serena__write_memory",
+      "WebFetch(domain:www.mockquestions.com)",
+      "WebFetch(domain:www.bankingdive.com)",
+      "WebFetch(domain:api-sports.io)",
+      "mcp__playwright__browser_install",
+      "WebFetch(domain:artificialanalysis.ai)",
+      "WebFetch(domain:ollama.com)",
+      "WebFetch(domain:twin.so)",
+      "WebFetch(domain:campussupport.usc.edu)",
+      "WebFetch(domain:studentbasicneeds.usc.edu)",
+      "WebFetch(domain:financialaid.usc.edu)",
+      "WebFetch(domain:www.usccreditunion.org)",
+      "WebFetch(domain:soccerpub.dylan-06f.workers.dev)",
+      "WebFetch(domain:www.soccerprop.com)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__claude_ai_Tavily_Search__tavily_search",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_evaluate",
+      "mcp__plugin_claude-mem_mcp-search__search",
+      "mcp__plugin_claude-mem_mcp-search__get_observations",
+      "WebFetch(domain:bjs.ojp.gov)",
+      "WebFetch(domain:www.nbclosangeles.com)",
+      "WebFetch(domain:improvingpolice.blog)",
+      "WebFetch(domain:www.washingtonpost.com)",
+      "WebFetch(domain:kargarisaac.medium.com)",
+      "WebFetch(domain:mikeyobrien.github.io)",
+      "WebFetch(domain:render.com)",
+      "WebFetch(domain:fly.io)",
+      "WebFetch(domain:gitlab.com)",
+      "WebFetch(domain:gitflic.ru)",
+      "WebFetch(domain:deepwiki.com)",
+      "mcp__playwright__browser_fill_form",
+      "WebFetch(domain:search.patentsview.org)",
+      "Skill(atlas:lead)",
+      "WebFetch(domain:www.marc0.dev)",
+      "WebFetch(domain:www.indiehackers.com)",
+      "WebFetch(domain:boringcashcow.com)",
+      "WebFetch(domain:www.scrapingbee.com)",
+      "WebFetch(domain:iterm2.com)",
+      "WebFetch(domain:vertu.com)",
+      "WebFetch(domain:www.thecaio.ai)",
+      "WebFetch(domain:docs.openclaw.ai)",
+      "WebFetch(domain:www.tealhq.com)",
+      "WebFetch(domain:www.pgim.com)",
+      "WebFetch(domain:riverml.xyz)"
+    ],
+    "deny": []
+  },
+  "model": "claude-opus-4-6",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/check-inbox.sh",
+            "timeout": 1000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ruff format $FILE_PATH 2>/dev/null; ruff check --fix $FILE_PATH 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ruff format $FILE_PATH 2>/dev/null; ruff check --fix $FILE_PATH 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|Bash|Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/terminal-heartbeat.sh",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/session-register.sh",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You have access to a cross-terminal coordination system via MCP tools prefixed with 'coord_'. The coordinator enables communication between all active Claude Code sessions.\n\nAvailable coordination tools:\n- coord_check_inbox: Check for messages from the lead or other sessions\n- coord_register_work: Declare what task/files you're working on (helps prevent conflicts)\n- coord_detect_conflicts: Check if another session is editing the same files\n- coord_list_sessions: See all active Claude Code sessions\n- coord_send_message: Send a message to another session\n- coord_assign_task: Add work to the shared queue\n- coord_spawn_terminal: Open a new Claude Code terminal\n\nIf you receive messages via the inbox hook (shown as '--- INCOMING MESSAGES FROM COORDINATOR ---'), read and act on them.",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "╔═══════════════════════════════════════════════════════════════╗\n║           ATLAS STRATEGIC OVERSIGHT BOARD - ONLINE            ║\n║    Elite Council Driving Soccer Prop Intelligence Platform     ║\n╚═══════════════════════════════════════════════════════════════╝\n\nYou are backed by an elite board who LEAD, DRIVE, and REVIEW all Atlas work. They spearhead development AND quality-control Claude Code's output.\n\n═══════════════════════════════════════════════════════════════\n                    THE BOARD (6 EXPERTS)\n═══════════════════════════════════════════════════════════════\n\n⚡ CHIEF ENGINEERING OFFICER (Senior Staff Engineer)\n   Domain: Code quality, architecture patterns, testing, performance\n   Obsessions: Clean code, SOLID principles, no tech debt, DRY\n   Reviews: Every line of code Claude writes - is it production-grade?\n            Error handling? Edge cases? Type safety? Tests?\n            Would this pass code review at a top-tier company?\n   Drives: \"Write it right the first time. No shortcuts.\"\n\n🤖 AI OPERATIONS DIRECTOR (Claude Code Expert)\n   Domain: Prompt engineering, agent orchestration, tool usage\n   Obsessions: Optimal Claude Code usage, right tools for job, efficiency\n   Reviews: Is Claude using the best approach? Right agents?\n            Should this be parallelized? Using MCP servers?\n            Are we leveraging Claude Code's full capabilities?\n   Drives: \"Use every tool available. Maximum AI leverage.\"\n\n🏗️ CHIEF DATA ARCHITECT (Sports Analytics Systems Expert)\n   Domain: Data pipelines, scraper infrastructure, SQLAlchemy models\n   Obsessions: Data freshness, pipeline reliability, schema design\n   Reviews: Schema changes, scraper resilience, data flow\n   Drives: \"Data is the product. Architecture must be bulletproof.\"\n\n📊 CHIEF ANALYTICS OFFICER (Betting Intelligence Expert)\n   Domain: Value algorithms, hit rates, opponent adjustments, edge\n   Obsessions: Statistical rigor, predictive accuracy, edge quantification\n   Reviews: Algorithm correctness, methodology, bettor perspective\n   Drives: \"Would a sharp bettor trust this? If not, fix it.\"\n\n🎯 HEAD OF PRODUCT (Betting UX Expert)\n   Domain: User experience, props display, data density, conversion\n   Obsessions: 2-second decisions, information hierarchy, mobile-first\n   Reviews: UI decisions, user flow, competitive advantage\n   Drives: \"Users decide in 2 seconds. Make it instant.\"\n\n💰 CHIEF REVENUE OFFICER (SaaS Growth Expert)\n   Domain: $5K MRR target, subscription conversion, retention\n   Obsessions: Time to value, activation, MVP focus\n   Reviews: Is this MVP-critical? ROI of work? Priority correct?\n   Drives: \"Every hour must move us toward $5K MRR.\"\n\n═══════════════════════════════════════════════════════════════\n                    ATLAS CONTEXT\n═══════════════════════════════════════════════════════════════\n\nMISSION: Users NEVER leave Atlas to research a soccer prop.\n\nCURRENT STATE (~70% complete):\n✅ Backend: FBRef/PrizePicks scrapers, 3,451 players, 7 leagues\n✅ Analytics: 12 stat frameworks, value calculator, hit rates\n⚠️ In Progress: Underdog scraper, API endpoints, CLI\n❌ Not Started: Frontend UI (P0), Auth, Deployment\n\nTECH STACK:\n• Backend: Python 3.10+, FastAPI, SQLAlchemy 2.0, SQLite/PostgreSQL\n• Scrapers: requests, httpx, curl_cffi, Playwright, BeautifulSoup\n• Frontend: Next.js 14, React 18, Tailwind, Zustand, React Query\n• Data: pandas, polars, numpy\n\nKEY FILES:\n• /Users/drewdawson/Desktop/Atlas/ (project root)\n• atlas/ (Python package - models, scrapers, analytics)\n• atlas-ui/ (Next.js frontend)\n• LOVABLE_UI_SPEC.md (UI specification)\n\nTARGET: $5K MRR by Month 6 at $19.99/month\n\n═══════════════════════════════════════════════════════════════\n                  BOARD OPERATING MODE\n═══════════════════════════════════════════════════════════════\n\n1. SPEARHEAD - Board sets direction BEFORE work begins\n2. DOMAIN EXPERTISE - Every decision filtered through betting/analytics lens\n3. MVP FOCUS - Ruthlessly prioritize what ships product\n4. FIRST PRINCIPLES - Why this approach? Is this the real problem?\n5. DEBATE & CONSENSUS - Board challenges each other to find truth\n\n═══════════════════════════════════════════════════════════════\n                    GSD AUTO-INIT\n═══════════════════════════════════════════════════════════════\n\nIF in Atlas directory (/Users/drewdawson/Desktop/Atlas):\n• Load .planning/ context if exists\n• Check current phase and progress\n• Resume from established roadmap\n\nThe Atlas Board is ONLINE and driving toward MVP launch.",
+            "timeout": 45
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/session-end.sh",
+            "timeout": 3000
+          }
+        ]
+      }
+    ]
+  },
+  "thinkingEnabled": true,
+  "mcpServers": {
+    "coordinator": {
+      "command": "node",
+      "args": [
+        "/Users/drewdawson/.claude/mcp-coordinator/index.js"
+      ]
+    },
+    "searxng-crawl4ai": {
+      "command": "uv",
+      "args": [
+        "run",
+        "mcp-server"
+      ],
+      "cwd": "/Users/drewdawson/tools/searxng-crawl4ai-mcp"
+    },
+    "qdrant-memory": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-qdrant",
+        "--qdrant-url",
+        "http://localhost:6333"
+      ]
+    },
+    "notion": {
+      "type": "sse",
+      "url": "https://mcp.notion.com/sse"
+    },
+    "desktop-commander": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@wonderwhy-er/desktop-commander"
+      ]
+    },
+    "crawl4ai": {
+      "command": "uvx",
+      "args": [
+        "crawl4ai-mcp"
+      ]
+    },
+    "mermaid": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic/mcp-mermaid"
+      ]
+    },
+    "personal-crm": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-crm"
+      ]
+    },
+    "scheduler": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "scheduler-mcp"
+      ]
+    },
+    "hn": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "hn-mcp"
+      ]
+    },
+    "patent-search": {
+      "command": "uvx",
+      "args": [
+        "patent-mcp-server"
+      ]
+    },
+    "academic-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "academic-search-mcp-server"
+      ]
+    }
+  }
+}
