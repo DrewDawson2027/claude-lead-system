@@ -30,10 +30,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `commands/lead.md`: replaced private project name example with generic placeholder
 
 ### Changed
-- `README.md`: complete rewrite with badges, hero description, architecture diagram, platform table, enriched session file example, one-line install, and full components reference
+- `README.md`: full virality-focused rewrite — punchy hero tagline, live CI badge, star badge, demo session dashboard, comparison table vs other multi-agent frameworks, star-history chart, star CTA, PR/issue links, and clearer "zero tokens" narrative
+- `.github/FUNDING.yml`: added funding configuration (GitHub Sponsors / ko-fi placeholders)
+- `.github/pull_request_template.md`: added PR checklist template covering all CI gates
+- `SECURITY.md`: added security policy documenting trust boundary, local-only data, and sanitization
 - `settings/settings.local.json`: replaced with a clean, generic template — removed private project references, personal paths, personal MCP servers, and project-specific prompt content
-- `hooks/terminal-heartbeat.sh`: removed private project backward-compatibility block (Atlas-specific path handling)
-- `.github/workflows/ci.yml`: added `test-unit` (unit + e2e tests) and `test-hooks` (smoke + regression) jobs; switched to `npm ci` with committed lock file; install `jq` in hooks test job
+- `hooks/terminal-heartbeat.sh`: removed private project backward-compatibility block
+- `.github/workflows/ci.yml`: added `test-unit` (unit + e2e tests) and `test-hooks` (smoke + regression) jobs; switched to `npm ci` with committed lock file; install `jq` in hooks test job; `permissions: contents: read`
 - `mcp-coordinator/package.json`: added `scripts.test:unit` and `scripts.test:e2e`
 
 ## [1.0.0] — 2026-02-01
