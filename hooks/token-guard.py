@@ -4,7 +4,7 @@ Token Guard: PreToolUse hook that enforces agent spawning limits.
 
 Rules enforced:
 1. Max 1 Explore agent per session
-2. Max 1 research agent per session (deep-researcher, ssrn-researcher, etc.)
+2. Max 1 research agent per session (deep-researcher, web-researcher, etc.)
 3. Max 3 total agents per session (was 5 — tightened)
 4. Max 1 of any subagent_type per session (no duplicates ever)
 5. No parallel spawns within 30s window
@@ -29,7 +29,7 @@ PARALLEL_WINDOW_SECONDS = 30
 ONE_PER_SESSION = {
     "Explore",
     "deep-researcher",
-    "ssrn-researcher",
+    "web-researcher",
     "competitor-tracker",
     "gtm-strategist",
     "Plan",
@@ -38,7 +38,6 @@ ONE_PER_SESSION = {
 # Types that are always allowed (lightweight, no exploration)
 ALWAYS_ALLOWED = {
     "claude-code-guide",
-    "statusline-setup",
     "haiku",
 }
 
@@ -149,16 +148,16 @@ def extract_target_dirs(prompt):
     """Extract directory paths from an Explore agent's prompt.
 
     Looks for common patterns like:
-    - START: ~/Projects/trust-engine/
+    - START: ~/Projects/my-project/
     - ~/Projects/foo/
-    - /Users/.../src/
+    - /home/user/src/
     """
     import re
     dirs = []
     # Match paths that look like directories (end with / or contain src/, lib/, etc.)
     patterns = [
         r'(?:START:\s*)(~?/[^\s\n]+)',  # START: /path/to/dir
-        r'(~?/[^\s\n]*(?:Projects|Desktop|src|lib)/[^\s\n]*)',  # Common project paths
+        r'(~?/[^\s\n]*(?:Projects|src|lib)/[^\s\n]*)',  # Common project paths
     ]
     for pattern in patterns:
         for match in re.finditer(pattern, prompt):

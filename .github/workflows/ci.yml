@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Minimal permissions: read-only checkout is sufficient for all CI jobs
+permissions:
+  contents: read
+
 jobs:
   lint-shell:
     name: Lint shell scripts
@@ -43,8 +47,45 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: mcp-coordinator/package.json
+          cache-dependency-path: mcp-coordinator/package-lock.json
       - name: Install deps
-        run: cd mcp-coordinator && npm install
+        run: cd mcp-coordinator && npm ci
       - name: Check syntax
-        run: node --check mcp-coordinator/index.js
+        run: |
+          node --check mcp-coordinator/index.js
+          node --check mcp-coordinator/lib.js
+
+  test-unit:
+    name: Unit tests (MCP coordinator)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mcp-coordinator/package-lock.json
+      - name: Install deps
+        run: cd mcp-coordinator && npm ci
+      - name: Run unit tests
+        run: cd mcp-coordinator && npm run test:unit
+      - name: Run e2e tests
+        run: cd mcp-coordinator && npm run test:e2e
+
+  test-hooks:
+    name: Hooks smoke & regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install jq
+        run: sudo apt-get install -y jq
+      - name: Hooks smoke test
+        run: bash tests/hooks-smoke.sh
+      - name: Health-check regression test
+        run: bash tests/health-check-regression.sh

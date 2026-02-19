@@ -6,6 +6,10 @@
   "engines": {
     "node": ">=18"
   },
+  "scripts": {
+    "test:unit": "node --test tests/unit.test.js",
+    "test:e2e": "node --test tests/e2e.test.js"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0"
   }

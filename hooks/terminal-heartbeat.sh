@@ -158,19 +158,6 @@ if $DO_STALE; then
   done
 fi
 
-# ─── Atlas backward compat ───
-case "$CWD" in
-  */Desktop/Atlas*|*/atlas-betting*)
-    mkdir -p ~/.claude/atlas-terminals
-    jq -n --arg ts "$NOW" --arg session "$SID8" --arg tool "$TOOL_NAME" \
-          --arg file "$FILE_BASE" --arg path "$FILE_PATH" --arg cwd "$CWD" \
-          '{ts:$ts,session:$session,tool:$tool,file:$file,path:$path,cwd:$cwd}' \
-      >> ~/.claude/atlas-terminals/activity.jsonl
-    ALINES=$(wc -l < ~/.claude/atlas-terminals/activity.jsonl 2>/dev/null || echo 0)
-    [ "$ALINES" -gt 250 ] && tail -200 ~/.claude/atlas-terminals/activity.jsonl > ~/.claude/atlas-terminals/activity.tmp && mv ~/.claude/atlas-terminals/activity.tmp ~/.claude/atlas-terminals/activity.jsonl
-    ;;
-esac
-
 # Auto-truncate activity log
 LINES=$(wc -l < ~/.claude/terminals/activity.jsonl 2>/dev/null || echo 0)
 [ "$LINES" -gt 600 ] && tail -500 ~/.claude/terminals/activity.jsonl > ~/.claude/terminals/activity.tmp && mv ~/.claude/terminals/activity.tmp ~/.claude/terminals/activity.jsonl
