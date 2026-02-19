@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, append
 import { join, basename } from "path";
 import { homedir, platform } from "os";
 import { execSync } from "child_process";
+import { readJSON, readJSONL, getSessionStatus, timeAgo, sanitizeId, sanitizeModel } from "./lib.js";
 
 const TERMINALS_DIR = join(homedir(), ".claude", "terminals");
 const INBOX_DIR = join(TERMINALS_DIR, "inbox");
@@ -171,19 +172,6 @@ function buildWorkerScript(taskId, escapedDir, resultFile, pidFile, metaFile, mo
 // HELPERS
 // ─────────────────────────────────────────────────────────
 
-function readJSON(path) {
-  try { return JSON.parse(readFileSync(path, "utf-8")); } catch { return null; }
-}
-
-function readJSONL(path) {
-  try {
-    if (!existsSync(path)) return [];
-    return readFileSync(path, "utf-8").trim().split("\n").filter(Boolean)
-      .map(line => { try { return JSON.parse(line); } catch { return null; } })
-      .filter(Boolean);
-  } catch { return []; }
-}
-
 function getAllSessions() {
   try {
     return readdirSync(TERMINALS_DIR)
@@ -191,25 +179,6 @@ function getAllSessions() {
       .map(f => readJSON(join(TERMINALS_DIR, f)))
       .filter(Boolean);
   } catch { return []; }
-}
-
-function getSessionStatus(session) {
-  if (session.status === "closed") return "closed";
-  if (session.status === "stale") return "stale";
-  if (!session.last_active) return "unknown";
-  const age = (Date.now() - new Date(session.last_active).getTime()) / 1000;
-  if (age < 180) return "active";
-  if (age < 600) return "idle";
-  return "stale";
-}
-
-function timeAgo(ts) {
-  if (!ts) return "unknown";
-  const seconds = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 function text(content) {
@@ -456,7 +425,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── GET SESSION DETAIL (enriched) ───
     case "coord_get_session": {
-      const sid = args.session_id;
+      const sid = sanitizeId(args.session_id);
+      if (!sid) return text("Invalid session_id.");
       const session = readJSON(join(TERMINALS_DIR, `session-${sid}.json`));
       if (!session) return text(`Session ${sid} not found.`);
 
@@ -499,7 +469,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── SEND MESSAGE ───
     case "coord_send_message": {
-      const { from, to, content, priority } = args;
+      const { from, content, priority } = args;
+      const to = sanitizeId(args.to);
+      if (!to) return text("Invalid session ID for 'to'.");
       const inboxFile = join(INBOX_DIR, `${to}.jsonl`);
       appendFileSync(inboxFile, JSON.stringify({
         ts: new Date().toISOString(), from: from || "unknown",
@@ -519,7 +491,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── CHECK INBOX ───
     case "coord_check_inbox": {
-      const sid = args.session_id;
+      const sid = sanitizeId(args.session_id);
+      if (!sid) return text("Invalid session_id.");
       const inboxFile = join(INBOX_DIR, `${sid}.jsonl`);
       const messages = readJSONL(inboxFile);
       if (messages.length === 0) return text("No pending messages.");
@@ -585,7 +558,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── REGISTER WORK ───
     case "coord_register_work": {
-      const { session_id, task, files } = args;
+      const { task, files } = args;
+      const session_id = sanitizeId(args.session_id);
+      if (!session_id) return text("Invalid session_id.");
       const sessionFile = join(TERMINALS_DIR, `session-${session_id}.json`);
       if (!existsSync(sessionFile)) return text(`Session ${session_id} not found.`);
       const session = readJSON(sessionFile);
@@ -642,7 +617,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── SPAWN WORKER (cross-platform) ───
     case "coord_spawn_worker": {
-      const { directory, prompt, model, agent, task_id, files, layout } = args;
+      const { directory, prompt, files, layout } = args;
+      const safeModel = sanitizeModel(args.model);
+      const safeAgent = args.agent ? sanitizeId(args.agent) : null;
+      if (args.agent && !safeAgent) return text("Invalid agent name — only alphanumeric, hyphens, underscores, and dots allowed.");
+      const taskId = sanitizeId(args.task_id) || `W${Date.now()}`;
       if (!existsSync(directory)) return text(`Directory not found: ${directory}`);
 
       // Conflict check
@@ -661,14 +640,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
       }
 
-      const taskId = task_id || `W${Date.now()}`;
       const resultFile = join(RESULTS_DIR, `${taskId}.txt`);
       const pidFile = join(RESULTS_DIR, `${taskId}.pid`);
       const metaFile = join(RESULTS_DIR, `${taskId}.meta.json`);
 
       const meta = {
         task_id: taskId, directory, prompt: prompt.slice(0, 500),
-        model: model || "sonnet", agent: agent || null,
+        model: safeModel, agent: safeAgent || null,
         files: files || [], spawned: new Date().toISOString(), status: "running",
       };
       writeFileSync(metaFile, JSON.stringify(meta, null, 2));
@@ -686,8 +664,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const promptFile = join(RESULTS_DIR, `${taskId}.prompt`);
         writeFileSync(promptFile, contextPreamble + prompt + contextSuffix);
 
-        const modelFlag = `--model ${model || "sonnet"}`;
-        const agentFlag = agent ? `--agent ${agent}` : "";
+        const modelFlag = `--model ${safeModel}`;
+        const agentFlag = safeAgent ? `--agent ${safeAgent}` : "";
         const settingsFlag = existsSync(SETTINGS_FILE) ? (PLATFORM === "win32" ? `--settings "${SETTINGS_FILE}"` : `--settings '${SETTINGS_FILE}'`) : "";
 
         const workerScript = buildWorkerScript(taskId, escapedDir, resultFile, pidFile, metaFile, modelFlag, agentFlag, settingsFlag, promptFile);
@@ -695,7 +673,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         return text(
           `Worker spawned: **${taskId}**\n` +
-          `- Directory: ${directory}\n- Model: ${model || "sonnet"}\n- Agent: ${agent || "default"}\n` +
+          `- Directory: ${directory}\n- Model: ${safeModel}\n- Agent: ${safeAgent || "default"}\n` +
           `- Layout: ${layout || "tab"} via ${usedApp}\n- Platform: ${PLATFORM}\n` +
           `- Files: ${files?.join(", ") || "none"}\n- Results: ${resultFile}\n\n` +
           `Check: \`coord_get_result task_id="${taskId}"\``
@@ -709,7 +687,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── GET RESULT ───
     case "coord_get_result": {
-      const { task_id, tail_lines } = args;
+      const task_id = sanitizeId(args.task_id);
+      if (!task_id) return text("Invalid task_id.");
+      const { tail_lines } = args;
       const resultFile = join(RESULTS_DIR, `${task_id}.txt`);
       const pidFile = join(RESULTS_DIR, `${task_id}.pid`);
       const metaFile = join(RESULTS_DIR, `${task_id}.meta.json`);
@@ -745,7 +725,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── WAKE SESSION (cross-platform) ───
     case "coord_wake_session": {
-      const { session_id, message } = args;
+      const { message } = args;
+      const session_id = sanitizeId(args.session_id);
+      if (!session_id) return text("Invalid session_id.");
       const sessionFile = join(TERMINALS_DIR, `session-${session_id}.json`);
       if (!existsSync(sessionFile)) return text(`Session ${session_id} not found.`);
       const sessionData = readJSON(sessionFile);
@@ -869,7 +851,8 @@ return found`.trim();
 
     // ─── KILL WORKER (cross-platform) ───
     case "coord_kill_worker": {
-      const { task_id } = args;
+      const task_id = sanitizeId(args.task_id);
+      if (!task_id) return text("Invalid task_id.");
       const pidFile = join(RESULTS_DIR, `${task_id}.pid`);
       const metaFile = join(RESULTS_DIR, `${task_id}.meta.json`);
 
@@ -891,11 +874,16 @@ return found`.trim();
 
     // ─── RUN PIPELINE ───
     case "coord_run_pipeline": {
-      const { directory, tasks, pipeline_id } = args;
+      const { directory, tasks } = args;
       if (!existsSync(directory)) return text(`Directory not found: ${directory}`);
       if (!tasks?.length) return text("No tasks provided.");
 
-      const pipelineId = pipeline_id || `P${Date.now()}`;
+      // Validate task names (used in file paths and shell scripts)
+      for (const task of tasks) {
+        if (!sanitizeId(task.name)) return text(`Invalid task name "${task.name}" — only alphanumeric, hyphens, underscores, and dots allowed.`);
+      }
+
+      const pipelineId = sanitizeId(args.pipeline_id) || `P${Date.now()}`;
       const pipelineDir = join(RESULTS_DIR, pipelineId);
       mkdirSync(pipelineDir, { recursive: true });
 
@@ -917,10 +905,12 @@ return found`.trim();
       if (PLATFORM === "win32") {
         script = `@echo off\ncd /d "${escapedDir}"\n`;
         tasks.forEach((task, i) => {
+          const safeModel = sanitizeModel(task.model);
+          const safeAgent = task.agent ? sanitizeId(task.agent) : null;
           const pf = join(pipelineDir, `${i}-${task.name}.prompt`);
           const rf = join(pipelineDir, `${i}-${task.name}.txt`);
           script += `echo Step ${i}: ${task.name}\n`;
-          script += `claude -p --model ${task.model || "sonnet"} ${task.agent ? `--agent ${task.agent}` : ""} ${settingsFlag} < "${pf}" > "${rf}" 2>&1\n`;
+          script += `claude -p --model ${safeModel} ${safeAgent ? `--agent ${safeAgent}` : ""} ${settingsFlag} < "${pf}" > "${rf}" 2>&1\n`;
         });
         script += `echo {"status":"completed"} > "${join(pipelineDir, "pipeline.done")}"\n`;
         const runnerFile = join(pipelineDir, "run.bat");
@@ -928,11 +918,13 @@ return found`.trim();
       } else {
         script = `#!/bin/bash\nset -e\ncd '${escapedDir}'\n`;
         tasks.forEach((task, i) => {
+          const safeModel = sanitizeModel(task.model);
+          const safeAgent = task.agent ? sanitizeId(task.agent) : null;
           const pf = join(pipelineDir, `${i}-${task.name}.prompt`);
           const rf = join(pipelineDir, `${i}-${task.name}.txt`);
           script += `echo "=== Step ${i}: ${task.name} ===" | tee -a '${join(pipelineDir, "pipeline.log")}'\n`;
           script += `echo '{"step":${i},"name":"${task.name}","status":"running","started":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> '${join(pipelineDir, "pipeline.log")}'\n`;
-          script += `env -u CLAUDECODE claude -p --model ${task.model || "sonnet"} ${task.agent ? `--agent ${task.agent}` : ""} ${settingsFlag} < '${pf}' > '${rf}' 2>&1\n`;
+          script += `env -u CLAUDECODE claude -p --model ${safeModel} ${safeAgent ? `--agent ${safeAgent}` : ""} ${settingsFlag} < '${pf}' > '${rf}' 2>&1\n`;
           script += `echo '{"step":${i},"name":"${task.name}","status":"completed","finished":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> '${join(pipelineDir, "pipeline.log")}'\n`;
         });
         script += `echo '{"status":"completed","finished":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > '${join(pipelineDir, "pipeline.done")}'\n`;
@@ -963,7 +955,8 @@ return found`.trim();
 
     // ─── GET PIPELINE ───
     case "coord_get_pipeline": {
-      const { pipeline_id } = args;
+      const pipeline_id = sanitizeId(args.pipeline_id);
+      if (!pipeline_id) return text("Invalid pipeline_id.");
       const pipelineDir = join(RESULTS_DIR, pipeline_id);
       if (!existsSync(pipelineDir)) return text(`Pipeline ${pipeline_id} not found.`);
 
