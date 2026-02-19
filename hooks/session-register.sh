@@ -4,16 +4,15 @@
 # Captures transcript_path so the lead can read other sessions' conversations
 INPUT=$(cat)
 
-# Debug logging — write raw input to debug file
 mkdir -p ~/.claude/terminals
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) RAW_INPUT: $INPUT" >> ~/.claude/terminals/debug-session-register.log
 
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
 CWD=$(echo "$INPUT" | jq -r '.cwd // "unknown"')
 TRANSCRIPT=$(echo "$INPUT" | jq -r '.transcript_path // "unknown"')
 SOURCE=$(echo "$INPUT" | jq -r '.source // "startup"')
 
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) PARSED: session=$SESSION_ID cwd=$CWD source=$SOURCE" >> ~/.claude/terminals/debug-session-register.log
+# Structured debug logging — no raw input (avoids logging sensitive data)
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) session=${SESSION_ID:0:8} cwd=$CWD source=$SOURCE" >> ~/.claude/terminals/debug-session-register.log
 
 PROJECT=$(basename "$CWD")
 BRANCH=$(cd "$CWD" 2>/dev/null && git branch --show-current 2>/dev/null || echo "none")
