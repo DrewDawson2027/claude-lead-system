@@ -29,7 +29,7 @@ if bash "$HOME/.claude/hooks/health-check.sh" >/tmp/hc-out-1.txt 2>&1; then
   echo "expected placeholder config to fail"
   exit 1
 fi
-rg -q "unresolved __HOME__ placeholder" /tmp/hc-out-1.txt
+grep -q "unresolved __HOME__ placeholder" /tmp/hc-out-1.txt
 
 # 2) Valid config should pass
 cat > "$HOME/.claude/settings.local.json" <<JSON
@@ -43,6 +43,6 @@ cat > "$HOME/.claude/settings.local.json" <<JSON
 JSON
 
 bash "$HOME/.claude/hooks/health-check.sh" >/tmp/hc-out-2.txt 2>&1
-rg -q "STATUS: HEALTHY" /tmp/hc-out-2.txt
+grep -q "STATUS: HEALTHY" /tmp/hc-out-2.txt
 
 echo "health-check regression tests passed"
