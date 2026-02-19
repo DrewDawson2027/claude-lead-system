@@ -101,7 +101,7 @@ if [ -f ~/.claude/settings.local.json ]; then
     PASS=$((PASS + 1))
   else
     # Also check global settings
-    if jq -e '.hooks.PreToolUse[].hooks[]? | select(.command | contains("check-inbox"))' ~/.claude/settings.json &>/dev/null 2>/dev/null; then
+    if jq -e '.hooks.PreToolUse[].hooks[]? | select(.command | contains("check-inbox"))' ~/.claude/settings.json &>/dev/null; then
       echo "  PASS  inbox hook registered in global settings"
       PASS=$((PASS + 1))
     else
@@ -116,7 +116,7 @@ fi
 
 echo ""
 echo "Session Files:"
-ACTIVE=$(ls ~/.claude/terminals/session-*.json 2>/dev/null | wc -l | tr -d ' ')
+ACTIVE=$(find ~/.claude/terminals/ -name 'session-*.json' 2>/dev/null | wc -l | tr -d ' ')
 echo "  INFO  $ACTIVE session file(s) on disk"
 
 echo ""

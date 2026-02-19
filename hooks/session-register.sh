@@ -31,7 +31,7 @@ TTY_JSON=""
 
 # Write per-session status file for quick lookup by lead
 echo "{\"session\":\"${SESSION_ID:0:8}\",\"status\":\"active\",\"project\":\"$PROJECT\",\"branch\":\"$BRANCH\",\"cwd\":\"$CWD\",\"transcript\":\"$TRANSCRIPT\",\"started\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"last_active\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"$TTY_JSON}" \
-  > ~/.claude/terminals/session-${SESSION_ID:0:8}.json
+  > ~/.claude/terminals/session-"${SESSION_ID:0:8}".json
 
 # Auto-truncate sessions log
 LINES=$(wc -l < ~/.claude/terminals/sessions.jsonl 2>/dev/null || echo 0)

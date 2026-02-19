@@ -56,7 +56,6 @@ def main():
 
     subagent_type = tool_input.get("subagent_type", "")
     description = tool_input.get("description", "")
-    model = tool_input.get("model", "")
 
     # Skip gating for lightweight agents
     if subagent_type in ALWAYS_ALLOWED:
