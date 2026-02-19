@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, append
 import { join, basename } from "path";
 import { homedir, platform } from "os";
 import { execSync } from "child_process";
+import { fileURLToPath } from "url";
 
 const TERMINALS_DIR = join(homedir(), ".claude", "terminals");
 const INBOX_DIR = join(TERMINALS_DIR, "inbox");
@@ -18,7 +19,13 @@ const ACTIVITY_FILE = join(TERMINALS_DIR, "activity.jsonl");
 const QUEUE_FILE = join(TERMINALS_DIR, "queue.jsonl");
 const SESSION_CACHE_DIR = join(homedir(), ".claude", "session-cache");
 const SETTINGS_FILE = join(homedir(), ".claude", "settings.local.json");
-const PLATFORM = platform(); // 'darwin', 'win32', 'linux'
+const PLATFORM = process.env.COORDINATOR_PLATFORM || platform(); // 'darwin', 'win32', 'linux'
+const TEST_MODE = process.env.COORDINATOR_TEST_MODE === "1";
+const CLAUDE_BIN = process.env.COORDINATOR_CLAUDE_BIN || "claude";
+const SAFE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const SAFE_NAME_RE = /^[A-Za-z0-9._-]{1,64}$/;
+const SAFE_MODEL_RE = /^[A-Za-z0-9._:-]{1,64}$/;
+const SAFE_AGENT_RE = /^[A-Za-z0-9._:-]{1,64}$/;
 
 // Ensure directories exist
 mkdirSync(INBOX_DIR, { recursive: true });
@@ -48,77 +55,81 @@ function getTerminalApp() {
   }
 }
 
+function buildPlatformLaunchCommand(platformName, termApp, command, layout = "tab") {
+  if (platformName === "darwin") {
+    const escapedCmd = command.replace(/"/g, '\\"');
+    if (termApp === "iTerm2") {
+      const cmd = layout === "split"
+        ? `osascript -e 'tell application "iTerm2" to tell current session of current window to split vertically with default profile' -e 'tell application "iTerm2" to tell current session of current window to write text "${escapedCmd}"'`
+        : `osascript -e 'tell application "iTerm2" to tell current window to create tab with default profile' -e 'tell application "iTerm2" to tell current session of current window to write text "${escapedCmd}"'`;
+      return { cmd, shell: false, app: "iTerm2" };
+    }
+    if (termApp === "Terminal") {
+      return {
+        cmd: `osascript -e 'tell application "Terminal" to do script "${escapedCmd}"'`,
+        shell: false,
+        app: "Terminal",
+      };
+    }
+    return {
+      cmd: `nohup bash -c '${command.replace(/'/g, "'\\''")}' &>/dev/null &`,
+      shell: false,
+      app: "background",
+    };
+  }
+
+  if (platformName === "win32") {
+    const escapedCmd = command.replace(/"/g, '""');
+    if (termApp === "WindowsTerminal") {
+      return {
+        cmd: layout === "split"
+          ? `wt -w 0 sp -V cmd /c "${escapedCmd}"`
+          : `wt -w 0 nt cmd /c "${escapedCmd}"`,
+        shell: true,
+        app: "WindowsTerminal",
+      };
+    }
+    return { cmd: `start cmd /c "${escapedCmd}"`, shell: true, app: "cmd" };
+  }
+
+  if (termApp === "gnome-terminal") {
+    return { cmd: `gnome-terminal -- bash -c '${command.replace(/'/g, "'\\''")}'`, shell: false, app: "gnome-terminal" };
+  }
+  if (termApp === "konsole") {
+    return { cmd: `konsole -e bash -c '${command.replace(/'/g, "'\\''")}'`, shell: false, app: "konsole" };
+  }
+  if (termApp === "alacritty") {
+    return { cmd: `alacritty -e bash -c '${command.replace(/'/g, "'\\''")}'`, shell: false, app: "alacritty" };
+  }
+  if (termApp === "kitty") {
+    return {
+      cmd: layout === "split"
+        ? `kitty @ launch --type=window bash -c '${command.replace(/'/g, "'\\''")}'`
+        : `kitty @ launch --type=tab bash -c '${command.replace(/'/g, "'\\''")}'`,
+      shell: false,
+      app: "kitty",
+    };
+  }
+  return {
+    cmd: `nohup bash -c '${command.replace(/'/g, "'\\''")}' &>/dev/null &`,
+    shell: false,
+    app: "background",
+  };
+}
+
 // Open a new terminal pane/tab with a command. Cross-platform.
 // layout: "tab" (default) or "split" (vertical split where supported)
 function openTerminalWithCommand(command, layout = "tab") {
-  const termApp = getTerminalApp();
-
-  if (PLATFORM === "darwin") {
-    const escapedCmd = command.replace(/"/g, '\\"');
-    if (termApp === "iTerm2") {
-      if (layout === "split") {
-        execSync(
-          `osascript -e 'tell application "iTerm2" to tell current session of current window to split vertically with default profile' -e 'tell application "iTerm2" to tell current session of current window to write text "${escapedCmd}"'`,
-          { timeout: 5000 }
-        );
-      } else {
-        execSync(
-          `osascript -e 'tell application "iTerm2" to tell current window to create tab with default profile' -e 'tell application "iTerm2" to tell current session of current window to write text "${escapedCmd}"'`,
-          { timeout: 5000 }
-        );
-      }
-      return termApp;
-    } else if (termApp === "Terminal") {
-      execSync(
-        `osascript -e 'tell application "Terminal" to do script "${escapedCmd}"'`,
-        { timeout: 5000 }
-      );
-      return termApp;
-    }
-    // macOS fallback: nohup background
-    execSync(`nohup bash -c '${command.replace(/'/g, "'\\''")}' &>/dev/null &`, { timeout: 5000 });
-    return "background";
-
-  } else if (PLATFORM === "win32") {
-    // Windows: use 'start' to open a new window
-    const escapedCmd = command.replace(/"/g, '""');
-    if (termApp === "WindowsTerminal") {
-      // Windows Terminal: new tab with 'wt' command
-      if (layout === "split") {
-        execSync(`wt -w 0 sp -V cmd /c "${escapedCmd}"`, { timeout: 5000, shell: true });
-      } else {
-        execSync(`wt -w 0 nt cmd /c "${escapedCmd}"`, { timeout: 5000, shell: true });
-      }
-      return "WindowsTerminal";
-    } else {
-      // PowerShell or cmd: open new window
-      execSync(`start cmd /c "${escapedCmd}"`, { timeout: 5000, shell: true });
-      return "cmd";
-    }
-
-  } else {
-    // Linux: try terminal emulators, fall back to nohup
-    if (termApp === "gnome-terminal") {
-      execSync(`gnome-terminal -- bash -c '${command.replace(/'/g, "'\\''")}'`, { timeout: 5000 });
-      return termApp;
-    } else if (termApp === "konsole") {
-      execSync(`konsole -e bash -c '${command.replace(/'/g, "'\\''")}'`, { timeout: 5000 });
-      return termApp;
-    } else if (termApp === "alacritty") {
-      execSync(`alacritty -e bash -c '${command.replace(/'/g, "'\\''")}'`, { timeout: 5000 });
-      return termApp;
-    } else if (termApp === "kitty") {
-      if (layout === "split") {
-        execSync(`kitty @ launch --type=window bash -c '${command.replace(/'/g, "'\\''")}'`, { timeout: 5000 });
-      } else {
-        execSync(`kitty @ launch --type=tab bash -c '${command.replace(/'/g, "'\\''")}'`, { timeout: 5000 });
-      }
-      return termApp;
-    }
-    // Linux fallback: nohup background
-    execSync(`nohup bash -c '${command.replace(/'/g, "'\\''")}' &>/dev/null &`, { timeout: 5000 });
-    return "background";
+  if (TEST_MODE) {
+    if (PLATFORM === "win32") return "test-background-win32";
+    execSync(`nohup bash -lc '${command.replace(/'/g, "'\\''")}' >/dev/null 2>&1 &`, { timeout: 5000 });
+    return "test-background";
   }
+
+  const termApp = getTerminalApp();
+  const launch = buildPlatformLaunchCommand(PLATFORM, termApp, command, layout);
+  execSync(launch.cmd, { timeout: 5000, ...(launch.shell ? { shell: true } : {}) });
+  return launch.app;
 }
 
 // Cross-platform process check
@@ -152,7 +163,7 @@ function buildWorkerScript(taskId, escapedDir, resultFile, pidFile, metaFile, mo
     return [
       `cd /d "${escapedDir}"`,
       `echo Worker ${taskId} starting at %date% %time% > "${resultFile}"`,
-      `claude -p ${modelFlag} ${agentFlag} ${settingsFlag} < "${promptFile}" >> "${resultFile}" 2>&1`,
+      `${CLAUDE_BIN} -p ${modelFlag} ${agentFlag} ${settingsFlag} < "${promptFile}" >> "${resultFile}" 2>&1`,
       `echo {"status":"completed","finished":"%date%T%time%","task_id":"${taskId}"} > "${metaFile}.done"`,
     ].join(" && ");
   } else {
@@ -160,7 +171,7 @@ function buildWorkerScript(taskId, escapedDir, resultFile, pidFile, metaFile, mo
       `cd '${escapedDir}'`,
       `echo "Worker ${taskId} starting at $(date)" > '${resultFile}'`,
       `echo $$ > '${pidFile}'`,
-      `env -u CLAUDECODE claude -p ${modelFlag} ${agentFlag} ${settingsFlag} < '${promptFile}' >> '${resultFile}' 2>&1`,
+      `env -u CLAUDECODE ${CLAUDE_BIN} -p ${modelFlag} ${agentFlag} ${settingsFlag} < '${promptFile}' >> '${resultFile}' 2>&1`,
       `echo '{"status":"completed","finished":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","task_id":"${taskId}"}' > '${metaFile}.done'`,
       `rm -f '${pidFile}'`,
     ].join(" && ");
@@ -214,6 +225,51 @@ function timeAgo(ts) {
 
 function text(content) {
   return { content: [{ type: "text", text: content }] };
+}
+
+function sanitizeId(input, label = "id") {
+  const value = String(input ?? "").trim();
+  if (!SAFE_ID_RE.test(value)) throw new Error(`Invalid ${label}. Use letters, numbers, _, - only.`);
+  return value;
+}
+
+function sanitizeShortSessionId(input) {
+  const value = sanitizeId(input, "session_id");
+  return value.slice(0, 8);
+}
+
+function sanitizeName(input, label = "name") {
+  const value = String(input ?? "").trim();
+  if (!value) throw new Error(`Invalid ${label}.`);
+  const normalized = value
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^\.+/, "")
+    .replace(/^-+/, "")
+    .replace(/-+/g, "-")
+    .slice(0, 64)
+    .replace(/[-.]+$/, "");
+  if (!normalized || !SAFE_NAME_RE.test(normalized)) throw new Error(`Invalid ${label}.`);
+  return normalized;
+}
+
+function sanitizeModel(input) {
+  const model = String(input ?? "sonnet").trim();
+  if (!SAFE_MODEL_RE.test(model)) throw new Error("Invalid model name.");
+  return model;
+}
+
+function sanitizeAgent(input) {
+  if (input === undefined || input === null || input === "") return "";
+  const agent = String(input).trim();
+  if (!SAFE_AGENT_RE.test(agent)) throw new Error("Invalid agent name.");
+  return agent;
+}
+
+function requireDirectoryPath(pathValue) {
+  const directory = String(pathValue ?? "").trim();
+  if (!directory) throw new Error("Directory is required.");
+  if (directory.includes("\n") || directory.includes("\r")) throw new Error("Invalid directory path.");
+  return directory;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -423,10 +479,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 // TOOL EXECUTION
 // ─────────────────────────────────────────────────────────
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
-  switch (name) {
+async function handleToolCall(name, args = {}) {
+  try {
+    switch (name) {
 
     // ─── LIST SESSIONS (enriched) ───
     case "coord_list_sessions": {
@@ -456,7 +511,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── GET SESSION DETAIL (enriched) ───
     case "coord_get_session": {
-      const sid = args.session_id;
+      const sid = sanitizeShortSessionId(args.session_id);
       const session = readJSON(join(TERMINALS_DIR, `session-${sid}.json`));
       if (!session) return text(`Session ${sid} not found.`);
 
@@ -499,11 +554,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── SEND MESSAGE ───
     case "coord_send_message": {
-      const { from, to, content, priority } = args;
+      const from = String(args?.from || "unknown").slice(0, 120);
+      const to = sanitizeShortSessionId(args?.to);
+      const content = String(args?.content || "").trim();
+      if (!content) return text("Message content cannot be empty.");
+      const priority = args?.priority === "urgent" ? "urgent" : "normal";
       const inboxFile = join(INBOX_DIR, `${to}.jsonl`);
       appendFileSync(inboxFile, JSON.stringify({
-        ts: new Date().toISOString(), from: from || "unknown",
-        priority: priority || "normal", content,
+        ts: new Date().toISOString(), from,
+        priority, content,
       }) + "\n");
 
       const sessionFile = join(TERMINALS_DIR, `session-${to}.json`);
@@ -514,12 +573,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         } catch {}
       }
 
-      return text(`Message sent to ${to}.\nContent: "${content}"\nPriority: ${priority || "normal"}`);
+      return text(`Message sent to ${to}.\nContent: "${content}"\nPriority: ${priority}`);
     }
 
     // ─── CHECK INBOX ───
     case "coord_check_inbox": {
-      const sid = args.session_id;
+      const sid = sanitizeShortSessionId(args.session_id);
       const inboxFile = join(INBOX_DIR, `${sid}.jsonl`);
       const messages = readJSONL(inboxFile);
       if (messages.length === 0) return text("No pending messages.");
@@ -540,7 +599,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── DETECT CONFLICTS (uses enriched files_touched + current_files) ───
     case "coord_detect_conflicts": {
-      const { session_id, files } = args;
+      const session_id = sanitizeShortSessionId(args.session_id);
+      const files = (args.files || []).map(f => String(f).trim()).filter(Boolean);
       if (!files?.length) return text("No files specified.");
 
       const sessions = getAllSessions().filter(s => s.session !== session_id && getSessionStatus(s) !== "closed");
@@ -585,7 +645,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── REGISTER WORK ───
     case "coord_register_work": {
-      const { session_id, task, files } = args;
+      const session_id = sanitizeShortSessionId(args.session_id);
+      const task = String(args.task || "").trim();
+      const files = (args.files || []).map(f => String(f).trim()).filter(Boolean);
+      if (!task) return text("Task is required.");
       const sessionFile = join(TERMINALS_DIR, `session-${session_id}.json`);
       if (!existsSync(sessionFile)) return text(`Session ${session_id} not found.`);
       const session = readJSON(sessionFile);
@@ -600,10 +663,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── ASSIGN TASK ───
     case "coord_assign_task": {
-      const { task, project, priority, scope, brief } = args;
+      const task = String(args.task || "").trim();
+      const project = requireDirectoryPath(args.project);
+      const priority = ["low", "normal", "high", "critical"].includes(args.priority) ? args.priority : "normal";
+      const scope = (args.scope || []).map(s => String(s).trim()).filter(Boolean);
+      const brief = String(args.brief || "");
+      if (!task) return text("Task is required.");
       const entry = {
         id: `T${Date.now()}`, ts: new Date().toISOString(), task, project,
-        priority: priority || "normal", scope: scope || [], brief: brief || "",
+        priority, scope, brief,
         status: "pending", assigned_to: null,
       };
       appendFileSync(QUEUE_FILE, JSON.stringify(entry) + "\n");
@@ -621,19 +689,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── SPAWN TERMINAL (cross-platform) ───
     case "coord_spawn_terminal": {
-      const { directory, initial_prompt, layout } = args;
+      const directory = requireDirectoryPath(args.directory);
+      const initial_prompt = args.initial_prompt ? String(args.initial_prompt) : "";
+      const layout = args.layout === "split" ? "split" : "tab";
       if (!existsSync(directory)) return text(`Directory not found: ${directory}`);
 
       try {
         const dir = PLATFORM === "win32" ? directory : directory.replace(/'/g, "'\\''");
         const claudeCmd = initial_prompt
-          ? `claude --prompt ${PLATFORM === "win32" ? `"${initial_prompt.replace(/"/g, '""')}"` : `'${initial_prompt.replace(/'/g, "'\\''")}'`}`
-          : "claude";
+          ? `${CLAUDE_BIN} --prompt ${PLATFORM === "win32" ? `"${initial_prompt.replace(/"/g, '""')}"` : `'${initial_prompt.replace(/'/g, "'\\''")}'`}`
+          : CLAUDE_BIN;
         const fullCmd = PLATFORM === "win32"
           ? `cd /d "${dir}" && ${claudeCmd}`
           : `cd '${dir}' && ${claudeCmd}`;
 
-        const usedApp = openTerminalWithCommand(fullCmd, layout || "tab");
+        const usedApp = openTerminalWithCommand(fullCmd, layout);
         return text(`Terminal spawned in ${directory} via ${usedApp}${layout === "split" ? " (split)" : ""}.\nWill auto-register via hooks.`);
       } catch (err) {
         return text(`Failed to spawn terminal: ${err.message}`);
@@ -642,7 +712,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── SPAWN WORKER (cross-platform) ───
     case "coord_spawn_worker": {
-      const { directory, prompt, model, agent, task_id, files, layout } = args;
+      const directory = requireDirectoryPath(args.directory);
+      const prompt = String(args.prompt || "").trim();
+      const model = sanitizeModel(args.model);
+      const agent = sanitizeAgent(args.agent);
+      const task_id = args.task_id;
+      const files = (args.files || []).map(f => String(f).trim()).filter(Boolean);
+      const layout = args.layout === "split" ? "split" : "tab";
+      if (!prompt) return text("Prompt is required.");
       if (!existsSync(directory)) return text(`Directory not found: ${directory}`);
 
       // Conflict check
@@ -661,15 +738,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
       }
 
-      const taskId = task_id || `W${Date.now()}`;
+      const taskId = task_id ? sanitizeId(task_id, "task_id") : `W${Date.now()}`;
       const resultFile = join(RESULTS_DIR, `${taskId}.txt`);
       const pidFile = join(RESULTS_DIR, `${taskId}.pid`);
       const metaFile = join(RESULTS_DIR, `${taskId}.meta.json`);
 
       const meta = {
         task_id: taskId, directory, prompt: prompt.slice(0, 500),
-        model: model || "sonnet", agent: agent || null,
-        files: files || [], spawned: new Date().toISOString(), status: "running",
+        model, agent: agent || null,
+        files, spawned: new Date().toISOString(), status: "running",
       };
       writeFileSync(metaFile, JSON.stringify(meta, null, 2));
 
@@ -686,18 +763,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const promptFile = join(RESULTS_DIR, `${taskId}.prompt`);
         writeFileSync(promptFile, contextPreamble + prompt + contextSuffix);
 
-        const modelFlag = `--model ${model || "sonnet"}`;
+        const modelFlag = `--model ${model}`;
         const agentFlag = agent ? `--agent ${agent}` : "";
         const settingsFlag = existsSync(SETTINGS_FILE) ? (PLATFORM === "win32" ? `--settings "${SETTINGS_FILE}"` : `--settings '${SETTINGS_FILE}'`) : "";
 
         const workerScript = buildWorkerScript(taskId, escapedDir, resultFile, pidFile, metaFile, modelFlag, agentFlag, settingsFlag, promptFile);
-        const usedApp = openTerminalWithCommand(workerScript, layout || "tab");
+        const usedApp = openTerminalWithCommand(workerScript, layout);
 
         return text(
           `Worker spawned: **${taskId}**\n` +
-          `- Directory: ${directory}\n- Model: ${model || "sonnet"}\n- Agent: ${agent || "default"}\n` +
-          `- Layout: ${layout || "tab"} via ${usedApp}\n- Platform: ${PLATFORM}\n` +
-          `- Files: ${files?.join(", ") || "none"}\n- Results: ${resultFile}\n\n` +
+          `- Directory: ${directory}\n- Model: ${model}\n- Agent: ${agent || "default"}\n` +
+          `- Layout: ${layout} via ${usedApp}\n- Platform: ${PLATFORM}\n` +
+          `- Files: ${files.join(", ") || "none"}\n- Results: ${resultFile}\n\n` +
           `Check: \`coord_get_result task_id="${taskId}"\``
         );
       } catch (err) {
@@ -709,7 +786,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── GET RESULT ───
     case "coord_get_result": {
-      const { task_id, tail_lines } = args;
+      const task_id = sanitizeId(args.task_id, "task_id");
+      const tail_lines = Number(args.tail_lines);
       const resultFile = join(RESULTS_DIR, `${task_id}.txt`);
       const pidFile = join(RESULTS_DIR, `${task_id}.pid`);
       const metaFile = join(RESULTS_DIR, `${task_id}.meta.json`);
@@ -729,7 +807,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (existsSync(resultFile)) {
         const full = readFileSync(resultFile, "utf-8");
         const lines = full.split("\n");
-        const limit = tail_lines || 100;
+        const limit = Number.isFinite(tail_lines) && tail_lines > 0 ? Math.min(Math.floor(tail_lines), 500) : 100;
         output = lines.length > limit
           ? `[...truncated ${lines.length - limit} lines...]\n` + lines.slice(-limit).join("\n")
           : full;
@@ -745,7 +823,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // ─── WAKE SESSION (cross-platform) ───
     case "coord_wake_session": {
-      const { session_id, message } = args;
+      const session_id = sanitizeShortSessionId(args.session_id);
+      const message = String(args.message || "").trim();
+      if (!message) return text("Message is required.");
       const sessionFile = join(TERMINALS_DIR, `session-${session_id}.json`);
       if (!existsSync(sessionFile)) return text(`Session ${session_id} not found.`);
       const sessionData = readJSON(sessionFile);
@@ -869,7 +949,7 @@ return found`.trim();
 
     // ─── KILL WORKER (cross-platform) ───
     case "coord_kill_worker": {
-      const { task_id } = args;
+      const task_id = sanitizeId(args.task_id, "task_id");
       const pidFile = join(RESULTS_DIR, `${task_id}.pid`);
       const metaFile = join(RESULTS_DIR, `${task_id}.meta.json`);
 
@@ -891,11 +971,13 @@ return found`.trim();
 
     // ─── RUN PIPELINE ───
     case "coord_run_pipeline": {
-      const { directory, tasks, pipeline_id } = args;
+      const directory = requireDirectoryPath(args.directory);
+      const tasks = Array.isArray(args.tasks) ? args.tasks : [];
+      const pipeline_id = args.pipeline_id;
       if (!existsSync(directory)) return text(`Directory not found: ${directory}`);
       if (!tasks?.length) return text("No tasks provided.");
 
-      const pipelineId = pipeline_id || `P${Date.now()}`;
+      const pipelineId = pipeline_id ? sanitizeId(pipeline_id, "pipeline_id") : `P${Date.now()}`;
       const pipelineDir = join(RESULTS_DIR, pipelineId);
       mkdirSync(pipelineDir, { recursive: true });
 
@@ -908,7 +990,19 @@ return found`.trim();
       if (existsSync(cacheFile)) preamble = `## Prior Context\n${readFileSync(cacheFile, "utf-8").slice(0, 3000)}\n\n---\n\n`;
       const suffix = "\n\nWhen done, write key findings to ~/.claude/session-cache/coder-context.md.";
 
-      tasks.forEach((task, i) => {
+      const normalizedTasks = tasks.map((task, i) => {
+        const name = sanitizeName(task?.name || `step-${i}`, "task name");
+        const prompt = String(task?.prompt || "").trim();
+        if (!prompt) throw new Error(`Task ${i} prompt is required.`);
+        return {
+          name,
+          prompt,
+          model: sanitizeModel(task?.model),
+          agent: sanitizeAgent(task?.agent),
+        };
+      });
+
+      normalizedTasks.forEach((task, i) => {
         writeFileSync(join(pipelineDir, `${i}-${task.name}.prompt`), preamble + task.prompt + suffix);
       });
 
@@ -916,23 +1010,23 @@ return found`.trim();
       let script;
       if (PLATFORM === "win32") {
         script = `@echo off\ncd /d "${escapedDir}"\n`;
-        tasks.forEach((task, i) => {
+        normalizedTasks.forEach((task, i) => {
           const pf = join(pipelineDir, `${i}-${task.name}.prompt`);
           const rf = join(pipelineDir, `${i}-${task.name}.txt`);
           script += `echo Step ${i}: ${task.name}\n`;
-          script += `claude -p --model ${task.model || "sonnet"} ${task.agent ? `--agent ${task.agent}` : ""} ${settingsFlag} < "${pf}" > "${rf}" 2>&1\n`;
+          script += `${CLAUDE_BIN} -p --model ${task.model} ${task.agent ? `--agent ${task.agent}` : ""} ${settingsFlag} < "${pf}" > "${rf}" 2>&1\n`;
         });
         script += `echo {"status":"completed"} > "${join(pipelineDir, "pipeline.done")}"\n`;
         const runnerFile = join(pipelineDir, "run.bat");
         writeFileSync(runnerFile, script);
       } else {
         script = `#!/bin/bash\nset -e\ncd '${escapedDir}'\n`;
-        tasks.forEach((task, i) => {
+        normalizedTasks.forEach((task, i) => {
           const pf = join(pipelineDir, `${i}-${task.name}.prompt`);
           const rf = join(pipelineDir, `${i}-${task.name}.txt`);
           script += `echo "=== Step ${i}: ${task.name} ===" | tee -a '${join(pipelineDir, "pipeline.log")}'\n`;
           script += `echo '{"step":${i},"name":"${task.name}","status":"running","started":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> '${join(pipelineDir, "pipeline.log")}'\n`;
-          script += `env -u CLAUDECODE claude -p --model ${task.model || "sonnet"} ${task.agent ? `--agent ${task.agent}` : ""} ${settingsFlag} < '${pf}' > '${rf}' 2>&1\n`;
+          script += `env -u CLAUDECODE ${CLAUDE_BIN} -p --model ${task.model} ${task.agent ? `--agent ${task.agent}` : ""} ${settingsFlag} < '${pf}' > '${rf}' 2>&1\n`;
           script += `echo '{"step":${i},"name":"${task.name}","status":"completed","finished":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> '${join(pipelineDir, "pipeline.log")}'\n`;
         });
         script += `echo '{"status":"completed","finished":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > '${join(pipelineDir, "pipeline.done")}'\n`;
@@ -946,14 +1040,14 @@ return found`.trim();
         openTerminalWithCommand(PLATFORM === "win32" ? `"${runnerFile}"` : `'${runnerFile}'`, "tab");
 
         writeFileSync(join(pipelineDir, "pipeline.meta.json"), JSON.stringify({
-          pipeline_id: pipelineId, directory, total_steps: tasks.length,
-          tasks: tasks.map((t, i) => ({ step: i, name: t.name, model: t.model || "sonnet" })),
+          pipeline_id: pipelineId, directory, total_steps: normalizedTasks.length,
+          tasks: normalizedTasks.map((t, i) => ({ step: i, name: t.name, model: t.model })),
           started: new Date().toISOString(), status: "running",
         }, null, 2));
 
         return text(
-          `Pipeline: **${pipelineId}**\n- Steps: ${tasks.length}\n` +
-          tasks.map((t, i) => `  ${i}. ${t.name} (${t.model || "sonnet"})`).join("\n") +
+          `Pipeline: **${pipelineId}**\n- Steps: ${normalizedTasks.length}\n` +
+          normalizedTasks.map((t, i) => `  ${i}. ${t.name} (${t.model})`).join("\n") +
           `\n\nCheck: \`coord_get_pipeline pipeline_id="${pipelineId}"\``
         );
       } catch (err) {
@@ -963,7 +1057,7 @@ return found`.trim();
 
     // ─── GET PIPELINE ───
     case "coord_get_pipeline": {
-      const { pipeline_id } = args;
+      const pipeline_id = sanitizeId(args.pipeline_id, "pipeline_id");
       const pipelineDir = join(RESULTS_DIR, pipeline_id);
       if (!existsSync(pipelineDir)) return text(`Pipeline ${pipeline_id} not found.`);
 
@@ -1006,7 +1100,15 @@ return found`.trim();
 
     default:
       return text(`Unknown tool: ${name}`);
+    }
+  } catch (err) {
+    return text(`Invalid arguments for ${name}: ${err.message}`);
   }
+}
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  return handleToolCall(name, args);
 });
 
 // Start server
@@ -1014,4 +1116,24 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
-main().catch(err => { console.error("Coordinator error:", err); process.exit(1); });
+
+const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isDirectRun) {
+  main().catch(err => { console.error("Coordinator error:", err); process.exit(1); });
+}
+
+export const __test__ = {
+  PLATFORM,
+  CLAUDE_BIN,
+  handleToolCall,
+  buildWorkerScript,
+  buildPlatformLaunchCommand,
+  isProcessAlive,
+  killProcess,
+  sanitizeId,
+  sanitizeShortSessionId,
+  sanitizeName,
+  sanitizeModel,
+  sanitizeAgent,
+  requireDirectoryPath,
+};

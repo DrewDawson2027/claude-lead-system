@@ -5,6 +5,7 @@
 **Multi-agent Claude Code orchestration. Zero API tokens. One command.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml/badge.svg)](https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)](https://github.com/DrewDawson2027/claude-lead-system)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-green)](https://nodejs.org)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-compatible-orange)](https://claude.ai/code)
@@ -73,6 +74,67 @@ Terminal A (lead)          Terminal B (coding)       Terminal C (testing)
 
 ---
 
+## 2-Minute Demo
+
+```bash
+# 1) Install
+curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash
+
+# 2) Open two Claude Code terminals in the same project
+# 3) In terminal A, run /lead
+# 4) In terminal A, send:
+#    tell [session] to write tests for src/auth.ts
+# 5) In terminal A, run:
+#    conflicts
+```
+
+Expected:
+- Session dashboard appears with live `W/E/B/R` counters
+- Message is delivered through inbox hook
+- Conflict checker reports overlap when both sessions touch same file
+
+---
+
+## Demo Assets
+
+![Demo GIF](assets/demo/demo.gif)
+
+![Before vs After](assets/demo/before-after.png)
+
+- Demo recording guide: [assets/demo/README.md](assets/demo/README.md)
+- Narration script: [assets/demo/DEMO_SCRIPT.md](assets/demo/DEMO_SCRIPT.md)
+- Benchmark source: [bench/coord-benchmark.mjs](bench/coord-benchmark.mjs)
+- Latest benchmark output: [bench/latest-results.json](bench/latest-results.json)
+
+---
+
+## Benchmarks (Before/After)
+
+`claude-lead-system` is optimized to read compact session state instead of scanning large transcripts.
+
+| Metric | Transcript Scan | Session JSON Read | Improvement |
+|---|---:|---:|---:|
+| Average latency | 3.944 ms | 0.019 ms | **207.58x faster** |
+| P50 latency | 3.485 ms | 0.015 ms | **232.33x faster** |
+| P95 latency | 5.826 ms | 0.022 ms | **264.82x faster** |
+| Data size | 7,650,000 bytes | 1,357 bytes | **5,637x smaller** |
+
+Measured by: `node bench/coord-benchmark.mjs` on `2026-02-19`.
+
+---
+
+## Before/After Outcomes
+
+| Scenario | Before | After |
+|---|---|---|
+| Multi-session awareness | Manual tab hunting | `/lead` dashboard with active/stale sessions |
+| File conflict detection | Merge-time surprise conflicts | Pre-edit conflict detection via `files_touched` |
+| Task dispatch | Manual copy/paste across terminals | `tell`, `wake`, `assign`, `spawn_worker` |
+| Long-running execution | Idle/forgotten terminal tasks | `coord_spawn_worker` + `coord_get_result` tracking |
+| Sequential workflows | Manual step orchestration | `coord_run_pipeline` statusable pipeline execution |
+
+---
+
 ## Platform Support
 
 | Platform | Terminal Spawning | Session Waking | Messaging |
@@ -85,6 +147,30 @@ Terminal A (lead)          Terminal B (coding)       Terminal C (testing)
 | **Cursor / VS Code** | Background `claude -p` workers | Inbox fallback | Inbox hooks |
 
 Inbox messaging via hooks is **universal** — it works on every platform regardless of terminal emulator.
+
+---
+
+## Reliability Matrix
+
+| Capability | Test Coverage |
+|---|---|
+| Hook shell syntax | CI (`bash -n hooks/*.sh`) |
+| Python hook validity | CI (`py_compile` + `ruff` in workflow) |
+| Coordinator syntax | CI (`node --check`) |
+| Coordinator validation rules | CI (`npm run test:unit`) |
+| Worker lifecycle (spawn/result/kill) | CI (`npm run test:e2e`) |
+| Pipeline lifecycle (run/status/completion) | CI (`npm run test:e2e`) |
+| Platform launch-path logic | CI matrix (`ubuntu`, `macos`, `windows`) |
+| Hook behavior (session + heartbeat) | CI smoke test (`tests/hooks-smoke.sh`) |
+
+---
+
+## Compatibility Guarantees
+
+- Node.js: **18.x, 20.x**
+- Python: **3.10+**
+- OS: **macOS, Linux, Windows** (with inbox fallback where native terminal wake/injection is unavailable)
+- Release gating + versioned matrix: [docs/RELEASE_HARDENING.md](docs/RELEASE_HARDENING.md)
 
 ---
 
@@ -113,8 +199,10 @@ chmod +x ~/.claude/hooks/*.sh
 cd ~/.claude/mcp-coordinator && npm install
 
 # 4. Add hooks to your settings
-# Copy settings/settings.local.json to ~/.claude/settings.local.json
-# or merge the hooks block into your existing file
+# Option A (recommended): run install.sh (auto-expands __HOME__ in coordinator path)
+# Option B (manual):
+sed "s|__HOME__|$HOME|g" settings/settings.local.json > ~/.claude/settings.local.json
+# or merge the hooks + mcpServers.coordinator blocks into your existing file
 
 # 5. Verify everything is working
 bash ~/.claude/hooks/health-check.sh
@@ -176,6 +264,14 @@ The filesystem protocol (session JSONs, inbox files, activity log) works without
 
 ---
 
+## Docs
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Security](docs/SECURITY.md)
+- [Release Hardening](docs/RELEASE_HARDENING.md)
+
+---
+
 ## Key Design Decisions
 
 **Zero API tokens for coordination.** Hooks are shell scripts. They run outside the Claude context window. Coordination is free.
@@ -199,6 +295,15 @@ The filesystem protocol (session JSONs, inbox files, activity log) works without
 - Node.js ≥ 18 (for MCP coordinator)
 - `bash` (hooks)
 - `python3` (optional guards)
+
+---
+
+## Quality Gates
+
+- CI validates shell, Python, and JavaScript syntax
+- CI runs coordinator argument-validation tests
+- CI runs hook smoke tests (`session-register` + `terminal-heartbeat`) in isolated HOME
+- `health-check.sh` validates install health on your machine
 
 ---
 

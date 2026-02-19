@@ -62,7 +62,7 @@ echo "  ✓  npm packages installed"
 
 # ── Settings ─────────────────────────────────────────────────────────
 if [ ! -f "$CLAUDE_DIR/settings.local.json" ]; then
-  cp "$SRC/settings/settings.local.json" "$CLAUDE_DIR/settings.local.json"
+  sed "s|__HOME__|$HOME|g" "$SRC/settings/settings.local.json" > "$CLAUDE_DIR/settings.local.json"
   echo "  ✓  settings.local.json created"
 else
   echo "  ⚠  settings.local.json already exists — merge manually from:"

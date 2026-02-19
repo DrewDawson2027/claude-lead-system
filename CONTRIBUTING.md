@@ -14,14 +14,23 @@ cd mcp-coordinator && npm install
 
 ```bash
 bash hooks/health-check.sh
+bash tests/hooks-smoke.sh
+bash tests/health-check-regression.sh
+cd mcp-coordinator && npm test
+cd mcp-coordinator && npm run test:e2e
 ```
+
+## Release quality
+
+- Follow the release gates in [docs/RELEASE_HARDENING.md](docs/RELEASE_HARDENING.md)
+- Update `bench/latest-results.json` when performance-sensitive behavior changes
 
 ## Areas that need help
 
 - **Windows `coord_wake_session`** — currently falls back to inbox. Native Windows Terminal focus + keystroke injection would be a great addition.
 - **tmux / zellij support** — `openTerminalWithCommand` in `index.js` could gain a `tmux` branch.
 - **Hook tests** — there are no automated tests for the shell hooks. A simple bash test harness would be valuable.
-- **Windows `fcntl` replacement** — `token-guard.py` and `read-efficiency-guard.py` use `fcntl` which doesn't exist on Windows. A cross-platform file locking solution (e.g. `filelock` package) would enable true Windows Python support.
+- **Windows wake_session native support** — current wake flow on Windows uses inbox fallback, not keystroke injection.
 
 ## PR guidelines
 

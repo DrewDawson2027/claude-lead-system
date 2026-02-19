@@ -16,7 +16,12 @@ import json
 import sys
 import os
 import time
-import fcntl
+from contextlib import contextmanager
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 STATE_DIR = os.path.expanduser("~/.claude/hooks/session-state")
 os.makedirs(STATE_DIR, exist_ok=True)
@@ -43,6 +48,27 @@ ALWAYS_ALLOWED = {
 }
 
 
+@contextmanager
+def file_lock(path):
+    """Cross-platform advisory file lock."""
+    with open(path, "w") as lf:
+        if os.name == "nt":
+            lf.write("0")
+            lf.flush()
+            lf.seek(0)
+            msvcrt.locking(lf.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                lf.seek(0)
+                msvcrt.locking(lf.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lf, fcntl.LOCK_UN)
+
+
 def main():
     input_data = json.load(sys.stdin)
 
@@ -65,63 +91,58 @@ def main():
 
     # File-locked state access (prevents race conditions from parallel tool calls)
     lock_file = state_file + ".lock"
-    with open(lock_file, "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
-        try:
-            state = load_state(state_file)
-            now = time.time()
+    with file_lock(lock_file):
+        state = load_state(state_file)
+        now = time.time()
 
-            # RULE 1: One-per-session types (Explore, deep-researcher, etc.)
-            if subagent_type in ONE_PER_SESSION:
-                existing = [a for a in state["agents"] if a["type"] == subagent_type]
-                if existing:
-                    block(f"BLOCKED: Already spawned a {subagent_type} agent this session. "
-                          f"Max 1 per session. Merge your queries into one agent, or use "
-                          f"Grep/Read/WebSearch directly instead of spawning another.")
+        # RULE 1: One-per-session types (Explore, deep-researcher, etc.)
+        if subagent_type in ONE_PER_SESSION:
+            existing = [a for a in state["agents"] if a["type"] == subagent_type]
+            if existing:
+                block(f"BLOCKED: Already spawned a {subagent_type} agent this session. "
+                      f"Max 1 per session. Merge your queries into one agent, or use "
+                      f"Grep/Read/WebSearch directly instead of spawning another.")
 
-            # RULE 2: No duplicate subagent_types ever (even for general-purpose)
-            existing_same = [a for a in state["agents"] if a["type"] == subagent_type]
-            if len(existing_same) >= 2:
-                block(f"BLOCKED: Already {len(existing_same)} {subagent_type} agents this session. "
-                      f"Max 2 of any type. Use tools directly instead.")
+        # RULE 2: No duplicate subagent_types (enforce max 1)
+        existing_same = [a for a in state["agents"] if a["type"] == subagent_type]
+        if existing_same:
+            block(f"BLOCKED: Already spawned {subagent_type} in this session. "
+                  f"Max 1 of any subagent type. Use tools directly instead.")
 
-            # RULE 3: Session agent cap
-            if state["agent_count"] >= MAX_AGENTS:
-                block(f"BLOCKED: Agent cap reached ({MAX_AGENTS}/session). "
-                      f"You've spawned {state['agent_count']} agents already. "
-                      f"Use Grep/Read/WebSearch tools directly instead of spawning agents.")
+        # RULE 3: Session agent cap
+        if state["agent_count"] >= MAX_AGENTS:
+            block(f"BLOCKED: Agent cap reached ({MAX_AGENTS}/session). "
+                  f"You've spawned {state['agent_count']} agents already. "
+                  f"Use Grep/Read/WebSearch tools directly instead of spawning agents.")
 
-            # RULE 4: No spawns within 30s of same type (catches "same turn" spawns)
-            recent_same = [
-                a for a in state["agents"]
-                if a["type"] == subagent_type
-                and (now - a["timestamp"]) < PARALLEL_WINDOW_SECONDS
-            ]
-            if recent_same:
-                block(f"BLOCKED: Another {subagent_type} agent was spawned {now - recent_same[0]['timestamp']:.0f}s ago. "
-                      f"Wait or merge into one agent. Overlap Check: combine queries into a single prompt.")
+        # RULE 4: No spawns within 30s of same type (catches "same turn" spawns)
+        recent_same = [
+            a for a in state["agents"]
+            if a["type"] == subagent_type
+            and (now - a["timestamp"]) < PARALLEL_WINDOW_SECONDS
+        ]
+        if recent_same:
+            block(f"BLOCKED: Another {subagent_type} agent was spawned {now - recent_same[0]['timestamp']:.0f}s ago. "
+                  f"Wait or merge into one agent. Overlap Check: combine queries into a single prompt.")
 
-            # ALLOWED — record and proceed
-            agent_record = {
-                "type": subagent_type,
-                "description": description,
-                "timestamp": now
-            }
+        # ALLOWED — record and proceed
+        agent_record = {
+            "type": subagent_type,
+            "description": description,
+            "timestamp": now
+        }
 
-            # For Explore agents, extract target directories from the prompt
-            # so read-efficiency-guard.py can detect duplicate reads
-            if subagent_type == "Explore":
-                prompt = tool_input.get("prompt", "")
-                target_dirs = extract_target_dirs(prompt)
-                if target_dirs:
-                    agent_record["target_dirs"] = target_dirs
+        # For Explore agents, extract target directories from the prompt
+        # so read-efficiency-guard.py can detect duplicate reads
+        if subagent_type == "Explore":
+            prompt = tool_input.get("prompt", "")
+            target_dirs = extract_target_dirs(prompt)
+            if target_dirs:
+                agent_record["target_dirs"] = target_dirs
 
-            state["agent_count"] += 1
-            state["agents"].append(agent_record)
-            save_state(state_file, state)
-
-        finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
+        state["agent_count"] += 1
+        state["agents"].append(agent_record)
+        save_state(state_file, state)
 
     sys.exit(0)  # Allow
 
@@ -149,7 +170,7 @@ def extract_target_dirs(prompt):
     """Extract directory paths from an Explore agent's prompt.
 
     Looks for common patterns like:
-    - START: ~/Projects/trust-engine/
+    - START: ~/Projects/my-app/
     - ~/Projects/foo/
     - /Users/.../src/
     """

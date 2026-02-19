@@ -18,7 +18,16 @@ PROJECT=$(basename "$CWD")
 BRANCH=$(cd "$CWD" 2>/dev/null && git branch --show-current 2>/dev/null || echo "none")
 
 # Append to session log
-echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"session\":\"${SESSION_ID:0:8}\",\"event\":\"start\",\"source\":\"$SOURCE\",\"project\":\"$PROJECT\",\"branch\":\"$BRANCH\",\"cwd\":\"$CWD\",\"transcript\":\"$TRANSCRIPT\"}" \
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+jq -n \
+  --arg ts "$NOW" \
+  --arg session "${SESSION_ID:0:8}" \
+  --arg source "$SOURCE" \
+  --arg project "$PROJECT" \
+  --arg branch "$BRANCH" \
+  --arg cwd "$CWD" \
+  --arg transcript "$TRANSCRIPT" \
+  '{ts:$ts,session:$session,event:"start",source:$source,project:$project,branch:$branch,cwd:$cwd,transcript:$transcript}' \
   >> ~/.claude/terminals/sessions.jsonl
 
 # Capture TTY for reliable tab targeting by coord_wake_session
@@ -26,12 +35,30 @@ echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"session\":\"${SESSION_ID:0:8}
 RAW_TTY=$(ps -o tty= -p $PPID 2>/dev/null | sed 's/ //g')
 TTY=""
 [ -n "$RAW_TTY" ] && [ "$RAW_TTY" != "??" ] && TTY="/dev/$RAW_TTY"
-TTY_JSON=""
-[ -n "$TTY" ] && TTY_JSON=",\"tty\":\"$TTY\""
-
 # Write per-session status file for quick lookup by lead
-echo "{\"session\":\"${SESSION_ID:0:8}\",\"status\":\"active\",\"project\":\"$PROJECT\",\"branch\":\"$BRANCH\",\"cwd\":\"$CWD\",\"transcript\":\"$TRANSCRIPT\",\"started\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"last_active\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"$TTY_JSON}" \
-  > ~/.claude/terminals/session-"${SESSION_ID:0:8}".json
+SESSION_FILE=~/.claude/terminals/session-"${SESSION_ID:0:8}".json
+jq -n \
+  --arg session "${SESSION_ID:0:8}" \
+  --arg project "$PROJECT" \
+  --arg branch "$BRANCH" \
+  --arg cwd "$CWD" \
+  --arg transcript "$TRANSCRIPT" \
+  --arg started "$NOW" \
+  --arg last_active "$NOW" \
+  --arg tty "$TTY" \
+  '
+  {
+    session: $session,
+    status: "active",
+    project: $project,
+    branch: $branch,
+    cwd: $cwd,
+    transcript: $transcript,
+    started: $started,
+    last_active: $last_active
+  } |
+  (if $tty != "" then .tty = $tty else . end)
+  ' > "$SESSION_FILE"
 
 # Auto-truncate sessions log
 LINES=$(wc -l < ~/.claude/terminals/sessions.jsonl 2>/dev/null || echo 0)

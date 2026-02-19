@@ -117,7 +117,7 @@ cd [cwd] && echo "BRANCH: $(git branch --show-current)" && git status -s | head 
 Users can't see session IDs. Always describe terminals by:
 1. **TTY** (e.g., `/dev/ttys058`) — they can check with `tty` command
 2. **What it's doing** (e.g., "the terminal writing test files")
-3. **Project** (e.g., "the trust-engine terminal")
+3. **Project** (e.g., "the api-service terminal")
 4. **Tab title** — set to `claude-{session_id}` by SessionStart hook
 
 ---

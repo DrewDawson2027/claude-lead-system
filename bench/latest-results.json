@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-02-19T21:31:48.052Z",
+  "dataset": {
+    "transcript_bytes": 7650000,
+    "session_json_bytes": 1357
+  },
+  "transcript_scan": {
+    "avg_ms": 3.944,
+    "p50_ms": 3.485,
+    "p95_ms": 5.826
+  },
+  "session_json_read": {
+    "avg_ms": 0.019,
+    "p50_ms": 0.015,
+    "p95_ms": 0.022
+  },
+  "speedup_ratio_avg": 207.58
+}

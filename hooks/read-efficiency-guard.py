@@ -13,13 +13,39 @@ import json
 import sys
 import os
 import time
-import fcntl
+from contextlib import contextmanager
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 STATE_DIR = os.path.expanduser("~/.claude/hooks/session-state")
 os.makedirs(STATE_DIR, exist_ok=True)
 
 SEQUENTIAL_THRESHOLD = 4  # Warn after this many sequential reads
 SEQUENTIAL_WINDOW = 60  # Seconds window for sequential detection
+
+
+@contextmanager
+def file_lock(path):
+    """Cross-platform advisory file lock."""
+    with open(path, "w") as lf:
+        if os.name == "nt":
+            lf.write("0")
+            lf.flush()
+            lf.seek(0)
+            msvcrt.locking(lf.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                lf.seek(0)
+                msvcrt.locking(lf.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lf, fcntl.LOCK_UN)
 
 
 def main():
@@ -42,44 +68,39 @@ def main():
     state_file = os.path.join(STATE_DIR, f"{session_id}-reads.json")
     lock_file = state_file + ".lock"
 
-    with open(lock_file, "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
-        try:
-            state = load_state(state_file)
-            now = time.time()
+    with file_lock(lock_file):
+        state = load_state(state_file)
+        now = time.time()
 
-            # Record this read
-            state["reads"].append({"path": file_path, "timestamp": now})
+        # Record this read
+        state["reads"].append({"path": file_path, "timestamp": now})
 
-            # Prune old reads (older than 5 min)
-            state["reads"] = [r for r in state["reads"] if now - r["timestamp"] < 300]
+        # Prune old reads (older than 5 min)
+        state["reads"] = [r for r in state["reads"] if now - r["timestamp"] < 300]
 
-            # CHECK 1: Sequential reads warning
-            recent = [r for r in state["reads"] if now - r["timestamp"] < SEQUENTIAL_WINDOW]
-            if len(recent) >= SEQUENTIAL_THRESHOLD:
-                warn(
-                    f"TOKEN EFFICIENCY: {len(recent)} sequential Read calls in {SEQUENTIAL_WINDOW}s. "
-                    f"Batch independent reads into parallel groups of 3-4 per turn to save tokens. "
-                    f"(Parallelism Checkpoint rule)"
-                )
+        # CHECK 1: Sequential reads warning
+        recent = [r for r in state["reads"] if now - r["timestamp"] < SEQUENTIAL_WINDOW]
+        if len(recent) >= SEQUENTIAL_THRESHOLD:
+            warn(
+                f"TOKEN EFFICIENCY: {len(recent)} sequential Read calls in {SEQUENTIAL_WINDOW}s. "
+                f"Batch independent reads into parallel groups of 3-4 per turn to save tokens. "
+                f"(Parallelism Checkpoint rule)"
+            )
 
-            # CHECK 2: Post-Explore duplicate warning
-            explore_dirs = get_explore_dirs(session_id)
-            if explore_dirs:
-                for explore_dir in explore_dirs:
-                    if file_path.startswith(explore_dir):
-                        warn(
-                            f"TOKEN EFFICIENCY: Reading '{os.path.basename(file_path)}' which is inside "
-                            f"'{explore_dir}' — a directory already mapped by your Explore agent. "
-                            f"Trust the Explore output instead of re-reading. "
-                            f"(No Duplicate Reads After Explore rule)"
-                        )
-                        break
+        # CHECK 2: Post-Explore duplicate warning
+        explore_dirs = get_explore_dirs(session_id)
+        if explore_dirs:
+            for explore_dir in explore_dirs:
+                if file_path.startswith(explore_dir):
+                    warn(
+                        f"TOKEN EFFICIENCY: Reading '{os.path.basename(file_path)}' which is inside "
+                        f"'{explore_dir}' — a directory already mapped by your Explore agent. "
+                        f"Trust the Explore output instead of re-reading. "
+                        f"(No Duplicate Reads After Explore rule)"
+                    )
+                    break
 
-            save_state(state_file, state)
-
-        finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
+        save_state(state_file, state)
 
     sys.exit(0)  # Always allow — advisory only
 
@@ -102,7 +123,7 @@ def get_explore_dirs(session_id):
     for agent in guard_state.get("agents", []):
         if agent.get("type") == "Explore":
             # Extract directory hints from the agent description
-            # Common patterns: "Explore trust-engine codebase", "Explore atlas/"
+            # Common patterns: "Explore project codebase", "Explore src/"
             # We track the directories the Explore was pointed at
             for known_dir in agent.get("target_dirs", []):
                 dirs.append(known_dir)

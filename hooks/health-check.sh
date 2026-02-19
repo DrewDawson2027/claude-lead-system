@@ -109,6 +109,20 @@ if [ -f ~/.claude/settings.local.json ]; then
       WARN=$((WARN + 1))
     fi
   fi
+
+  if jq -e '.mcpServers.coordinator' ~/.claude/settings.local.json &>/dev/null; then
+    COORD_PATH=$(jq -r '.mcpServers.coordinator.args[0] // ""' ~/.claude/settings.local.json 2>/dev/null)
+    if echo "$COORD_PATH" | grep -q "__HOME__"; then
+      echo "  FAIL  unresolved __HOME__ placeholder in mcpServers.coordinator args"
+      FAIL=$((FAIL + 1))
+    else
+      echo "  PASS  coordinator MCP server configured"
+      PASS=$((PASS + 1))
+    fi
+  else
+    echo "  WARN  mcpServers.coordinator not configured in settings.local.json"
+    WARN=$((WARN + 1))
+  fi
 else
   echo "  FAIL  settings.local.json not found"
   FAIL=$((FAIL + 1))

@@ -48,3 +48,81 @@ jobs:
         run: cd mcp-coordinator && npm install
       - name: Check syntax
         run: node --check mcp-coordinator/index.js
+      - name: Run coordinator unit tests
+        run: cd mcp-coordinator && npm run test:unit
+
+  coordinator-e2e:
+    name: Coordinator E2E (worker + pipeline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mcp-coordinator/package-lock.json
+      - name: Install deps
+        run: cd mcp-coordinator && npm ci
+      - name: Run worker/pipeline lifecycle tests
+        run: cd mcp-coordinator && npm run test:e2e
+
+  integration-tests:
+    name: Hook integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Run hook smoke tests
+        run: bash tests/hooks-smoke.sh
+      - name: Run health-check regression tests
+        run: bash tests/health-check-regression.sh
+
+  platform-matrix:
+    name: Platform Launch Matrix (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mcp-coordinator/package-lock.json
+      - name: Install deps
+        run: cd mcp-coordinator && npm ci
+      - name: Run coordinator unit tests
+        run: cd mcp-coordinator && npm run test:unit
+
+  compatibility-matrix:
+    name: Compatibility Matrix (Node ${{ matrix.node }} / Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["18", "20"]
+        python: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: "npm"
+          cache-dependency-path: mcp-coordinator/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Install coordinator deps
+        run: cd mcp-coordinator && npm ci
+      - name: Run compatibility checks
+        run: |
+          python3 -m py_compile hooks/token-guard.py hooks/read-efficiency-guard.py
+          node --check mcp-coordinator/index.js
+          cd mcp-coordinator && npm run test:unit
+      - name: Run hook smoke tests
+        run: bash tests/hooks-smoke.sh
