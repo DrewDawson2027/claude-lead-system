@@ -4,7 +4,7 @@ Token Guard: PreToolUse hook that enforces agent spawning limits.
 
 Rules enforced:
 1. Max 1 Explore agent per session
-2. Max 1 research agent per session (deep-researcher, ssrn-researcher, etc.)
+2. Max 1 research agent per session (deep-researcher, web-researcher, etc.)
 3. Max 3 total agents per session (was 5 — tightened)
 4. Max 1 of any subagent_type per session (no duplicates ever)
 5. No parallel spawns within 30s window
@@ -34,7 +34,7 @@ PARALLEL_WINDOW_SECONDS = 30
 ONE_PER_SESSION = {
     "Explore",
     "deep-researcher",
-    "ssrn-researcher",
+    "web-researcher",
     "competitor-tracker",
     "gtm-strategist",
     "Plan",
@@ -43,7 +43,6 @@ ONE_PER_SESSION = {
 # Types that are always allowed (lightweight, no exploration)
 ALWAYS_ALLOWED = {
     "claude-code-guide",
-    "statusline-setup",
     "haiku",
 }
 

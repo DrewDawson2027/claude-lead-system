@@ -135,6 +135,22 @@ Measured by: `node bench/coord-benchmark.mjs` on `2026-02-19`.
 
 ---
 
+## Why Not Just Use [Other Multi-Agent Framework]?
+
+| | **Claude Lead System** | Other multi-agent frameworks |
+|---|---|---|
+| API token cost per coordination message | **$0** | Varies (often $0.01–$0.10+) |
+| Works with Claude Code's existing UI | **Yes** | Usually no |
+| Requires a central server/process | **No** | Usually yes |
+| Works in Cursor, VS Code, iTerm2 | **Yes** | No |
+| Cross-platform (macOS/Windows/Linux) | **Yes** | Varies |
+| Install complexity | **One curl command** | pip install + config + API keys |
+| Runs outside the context window | **Yes** | No |
+
+The key insight: **shell hooks fire on every tool call for free.** No other coordination system leverages this.
+
+---
+
 ## Platform Support
 
 | Platform | Terminal Spawning | Session Waking | Messaging |
@@ -319,11 +335,24 @@ The filesystem protocol (session JSONs, inbox files, activity log) works without
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). PRs welcome — especially for:
+
+- **Demo GIF** — a screen recording of `/lead` booting and sending a message would go a long way
+- Windows-native `coord_wake_session` (currently inbox-fallback only)
 - `tmux` / `zellij` split pane support
-- Tests for hooks
+- Additional hook tests
 
 ---
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+<div align="center">
+
+**Found this useful? [⭐ Star it](https://github.com/DrewDawson2027/claude-lead-system/stargazers) · [🐛 Report a bug](https://github.com/DrewDawson2027/claude-lead-system/issues/new?template=bug_report.md) · [💡 Request a feature](https://github.com/DrewDawson2027/claude-lead-system/issues/new?template=feature_request.md)**
+
+*Share this with anyone running multiple Claude Code sessions in parallel.*
+
+</div>
