@@ -10,7 +10,7 @@ if [ -f "$INBOX" ] && [ -s "$INBOX" ]; then
   TMP_INBOX=$(mktemp)
   mv "$INBOX" "$TMP_INBOX"
   echo "--- INCOMING MESSAGES FROM COORDINATOR ---"
-  tr -d '\000-\010\013\014\016-\037\177' < "$TMP_INBOX"
+  tr -d '\000-\010\013\014\016-\037\177\200-\237' < "$TMP_INBOX"
   echo "--- END MESSAGES ---"
   rm -f "$TMP_INBOX"
 fi
@@ -23,9 +23,9 @@ for donefile in "$RESULTS_DIR"/*.meta.json.done; do
   REPORTED="$RESULTS_DIR/${TASK_ID}.reported"
   if [ ! -f "$REPORTED" ]; then
     echo "--- WORKER COMPLETED: $TASK_ID ---"
-    tr -d '\000-\010\013\014\016-\037\177' < "$donefile"
+    tr -d '\000-\010\013\014\016-\037\177\200-\237' < "$donefile"
     # Show last 20 lines of output
-    tail -20 "$RESULTS_DIR/${TASK_ID}.txt" 2>/dev/null | tr -d '\000-\010\013\014\016-\037\177'
+    tail -20 "$RESULTS_DIR/${TASK_ID}.txt" 2>/dev/null | tr -d '\000-\010\013\014\016-\037\177\200-\237'
     echo "--- END WORKER RESULT ---"
     touch "$REPORTED"
   fi
