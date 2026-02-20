@@ -29,8 +29,7 @@ cd mcp-coordinator && npm run test:e2e
 
 - **Windows `coord_wake_session`** — currently falls back to inbox. Native Windows Terminal focus + keystroke injection would be a great addition.
 - **tmux / zellij support** — `openTerminalWithCommand` in `index.js` could gain a `tmux` branch.
-- **Hook tests** — there are no automated tests for the shell hooks. A simple bash test harness would be valuable.
-- **Windows wake_session native support** — current wake flow on Windows uses inbox fallback, not keystroke injection.
+- **Hook test depth** — shell hooks have smoke/regression coverage, but deeper race-condition and portability tests would improve confidence.
 
 ## PR guidelines
 

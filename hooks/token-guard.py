@@ -70,7 +70,11 @@ def file_lock(path):
 
 
 def main():
-    input_data = json.load(sys.stdin)
+    try:
+        input_data = json.load(sys.stdin)
+    except (json.JSONDecodeError, EOFError):
+        # Fail open on malformed hook payloads to avoid blocking all Task usage.
+        sys.exit(0)
 
     tool_name = input_data.get("tool_name", "")
     tool_input = input_data.get("tool_input", {})
@@ -91,58 +95,62 @@ def main():
 
     # File-locked state access (prevents race conditions from parallel tool calls)
     lock_file = state_file + ".lock"
-    with file_lock(lock_file):
-        state = load_state(state_file)
-        now = time.time()
+    try:
+        with file_lock(lock_file):
+            state = load_state(state_file)
+            now = time.time()
 
-        # RULE 1: One-per-session types (Explore, deep-researcher, etc.)
-        if subagent_type in ONE_PER_SESSION:
-            existing = [a for a in state["agents"] if a["type"] == subagent_type]
-            if existing:
-                block(f"BLOCKED: Already spawned a {subagent_type} agent this session. "
-                      f"Max 1 per session. Merge your queries into one agent, or use "
-                      f"Grep/Read/WebSearch directly instead of spawning another.")
+            # RULE 1: One-per-session types (Explore, deep-researcher, etc.)
+            if subagent_type in ONE_PER_SESSION:
+                existing = [a for a in state["agents"] if a["type"] == subagent_type]
+                if existing:
+                    block(f"BLOCKED: Already spawned a {subagent_type} agent this session. "
+                          f"Max 1 per session. Merge your queries into one agent, or use "
+                          f"Grep/Read/WebSearch directly instead of spawning another.")
 
-        # RULE 2: No duplicate subagent_types (enforce max 1)
-        existing_same = [a for a in state["agents"] if a["type"] == subagent_type]
-        if existing_same:
-            block(f"BLOCKED: Already spawned {subagent_type} in this session. "
-                  f"Max 1 of any subagent type. Use tools directly instead.")
+            # RULE 2: No duplicate subagent_types (enforce max 1)
+            existing_same = [a for a in state["agents"] if a["type"] == subagent_type]
+            if existing_same:
+                block(f"BLOCKED: Already spawned {subagent_type} in this session. "
+                      f"Max 1 of any subagent type. Use tools directly instead.")
 
-        # RULE 3: Session agent cap
-        if state["agent_count"] >= MAX_AGENTS:
-            block(f"BLOCKED: Agent cap reached ({MAX_AGENTS}/session). "
-                  f"You've spawned {state['agent_count']} agents already. "
-                  f"Use Grep/Read/WebSearch tools directly instead of spawning agents.")
+            # RULE 3: Session agent cap
+            if state["agent_count"] >= MAX_AGENTS:
+                block(f"BLOCKED: Agent cap reached ({MAX_AGENTS}/session). "
+                      f"You've spawned {state['agent_count']} agents already. "
+                      f"Use Grep/Read/WebSearch tools directly instead of spawning agents.")
 
-        # RULE 4: No spawns within 30s of same type (catches "same turn" spawns)
-        recent_same = [
-            a for a in state["agents"]
-            if a["type"] == subagent_type
-            and (now - a["timestamp"]) < PARALLEL_WINDOW_SECONDS
-        ]
-        if recent_same:
-            block(f"BLOCKED: Another {subagent_type} agent was spawned {now - recent_same[0]['timestamp']:.0f}s ago. "
-                  f"Wait or merge into one agent. Overlap Check: combine queries into a single prompt.")
+            # RULE 4: No spawns within 30s of same type (catches "same turn" spawns)
+            recent_same = [
+                a for a in state["agents"]
+                if a["type"] == subagent_type
+                and (now - a["timestamp"]) < PARALLEL_WINDOW_SECONDS
+            ]
+            if recent_same:
+                block(f"BLOCKED: Another {subagent_type} agent was spawned {now - recent_same[0]['timestamp']:.0f}s ago. "
+                      f"Wait or merge into one agent. Overlap Check: combine queries into a single prompt.")
 
-        # ALLOWED — record and proceed
-        agent_record = {
-            "type": subagent_type,
-            "description": description,
-            "timestamp": now
-        }
+            # ALLOWED — record and proceed
+            agent_record = {
+                "type": subagent_type,
+                "description": description,
+                "timestamp": now
+            }
 
-        # For Explore agents, extract target directories from the prompt
-        # so read-efficiency-guard.py can detect duplicate reads
-        if subagent_type == "Explore":
-            prompt = tool_input.get("prompt", "")
-            target_dirs = extract_target_dirs(prompt)
-            if target_dirs:
-                agent_record["target_dirs"] = target_dirs
+            # For Explore agents, extract target directories from the prompt
+            # so read-efficiency-guard.py can detect duplicate reads
+            if subagent_type == "Explore":
+                prompt = tool_input.get("prompt", "")
+                target_dirs = extract_target_dirs(prompt)
+                if target_dirs:
+                    agent_record["target_dirs"] = target_dirs
 
-        state["agent_count"] += 1
-        state["agents"].append(agent_record)
-        save_state(state_file, state)
+            state["agent_count"] += 1
+            state["agents"].append(agent_record)
+            save_state(state_file, state)
+    except Exception:
+        # Fail open for unexpected hook/storage errors.
+        sys.exit(0)
 
     sys.exit(0)  # Allow
 

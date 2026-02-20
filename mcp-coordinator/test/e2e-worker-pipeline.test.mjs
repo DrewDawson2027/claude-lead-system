@@ -4,8 +4,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, existsSync, readFileS
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-const canRunE2E = process.platform === 'linux' || process.env.COORDINATOR_FORCE_E2E === '1';
-const runOnLinux = canRunE2E ? test : test.skip;
+const canRunE2E = process.platform !== 'win32' || process.env.COORDINATOR_FORCE_E2E === '1';
+const runE2E = canRunE2E ? test : test.skip;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -81,7 +81,69 @@ function contentText(result) {
   return result?.content?.[0]?.text || '';
 }
 
-runOnLinux('spawn worker -> completion -> get result', async () => {
+test('send_message refuses unknown session unless allow_offline=true', async () => {
+  const { home, binDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+
+  try {
+    const blocked = await api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      to: 'abcd1234',
+      content: 'hello',
+    });
+    assert.match(contentText(blocked), /not delivered/i);
+
+    const queued = await api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      to: 'abcd1234',
+      content: 'hello',
+      allow_offline: true,
+    });
+    assert.match(contentText(queued), /offline queue/i);
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_worker rejects duplicate task_id collisions', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+    MOCK_CLAUDE_DELAY: '0',
+  });
+
+  try {
+    const first = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'First task',
+      model: 'sonnet',
+      task_id: 'W_COLLIDE',
+    });
+    assert.match(contentText(first), /Worker spawned/i);
+
+    const second = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'Second task',
+      model: 'sonnet',
+      task_id: 'W_COLLIDE',
+    });
+    assert.match(contentText(second), /already exists/i);
+  } finally {
+    restore();
+  }
+});
+
+runE2E('spawn worker -> completion -> get result', async () => {
   const { home, binDir, projectDir } = setupTestHome();
   const { api, restore } = await loadCoordinatorForTest({
     HOME: home,
@@ -115,7 +177,7 @@ runOnLinux('spawn worker -> completion -> get result', async () => {
   }
 });
 
-runOnLinux('spawn worker -> kill worker', async () => {
+runE2E('spawn worker -> kill worker', async () => {
   const { home, binDir, projectDir } = setupTestHome();
   const { api, restore } = await loadCoordinatorForTest({
     HOME: home,
@@ -150,7 +212,7 @@ runOnLinux('spawn worker -> kill worker', async () => {
   }
 });
 
-runOnLinux('run pipeline -> completion -> get pipeline status', async () => {
+runE2E('run pipeline -> completion -> get pipeline status', async () => {
   const { home, binDir, projectDir } = setupTestHome();
   const { api, restore } = await loadCoordinatorForTest({
     HOME: home,

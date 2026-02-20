@@ -6,8 +6,8 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, appendFileSync, unlinkSync } from "fs";
-import { join, basename } from "path";
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, appendFileSync, unlinkSync, renameSync, realpathSync } from "fs";
+import { join, basename, resolve, isAbsolute } from "path";
 import { homedir, platform } from "os";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
@@ -134,11 +134,13 @@ function openTerminalWithCommand(command, layout = "tab") {
 
 // Cross-platform process check
 function isProcessAlive(pid) {
+  const pidNum = Number(pid);
+  if (!Number.isInteger(pidNum) || pidNum <= 0) return false;
   try {
     if (PLATFORM === "win32") {
-      execSync(`tasklist /FI "PID eq ${pid}" /NH | findstr ${pid}`, { stdio: "ignore" });
+      execSync(`tasklist /FI "PID eq ${pidNum}" /NH | findstr ${pidNum}`, { stdio: "ignore" });
     } else {
-      execSync(`kill -0 ${pid} 2>/dev/null`);
+      execSync(`kill -0 ${pidNum} 2>/dev/null`);
     }
     return true;
   } catch {
@@ -148,11 +150,13 @@ function isProcessAlive(pid) {
 
 // Cross-platform process kill
 function killProcess(pid) {
+  const pidNum = Number(pid);
+  if (!Number.isInteger(pidNum) || pidNum <= 0) throw new Error("Invalid PID.");
   if (PLATFORM === "win32") {
-    execSync(`taskkill /PID ${pid} /T /F 2>nul`, { shell: true });
+    execSync(`taskkill /PID ${pidNum} /T /F 2>nul`, { shell: true });
   } else {
-    try { execSync(`kill -TERM -${pid} 2>/dev/null`); } catch {
-      execSync(`kill -TERM ${pid} 2>/dev/null`);
+    try { execSync(`kill -TERM -${pidNum} 2>/dev/null`); } catch {
+      execSync(`kill -TERM ${pidNum} 2>/dev/null`);
     }
   }
 }
@@ -160,11 +164,20 @@ function killProcess(pid) {
 // Build worker script (cross-platform)
 function buildWorkerScript(taskId, escapedDir, resultFile, pidFile, metaFile, modelFlag, agentFlag, settingsFlag, promptFile) {
   if (PLATFORM === "win32") {
+    const safeBin = CLAUDE_BIN.replace(/'/g, "''");
+    const psCmd = [
+      "$ErrorActionPreference='Stop'",
+      `$pidValue = $PID`,
+      `[System.IO.File]::WriteAllText("${pidFile}", "$pidValue")`,
+      `[System.IO.File]::WriteAllText("${resultFile}", "Worker ${taskId} starting at $((Get-Date).ToString('o'))\\n")`,
+      `Get-Content -Path "${promptFile}" | & '${safeBin}' -p ${modelFlag} ${agentFlag} ${settingsFlag} *>> "${resultFile}"`,
+      `$done = @{ status = 'completed'; finished = (Get-Date).ToUniversalTime().ToString('o'); task_id = '${taskId}' } | ConvertTo-Json -Compress`,
+      `[System.IO.File]::WriteAllText("${metaFile}.done", $done)`,
+      `Remove-Item -Path "${pidFile}" -ErrorAction SilentlyContinue`,
+    ].join("; ");
     return [
       `cd /d "${escapedDir}"`,
-      `echo Worker ${taskId} starting at %date% %time% > "${resultFile}"`,
-      `${CLAUDE_BIN} -p ${modelFlag} ${agentFlag} ${settingsFlag} < "${promptFile}" >> "${resultFile}" 2>&1`,
-      `echo {"status":"completed","finished":"%date%T%time%","task_id":"${taskId}"} > "${metaFile}.done"`,
+      `powershell -NoProfile -Command "${psCmd.replace(/"/g, '\\"')}"`,
     ].join(" && ");
   } else {
     return [
@@ -269,7 +282,23 @@ function requireDirectoryPath(pathValue) {
   const directory = String(pathValue ?? "").trim();
   if (!directory) throw new Error("Directory is required.");
   if (directory.includes("\n") || directory.includes("\r")) throw new Error("Invalid directory path.");
+  if (directory.includes("\0")) throw new Error("Invalid directory path.");
+  if (directory.includes('"')) throw new Error("Directory path cannot contain double quotes.");
   return directory;
+}
+
+function normalizeFilePath(filePath, cwd = "") {
+  const raw = String(filePath ?? "").trim();
+  if (!raw) return null;
+  let candidate = isAbsolute(raw) ? raw : resolve(cwd || process.cwd(), raw);
+  try {
+    if (existsSync(candidate)) {
+      candidate = realpathSync(candidate);
+    }
+  } catch {}
+  let normalized = candidate.replace(/\\/g, "/");
+  if (PLATFORM === "win32") normalized = normalized.toLowerCase();
+  return normalized;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -316,6 +345,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           to: { type: "string", description: "Target session ID (first 8 chars)" },
           content: { type: "string", description: "Message content" },
           priority: { type: "string", enum: ["normal", "urgent"], description: "Priority (default: normal)" },
+          allow_offline: { type: "boolean", description: "Queue message even if session is not currently registered (default: false)" },
         },
         required: ["from", "to", "content"],
       },
@@ -559,13 +589,17 @@ async function handleToolCall(name, args = {}) {
       const content = String(args?.content || "").trim();
       if (!content) return text("Message content cannot be empty.");
       const priority = args?.priority === "urgent" ? "urgent" : "normal";
+      const allowOffline = args?.allow_offline === true;
+      const sessionFile = join(TERMINALS_DIR, `session-${to}.json`);
+      if (!existsSync(sessionFile) && !allowOffline) {
+        return text(`Session ${to} not found. Message not delivered.\nIf intentional, resend with allow_offline=true.`);
+      }
       const inboxFile = join(INBOX_DIR, `${to}.jsonl`);
       appendFileSync(inboxFile, JSON.stringify({
         ts: new Date().toISOString(), from,
         priority, content,
       }) + "\n");
 
-      const sessionFile = join(TERMINALS_DIR, `session-${to}.json`);
       if (existsSync(sessionFile)) {
         try {
           const s = readJSON(sessionFile);
@@ -573,17 +607,33 @@ async function handleToolCall(name, args = {}) {
         } catch {}
       }
 
-      return text(`Message sent to ${to}.\nContent: "${content}"\nPriority: ${priority}`);
+      return text(
+        `Message sent to ${to}${existsSync(sessionFile) ? "" : " (offline queue)"}.` +
+        `\nContent: "${content}"\nPriority: ${priority}`
+      );
     }
 
     // ─── CHECK INBOX ───
     case "coord_check_inbox": {
       const sid = sanitizeShortSessionId(args.session_id);
       const inboxFile = join(INBOX_DIR, `${sid}.jsonl`);
-      const messages = readJSONL(inboxFile);
-      if (messages.length === 0) return text("No pending messages.");
+      const drainFile = join(INBOX_DIR, `${sid}.drain.${Date.now()}.${process.pid}.jsonl`);
+      let messages = [];
+      try {
+        if (existsSync(inboxFile)) renameSync(inboxFile, drainFile);
+      } catch {
+        // Fallback: read only; avoid truncating on failure.
+      }
+      if (existsSync(drainFile)) messages = readJSONL(drainFile);
+      else messages = readJSONL(inboxFile);
+      if (messages.length === 0) {
+        try { if (existsSync(drainFile)) unlinkSync(drainFile); } catch {}
+        if (!existsSync(inboxFile)) writeFileSync(inboxFile, "");
+        return text("No pending messages.");
+      }
 
-      writeFileSync(inboxFile, "");
+      try { if (existsSync(drainFile)) unlinkSync(drainFile); } catch {}
+      if (!existsSync(inboxFile)) writeFileSync(inboxFile, "");
       const sessionFile = join(TERMINALS_DIR, `session-${sid}.json`);
       if (existsSync(sessionFile)) {
         try { const s = readJSON(sessionFile); if (s) { s.has_messages = false; writeFileSync(sessionFile, JSON.stringify(s, null, 2)); } } catch {}
@@ -602,15 +652,26 @@ async function handleToolCall(name, args = {}) {
       const session_id = sanitizeShortSessionId(args.session_id);
       const files = (args.files || []).map(f => String(f).trim()).filter(Boolean);
       if (!files?.length) return text("No files specified.");
+      const allSessions = getAllSessions();
+      const sessionById = new Map(allSessions.map(s => [s.session, s]));
+      const detectorSession = sessionById.get(session_id);
+      if (!detectorSession) return text(`Session ${session_id} not found.`);
+      const detectorCwd = detectorSession?.cwd || "";
+      const normalizedByInput = new Map(files.map(f => [f, normalizeFilePath(f, detectorCwd)]));
+      const normalizedFiles = new Set([...normalizedByInput.values()].filter(Boolean));
 
-      const sessions = getAllSessions().filter(s => s.session !== session_id && getSessionStatus(s) !== "closed");
+      const sessions = allSessions.filter(s => s.session !== session_id && getSessionStatus(s) !== "closed");
       const conflicts = [];
 
       for (const s of sessions) {
-        // Check both current_files (registered) and files_touched (from heartbeat)
+        // Check both current_files (registered) and files_touched (from heartbeat), using canonical paths.
         const theirFiles = [...(s.current_files || []), ...(s.files_touched || [])];
         if (!theirFiles.length) continue;
-        const overlap = files.filter(f => theirFiles.some(sf => sf === f || basename(sf) === basename(f)));
+        const theirNormalized = new Set(theirFiles.map(sf => normalizeFilePath(sf, s.cwd || "")).filter(Boolean));
+        const overlap = files.filter(f => {
+          const normalized = normalizedByInput.get(f);
+          return normalized && theirNormalized.has(normalized);
+        });
         if (overlap.length > 0) {
           conflicts.push({ session: s.session, project: s.project, task: s.current_task || "unknown", overlapping_files: overlap });
         }
@@ -622,7 +683,7 @@ async function handleToolCall(name, args = {}) {
       const recentEdits = recentActivity.filter(a =>
         a.session !== session_id && new Date(a.ts).getTime() > fiveMinAgo &&
         (a.tool === "Edit" || a.tool === "Write") &&
-        files.some(f => a.path === f || basename(a.path || "") === basename(f))
+        normalizedFiles.has(normalizeFilePath(a.path || "", sessionById.get(a.session)?.cwd || detectorCwd))
       );
 
       if (conflicts.length === 0 && recentEdits.length === 0) return text("No conflicts detected. Safe to proceed.");
@@ -724,6 +785,7 @@ async function handleToolCall(name, args = {}) {
 
       // Conflict check
       if (files?.length) {
+        const normalizedRequested = new Map(files.map(f => [f, normalizeFilePath(f, directory)]));
         const running = readdirSync(RESULTS_DIR)
           .filter(f => f.endsWith(".meta.json") && !f.includes(".done"))
           .map(f => readJSON(join(RESULTS_DIR, f)))
@@ -733,7 +795,11 @@ async function handleToolCall(name, args = {}) {
           if (!existsSync(pidFile)) continue;
           const pid = readFileSync(pidFile, "utf-8").trim();
           if (!isProcessAlive(pid)) continue;
-          const overlap = files.filter(f => w.files.includes(f));
+          const normalizedWorker = new Set(w.files.map(f => normalizeFilePath(f, w.directory)).filter(Boolean));
+          const overlap = files.filter(f => {
+            const normalized = normalizedRequested.get(f);
+            return normalized && normalizedWorker.has(normalized);
+          });
           if (overlap.length > 0) return text(`CONFLICT: Worker ${w.task_id} editing: ${overlap.join(", ")}. Kill it first or wait.`);
         }
       }
@@ -742,6 +808,9 @@ async function handleToolCall(name, args = {}) {
       const resultFile = join(RESULTS_DIR, `${taskId}.txt`);
       const pidFile = join(RESULTS_DIR, `${taskId}.pid`);
       const metaFile = join(RESULTS_DIR, `${taskId}.meta.json`);
+      if (existsSync(metaFile) || existsSync(resultFile)) {
+        return text(`Task ID ${taskId} already exists. Use a new task_id or omit it for auto-generation.`);
+      }
 
       const meta = {
         task_id: taskId, directory, prompt: prompt.slice(0, 500),
@@ -962,6 +1031,10 @@ return found`.trim();
       try {
         killProcess(pid);
         writeFileSync(`${metaFile}.done`, JSON.stringify({ status: "cancelled", finished: new Date().toISOString(), task_id }));
+        const existingMeta = readJSON(metaFile) || {};
+        existingMeta.status = "cancelled";
+        existingMeta.cancelled = new Date().toISOString();
+        writeFileSync(metaFile, JSON.stringify(existingMeta, null, 2));
         try { unlinkSync(pidFile); } catch {}
         return text(`Worker ${task_id} (PID ${pid}) killed.`);
       } catch (err) {
@@ -979,6 +1052,7 @@ return found`.trim();
 
       const pipelineId = pipeline_id ? sanitizeId(pipeline_id, "pipeline_id") : `P${Date.now()}`;
       const pipelineDir = join(RESULTS_DIR, pipelineId);
+      if (existsSync(pipelineDir)) return text(`Pipeline ID ${pipelineId} already exists. Use a new pipeline_id.`);
       mkdirSync(pipelineDir, { recursive: true });
 
       const escapedDir = PLATFORM === "win32" ? directory : directory.replace(/'/g, "'\\''");
@@ -1136,4 +1210,5 @@ export const __test__ = {
   sanitizeModel,
   sanitizeAgent,
   requireDirectoryPath,
+  normalizeFilePath,
 };

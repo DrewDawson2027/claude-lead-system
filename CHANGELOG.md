@@ -32,6 +32,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `mcp-coordinator/index.js`: strict argument sanitization for IDs, models, agents, and pipeline step names
 - `hooks/health-check.sh`: validates coordinator MCP config and unresolved settings placeholders
 - `hooks/terminal-heartbeat.sh`: removed project-specific backward-compat logging
+- `mcp-coordinator/index.js`: `coord_check_inbox` now uses atomic drain (`rename`) to avoid dropping concurrently-arriving messages
+- `mcp-coordinator/index.js`: worker/session conflict checks now use normalized canonical paths (removed basename-only matching)
+- `mcp-coordinator/index.js`: `coord_send_message` now rejects unknown sessions by default (`allow_offline=true` enables explicit offline queueing)
+- `mcp-coordinator/index.js`: Windows worker flow now records a PID file so `coord_kill_worker` can terminate running workers consistently
+- `mcp-coordinator/index.js`: PID handling now validates numeric IDs before shelling out (`isProcessAlive`, `killProcess`)
+- `mcp-coordinator/index.js`: custom `task_id`/`pipeline_id` collisions are rejected to prevent result overwrites
+- `mcp-coordinator/index.js`: `coord_detect_conflicts` now errors on unknown detector session IDs instead of resolving paths from the coordinator cwd
+- `mcp-coordinator/index.js`: directory path validation now rejects unsafe control chars and embedded double quotes
+- `hooks/session-end.sh`: per-session guard state files are cleaned up on session close
+- `hooks/check-inbox.sh`: strips terminal control characters before printing inbound/worker output
+- `hooks/token-guard.py`: fail-open behavior for malformed hook payloads and unexpected storage/locking failures
 - Removed remaining project-specific examples/references from docs/prompts
 
 ### Changed
@@ -40,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `install.sh`: expands `__HOME__` placeholder in settings template during install
 - CI expanded with coordinator E2E, platform matrix, and Node/Python compatibility matrix
 - README now includes benchmark table, before/after outcomes, and release-hardening references
+- `mcp-coordinator/test/e2e-worker-pipeline.test.mjs`: lifecycle e2e coverage now runs on non-Windows platforms by default (not Linux-only)
 
 ## [1.0.0] — 2026-02-01
 
