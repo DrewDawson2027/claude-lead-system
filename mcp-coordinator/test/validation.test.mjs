@@ -46,3 +46,11 @@ test('process helpers reject invalid PID input safely', () => {
   assert.equal(__test__.isProcessAlive('bad-pid'), false);
   assert.throws(() => __test__.killProcess('bad-pid'));
 });
+
+test('selectWakeText returns empty string in safe mode (default)', () => {
+  assert.equal(__test__.selectWakeText('wake up', false), '');
+});
+
+test('selectWakeText returns message when unsafe terminal message is explicitly allowed', () => {
+  assert.equal(__test__.selectWakeText('wake up', true), 'wake up');
+});

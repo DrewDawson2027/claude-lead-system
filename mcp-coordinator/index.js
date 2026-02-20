@@ -1464,4 +1464,5 @@ export const __test__ = {
   normalizeFilePath,
   readJSONLLimited,
   isSafeTTYPath,
+  selectWakeText,
 };

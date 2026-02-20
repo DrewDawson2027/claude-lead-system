@@ -21,7 +21,7 @@ else:
     import fcntl
 
 STATE_DIR = os.path.expanduser("~/.claude/hooks/session-state")
-os.makedirs(STATE_DIR, exist_ok=True)
+os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
 
 SEQUENTIAL_THRESHOLD = 4  # Warn after this many sequential reads
 SEQUENTIAL_WINDOW = 60  # Seconds window for sequential detection
@@ -142,6 +142,8 @@ def load_state(path):
 def save_state(path, state):
     with open(path, "w") as f:
         json.dump(state, f, indent=2)
+    if os.name != "nt":
+        os.chmod(path, 0o600)
 
 
 if __name__ == "__main__":
