@@ -65,7 +65,7 @@ function writeFileSecure(pathValue, data) {
   if (PLATFORM !== "win32") {
     try { chmodSync(pathValue, 0o600); } catch {}
   } else {
-    try { enforceWindowsAcl(pathValue, false); } catch {}
+    enforceWindowsAcl(pathValue, false);
   }
 }
 
@@ -74,19 +74,28 @@ function appendJSONLineSecure(pathValue, value) {
   if (PLATFORM !== "win32") {
     try { chmodSync(pathValue, 0o600); } catch {}
   } else {
-    try { enforceWindowsAcl(pathValue, false); } catch {}
+    enforceWindowsAcl(pathValue, false);
   }
 }
 
 function enforceWindowsAcl(pathValue, isDirectory = false) {
   if (PLATFORM !== "win32") return;
-  const username = String(process.env.USERNAME || "").trim();
+  let username = String(process.env.USERNAME || "").trim();
+  if (!username) {
+    try {
+      const who = execFileSync("whoami", { encoding: "utf-8" }).trim();
+      username = who.split("\\").pop() || who;
+    } catch {}
+  }
   if (!username) throw new Error("USERNAME is required for Windows ACL hardening.");
   const grant = isDirectory ? `${username}:(OI)(CI)F` : `${username}:F`;
-  execFileSync("icacls", [pathValue, "/inheritance:r", "/grant:r", grant], { stdio: "ignore" });
+  execFileSync("icacls", [pathValue, "/inheritance:r", "/remove:g", "Everyone", "/remove:g", "Users", "/remove:g", "Authenticated Users", "/grant:r", grant], { stdio: "ignore" });
   const aclOutput = execFileSync("icacls", [pathValue], { encoding: "utf-8" });
-  if (!aclOutput.toLowerCase().includes(username.toLowerCase())) {
-    throw new Error(`ACL hardening failed for ${pathValue}`);
+  const lower = aclOutput.toLowerCase();
+  if (!lower.includes(`${username.toLowerCase()}:`)) throw new Error(`ACL hardening failed for ${pathValue}: missing user ACE.`);
+  if (/\(I\)/.test(aclOutput)) throw new Error(`ACL hardening failed for ${pathValue}: inherited ACE detected.`);
+  if (/\\everyone:/i.test(aclOutput) || /\\users:/i.test(aclOutput) || /authenticated users:/i.test(aclOutput)) {
+    throw new Error(`ACL hardening failed for ${pathValue}: broad principals still present.`);
   }
 }
 
@@ -306,6 +315,10 @@ function wakeViaTTY(ttyPath, message) {
   } catch {
     return false;
   }
+}
+
+function selectWakeText(message, allowUnsafeTerminalMessage) {
+  return allowUnsafeTerminalMessage ? message : "";
 }
 
 function wakeViaWindowsAppActivate(sessionId, message) {
@@ -629,6 +642,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {
           session_id: { type: "string", description: "Session ID (first 8 chars)" },
           message: { type: "string", description: "Text to send to the session" },
+          allow_unsafe_terminal_message: { type: "boolean", description: "If true, direct terminal wake will type message content. Default false sends only Enter for safety." },
         },
         required: ["session_id", "message"],
       },
@@ -1120,6 +1134,9 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       const session_id = sanitizeShortSessionId(args.session_id);
       const message = String(args.message || "").trim();
       if (!message) return text("Message is required.");
+      const allowUnsafeTerminalMessage = args?.allow_unsafe_terminal_message === true;
+      const wakeText = selectWakeText(message, allowUnsafeTerminalMessage);
+      const wakeModeNote = allowUnsafeTerminalMessage ? "" : " (safe mode: sent Enter only)";
       assertMessageBudget(message);
       enforceMessageRateLimit(session_id);
       const sessionFile = join(TERMINALS_DIR, `session-${session_id}.json`);
@@ -1127,11 +1144,11 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       const sessionData = readJSON(sessionFile);
       const targetTTY = sessionData?.tty;
 
-      if (PLATFORM === "linux" && targetTTY && wakeViaTTY(targetTTY, message)) {
-        return text(`Woke ${session_id} via TTY write (${targetTTY}).\nMessage: "${message}"`);
+      if (PLATFORM === "linux" && targetTTY && wakeViaTTY(targetTTY, wakeText)) {
+        return text(`Woke ${session_id} via TTY write (${targetTTY})${wakeModeNote}.\nMessage: "${message}"`);
       }
-      if (PLATFORM === "win32" && wakeViaWindowsAppActivate(session_id, message)) {
-        return text(`Woke ${session_id} via Windows AppActivate.\nMessage: "${message}"`);
+      if (PLATFORM === "win32" && wakeViaWindowsAppActivate(session_id, wakeText)) {
+        return text(`Woke ${session_id} via Windows AppActivate${wakeModeNote}.\nMessage: "${message}"`);
       }
 
       // Non-macOS fallback: inbox messaging
@@ -1151,7 +1168,7 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
 
       // macOS: AppleScript injection
       try {
-        const escapedMessage = message.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+        const escapedMessage = wakeText.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
         const termApp = getTerminalApp();
         let appleScript;
 
@@ -1228,7 +1245,7 @@ return found`.trim();
         const result = execFileSync("osascript", ["-e", appleScript], { timeout: 10000, encoding: "utf-8" }).trim();
 
         if (result === "true") {
-          return text(`Woke ${session_id} via ${termApp}${targetTTY ? ` (${targetTTY})` : ""}.\nMessage: "${message}"`);
+          return text(`Woke ${session_id} via ${termApp}${targetTTY ? ` (${targetTTY})` : ""}${wakeModeNote}.\nMessage: "${message}"`);
         }
 
         // AppleScript couldn't find it — fall back to inbox

@@ -48,6 +48,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `mcp-coordinator/index.js`: enforced secure filesystem modes for coordinator state (`0700` dirs, `0600` files), plus symlink/owner checks
 - `mcp-coordinator/index.js`: added message-size/rate limits and bounded inbox drain to prevent resource exhaustion
 - `hooks/token-guard.py`: fail-open is now configurable via `TOKEN_GUARD_FAIL_OPEN=1` (default fail-closed), with hardened state directory/file permissions
+- `mcp-coordinator/index.js`: direct terminal wake now defaults to Enter-only safety mode; typed message injection requires `allow_unsafe_terminal_message=true`
+- `mcp-coordinator/index.js`: Windows ACL hardening now strips broad principals and rejects inherited ACLs during verification
 - Removed remaining project-specific examples/references from docs/prompts
 
 ### Changed
@@ -60,6 +62,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added supply-chain workflow (`.github/workflows/supply-chain.yml`) for SBOM generation and release provenance attestation
 - Supply-chain workflow now generates keyless cosign signatures/certificates and verifies signed release bundles
 - CI now enforces performance SLOs with `tests/perf-gate.mjs`
+- Performance gate now uses multi-run median aggregation to reduce CI timing flake
+- Inbox fuzz tests now use deterministic seeded corpus generation
 
 ## [1.0.0] — 2026-02-01
 

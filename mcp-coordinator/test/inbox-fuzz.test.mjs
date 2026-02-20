@@ -30,9 +30,18 @@ test('readJSONLLimited handles random garbage corpus without throwing', () => {
   const dir = mkdtempSync(join(tmpdir(), 'coord-fuzz-'));
   const inbox = join(dir, 'garbage.jsonl');
   const lines = [];
+  let expectedValid = 0;
+  let seed = 1337;
+  const nextRand = () => {
+    seed = (seed * 1103515245 + 12345) % 0x80000000;
+    return seed / 0x80000000;
+  };
   for (let i = 0; i < 200; i += 1) {
-    const r = Math.random();
-    if (r < 0.33) lines.push(`{"ts":"2026-02-20T00:00:${String(i % 60).padStart(2, '0')}Z","from":"f","content":"m-${i}"}`);
+    const r = nextRand();
+    if (r < 0.33) {
+      lines.push(`{"ts":"2026-02-20T00:00:${String(i % 60).padStart(2, '0')}Z","from":"f","content":"m-${i}"}`);
+      expectedValid += 1;
+    }
     else if (r < 0.66) lines.push(`{${'x'.repeat(i % 40)}`);
     else lines.push('\u0000\u0007BAD\u001b[31mLINE');
   }
@@ -40,7 +49,7 @@ test('readJSONLLimited handles random garbage corpus without throwing', () => {
 
   const parsed = __test__.readJSONLLimited(inbox, 500, 64 * 1024);
   assert.equal(Array.isArray(parsed.items), true);
-  assert.equal(parsed.items.length > 0, true);
+  assert.equal(parsed.items.length, expectedValid);
 });
 
 test('isSafeTTYPath only allows expected device paths', () => {

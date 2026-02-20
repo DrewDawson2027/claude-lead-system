@@ -33,6 +33,10 @@ This project runs local hooks and local MCP tools with shell access. Primary ris
 - `hooks/token-guard.py` is fail-closed by default for malformed payloads and unexpected internal errors
 - fail-open is explicit via `TOKEN_GUARD_FAIL_OPEN=1`
 
+7. Wake safety defaults
+- direct terminal wake paths are Enter-only by default to avoid keystroke message injection into active shells
+- message typing into active terminals requires explicit `allow_unsafe_terminal_message=true`
+
 ## Operational Best Practices
 - run `bash ~/.claude/hooks/health-check.sh` after install
 - keep `~/.claude` permissions restricted to your user
