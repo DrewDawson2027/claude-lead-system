@@ -30,6 +30,13 @@ The project guarantees support for:
 5. Health-check regression tests green (`tests/health-check-regression.sh`)
 6. Changelog updated under `Unreleased`
 7. README benchmark and proof links updated for current release
+8. Supply-chain workflow produced `sbom.spdx.json` + provenance attestation
+
+## Supply Chain Integrity
+
+- Workflow: `.github/workflows/supply-chain.yml`
+- Produces a repository bundle (`claude-lead-system.tar.gz`) and SPDX SBOM (`sbom.spdx.json`)
+- Publishes GitHub artifact attestation for the release bundle using `actions/attest-build-provenance`
 
 ## Manual Verification Checklist
 

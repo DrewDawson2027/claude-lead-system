@@ -42,7 +42,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `mcp-coordinator/index.js`: directory path validation now rejects unsafe control chars and embedded double quotes
 - `hooks/session-end.sh`: per-session guard state files are cleaned up on session close
 - `hooks/check-inbox.sh`: strips terminal control characters before printing inbound/worker output
-- `hooks/token-guard.py`: fail-open behavior for malformed hook payloads and unexpected storage/locking failures
+- `mcp-coordinator/index.js`: replaced shell-based process/terminal execution (`execSync`) with `spawnSync`/`execFileSync` and direct process signals
+- `mcp-coordinator/index.js`: Windows worker launch now uses generated `.ps1` files with argument passing (`powershell -File`) instead of inline one-liners
+- `mcp-coordinator/index.js`: enforced secure filesystem modes for coordinator state (`0700` dirs, `0600` files), plus symlink/owner checks
+- `mcp-coordinator/index.js`: added message-size/rate limits and bounded inbox drain to prevent resource exhaustion
+- `hooks/token-guard.py`: fail-open is now configurable via `TOKEN_GUARD_FAIL_OPEN=1` (default fail-closed), with hardened state directory/file permissions
 - Removed remaining project-specific examples/references from docs/prompts
 
 ### Changed
@@ -52,6 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - CI expanded with coordinator E2E, platform matrix, and Node/Python compatibility matrix
 - README now includes benchmark table, before/after outcomes, and release-hardening references
 - `mcp-coordinator/test/e2e-worker-pipeline.test.mjs`: lifecycle e2e coverage now runs on non-Windows platforms by default (not Linux-only)
+- Added supply-chain workflow (`.github/workflows/supply-chain.yml`) for SBOM generation and release provenance attestation
 
 ## [1.0.0] — 2026-02-01
 
