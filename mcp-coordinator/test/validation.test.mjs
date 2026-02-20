@@ -46,3 +46,8 @@ test('process helpers reject invalid PID input safely', () => {
   assert.equal(__test__.isProcessAlive('bad-pid'), false);
   assert.throws(() => __test__.killProcess('bad-pid'));
 });
+
+test('wake text defaults to safe empty payload unless explicitly unsafe', () => {
+  assert.equal(__test__.selectWakeText('run rm -rf /', false), '');
+  assert.equal(__test__.selectWakeText('status check', true), 'status check');
+});

@@ -333,10 +333,24 @@ $ErrorActionPreference = 'Stop'
 $wshell = New-Object -ComObject WScript.Shell
 if (-not $wshell.AppActivate($WindowHint)) { exit 1 }
 Start-Sleep -Milliseconds 200
-$escaped = $Message -replace '([+^%~(){}\\[\\]])', '{$1}'
-$escaped = $escaped -replace '\\{', '{{}'
-$escaped = $escaped -replace '\\}', '{}}'
-$wshell.SendKeys($escaped)
+$Message = $Message -replace '[\\r\\n]', ' '
+$escaped = New-Object System.Text.StringBuilder
+foreach ($ch in $Message.ToCharArray()) {
+  switch ($ch) {
+    '{' { [void]$escaped.Append('{{}'); continue }
+    '}' { [void]$escaped.Append('{}}'); continue }
+    '+' { [void]$escaped.Append('{+}'); continue }
+    '^' { [void]$escaped.Append('{^}'); continue }
+    '%' { [void]$escaped.Append('{%}'); continue }
+    '~' { [void]$escaped.Append('{~}'); continue }
+    '(' { [void]$escaped.Append('{(}'); continue }
+    ')' { [void]$escaped.Append('{)}'); continue }
+    '[' { [void]$escaped.Append('{[}'); continue }
+    ']' { [void]$escaped.Append('{]}'); continue }
+    default { [void]$escaped.Append($ch) }
+  }
+}
+$wshell.SendKeys($escaped.ToString())
 $wshell.SendKeys('{ENTER}')
 exit 0
 `.trim();
@@ -1464,4 +1478,5 @@ export const __test__ = {
   normalizeFilePath,
   readJSONLLimited,
   isSafeTTYPath,
+  selectWakeText,
 };

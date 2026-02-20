@@ -50,6 +50,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `hooks/token-guard.py`: fail-open is now configurable via `TOKEN_GUARD_FAIL_OPEN=1` (default fail-closed), with hardened state directory/file permissions
 - `mcp-coordinator/index.js`: direct terminal wake now defaults to Enter-only safety mode; typed message injection requires `allow_unsafe_terminal_message=true`
 - `mcp-coordinator/index.js`: Windows ACL hardening now strips broad principals and rejects inherited ACLs during verification
+- `mcp-coordinator/index.js`: fixed Windows `SendKeys` escaping for wake messages by switching to explicit per-character escaping in generated PowerShell
+- `hooks/read-efficiency-guard.py`: added secure state dir/file permissions (`0700`/`0600`) aligned with `token-guard.py`
+- `hooks/session-end.sh`: switched `.ended` timestamp update to `jq --arg` (removed fragile shell interpolation)
+- `hooks/check-inbox.sh`: now strips C1 control characters (`0x80-0x9F`) in addition to C0 range
 - Removed remaining project-specific examples/references from docs/prompts
 
 ### Changed
@@ -62,6 +66,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added supply-chain workflow (`.github/workflows/supply-chain.yml`) for SBOM generation and release provenance attestation
 - Supply-chain workflow now generates keyless cosign signatures/certificates and verifies signed release bundles
 - CI now enforces performance SLOs with `tests/perf-gate.mjs`
+- `lint-js` CI job now uses lockfile cache path + `npm ci` for deterministic installs
 - Performance gate now uses multi-run median aggregation to reduce CI timing flake
 - Inbox fuzz tests now use deterministic seeded corpus generation
 

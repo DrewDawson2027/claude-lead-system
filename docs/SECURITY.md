@@ -32,6 +32,7 @@ This project runs local hooks and local MCP tools with shell access. Primary ris
 6. Guard default posture
 - `hooks/token-guard.py` is fail-closed by default for malformed payloads and unexpected internal errors
 - fail-open is explicit via `TOKEN_GUARD_FAIL_OPEN=1`
+- `hooks/read-efficiency-guard.py` uses the same secure local state directory/file permission model (`0700`/`0600`)
 
 7. Wake safety defaults
 - direct terminal wake paths are Enter-only by default to avoid keystroke message injection into active shells

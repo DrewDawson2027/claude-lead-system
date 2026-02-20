@@ -21,16 +21,37 @@ else:
     import fcntl
 
 STATE_DIR = os.path.expanduser("~/.claude/hooks/session-state")
-os.makedirs(STATE_DIR, exist_ok=True)
 
 SEQUENTIAL_THRESHOLD = 4  # Warn after this many sequential reads
 SEQUENTIAL_WINDOW = 60  # Seconds window for sequential detection
+
+
+def ensure_secure_state_dir(path):
+    """Best-effort state directory hardening for local hooks."""
+    try:
+        os.makedirs(path, mode=0o700, exist_ok=True)
+        st = os.lstat(path)
+        if os.path.islink(path):
+            return
+        if hasattr(os, "getuid"):
+            uid = os.getuid()
+            if st.st_uid != uid:
+                return
+        if os.name != "nt":
+            os.chmod(path, 0o700)
+    except Exception:
+        return
 
 
 @contextmanager
 def file_lock(path):
     """Cross-platform advisory file lock."""
     with open(path, "w") as lf:
+        if os.name != "nt":
+            try:
+                os.chmod(path, 0o600)
+            except Exception:
+                pass
         if os.name == "nt":
             lf.write("0")
             lf.flush()
@@ -142,7 +163,13 @@ def load_state(path):
 def save_state(path, state):
     with open(path, "w") as f:
         json.dump(state, f, indent=2)
+    if os.name != "nt":
+        try:
+            os.chmod(path, 0o600)
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
+    ensure_secure_state_dir(STATE_DIR)
     main()
