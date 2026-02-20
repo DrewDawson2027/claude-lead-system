@@ -35,8 +35,8 @@ ONE_PER_SESSION = {
     "Explore",
     "deep-researcher",
     "web-researcher",
-    "competitor-tracker",
-    "gtm-strategist",
+    "data-analyst",
+    "code-reviewer",
     "Plan",
 }
 
