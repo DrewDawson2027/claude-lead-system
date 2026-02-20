@@ -47,7 +47,9 @@ jobs:
       - name: Install deps
         run: cd mcp-coordinator && npm ci
       - name: Check syntax
-        run: node --check mcp-coordinator/index.js
+        run: |
+          node --check mcp-coordinator/index.js
+          node --check mcp-coordinator/lib.js
       - name: Run coordinator unit tests
         run: cd mcp-coordinator && npm run test:unit
 
