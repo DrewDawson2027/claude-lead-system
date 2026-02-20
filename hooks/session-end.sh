@@ -7,9 +7,9 @@ SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
 SESSION_FILE=~/.claude/terminals/session-${SESSION_ID:0:8}.json
 if [ -f "$SESSION_FILE" ]; then
   TMP=$(mktemp)
-  NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  ENDED_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   # Mark closed but preserve files_touched, tool_counts, recent_ops for lead review
-  jq --arg now "$NOW" '.status = "closed" | .ended = $now' "$SESSION_FILE" > "$TMP" && mv "$TMP" "$SESSION_FILE"
+  jq --arg ended "$ENDED_TS" '.status = "closed" | .ended = $ended' "$SESSION_FILE" > "$TMP" && mv "$TMP" "$SESSION_FILE"
 fi
 
 # Clean per-session guard state to avoid unbounded growth over time.
