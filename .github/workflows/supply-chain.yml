@@ -6,7 +6,7 @@ on:
     types: [published]
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
   attestations: write
 
@@ -35,6 +35,33 @@ jobs:
           path: |
             claude-lead-system.tar.gz
             sbom.spdx.json
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign release bundle (keyless)
+        run: |
+          cosign sign-blob --yes \
+            --output-signature claude-lead-system.tar.gz.sig \
+            --output-certificate claude-lead-system.tar.gz.pem \
+            claude-lead-system.tar.gz
+
+      - name: Verify release bundle signature
+        run: |
+          cosign verify-blob \
+            --certificate claude-lead-system.tar.gz.pem \
+            --signature claude-lead-system.tar.gz.sig \
+            --certificate-identity-regexp "https://github.com/.+/.+/.github/workflows/.+" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            claude-lead-system.tar.gz
+
+      - name: Upload signature artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-bundle
+          path: |
+            claude-lead-system.tar.gz.sig
+            claude-lead-system.tar.gz.pem
 
       - name: Attest release bundle provenance
         uses: actions/attest-build-provenance@v2

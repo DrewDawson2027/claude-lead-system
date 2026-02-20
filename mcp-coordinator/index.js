@@ -16,6 +16,7 @@ import {
   unlinkSync,
   renameSync,
   realpathSync,
+  statSync,
   lstatSync,
   chmodSync,
 } from "fs";
@@ -53,6 +54,7 @@ function ensureSecureDirectory(pathValue) {
       if (Number.isInteger(uid) && lst.uid !== uid) throw new Error(`${pathValue} is not owned by current user.`);
     }
     if (PLATFORM !== "win32") chmodSync(pathValue, 0o700);
+    else enforceWindowsAcl(pathValue, true);
   } catch (err) {
     if (!TEST_MODE) throw err;
   }
@@ -62,6 +64,8 @@ function writeFileSecure(pathValue, data) {
   writeFileSync(pathValue, data, { mode: 0o600 });
   if (PLATFORM !== "win32") {
     try { chmodSync(pathValue, 0o600); } catch {}
+  } else {
+    try { enforceWindowsAcl(pathValue, false); } catch {}
   }
 }
 
@@ -69,6 +73,20 @@ function appendJSONLineSecure(pathValue, value) {
   appendFileSync(pathValue, `${JSON.stringify(value)}\n`, { mode: 0o600 });
   if (PLATFORM !== "win32") {
     try { chmodSync(pathValue, 0o600); } catch {}
+  } else {
+    try { enforceWindowsAcl(pathValue, false); } catch {}
+  }
+}
+
+function enforceWindowsAcl(pathValue, isDirectory = false) {
+  if (PLATFORM !== "win32") return;
+  const username = String(process.env.USERNAME || "").trim();
+  if (!username) throw new Error("USERNAME is required for Windows ACL hardening.");
+  const grant = isDirectory ? `${username}:(OI)(CI)F` : `${username}:F`;
+  execFileSync("icacls", [pathValue, "/inheritance:r", "/grant:r", grant], { stdio: "ignore" });
+  const aclOutput = execFileSync("icacls", [pathValue], { encoding: "utf-8" });
+  if (!aclOutput.toLowerCase().includes(username.toLowerCase())) {
+    throw new Error(`ACL hardening failed for ${pathValue}`);
   }
 }
 
@@ -270,6 +288,63 @@ function killProcess(pid) {
     try { process.kill(-pidNum, "SIGTERM"); } catch {
       process.kill(pidNum, "SIGTERM");
     }
+  }
+}
+
+function isSafeTTYPath(pathValue) {
+  const tty = String(pathValue || "").trim();
+  return /^\/dev\/(?:ttys?\d+|pts\/\d+)$/.test(tty);
+}
+
+function wakeViaTTY(ttyPath, message) {
+  if (!isSafeTTYPath(ttyPath)) return false;
+  try {
+    const st = statSync(ttyPath);
+    if (!st.isCharacterDevice()) return false;
+    writeFileSync(ttyPath, `${message}\n`, { flag: "a" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function wakeViaWindowsAppActivate(sessionId, message) {
+  if (PLATFORM !== "win32") return false;
+  const scriptPath = join(RESULTS_DIR, `wake-${sessionId}-${Date.now()}.ps1`);
+  const ps1 = `
+param(
+  [Parameter(Mandatory=$true)][string]$WindowHint,
+  [Parameter(Mandatory=$true)][string]$Message
+)
+$ErrorActionPreference = 'Stop'
+$wshell = New-Object -ComObject WScript.Shell
+if (-not $wshell.AppActivate($WindowHint)) { exit 1 }
+Start-Sleep -Milliseconds 200
+$escaped = $Message -replace '([+^%~(){}\\[\\]])', '{$1}'
+$escaped = $escaped -replace '\\{', '{{}'
+$escaped = $escaped -replace '\\}', '{}}'
+$wshell.SendKeys($escaped)
+$wshell.SendKeys('{ENTER}')
+exit 0
+`.trim();
+  try {
+    writeFileSecure(scriptPath, ps1);
+    const result = spawnSync("powershell", [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      scriptPath,
+      "-WindowHint",
+      `claude-${sessionId}`,
+      "-Message",
+      message,
+    ], { stdio: "ignore", timeout: 8000 });
+    return result.status === 0;
+  } catch {
+    return false;
+  } finally {
+    try { if (existsSync(scriptPath)) unlinkSync(scriptPath); } catch {}
   }
 }
 
@@ -548,7 +623,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "coord_wake_session",
-      description: "Wake an idle session. macOS: AppleScript injection via iTerm2/Terminal.app. Windows/Linux: falls back to inbox message with notification.",
+      description: "Wake an idle session. macOS: AppleScript by tty/title. Linux: direct safe TTY write when available. Windows: AppActivate+SendKeys best effort. All platforms fallback to urgent inbox message.",
       inputSchema: {
         type: "object",
         properties: {
@@ -1052,7 +1127,14 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       const sessionData = readJSON(sessionFile);
       const targetTTY = sessionData?.tty;
 
-      // On non-macOS, fall back to inbox messaging (universal)
+      if (PLATFORM === "linux" && targetTTY && wakeViaTTY(targetTTY, message)) {
+        return text(`Woke ${session_id} via TTY write (${targetTTY}).\nMessage: "${message}"`);
+      }
+      if (PLATFORM === "win32" && wakeViaWindowsAppActivate(session_id, message)) {
+        return text(`Woke ${session_id} via Windows AppActivate.\nMessage: "${message}"`);
+      }
+
+      // Non-macOS fallback: inbox messaging
       if (PLATFORM !== "darwin") {
         const inboxFile = join(INBOX_DIR, `${session_id}.jsonl`);
         appendJSONLineSecure(inboxFile, {
@@ -1363,4 +1445,6 @@ export const __test__ = {
   sanitizeAgent,
   requireDirectoryPath,
   normalizeFilePath,
+  readJSONLLimited,
+  isSafeTTYPath,
 };

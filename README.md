@@ -64,7 +64,7 @@ Terminal A (lead)          Terminal B (coding)       Terminal C (testing)
 |---|---|
 | *(boot)* | Scans all sessions, shows live dashboard |
 | `tell [session] to [task]` | Sends a message to an active terminal |
-| `wake [session] with [message]` | Wakes an idle terminal (AppleScript on macOS, inbox fallback everywhere else) |
+| `wake [session] with [message]` | Wakes an idle terminal (macOS AppleScript, Linux safe TTY write, Windows AppActivate best-effort, inbox fallback) |
 | `run [task] in [dir]` | Spawns an autonomous `claude -p` worker |
 | `pipeline: task1, task2, task3 in [dir]` | Runs a multi-step sequential pipeline |
 | `conflicts` | Cross-references `files_touched` arrays across all sessions |
@@ -141,9 +141,9 @@ Measured by: `node bench/coord-benchmark.mjs` on `2026-02-19`.
 |---|---|---|---|
 | **macOS — iTerm2** | Split panes + tabs | AppleScript by TTY | Inbox hooks |
 | **macOS — Terminal.app** | New windows | AppleScript by title | Inbox hooks |
-| **Windows — Windows Terminal** | Split panes + tabs (`wt`) | Inbox fallback | Inbox hooks |
-| **Windows — PowerShell / cmd** | New windows | Inbox fallback | Inbox hooks |
-| **Linux — gnome-terminal / konsole / kitty** | New windows / tabs | Inbox fallback | Inbox hooks |
+| **Windows — Windows Terminal** | Split panes + tabs (`wt`) | AppActivate + SendKeys (best effort), inbox fallback | Inbox hooks |
+| **Windows — PowerShell / cmd** | New windows | AppActivate + SendKeys (best effort), inbox fallback | Inbox hooks |
+| **Linux — gnome-terminal / konsole / kitty** | New windows / tabs | Direct safe TTY write, inbox fallback | Inbox hooks |
 | **Cursor / VS Code** | Background `claude -p` workers | Inbox fallback | Inbox hooks |
 
 Inbox messaging via hooks is **universal** — it works on every platform regardless of terminal emulator.
@@ -291,7 +291,7 @@ The filesystem protocol (session JSONs, inbox files, activity log) works without
 
 **MCP is optional.** The file-based layer works standalone. MCP adds power-user features on top.
 
-**AppleScript + inbox fallback.** Wake sessions natively on macOS; fall back to inbox injection everywhere else.
+**Cross-platform wake strategy.** macOS uses AppleScript, Linux attempts direct safe TTY wake, Windows uses AppActivate best-effort, and all platforms keep inbox fallback.
 
 ---
 
@@ -309,15 +309,16 @@ The filesystem protocol (session JSONs, inbox files, activity log) works without
 
 - CI validates shell, Python, and JavaScript syntax
 - CI runs coordinator argument-validation tests
+- CI enforces performance SLO thresholds via `tests/perf-gate.mjs`
 - CI runs hook smoke tests (`session-register` + `terminal-heartbeat`) in isolated HOME
 - `health-check.sh` validates install health on your machine
+- Release supply-chain workflow publishes SBOM, provenance attestation, and keyless cosign signatures
 
 ---
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). PRs welcome — especially for:
-- Windows-native `coord_wake_session` (currently inbox-fallback only)
 - `tmux` / `zellij` split pane support
 - Tests for hooks
 

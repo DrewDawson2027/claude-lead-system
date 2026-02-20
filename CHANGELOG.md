@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `engines` field in `mcp-coordinator/package.json` (requires Node ≥ 18)
 - Coordinator validation tests (`mcp-coordinator/test/validation.test.mjs`)
 - Hook smoke tests (`tests/hooks-smoke.sh`) and CI integration-test job
+- Coordinator inbox parser fuzz/property tests (`mcp-coordinator/test/inbox-fuzz.test.mjs`)
 - `docs/ARCHITECTURE.md` and `docs/SECURITY.md`
 - Worker/pipeline E2E tests (`mcp-coordinator/test/e2e-worker-pipeline.test.mjs`)
 - Platform launch command tests (`mcp-coordinator/test/platform-launch.test.mjs`)
@@ -57,6 +58,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - README now includes benchmark table, before/after outcomes, and release-hardening references
 - `mcp-coordinator/test/e2e-worker-pipeline.test.mjs`: lifecycle e2e coverage now runs on non-Windows platforms by default (not Linux-only)
 - Added supply-chain workflow (`.github/workflows/supply-chain.yml`) for SBOM generation and release provenance attestation
+- Supply-chain workflow now generates keyless cosign signatures/certificates and verifies signed release bundles
+- CI now enforces performance SLOs with `tests/perf-gate.mjs`
 
 ## [1.0.0] — 2026-02-01
 

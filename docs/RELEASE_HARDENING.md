@@ -31,12 +31,15 @@ The project guarantees support for:
 6. Changelog updated under `Unreleased`
 7. README benchmark and proof links updated for current release
 8. Supply-chain workflow produced `sbom.spdx.json` + provenance attestation
+9. Performance gate passes (`node tests/perf-gate.mjs`)
+10. Release bundle has keyless cosign signature + verification output
 
 ## Supply Chain Integrity
 
 - Workflow: `.github/workflows/supply-chain.yml`
 - Produces a repository bundle (`claude-lead-system.tar.gz`) and SPDX SBOM (`sbom.spdx.json`)
 - Publishes GitHub artifact attestation for the release bundle using `actions/attest-build-provenance`
+- Produces keyless `cosign` signature + certificate and verifies the signed blob in workflow
 
 ## Manual Verification Checklist
 

@@ -51,6 +51,21 @@ jobs:
       - name: Run coordinator unit tests
         run: cd mcp-coordinator && npm run test:unit
 
+  perf-gate:
+    name: Coordinator Performance Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mcp-coordinator/package-lock.json
+      - name: Install deps
+        run: cd mcp-coordinator && npm ci
+      - name: Enforce benchmark thresholds
+        run: node tests/perf-gate.mjs
+
   coordinator-e2e:
     name: Coordinator E2E (worker + pipeline)
     runs-on: ubuntu-latest

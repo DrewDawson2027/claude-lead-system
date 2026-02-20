@@ -16,6 +16,8 @@ This project runs local hooks and local MCP tools with shell access. Primary ris
 2. File safety
 - worker/pipeline IDs restricted to safe character set
 - no path separators allowed in task/pipeline identifiers
+- coordinator state directories/files use owner-restricted modes (`0700` dirs, `0600` files) on Unix
+- on Windows, coordinator applies explicit ACL hardening with `icacls` to remove inheritance and grant current-user access
 
 3. Hook JSON safety
 - session registry writes via `jq --arg` instead of string interpolation
@@ -26,6 +28,10 @@ This project runs local hooks and local MCP tools with shell access. Primary ris
 
 5. Portable default settings
 - repository template avoids personal MCP servers and environment-specific allowlists
+
+6. Guard default posture
+- `hooks/token-guard.py` is fail-closed by default for malformed payloads and unexpected internal errors
+- fail-open is explicit via `TOKEN_GUARD_FAIL_OPEN=1`
 
 ## Operational Best Practices
 - run `bash ~/.claude/hooks/health-check.sh` after install
