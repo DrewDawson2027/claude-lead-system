@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, existsSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, existsSync, readFileSync, statSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -28,6 +28,10 @@ async function loadCoordinatorForTest(envOverrides = {}) {
     COORDINATOR_PLATFORM: process.env.COORDINATOR_PLATFORM,
     COORDINATOR_CLAUDE_BIN: process.env.COORDINATOR_CLAUDE_BIN,
     MOCK_CLAUDE_DELAY: process.env.MOCK_CLAUDE_DELAY,
+    COORDINATOR_MAX_MESSAGE_BYTES: process.env.COORDINATOR_MAX_MESSAGE_BYTES,
+    COORDINATOR_MAX_INBOX_LINES: process.env.COORDINATOR_MAX_INBOX_LINES,
+    COORDINATOR_MAX_INBOX_BYTES: process.env.COORDINATOR_MAX_INBOX_BYTES,
+    COORDINATOR_MAX_MESSAGES_PER_MINUTE: process.env.COORDINATOR_MAX_MESSAGES_PER_MINUTE,
   };
 
   Object.assign(process.env, envOverrides);
@@ -47,6 +51,10 @@ async function loadCoordinatorForTest(envOverrides = {}) {
       restoreEnv('COORDINATOR_PLATFORM', previous.COORDINATOR_PLATFORM);
       restoreEnv('COORDINATOR_CLAUDE_BIN', previous.COORDINATOR_CLAUDE_BIN);
       restoreEnv('MOCK_CLAUDE_DELAY', previous.MOCK_CLAUDE_DELAY);
+      restoreEnv('COORDINATOR_MAX_MESSAGE_BYTES', previous.COORDINATOR_MAX_MESSAGE_BYTES);
+      restoreEnv('COORDINATOR_MAX_INBOX_LINES', previous.COORDINATOR_MAX_INBOX_LINES);
+      restoreEnv('COORDINATOR_MAX_INBOX_BYTES', previous.COORDINATOR_MAX_INBOX_BYTES);
+      restoreEnv('COORDINATOR_MAX_MESSAGES_PER_MINUTE', previous.COORDINATOR_MAX_MESSAGES_PER_MINUTE);
     },
   };
 }
@@ -106,6 +114,115 @@ test('send_message refuses unknown session unless allow_offline=true', async () 
       allow_offline: true,
     });
     assert.match(contentText(queued), /offline queue/i);
+  } finally {
+    restore();
+  }
+});
+
+test('send_message rejects oversized payloads', async () => {
+  const { home, binDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+    COORDINATOR_MAX_MESSAGE_BYTES: '32',
+  });
+
+  try {
+    const res = await api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      to: 'abcd1234',
+      content: 'x'.repeat(100),
+      allow_offline: true,
+    });
+    assert.match(contentText(res), /exceeds 32 bytes/i);
+  } finally {
+    restore();
+  }
+});
+
+test('check_inbox truncates oversized inbox output safely', async () => {
+  const { home, binDir } = setupTestHome();
+  const terminals = join(home, '.claude', 'terminals');
+  mkdirSync(join(terminals, 'inbox'), { recursive: true });
+  writeFileSync(
+    join(terminals, 'session-abcd1234.json'),
+    JSON.stringify({ session: 'abcd1234', status: 'active', cwd: '/tmp', project: 'demo', last_active: new Date().toISOString() }),
+  );
+  const inbox = join(terminals, 'inbox', 'abcd1234.jsonl');
+  for (let i = 0; i < 20; i += 1) {
+    appendFileSync(inbox, `${JSON.stringify({ ts: new Date().toISOString(), from: 'x', content: `m-${i}` })}\n`);
+  }
+
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+    COORDINATOR_MAX_INBOX_LINES: '5',
+    COORDINATOR_MAX_INBOX_BYTES: '4096',
+  });
+
+  try {
+    const res = await api.handleToolCall('coord_check_inbox', { session_id: 'abcd1234' });
+    const text = contentText(res);
+    assert.match(text, /truncated/i);
+    assert.equal((text.match(/### Message/g) || []).length, 5);
+  } finally {
+    restore();
+  }
+});
+
+test('check_inbox preserves inbox when rename fallback path is used', async () => {
+  const { home, binDir } = setupTestHome();
+  const terminals = join(home, '.claude', 'terminals');
+  const inboxDir = join(terminals, 'inbox');
+  mkdirSync(inboxDir, { recursive: true });
+  writeFileSync(
+    join(terminals, 'session-abcd1234.json'),
+    JSON.stringify({ session: 'abcd1234', status: 'active', cwd: '/tmp', project: 'demo', last_active: new Date().toISOString() }),
+  );
+  const inbox = join(inboxDir, 'abcd1234.jsonl');
+  appendFileSync(inbox, `${JSON.stringify({ ts: new Date().toISOString(), from: 'x', content: 'hello' })}\n`);
+
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+
+  try {
+    chmodSync(inboxDir, 0o500);
+    const res = await api.handleToolCall('coord_check_inbox', { session_id: 'abcd1234' });
+    assert.match(contentText(res), /Message 1/i);
+    assert.equal(existsSync(inbox), true);
+    assert.match(readFileSync(inbox, 'utf-8'), /hello/);
+  } finally {
+    chmodSync(inboxDir, 0o700);
+    restore();
+  }
+});
+
+test('coordinator creates secure state directories', async () => {
+  const { home, binDir } = setupTestHome();
+  const { restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+
+  try {
+    const terminalsMode = statSync(join(home, '.claude', 'terminals')).mode & 0o777;
+    const inboxMode = statSync(join(home, '.claude', 'terminals', 'inbox')).mode & 0o777;
+    assert.equal(terminalsMode, 0o700);
+    assert.equal(inboxMode, 0o700);
   } finally {
     restore();
   }

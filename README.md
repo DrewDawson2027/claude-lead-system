@@ -270,6 +270,13 @@ The filesystem protocol (session JSONs, inbox files, activity log) works without
 - [Security](docs/SECURITY.md)
 - [Release Hardening](docs/RELEASE_HARDENING.md)
 
+## Security Model
+
+- Trust boundary: this system is designed for a single local user account and local machine workflows.
+- Protected by default: coordinator state directories/files are owner-restricted, message payloads are size-capped, and inbox reads are bounded.
+- Out of scope: hostile local root/admin users, compromised OS, and arbitrary shell commands executed by trusted operators.
+- Fail-safe behavior: `hooks/token-guard.py` is fail-closed by default; set `TOKEN_GUARD_FAIL_OPEN=1` only for troubleshooting.
+
 ---
 
 ## Key Design Decisions

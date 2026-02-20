@@ -24,7 +24,7 @@ else:
     import fcntl
 
 STATE_DIR = os.path.expanduser("~/.claude/hooks/session-state")
-os.makedirs(STATE_DIR, exist_ok=True)
+FAIL_OPEN = os.getenv("TOKEN_GUARD_FAIL_OPEN", "").strip() == "1"
 
 # Configurable limits
 MAX_AGENTS = 3
@@ -48,10 +48,31 @@ ALWAYS_ALLOWED = {
 }
 
 
+def ensure_secure_state_dir(path):
+    """Best-effort hardening for local coordinator state directory."""
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    try:
+        st = os.lstat(path)
+        if os.path.islink(path):
+            raise RuntimeError(f"Refusing symlink state dir: {path}")
+        if hasattr(os, "getuid"):
+            uid = os.getuid()
+            if st.st_uid != uid:
+                raise RuntimeError(f"State dir owner mismatch: {path}")
+        if os.name != "nt":
+            os.chmod(path, 0o700)
+    except Exception:
+        if FAIL_OPEN:
+            return
+        raise
+
+
 @contextmanager
 def file_lock(path):
     """Cross-platform advisory file lock."""
     with open(path, "w") as lf:
+        if os.name != "nt":
+            os.chmod(path, 0o600)
         if os.name == "nt":
             lf.write("0")
             lf.flush()
@@ -73,8 +94,10 @@ def main():
     try:
         input_data = json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError):
-        # Fail open on malformed hook payloads to avoid blocking all Task usage.
-        sys.exit(0)
+        if FAIL_OPEN:
+            sys.exit(0)
+        print("BLOCKED: Invalid hook payload for token-guard.", file=sys.stderr)
+        sys.exit(2)
 
     tool_name = input_data.get("tool_name", "")
     tool_input = input_data.get("tool_input", {})
@@ -149,8 +172,10 @@ def main():
             state["agents"].append(agent_record)
             save_state(state_file, state)
     except Exception:
-        # Fail open for unexpected hook/storage errors.
-        sys.exit(0)
+        if FAIL_OPEN:
+            sys.exit(0)
+        print("BLOCKED: token-guard internal error (set TOKEN_GUARD_FAIL_OPEN=1 to bypass).", file=sys.stderr)
+        sys.exit(2)
 
     sys.exit(0)  # Allow
 
@@ -172,6 +197,8 @@ def load_state(path):
 def save_state(path, state):
     with open(path, "w") as f:
         json.dump(state, f, indent=2)
+    if os.name != "nt":
+        os.chmod(path, 0o600)
 
 
 def extract_target_dirs(prompt):
@@ -200,4 +227,5 @@ def extract_target_dirs(prompt):
 
 
 if __name__ == "__main__":
+    ensure_secure_state_dir(STATE_DIR)
     main()
