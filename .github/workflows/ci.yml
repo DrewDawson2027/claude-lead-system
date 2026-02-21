@@ -81,6 +81,14 @@ jobs:
       - name: Run worker/pipeline lifecycle tests
         run: cd mcp-coordinator && npm run test:e2e
 
+  mode-path-lint:
+    name: Lint mode file paths
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify all agent-referenced paths exist
+        run: bash tests/mode-path-lint.sh
+
   integration-tests:
     name: Hook integration tests
     runs-on: ubuntu-latest
