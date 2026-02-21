@@ -126,6 +126,8 @@ restore_home "$TEST_HOME"
 
 # Test: heartbeat fallback creates session file
 TEST_HOME=$(new_home)
+rm -f /tmp/claude-heartbeat-new12345.lock
+rm -rf /tmp/claude-heartbeat-new12345.lock.d
 echo '{"session_id":"new12345abcdef","tool_name":"Read","tool_input":{"file_path":"/tmp/file.ts"},"cwd":"/tmp/project"}' | \
   HOME="$TEST_HOME" bash "$HOOK_DIR/terminal-heartbeat.sh" 2>/dev/null || true
 assert_file_exists "creates session via fallback" "$TEST_HOME/.claude/terminals/session-new12345.json"
@@ -319,8 +321,10 @@ jq -n --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 jq -n '{session:"stale123",status:"active",cwd:"/tmp",last_active:"2020-01-01T00:00:00Z",tool_counts:{},files_touched:[],recent_ops:[]}' \
   > "$TEST_HOME/.claude/terminals/session-stale123.json"
 
-# Remove the stale-check lock to force the stale scan to run
+# Remove the stale-check lock and the heartbeat lock to force both to run fresh
 rm -f /tmp/claude-stale-check.lock
+rm -f /tmp/claude-heartbeat-me123456.lock
+rm -rf /tmp/claude-heartbeat-me123456.lock.d
 
 echo '{"session_id":"me123456abcdef","tool_name":"Read","tool_input":{"file_path":"/tmp/x"},"cwd":"/tmp"}' | \
   HOME="$TEST_HOME" bash "$HOOK_DIR/terminal-heartbeat.sh" 2>/dev/null || true

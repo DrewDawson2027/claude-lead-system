@@ -12,7 +12,7 @@ umask 077
 
 # Load portable utilities
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=lib/portable.sh
+# shellcheck disable=SC1091
 source "$HOOK_DIR/lib/portable.sh"
 require_jq
 
@@ -49,14 +49,20 @@ portable_flock_append "${ACTIVITY_FILE}.lock" "echo '$JSON_LINE' >> '$ACTIVITY_F
 LOCK_FILE="/tmp/claude-heartbeat-${SID8}.lock"
 COOLDOWN=5  # seconds
 
+# Track whether the lock file pre-existed (false = first heartbeat for this session)
+LOCK_PRE_EXISTED=false
+[ -f "$LOCK_FILE" ] && LOCK_PRE_EXISTED=true
+
 if ! portable_flock_try "$LOCK_FILE"; then
   exit 0  # Another heartbeat is running, activity log already written
 fi
-# Check lock file age (mtime) for cooldown
-LOCK_AGE=$(( $(date +%s) - $(get_file_mtime_epoch "$LOCK_FILE") ))
-if [ "$LOCK_AGE" -lt "$COOLDOWN" ] && [ "$LOCK_AGE" -ge 0 ]; then
-  portable_flock_release "$LOCK_FILE"
-  exit 0  # Skip full heartbeat, activity log already written
+# Check lock file age (mtime) for cooldown — skip if file is brand-new (first ever beat)
+if $LOCK_PRE_EXISTED; then
+  LOCK_AGE=$(( $(date +%s) - $(get_file_mtime_epoch "$LOCK_FILE") ))
+  if [ "$LOCK_AGE" -lt "$COOLDOWN" ] && [ "$LOCK_AGE" -ge 0 ]; then
+    portable_flock_release "$LOCK_FILE"
+    exit 0  # Skip full heartbeat, activity log already written
+  fi
 fi
 touch "$LOCK_FILE"
 
@@ -141,10 +147,19 @@ esac
 STALE_LOCK="/tmp/claude-stale-check.lock"
 STALE_COOLDOWN=60
 
+# Track whether stale-lock pre-existed (false = first run or lock cleared)
+STALE_LOCK_PRE_EXISTED=false
+[ -f "$STALE_LOCK" ] && STALE_LOCK_PRE_EXISTED=true
+
 DO_STALE=false
 if portable_flock_try "$STALE_LOCK"; then
-  STALE_AGE=$(( $(date +%s) - $(get_file_mtime_epoch "$STALE_LOCK") ))
-  if [ "$STALE_AGE" -gt "$STALE_COOLDOWN" ] || [ "$STALE_AGE" -lt 0 ]; then
+  if $STALE_LOCK_PRE_EXISTED; then
+    STALE_AGE=$(( $(date +%s) - $(get_file_mtime_epoch "$STALE_LOCK") ))
+    if [ "$STALE_AGE" -gt "$STALE_COOLDOWN" ] || [ "$STALE_AGE" -lt 0 ]; then
+      DO_STALE=true
+      touch "$STALE_LOCK"
+    fi
+  else
     DO_STALE=true
     touch "$STALE_LOCK"
   fi
@@ -172,6 +187,7 @@ if $DO_STALE; then
 fi
 
 # Auto-truncate activity log (portable lock to avoid concurrent truncation)
+# shellcheck disable=SC2016
 portable_flock_append "${ACTIVITY_FILE}.lock" '
   LINES=$(wc -l < "'"$ACTIVITY_FILE"'" 2>/dev/null || echo 0)
   if [ "$LINES" -gt 600 ]; then

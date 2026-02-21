@@ -6,7 +6,7 @@ umask 077
 
 # Load portable utilities
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=lib/portable.sh
+# shellcheck disable=SC1091
 source "$HOOK_DIR/lib/portable.sh"
 require_jq
 

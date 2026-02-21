@@ -181,7 +181,7 @@ else
   WARN=$((WARN + 1))
 fi
 
-STATE_COUNT=$(ls "$STATE_DIR"/*.json 2>/dev/null | grep -v audit.jsonl | wc -l | tr -d ' ')
+STATE_COUNT=$(find "$STATE_DIR" -maxdepth 1 -name '*.json' ! -name 'audit.jsonl' 2>/dev/null | wc -l | tr -d ' ')
 echo "  INFO  $STATE_COUNT active session state files"
 
 if [ -f "$AUDIT_LOG" ]; then
@@ -224,7 +224,7 @@ if [ -f ~/.claude/settings.local.json ]; then
     echo "  PASS  inbox hook registered in PreToolUse"
     PASS=$((PASS + 1))
   else
-    if jq -e '.hooks.PreToolUse[].hooks[]? | select(.command | contains("check-inbox"))' ~/.claude/settings.json &>/dev/null 2>/dev/null; then
+    if jq -e '.hooks.PreToolUse[].hooks[]? | select(.command | contains("check-inbox"))' ~/.claude/settings.json >/dev/null 2>&1; then
       echo "  PASS  inbox hook registered in global settings"
       PASS=$((PASS + 1))
     else
@@ -286,7 +286,7 @@ fi
 
 echo ""
 echo "Session Files:"
-ACTIVE=$(ls ~/.claude/terminals/session-*.json 2>/dev/null | wc -l | tr -d ' ')
+ACTIVE=$(find ~/.claude/terminals -maxdepth 1 -name 'session-*.json' 2>/dev/null | wc -l | tr -d ' ')
 echo "  INFO  $ACTIVE session file(s) on disk"
 
 echo ""

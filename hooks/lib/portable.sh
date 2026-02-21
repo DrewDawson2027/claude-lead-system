@@ -12,8 +12,8 @@
 # Tries macOS stat, GNU stat, date -r fallback.
 get_file_mtime_epoch() {
   local file="$1"
-  if stat -f %m "$file" 2>/dev/null; then return; fi    # macOS
   if stat -c %Y "$file" 2>/dev/null; then return; fi    # GNU/Linux
+  if stat -f %m "$file" 2>/dev/null; then return; fi    # macOS
   if [ -f "$file" ]; then                                # busybox/fallback
     date -r "$file" +%s 2>/dev/null || echo 0
   else

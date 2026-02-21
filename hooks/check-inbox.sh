@@ -5,7 +5,7 @@ umask 077
 
 # Load portable utilities
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=lib/portable.sh
+# shellcheck disable=SC1091
 source "$HOOK_DIR/lib/portable.sh"
 require_jq
 
@@ -48,6 +48,7 @@ for donefile in "$RESULTS_DIR"/*.meta.json.done; do
     fi
     DONE_SUMMARY=$(tr -d '\000-\010\013\014\016-\037\177\200-\237' < "$donefile" | head -c 4000)
     RESULT_TAIL=$(tail -20 "$RESULTS_DIR/${TASK_ID}.txt" 2>/dev/null | tr -d '\000-\010\013\014\016-\037\177\200-\237' | head -c 12000)
+    # shellcheck disable=SC1010
     if jq -n \
       --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
       --arg task "$TASK_ID" \
