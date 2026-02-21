@@ -24,6 +24,7 @@ Cross-platform: Works on macOS, Linux, and Windows (portable file locking).
 
 import json
 import os
+import re
 import sys
 import time
 from typing import Dict, List
@@ -59,6 +60,10 @@ def main():
     tool_name = input_data.get("tool_name", "")
     tool_input = input_data.get("tool_input", {})
     session_id = input_data.get("session_id", "unknown")
+
+    if not re.match(r'^[A-Za-z0-9_-]{8,64}$', session_id):
+        print("BLOCKED: Invalid session_id in read-efficiency-guard payload.", file=sys.stderr)
+        sys.exit(2)
 
     if tool_name != "Read":
         sys.exit(0)

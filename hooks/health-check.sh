@@ -181,7 +181,7 @@ else
   WARN=$((WARN + 1))
 fi
 
-STATE_COUNT=$(ls "$STATE_DIR"/*.json 2>/dev/null | grep -v audit.jsonl | wc -l | tr -d ' ')
+STATE_COUNT=$(find "$STATE_DIR" -maxdepth 1 -name '*.json' ! -name 'audit.jsonl' 2>/dev/null | wc -l | tr -d ' ')
 echo "  INFO  $STATE_COUNT active session state files"
 
 if [ -f "$AUDIT_LOG" ]; then
@@ -212,6 +212,16 @@ fi
 echo ""
 echo "Settings:"
 if [ -f ~/.claude/settings.local.json ]; then
+  # Fail fast on unresolved __HOME__ placeholders (indicates un-run install script)
+  if grep -q '__HOME__' ~/.claude/settings.local.json 2>/dev/null; then
+    echo "  FAIL  unresolved __HOME__ placeholder in settings.local.json — re-run install.sh"
+    FAIL=$((FAIL + 1))
+    echo ""
+    echo "─────────────────────────────────"
+    echo "  Results: $PASS passed, $FAIL failed, $WARN warnings"
+    echo "  STATUS: UNHEALTHY — fix the failures above"
+    exit 1
+  fi
   # Check heartbeat is registered
   if jq -e '.hooks.PostToolUse[].hooks[]? | select(.command | contains("terminal-heartbeat"))' ~/.claude/settings.local.json &>/dev/null; then
     echo "  PASS  heartbeat registered in PostToolUse"
@@ -224,7 +234,7 @@ if [ -f ~/.claude/settings.local.json ]; then
     echo "  PASS  inbox hook registered in PreToolUse"
     PASS=$((PASS + 1))
   else
-    if jq -e '.hooks.PreToolUse[].hooks[]? | select(.command | contains("check-inbox"))' ~/.claude/settings.json &>/dev/null 2>/dev/null; then
+    if jq -e '.hooks.PreToolUse[].hooks[]? | select(.command | contains("check-inbox"))' ~/.claude/settings.json >/dev/null 2>&1; then
       echo "  PASS  inbox hook registered in global settings"
       PASS=$((PASS + 1))
     else
@@ -286,7 +296,7 @@ fi
 
 echo ""
 echo "Session Files:"
-ACTIVE=$(ls ~/.claude/terminals/session-*.json 2>/dev/null | wc -l | tr -d ' ')
+ACTIVE=$(find ~/.claude/terminals -maxdepth 1 -name 'session-*.json' 2>/dev/null | wc -l | tr -d ' ')
 echo "  INFO  $ACTIVE session file(s) on disk"
 
 echo ""

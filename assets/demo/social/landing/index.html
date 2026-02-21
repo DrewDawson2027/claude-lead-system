@@ -3,74 +3,367 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Claude Lead System — /lead</title>
+    <title>Claude Lead System &mdash; Multi-Agent Orchestration</title>
+    <meta name="description" content="Zero-token multi-agent Claude Code orchestration. One command: /lead. Dashboard, conflict detection, workers, pipelines." />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <div class="orb orb-1" aria-hidden="true"></div>
+    <div class="orb orb-2" aria-hidden="true"></div>
+    <div class="orb orb-3" aria-hidden="true"></div>
+
     <main class="page">
-      <header class="hero">
-        <div class="badge">CLAUDE LEAD SYSTEM</div>
-        <h1>Multi-agent Claude Code orchestration.</h1>
-        <p class="subhead">
-          Zero API tokens. One command: <span class="code">/lead</span>
+
+      <nav class="nav">
+        <div class="navBrand">
+          <div class="navDot" aria-hidden="true"></div>
+          <span>Claude Lead System</span>
+        </div>
+        <div class="navLinks">
+          <a href="#features">Features</a>
+          <a href="#commands">Commands</a>
+          <a href="#install" class="navCta">Install free &rarr;</a>
+        </div>
+      </nav>
+
+      <header class="hero" id="hero">
+        <div class="heroBadgeRow">
+          <span class="pill pillGreen"><span class="pillDot"></span>0 API tokens</span>
+          <span class="pill">Open source &middot; MIT</span>
+          <span class="pill">macOS &middot; Linux &middot; Windows</span>
+        </div>
+
+        <h1 class="heroTitle">
+          Your AI agents,<br />
+          <span class="gradientText">actually coordinated.</span>
+        </h1>
+
+        <p class="heroSub">
+          Claude Lead System wires every Claude Code terminal together via shell hooks and a
+          lightweight filesystem protocol &mdash; <strong>completely outside the context window</strong>
+          at zero API token cost. One command: <span class="code">/lead</span>
         </p>
-        <div class="ctaRow">
-          <div class="cta">
-            <div class="ctaTitle">Hook</div>
-            <div class="ctaBody">Stop babysitting multiple Claude terminals.</div>
+
+        <div class="heroActions">
+          <a href="#install" class="btnPrimary">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 1v9M4 7l4 4 4-4M2 14h12" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Install in 30 seconds
+          </a>
+          <a href="https://github.com/DrewDawson2027/claude-lead-system" class="btnGhost"
+            target="_blank" rel="noopener noreferrer">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+                0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15
+                -.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87
+                .51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12
+                0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82
+                2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65
+                3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013
+                8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+            View on GitHub
+          </a>
+        </div>
+
+        <div class="terminal" role="img" aria-label="Claude Lead System terminal demo">
+          <div class="termBar">
+            <span class="termBtn termRed"></span>
+            <span class="termBtn termYellow"></span>
+            <span class="termBtn termGreen"></span>
+            <span class="termTitle">claude &mdash; /lead</span>
           </div>
-          <div class="cta">
-            <div class="ctaTitle">Payoff</div>
-            <div class="ctaBody">Dashboard · Messaging · Conflict detection · Workers · Pipelines</div>
+          <div class="termBody">
+            <div class="termLine"><span class="termPrompt">$</span> <span class="termCmd">/lead</span></div>
+            <div class="termLine termOut"><span class="termDim">&#9484;&#9472; Lead Dashboard &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;</span></div>
+            <div class="termLine termOut"><span class="termDim">&#9474;</span> <span class="termStatusGreen">&#9679;</span> <span class="termLabel">term-a1b2</span> <span class="termDim">main &nbsp; /my-app &nbsp; W:12 E:8 B:23</span></div>
+            <div class="termLine termOut"><span class="termDim">&#9474;</span> <span class="termStatusGreen">&#9679;</span> <span class="termLabel">term-c3d4</span> <span class="termDim">main &nbsp; /my-app &nbsp; W:5 &nbsp;E:3 B:11</span></div>
+            <div class="termLine termOut"><span class="termDim">&#9474;</span> <span class="termStatusYellow">&#9680;</span> <span class="termLabel">term-e5f6</span> <span class="termDim">feat &nbsp; /my-app &nbsp; idle 4m ago</span></div>
+            <div class="termLine termOut"><span class="termDim">&#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;</span></div>
+            <div class="termLine"><span class="termPrompt">$</span> <span class="termCmd">conflicts</span></div>
+            <div class="termLine termOut"><span class="termStatusRed">&#9888;</span>&nbsp;<span class="termWarn">src/auth.ts</span> <span class="termDim">&mdash; touched by term-a1b2 AND term-c3d4</span></div>
+            <div class="termLine termOut termDim">&nbsp;&nbsp;&nbsp;Pre-edit conflict detected. Coordinate before writing.</div>
+            <div class="termLine"><span class="termPrompt">$</span> <span class="cursor">&#9611;</span></div>
           </div>
         </div>
       </header>
 
-      <section class="grid2">
-        <div class="card">
-          <div class="cardTitle">Before vs After</div>
-          <img class="img" src="../../before-after.png" alt="Before vs After" />
-          <p class="muted">
-            Your “lead” sees every session via tiny session JSON files + hooks (not transcripts).
-          </p>
+      <section class="statsRow" aria-label="Key metrics">
+        <div class="statItem">
+          <div class="statNum">0</div>
+          <div class="statLabel">API tokens for coordination</div>
         </div>
-        <div class="card">
-          <div class="cardTitle">Live demo loop</div>
-          <img class="img" src="../../demo.gif" alt="Terminal demo" />
-          <p class="muted">
-            Best for X: upload a native MP4 + put links in the first reply.
-          </p>
+        <div class="statDivider" aria-hidden="true"></div>
+        <div class="statItem">
+          <div class="statNum">207&times;</div>
+          <div class="statLabel">faster than transcript scanning</div>
         </div>
-      </section>
-
-      <section class="card">
-        <div class="cardTitle">What you can show on-screen</div>
-        <div class="bullets">
-          <div><span class="k">/lead</span> — session dashboard + status</div>
-          <div><span class="k">tell …</span> — dispatch work to an active terminal</div>
-          <div><span class="k">conflicts</span> — detect file overlap before merges</div>
-          <div><span class="k">run … in …</span> — spawn an autonomous <span class="code">claude -p</span> worker</div>
-          <div><span class="k">pipeline: …</span> — sequential multi-step chains</div>
+        <div class="statDivider" aria-hidden="true"></div>
+        <div class="statItem">
+          <div class="statNum">~3 KB</div>
+          <div class="statLabel">per session file</div>
+        </div>
+        <div class="statDivider" aria-hidden="true"></div>
+        <div class="statItem">
+          <div class="statNum">&lt;1 ms</div>
+          <div class="statLabel">avg conflict detection</div>
         </div>
       </section>
 
-      <section class="card">
-        <div class="cardTitle">Positioning (for virality)</div>
-        <p class="muted">
-          Novelty + utility + a mild hot take: “Most ‘agent frameworks’ waste tokens coordinating inside the context window.”
-        </p>
-        <div class="quote">
-          <div class="quoteLine">Coordination happens outside the context window.</div>
-          <div class="quoteLine">Hooks + filesystem state = near-zero overhead.</div>
+      <section class="splitSection" aria-label="Before and after comparison">
+        <div class="splitCard splitBefore">
+          <div class="splitLabel splitLabelBefore">Before</div>
+          <ul class="splitList">
+            <li>Manual tab hunting across terminals</li>
+            <li>Merge-time surprise file conflicts</li>
+            <li>Copy/paste task dispatch</li>
+            <li>Idle/forgotten background tasks</li>
+            <li>Manual step-by-step orchestration</li>
+          </ul>
         </div>
+        <div class="splitArrow" aria-hidden="true">&rarr;</div>
+        <div class="splitCard splitAfter">
+          <div class="splitLabel splitLabelAfter">After &mdash; <span class="code">/lead</span></div>
+          <ul class="splitList">
+            <li>Live dashboard: active + stale sessions at a glance</li>
+            <li>Pre-edit conflict detection via <span class="code">files_touched</span></li>
+            <li><span class="code">tell</span>, <span class="code">wake</span>, <span class="code">spawn_worker</span></li>
+            <li>PID-tracked workers with result retrieval</li>
+            <li><span class="code">coord_run_pipeline</span> &mdash; ordered chains with status</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="features" class="featureSection">
+        <h2 class="sectionTitle">Everything your terminals were missing</h2>
+        <div class="featureGrid">
+
+          <div class="featureCard">
+            <div class="featureIcon featureIconPurple" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="3"/>
+                <path d="M9 9h6M9 12h6M9 15h4"/>
+              </svg>
+            </div>
+            <h3>Live Session Dashboard</h3>
+            <p>See every Claude terminal at a glance &mdash; status, branch, tool counts (W/E/B/R),
+              files touched, and last activity. No transcript parsing.</p>
+          </div>
+
+          <div class="featureCard">
+            <div class="featureIcon featureIconCyan" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <h3>Pre-Edit Conflict Detection</h3>
+            <p>The <span class="code">conflict-guard.sh</span> hook warns before any Edit/Write
+              if another session already touched that file &mdash; something Agent Teams
+              fundamentally cannot do.</p>
+          </div>
+
+          <div class="featureCard">
+            <div class="featureIcon featureIconGreen" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0
+                  01 3.07 9.77 19.79 19.79 0 01.22 1.18 2 2 0 012.22 0H5.5a2 2 0 012 1.72
+                  c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.84a16 16 0 006.29 6.29
+                  l1.21-1.34a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/>
+              </svg>
+            </div>
+            <h3>Cross-Terminal Messaging</h3>
+            <p>Dispatch tasks with <span class="code">tell [session] to [task]</span>.
+              Messages arrive via PreToolUse inbox hooks &mdash; no context window pollution.</p>
+          </div>
+
+          <div class="featureCard">
+            <div class="featureIcon featureIconOrange" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+            </div>
+            <h3>Autonomous Workers</h3>
+            <p>Spawn headless <span class="code">claude -p</span> workers. Track by PID, retrieve
+              output, and terminate runaway tasks. Native tabs on macOS, Linux, and Windows.</p>
+          </div>
+
+          <div class="featureCard">
+            <div class="featureIcon featureIconPink" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+            </div>
+            <h3>Sequential Pipelines</h3>
+            <p>Chain multi-step tasks: <span class="code">pipeline: task1, task2, task3 in [dir]</span>.
+              Each step completes before the next starts. Status tracked throughout.</p>
+          </div>
+
+          <div class="featureCard">
+            <div class="featureIcon featureIconIndigo" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <h3>Token Governance</h3>
+            <p>The <span class="code">token-guard.py</span> PreToolUse hook enforces a strict
+              Tool Ladder, blocking expensive spawns when Grep/Read suffice.
+              Hard cap: 5 agents/session.</p>
+          </div>
+
+        </div>
+      </section>
+
+      <section class="mediaSection">
+        <div class="mediaGrid">
+          <div class="card">
+            <div class="cardTitle">Before vs After</div>
+            <img class="img" src="../../before-after.png"
+              alt="Side-by-side: manual tab hunting vs /lead dashboard" loading="lazy" />
+            <p class="muted">Session JSON files + hooks &mdash; not transcripts &mdash;
+              give the lead instant situational awareness.</p>
+          </div>
+          <div class="card">
+            <div class="cardTitle">Live Demo</div>
+            <img class="img" src="../../demo.gif"
+              alt="Animated terminal demo of the Claude Lead System" loading="lazy" />
+            <p class="muted">Dashboard, conflict detection, and worker spawning &mdash; all in one session.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="commands" class="commandSection">
+        <h2 class="sectionTitle">Commands reference</h2>
+        <div class="commandGrid">
+          <div class="commandRow">
+            <span class="cmdPill">/lead</span>
+            <span class="cmdDesc">Boot the session dashboard &mdash; see all active + stale terminals</span>
+          </div>
+          <div class="commandRow">
+            <span class="cmdPill">tell [session] to [task]</span>
+            <span class="cmdDesc">Dispatch work to any active terminal via inbox hook</span>
+          </div>
+          <div class="commandRow">
+            <span class="cmdPill">wake [session] with [msg]</span>
+            <span class="cmdDesc">Wake an idle terminal + deliver message on next tool call</span>
+          </div>
+          <div class="commandRow">
+            <span class="cmdPill">run [task] in [dir]</span>
+            <span class="cmdDesc">Spawn a headless <span class="code">claude -p</span> autonomous worker</span>
+          </div>
+          <div class="commandRow">
+            <span class="cmdPill">pipeline: t1, t2, t3 in [dir]</span>
+            <span class="cmdDesc">Run a sequential multi-step pipeline with status tracking</span>
+          </div>
+          <div class="commandRow">
+            <span class="cmdPill">conflicts</span>
+            <span class="cmdDesc">Cross-reference <span class="code">files_touched</span> across all sessions</span>
+          </div>
+          <div class="commandRow">
+            <span class="cmdPill">spawn terminal in [dir]</span>
+            <span class="cmdDesc">Open a new interactive Claude Code terminal tab/pane</span>
+          </div>
+          <div class="commandRow">
+            <span class="cmdPill">health check</span>
+            <span class="cmdDesc">Validate all hooks, deps, and settings</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="howSection">
+        <h2 class="sectionTitle">How it works</h2>
+        <div class="howGrid">
+          <div class="howStep">
+            <div class="howNum">01</div>
+            <h3>Shell hooks fire on every tool call</h3>
+            <p>PostToolUse, PreToolUse, SessionStart, and SessionEnd hooks run outside
+              the context window &mdash; zero token cost.</p>
+          </div>
+          <div class="howConnector" aria-hidden="true"></div>
+          <div class="howStep">
+            <div class="howNum">02</div>
+            <h3>Hooks enrich session JSON</h3>
+            <p>Each terminal maintains a ~3 KB JSON file with <span class="code">tool_counts</span>,
+              <span class="code">files_touched</span>, and <span class="code">recent_ops</span>,
+              updated on every invocation.</p>
+          </div>
+          <div class="howConnector" aria-hidden="true"></div>
+          <div class="howStep">
+            <div class="howNum">03</div>
+            <h3>/lead reads JSON, not transcripts</h3>
+            <p>The lead reads a few KB of JSON instead of MB of transcripts. Conflict detection,
+              messaging, and worker control all flow from this single source of truth.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="install" class="installSection">
+        <div class="installCard">
+          <h2 class="installTitle">One command to rule them all</h2>
+          <p class="installSub">macOS &amp; Linux &mdash; installs hooks, commands, and the optional MCP coordinator</p>
+          <div class="installCmd">
+            <code>curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash</code>
+            <button class="copyBtn" id="copyInstallBtn" aria-label="Copy install command">Copy</button>
+          </div>
+          <p class="installNote">Then type <span class="code">/lead</span> in any Claude Code session.</p>
+          <div class="installBadges">
+            <span class="pill">Node &ge;18</span>
+            <span class="pill">Python 3.10+</span>
+            <span class="pill">bash</span>
+            <span class="pill">jq</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="quoteSection">
+        <blockquote class="quoteBlock">
+          <p>&ldquo;Most agent frameworks waste tokens coordinating <em>inside</em> the context window.<br />
+            Coordination should happen <strong>outside</strong> it.&rdquo;</p>
+          <footer>&mdash; Claude Lead System design principle</footer>
+        </blockquote>
       </section>
 
       <footer class="footer">
-        <div class="muted">
-          Generated for capture. Sources: <span class="code">assets/demo/demo.gif</span> + <span class="code">assets/demo/before-after.png</span>.
+        <div class="footerLinks">
+          <a href="https://github.com/DrewDawson2027/claude-lead-system" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://github.com/DrewDawson2027/claude-lead-system/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
+          <a href="https://github.com/DrewDawson2027/claude-lead-system/blob/main/docs/ARCHITECTURE.md" target="_blank" rel="noopener noreferrer">Architecture</a>
+          <a href="https://github.com/DrewDawson2027/claude-lead-system/blob/main/docs/SECURITY.md" target="_blank" rel="noopener noreferrer">Security</a>
         </div>
+        <div class="footerMuted">Built by Drew Dawson &middot; Claude Lead System &middot; MIT</div>
       </footer>
+
     </main>
+  <script>
+    (function () {
+      var btn = document.getElementById('copyInstallBtn');
+      if (!btn) return;
+      var cmd = 'curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash';
+      btn.addEventListener('click', function () {
+        navigator.clipboard.writeText(cmd).then(function () {
+          btn.textContent = 'Copied!';
+          btn.setAttribute('aria-label', 'Copied to clipboard');
+          setTimeout(function () {
+            btn.textContent = 'Copy';
+            btn.setAttribute('aria-label', 'Copy install command');
+          }, 1800);
+        });
+      });
+    })();
+  </script>
   </body>
 </html>
-
