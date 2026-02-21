@@ -212,6 +212,16 @@ fi
 echo ""
 echo "Settings:"
 if [ -f ~/.claude/settings.local.json ]; then
+  # Fail fast on unresolved __HOME__ placeholders (indicates un-run install script)
+  if grep -q '__HOME__' ~/.claude/settings.local.json 2>/dev/null; then
+    echo "  FAIL  unresolved __HOME__ placeholder in settings.local.json — re-run install.sh"
+    FAIL=$((FAIL + 1))
+    echo ""
+    echo "─────────────────────────────────"
+    echo "  Results: $PASS passed, $FAIL failed, $WARN warnings"
+    echo "  STATUS: UNHEALTHY — fix the failures above"
+    exit 1
+  fi
   # Check heartbeat is registered
   if jq -e '.hooks.PostToolUse[].hooks[]? | select(.command | contains("terminal-heartbeat"))' ~/.claude/settings.local.json &>/dev/null; then
     echo "  PASS  heartbeat registered in PostToolUse"

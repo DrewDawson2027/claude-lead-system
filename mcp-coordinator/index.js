@@ -14,6 +14,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { fileURLToPath } from "url";
+import { join } from "path";
 
 import { cfg } from "./lib/constants.js";
 import {
@@ -23,19 +24,21 @@ import {
 } from "./lib/security.js";
 import { readJSONLLimited, batQuote, text } from "./lib/helpers.js";
 import { handleListSessions, handleGetSession, getSessionStatus } from "./lib/sessions.js";
-import { handleCheckInbox } from "./lib/messaging.js";
+import { handleCheckInbox, handleSendMessage, handleBroadcast, handleSendDirective } from "./lib/messaging.js";
 import { handleDetectConflicts } from "./lib/conflicts.js";
 import {
   handleSpawnWorker, handleGetResult, handleKillWorker,
   handleSpawnTerminal,
 } from "./lib/workers.js";
 import { handleRunPipeline, handleGetPipeline } from "./lib/pipelines.js";
+import { handleCreateTask, handleUpdateTask, handleListTasks, handleGetTask } from "./lib/tasks.js";
+import { handleCreateTeam, handleGetTeam, handleListTeams } from "./lib/teams.js";
 import { runGC } from "./lib/gc.js";
 import { handleWakeSession } from "./lib/platform/wake.js";
 import { selectWakeText } from "./lib/platform/wake.js";
 import {
   buildPlatformLaunchCommand, isProcessAlive, killProcess,
-  isSafeTTYPath, buildWorkerScript,
+  isSafeTTYPath, buildWorkerScript, buildInteractiveWorkerScript,
 } from "./lib/platform/common.js";
 
 // ─────────────────────────────────────────────────────────
@@ -220,7 +223,9 @@ const _initializedDirs = new Set();
 let _gcRan = false;
 function ensureDirsOnce() {
   const { TERMINALS_DIR, INBOX_DIR, RESULTS_DIR, SESSION_CACHE_DIR } = cfg();
-  for (const dir of [TERMINALS_DIR, INBOX_DIR, RESULTS_DIR, SESSION_CACHE_DIR]) {
+  const TASKS_DIR = join(TERMINALS_DIR, "tasks");
+  const TEAMS_DIR = join(TERMINALS_DIR, "teams");
+  for (const dir of [TERMINALS_DIR, INBOX_DIR, RESULTS_DIR, SESSION_CACHE_DIR, TASKS_DIR, TEAMS_DIR]) {
     if (!_initializedDirs.has(dir)) {
       ensureSecureDirectory(dir);
       _initializedDirs.add(dir);
@@ -249,6 +254,16 @@ function handleToolCall(name, args = {}) {
     case "coord_kill_worker":      return handleKillWorker(args);
     case "coord_run_pipeline":     return handleRunPipeline(args);
     case "coord_get_pipeline":     return handleGetPipeline(args);
+    case "coord_create_task":      return handleCreateTask(args);
+    case "coord_update_task":      return handleUpdateTask(args);
+    case "coord_list_tasks":       return handleListTasks(args);
+    case "coord_get_task":         return handleGetTask(args);
+    case "coord_create_team":      return handleCreateTeam(args);
+    case "coord_get_team":         return handleGetTeam(args);
+    case "coord_list_teams":       return handleListTeams(args);
+    case "coord_broadcast":        return handleBroadcast(args);
+    case "coord_send_message":     return handleSendMessage(args);
+    case "coord_send_directive":   return handleSendDirective(args);
     default:                       return text(`Unknown tool: ${name}`);
     }
   } catch (err) {
@@ -307,4 +322,15 @@ export const __test__ = {
   getSessionStatus,
   acquireExclusiveFileLock,
   enforceMessageRateLimit,
+  handleCreateTask,
+  handleUpdateTask,
+  handleListTasks,
+  handleGetTask,
+  handleCreateTeam,
+  handleGetTeam,
+  handleListTeams,
+  handleSendMessage,
+  handleBroadcast,
+  handleSendDirective,
+  buildInteractiveWorkerScript,
 };
