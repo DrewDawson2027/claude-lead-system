@@ -46,13 +46,39 @@ fi
 
 # ── Copy files ───────────────────────────────────────────────────────
 echo "Installing files..."
-mkdir -p "$CLAUDE_DIR/hooks" "$CLAUDE_DIR/commands" "$CLAUDE_DIR/mcp-coordinator"
+mkdir -p "$CLAUDE_DIR/hooks/session-state" "$CLAUDE_DIR/commands" "$CLAUDE_DIR/mcp-coordinator"
+mkdir -p "$CLAUDE_DIR/agents" "$CLAUDE_DIR/lead-tools"
+mkdir -p "$CLAUDE_DIR/master-agents/coder/refs" "$CLAUDE_DIR/master-agents/researcher/refs"
+mkdir -p "$CLAUDE_DIR/master-agents/architect/refs" "$CLAUDE_DIR/master-agents/workflow/refs"
 
 cp -r "$SRC/hooks/"           "$CLAUDE_DIR/hooks/"
 cp -r "$SRC/commands/"        "$CLAUDE_DIR/commands/"
 cp -r "$SRC/mcp-coordinator/" "$CLAUDE_DIR/mcp-coordinator/"
 chmod +x "$CLAUDE_DIR/hooks/"*.sh
 echo "  ✓  Hooks, commands, and MCP coordinator installed"
+
+# ── Master agents ────────────────────────────────────────────────────
+echo ""
+echo "Installing master agents..."
+cp "$SRC/agents/"*.md "$CLAUDE_DIR/agents/"
+echo "  ✓  4 master agents installed"
+
+# ── Mode files + reference cards ─────────────────────────────────────
+echo "Installing mode files and reference cards..."
+cp "$SRC/modes/coder/"*.md "$CLAUDE_DIR/master-agents/coder/"
+cp "$SRC/modes/coder/refs/"*.md "$CLAUDE_DIR/master-agents/coder/refs/" 2>/dev/null || true
+cp "$SRC/modes/researcher/"*.md "$CLAUDE_DIR/master-agents/researcher/"
+cp "$SRC/modes/researcher/refs/"*.md "$CLAUDE_DIR/master-agents/researcher/refs/" 2>/dev/null || true
+cp "$SRC/modes/architect/"*.md "$CLAUDE_DIR/master-agents/architect/"
+cp "$SRC/modes/architect/refs/"*.md "$CLAUDE_DIR/master-agents/architect/refs/" 2>/dev/null || true
+cp "$SRC/modes/workflow/"*.md "$CLAUDE_DIR/master-agents/workflow/"
+cp "$SRC/MANIFEST.md" "$CLAUDE_DIR/master-agents/"
+echo "  ✓  17 modes + 18 reference cards installed"
+
+# ── Lead tools ───────────────────────────────────────────────────────
+cp "$SRC/lead-tools/"* "$CLAUDE_DIR/lead-tools/" 2>/dev/null || true
+chmod +x "$CLAUDE_DIR/lead-tools/"*.sh 2>/dev/null || true
+echo "  ✓  Lead tools installed"
 
 # ── Install MCP deps ─────────────────────────────────────────────────
 echo ""

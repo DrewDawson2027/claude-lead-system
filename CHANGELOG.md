@@ -7,6 +7,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **Master Agent System**: 4 consolidated master agents (`master-coder`, `master-researcher`, `master-architect`, `master-workflow`) with on-demand mode loading
+- 17 mode files across 4 agent types (build, debug, refactor, scrape, school, deep, academic, competitor, market, system, api, database, frontend, gsd, feature, git, autonomous)
+- 18 reference cards (quick-reference cheat sheets loaded on-demand)
+- `MANIFEST.md` system registry documenting all agents, modes, and hooks
+- `hooks/agent-lifecycle.sh`: SubagentStart/SubagentStop lifecycle tracking with duration calculation
+- `hooks/agent-metrics.py`: real per-invocation token metering via subagent transcript JSONL parsing
+- `hooks/pre-compact-save.sh`: PreCompact hook saves session state before context compaction
+- `hooks/hook_utils.py`: shared Python utilities for hook scripts
+- `hooks/self-heal.py`: SessionStart auto-repair for missing/corrupt files
+- `hooks/mcp-readiness.py`: SessionStart MCP server availability validation
+- `hooks/token-guard-config.json`: configurable token guard limits (agent cap, thresholds)
+- `hooks/README.md`: hook documentation
+- `lead-tools/`: shell scripts for lead orchestration (detect_conflicts, get_result, send_message, spawn_worker)
+- `plugin/`: Claude Code plugin distribution files (plugin.json, hooks.json, install.sh)
+- Agent Teams orchestration in `master-workflow` (TeamCreate, SendMessage, shared task lists)
+- Prompt caching architecture documentation across all agent definitions
+
+### Changed
+- `hooks/token-guard.py`: now displays real metered token data alongside heuristic estimates in report
+- `install.sh`: now installs agents, mode files, reference cards, and lead-tools in addition to hooks and MCP coordinator
+
+### Added (previous)
 - One-line `install.sh` installer for macOS and Linux
 - `LICENSE` file (MIT)
 - `CONTRIBUTING.md` with setup instructions and contribution areas

@@ -264,6 +264,52 @@ The filesystem protocol (session JSONs, inbox files, activity log) works without
 
 ---
 
+## Master Agent System
+
+The lead system now includes a production-grade multi-agent orchestration layer: 4 master agents that consolidate 17 archived specialists, with mechanical token enforcement and lifecycle observability.
+
+### Agents
+
+| Agent | Modes | Ref Cards | Purpose |
+|-------|-------|-----------|---------|
+| `master-coder` | 5 (build, debug, refactor, scrape, school) | 14 | Multi-file builds, cross-system debugging |
+| `master-researcher` | 4 (deep, academic, competitor, market) | 2 | Multi-source research synthesis |
+| `master-architect` | 4 (system, api, database, frontend) | 2 | System design, architecture decisions |
+| `master-workflow` | 4 (gsd, feature, git, autonomous) | 0 | GSD execution, Agent Teams orchestration |
+
+### Token Governance
+
+`token-guard.py` enforces a strict Tool Ladder via PreToolUse hooks:
+
+| Level | Tool | Cost | When |
+|-------|------|------|------|
+| 1 | Grep | ~1-2k tokens | Know what you're looking for |
+| 2 | Grep + Read | ~5-15k | Need context around matches |
+| 3 | Single Explore | ~40-60k | Need architecture understanding |
+| 4 | 2 Explores | ~80-120k | Truly separate areas (rare) |
+
+Hard rules: configurable agent cap per session (default 5), no parallel same-type agents, blocks spawns when Grep/Read suffice.
+
+### Real Token Metering
+
+`agent-metrics.py` parses subagent transcript JSONL on every `SubagentStop` event to extract actual `input_tokens`, `output_tokens`, and `cache_read_input_tokens` from each API call. Calculates real cost and logs to `agent-metrics.jsonl`.
+
+### Lifecycle Hooks
+
+| Hook | Event | Purpose |
+|------|-------|---------|
+| `agent-lifecycle.sh` | SubagentStart/Stop | Spawn/stop tracking with duration |
+| `agent-metrics.py` | SubagentStop | Real token metering via transcript parsing |
+| `pre-compact-save.sh` | PreCompact | Saves session state before context compaction |
+| `self-heal.py` | SessionStart | Auto-repairs missing/corrupt files |
+| `mcp-readiness.py` | SessionStart | Validates MCP server availability |
+
+### On-Demand Mode Loading
+
+Mode files load via the Read tool at runtime — they appear as tool results, not system prompt, so they never break Claude Code's internal prompt cache prefix. Each agent reads only the mode it needs for the current task.
+
+---
+
 ## Docs
 
 - [Architecture](docs/ARCHITECTURE.md)
