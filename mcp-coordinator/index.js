@@ -38,7 +38,7 @@ import { handleWakeSession } from "./lib/platform/wake.js";
 import { selectWakeText } from "./lib/platform/wake.js";
 import {
   buildPlatformLaunchCommand, isProcessAlive, killProcess,
-  isSafeTTYPath, buildWorkerScript, buildInteractiveWorkerScript,
+  isSafeTTYPath, buildWorkerScript,
 } from "./lib/platform/common.js";
 
 // ─────────────────────────────────────────────────────────
@@ -332,5 +332,4 @@ export const __test__ = {
   handleSendMessage,
   handleBroadcast,
   handleSendDirective,
-  buildInteractiveWorkerScript,
 };

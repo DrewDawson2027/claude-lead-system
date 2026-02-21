@@ -173,46 +173,6 @@ export function isSafeTTYPath(pathValue) {
 }
 
 /**
- * Build a cross-platform interactive worker script.
- * Interactive workers run as full Claude sessions with hooks (inbox checking, heartbeat).
- * The lead can send mid-execution messages that the worker receives on every tool call.
- * @param {object} opts - Worker options (same as buildWorkerScript)
- * @returns {string} Shell script string
- */
-export function buildInteractiveWorkerScript(opts) {
-  const { PLATFORM, SETTINGS_FILE, CLAUDE_BIN } = cfg();
-  const {
-    taskId, workDir, pidFile, metaFile,
-    model, agent, promptFile,
-  } = opts;
-  const platformName = opts.platformName ?? PLATFORM;
-
-  // Windows: fall back to pipe mode (interactive not yet supported)
-  if (platformName === "win32") {
-    return buildWorkerScript(opts);
-  }
-
-  const qDir = shellQuote(workDir);
-  const qPid = shellQuote(pidFile);
-  const qPrompt = shellQuote(promptFile);
-  const qMetaDone = shellQuote(`${metaFile}.done`);
-  const qTaskId = shellQuote(taskId);
-  const qModel = shellQuote(model);
-  const qClaudeBin = shellQuote(CLAUDE_BIN);
-  const agentArgs = agent ? `--agent ${shellQuote(agent)}` : "";
-  const settingsArgs = existsSync(SETTINGS_FILE) ? `--settings ${shellQuote(SETTINGS_FILE)}` : "";
-
-  return [
-    `cd ${qDir}`,
-    `echo $$ > ${qPid}`,
-    `WORKER_PROMPT=$(cat ${qPrompt})`,
-    `unset CLAUDECODE && ${qClaudeBin} --prompt "$WORKER_PROMPT" --permission-mode acceptEdits --model ${qModel} ${agentArgs} ${settingsArgs}` +
-    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-    `; rm -f ${qPid}`,
-  ].join(" && ");
-}
-
-/**
  * Build a cross-platform worker script.
  * All dynamic values are shell-quoted to prevent injection.
  * @param {object} opts - Worker options
