@@ -5,6 +5,7 @@
 
 import { existsSync, readFileSync, readdirSync, mkdirSync, chmodSync, unlinkSync } from "fs";
 import { join, basename } from "path";
+import { execFileSync } from "child_process";
 import { cfg } from "./constants.js";
 import {
   sanitizeId, sanitizeShortSessionId, sanitizeName,
@@ -12,7 +13,7 @@ import {
   normalizeFilePath, writeFileSecure,
 } from "./security.js";
 import { readJSON, shellQuote, text } from "./helpers.js";
-import { isProcessAlive, killProcess, buildWorkerScript, openTerminalWithCommand } from "./platform/common.js";
+import { isProcessAlive, killProcess, buildWorkerScript, buildInteractiveWorkerScript, openTerminalWithCommand } from "./platform/common.js";
 
 /**
  * Handle coord_spawn_worker tool call.
@@ -30,6 +31,7 @@ export function handleSpawnWorker(args) {
   const notify_session_id = notifySessionRaw ? sanitizeShortSessionId(notifySessionRaw) : null;
   const files = (args.files || []).map(f => String(f).trim()).filter(Boolean);
   const layout = args.layout === "split" ? "split" : "tab";
+  const mode = args.mode === "interactive" ? "interactive" : "pipe";
   if (!prompt) return text("Prompt is required.");
   if (!existsSync(directory)) return text(`Directory not found: ${directory}`);
 
@@ -62,11 +64,31 @@ export function handleSpawnWorker(args) {
     return text(`Task ID ${taskId} already exists. Use a new task_id or omit it for auto-generation.`);
   }
 
+  // Worktree isolation: create a git worktree so worker operates on an isolated copy
+  const isolate = Boolean(args.isolate);
+  let workerDir = directory;
+  let worktreeBranch = null;
+  if (isolate) {
+    try {
+      const worktreeBase = join(directory, ".claude", "worktrees");
+      mkdirSync(worktreeBase, { recursive: true });
+      const worktreePath = join(worktreeBase, taskId);
+      worktreeBranch = `worker/${taskId}`;
+      execFileSync("git", ["worktree", "add", worktreePath, "-b", worktreeBranch], {
+        cwd: directory, stdio: "pipe", timeout: 15000,
+      });
+      workerDir = worktreePath;
+    } catch (err) {
+      return text(`Worktree creation failed: ${err.message}\nFalling back to non-isolated mode is not safe. Fix the git state or omit isolate.`);
+    }
+  }
+
   const meta = {
-    task_id: taskId, directory, prompt: prompt.slice(0, 500),
+    task_id: taskId, directory: workerDir, original_directory: directory,
+    prompt: prompt.slice(0, 500),
     model, agent: agent || null,
-    notify_session_id,
-    files, spawned: new Date().toISOString(), status: "running",
+    notify_session_id, isolated: isolate, worktree_branch: worktreeBranch,
+    mode, files, spawned: new Date().toISOString(), status: "running",
   };
   writeFileSecure(metaFile, JSON.stringify(meta, null, 2));
 
@@ -78,7 +100,28 @@ export function handleSpawnWorker(args) {
     }
     const contextSuffix = "\n\nWhen done, write key findings to ~/.claude/session-cache/coder-context.md.";
     const promptFile = join(RESULTS_DIR, `${taskId}.prompt`);
-    writeFileSecure(promptFile, contextPreamble + prompt + contextSuffix);
+    let fullPrompt = contextPreamble + prompt + contextSuffix;
+    if (mode === "interactive") {
+      const instructionHeader = [
+        `## Worker Instructions (from lead)`,
+        `You are an autonomous worker spawned by the project lead. Your task ID is ${taskId}.`,
+        ``,
+        `IMPORTANT: You may receive messages from the project lead during execution.`,
+        `- Messages appear as "--- INCOMING MESSAGES FROM COORDINATOR ---" before your tool calls`,
+        `- If you receive instructions from the lead, prioritize them immediately`,
+        `- If told to stop, pivot, or change direction — do so without question`,
+        `- The lead can redirect you at any time. Follow their instructions.`,
+        ``,
+        `When your task is complete, write key findings to ~/.claude/session-cache/coder-context.md`,
+        ``,
+        `---`,
+        ``,
+        `## Your Task`,
+        ``,
+      ].join("\n");
+      fullPrompt = instructionHeader + contextPreamble + prompt;
+    }
+    writeFileSecure(promptFile, fullPrompt);
 
     const workerPs1File = join(RESULTS_DIR, `${taskId}.worker.ps1`);
     if (PLATFORM === "win32") {
@@ -109,17 +152,24 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       writeFileSecure(workerPs1File, ps1);
     }
 
-    const workerScript = buildWorkerScript({
-      taskId, workDir: directory, resultFile, pidFile, metaFile,
-      model, agent, promptFile, workerPs1File, platformName: PLATFORM,
-    });
+    const workerScript = mode === "interactive"
+      ? buildInteractiveWorkerScript({
+          taskId, workDir: workerDir, resultFile, pidFile, metaFile,
+          model, agent, promptFile, platformName: PLATFORM,
+        })
+      : buildWorkerScript({
+          taskId, workDir: workerDir, resultFile, pidFile, metaFile,
+          model, agent, promptFile, workerPs1File, platformName: PLATFORM,
+        });
     const usedApp = openTerminalWithCommand(workerScript, layout);
 
     return text(
       `Worker spawned: **${taskId}**\n` +
-      `- Directory: ${directory}\n- Model: ${model}\n- Agent: ${agent || "default"}\n` +
+      `- Directory: ${workerDir}\n- Model: ${model}\n- Agent: ${agent || "default"}\n` +
       `- Notify Session: ${notify_session_id || "none"}\n` +
+      `- Mode: ${mode}${mode === "interactive" ? " (lead can message mid-execution)" : " (fire-and-forget)"}\n` +
       `- Layout: ${layout} via ${usedApp}\n- Platform: ${PLATFORM}\n` +
+      `- Isolated: ${isolate ? `yes (branch: ${worktreeBranch})` : "no"}\n` +
       `- Files: ${files.join(", ") || "none"}\n- Results: ${resultFile}\n\n` +
       `Check: \`coord_get_result task_id="${taskId}"\``
     );

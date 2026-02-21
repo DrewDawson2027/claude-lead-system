@@ -14,6 +14,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { fileURLToPath } from "url";
+import { join } from "path";
 
 import { cfg } from "./lib/constants.js";
 import {
@@ -23,19 +24,21 @@ import {
 } from "./lib/security.js";
 import { readJSONLLimited, batQuote, text } from "./lib/helpers.js";
 import { handleListSessions, handleGetSession, getSessionStatus } from "./lib/sessions.js";
-import { handleCheckInbox } from "./lib/messaging.js";
+import { handleCheckInbox, handleSendMessage, handleBroadcast, handleSendDirective } from "./lib/messaging.js";
 import { handleDetectConflicts } from "./lib/conflicts.js";
 import {
   handleSpawnWorker, handleGetResult, handleKillWorker,
   handleSpawnTerminal,
 } from "./lib/workers.js";
 import { handleRunPipeline, handleGetPipeline } from "./lib/pipelines.js";
+import { handleCreateTask, handleUpdateTask, handleListTasks, handleGetTask } from "./lib/tasks.js";
+import { handleCreateTeam, handleGetTeam, handleListTeams } from "./lib/teams.js";
 import { runGC } from "./lib/gc.js";
 import { handleWakeSession } from "./lib/platform/wake.js";
 import { selectWakeText } from "./lib/platform/wake.js";
 import {
   buildPlatformLaunchCommand, isProcessAlive, killProcess,
-  isSafeTTYPath, buildWorkerScript,
+  isSafeTTYPath, buildWorkerScript, buildInteractiveWorkerScript,
 } from "./lib/platform/common.js";
 
 // ─────────────────────────────────────────────────────────
@@ -114,7 +117,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "coord_spawn_worker",
-      description: "Spawn an autonomous worker (claude -p). Cross-platform. Returns task_id for coord_get_result.",
+      description: "Spawn a worker in pipe mode (fire-and-forget) or interactive mode (lead can message mid-execution). Returns task_id.",
       inputSchema: {
         type: "object",
         properties: {
@@ -123,10 +126,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           model: { type: "string", description: "Model (default: sonnet)" },
           agent: { type: "string", description: "Agent name (optional)" },
           task_id: { type: "string", description: "Custom task ID (auto-generated if not provided)" },
+          mode: { type: "string", enum: ["pipe", "interactive"], description: "pipe (fire-and-forget, cheapest) or interactive (lead can message mid-execution via inbox hooks, 3-5x more tokens). Default: pipe" },
           notify_session_id: { type: "string", description: "Session ID (first 8 chars) to receive worker completion inbox notifications." },
           session_id: { type: "string", description: "Alias for notify_session_id (first 8 chars)." },
           files: { type: "array", items: { type: "string" }, description: "Files to edit (checked for conflicts)" },
           layout: { type: "string", enum: ["tab", "split"], description: "'tab' or 'split'" },
+          isolate: { type: "boolean", description: "Create git worktree for isolated execution (default: false)" },
         },
         required: ["directory", "prompt"],
       },
@@ -202,6 +207,152 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["pipeline_id"],
       },
     },
+    // ── Task Board ──
+    {
+      name: "coord_create_task",
+      description: "Create a task on the shared task board with subject, description, assignee, and dependency tracking.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          subject: { type: "string", description: "Task title (required)" },
+          description: { type: "string", description: "Detailed task description" },
+          task_id: { type: "string", description: "Custom task ID (auto-generated if omitted)" },
+          assignee: { type: "string", description: "Worker/session name to assign to" },
+          priority: { type: "string", enum: ["low", "normal", "high"], description: "Priority (default: normal)" },
+          files: { type: "array", items: { type: "string" }, description: "Files this task will touch" },
+          blocked_by: { type: "array", items: { type: "string" }, description: "Task IDs that must complete first" },
+        },
+        required: ["subject"],
+      },
+    },
+    {
+      name: "coord_update_task",
+      description: "Update a task: change status, assignee, add dependencies.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "string", description: "Task ID to update" },
+          status: { type: "string", enum: ["pending", "in_progress", "completed", "cancelled"], description: "New status" },
+          assignee: { type: "string", description: "New assignee (empty string to unassign)" },
+          subject: { type: "string", description: "New subject" },
+          description: { type: "string", description: "New description" },
+          priority: { type: "string", enum: ["low", "normal", "high"], description: "New priority" },
+          add_blocked_by: { type: "array", items: { type: "string" }, description: "Add dependency on these task IDs" },
+          add_blocks: { type: "array", items: { type: "string" }, description: "This task blocks these task IDs" },
+        },
+        required: ["task_id"],
+      },
+    },
+    {
+      name: "coord_list_tasks",
+      description: "List all tasks on the task board, with dependency and blocker info.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          status: { type: "string", description: "Filter by status" },
+          assignee: { type: "string", description: "Filter by assignee" },
+        },
+      },
+    },
+    {
+      name: "coord_get_task",
+      description: "Get full details of a task including description, files, and dependencies.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "string", description: "Task ID" },
+        },
+        required: ["task_id"],
+      },
+    },
+    // ── Teams ──
+    {
+      name: "coord_create_team",
+      description: "Create or update a team with members, roles, and project info. Persists across sessions.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          team_name: { type: "string", description: "Team name (required)" },
+          project: { type: "string", description: "Project name" },
+          description: { type: "string", description: "Team purpose" },
+          members: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                role: { type: "string" },
+                session_id: { type: "string" },
+                task_id: { type: "string" },
+              },
+              required: ["name"],
+            },
+            description: "Team members to add/update",
+          },
+        },
+        required: ["team_name"],
+      },
+    },
+    {
+      name: "coord_get_team",
+      description: "Get team composition, members, and their assigned work.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          team_name: { type: "string", description: "Team name" },
+        },
+        required: ["team_name"],
+      },
+    },
+    {
+      name: "coord_list_teams",
+      description: "List all teams.",
+      inputSchema: { type: "object", properties: {} },
+    },
+    // ── Broadcast ──
+    {
+      name: "coord_broadcast",
+      description: "Send a message to ALL active sessions via their inboxes. Zero API tokens — file writes only.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          from: { type: "string", description: "Sender identifier" },
+          content: { type: "string", description: "Message content" },
+          priority: { type: "string", enum: ["normal", "urgent"], description: "Priority (default: normal)" },
+        },
+        required: ["from", "content"],
+      },
+    },
+    // ── Send Directive (send + auto-wake) ──
+    {
+      name: "coord_send_directive",
+      description: "Send an instruction to a worker/session mid-execution. Writes to inbox AND auto-wakes if session is idle. The lead's primary control tool for interactive workers.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          from: { type: "string", description: "Sender identifier" },
+          to: { type: "string", description: "Target session ID (first 8 chars)" },
+          content: { type: "string", description: "Instruction/directive content" },
+          priority: { type: "string", enum: ["normal", "urgent"], description: "Priority (default: normal)" },
+        },
+        required: ["from", "to", "content"],
+      },
+    },
+    // ── Send Message (MCP tool version) ──
+    {
+      name: "coord_send_message",
+      description: "Send a message to a specific session's inbox. Zero API tokens — file write only. Target reads it on next tool call.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          from: { type: "string", description: "Sender identifier" },
+          to: { type: "string", description: "Target session ID (first 8 chars)" },
+          content: { type: "string", description: "Message content" },
+          priority: { type: "string", enum: ["normal", "urgent"], description: "Priority (default: normal)" },
+        },
+        required: ["from", "to", "content"],
+      },
+    },
   ],
 }));
 /* c8 ignore stop */
@@ -220,7 +371,9 @@ const _initializedDirs = new Set();
 let _gcRan = false;
 function ensureDirsOnce() {
   const { TERMINALS_DIR, INBOX_DIR, RESULTS_DIR, SESSION_CACHE_DIR } = cfg();
-  for (const dir of [TERMINALS_DIR, INBOX_DIR, RESULTS_DIR, SESSION_CACHE_DIR]) {
+  const TASKS_DIR = join(TERMINALS_DIR, "tasks");
+  const TEAMS_DIR = join(TERMINALS_DIR, "teams");
+  for (const dir of [TERMINALS_DIR, INBOX_DIR, RESULTS_DIR, SESSION_CACHE_DIR, TASKS_DIR, TEAMS_DIR]) {
     if (!_initializedDirs.has(dir)) {
       ensureSecureDirectory(dir);
       _initializedDirs.add(dir);
@@ -249,6 +402,16 @@ function handleToolCall(name, args = {}) {
     case "coord_kill_worker":      return handleKillWorker(args);
     case "coord_run_pipeline":     return handleRunPipeline(args);
     case "coord_get_pipeline":     return handleGetPipeline(args);
+    case "coord_create_task":      return handleCreateTask(args);
+    case "coord_update_task":      return handleUpdateTask(args);
+    case "coord_list_tasks":       return handleListTasks(args);
+    case "coord_get_task":         return handleGetTask(args);
+    case "coord_create_team":      return handleCreateTeam(args);
+    case "coord_get_team":         return handleGetTeam(args);
+    case "coord_list_teams":       return handleListTeams(args);
+    case "coord_broadcast":        return handleBroadcast(args);
+    case "coord_send_message":     return handleSendMessage(args);
+    case "coord_send_directive":   return handleSendDirective(args);
     default:                       return text(`Unknown tool: ${name}`);
     }
   } catch (err) {
@@ -307,4 +470,15 @@ export const __test__ = {
   getSessionStatus,
   acquireExclusiveFileLock,
   enforceMessageRateLimit,
+  handleCreateTask,
+  handleUpdateTask,
+  handleListTasks,
+  handleGetTask,
+  handleCreateTeam,
+  handleGetTeam,
+  handleListTeams,
+  handleSendMessage,
+  handleBroadcast,
+  handleSendDirective,
+  buildInteractiveWorkerScript,
 };
