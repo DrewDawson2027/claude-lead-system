@@ -15,21 +15,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Build release bundle
         run: |
           tar --exclude .git -czf claude-lead-system.tar.gz .
 
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@28d71544de8eaf1b958d335707167c5f783590ad # v0
         with:
           path: .
           format: spdx-json
           output-file: sbom.spdx.json
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: supply-chain-artifacts
           path: |
@@ -37,7 +37,7 @@ jobs:
             sbom.spdx.json
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9 # v3
 
       - name: Sign release bundle (keyless)
         run: |
@@ -56,14 +56,26 @@ jobs:
             claude-lead-system.tar.gz
 
       - name: Upload signature artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: signed-bundle
           path: |
             claude-lead-system.tar.gz.sig
             claude-lead-system.tar.gz.pem
 
+      - name: Upload verification assets to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            claude-lead-system.tar.gz \
+            claude-lead-system.tar.gz.sig \
+            claude-lead-system.tar.gz.pem \
+            sbom.spdx.json \
+            --clobber
+
       - name: Attest release bundle provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
         with:
           subject-path: claude-lead-system.tar.gz

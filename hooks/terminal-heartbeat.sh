@@ -1,5 +1,5 @@
 #!/bin/bash
-# Universal Terminal Heartbeat v2.1 — rate-limited, self-healing, versioned, injection-safe
+# Universal Terminal Heartbeat v2.2 — rate-limited, self-healing, versioned, injection-safe
 # Triggered by PostToolUse on Edit|Write|Bash|Read
 # Tracks: activity log, session liveness, files touched, tool counts, recent ops
 #
@@ -7,10 +7,22 @@
 # Between beats, only the activity log is appended (cheap).
 #
 # All jq calls use --arg for safe value passing (no string interpolation in filters).
+# All date/stat calls use portable.sh for cross-platform compatibility.
+umask 077
+
+# Load portable utilities
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/portable.sh
+source "$HOOK_DIR/lib/portable.sh"
+require_jq
 
 INPUT=$(cat)
 
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
+RAW_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // ""')
+if ! [[ "$RAW_SESSION_ID" =~ ^[A-Za-z0-9_-]{8,64}$ ]]; then
+  echo "BLOCKED: Invalid session_id in terminal-heartbeat payload." >&2
+  exit 2
+fi
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // "unknown"')
 if [ "$TOOL_NAME" = "Bash" ]; then
   FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.command // "unknown"' | head -1 | cut -c1-80)
@@ -19,38 +31,39 @@ else
 fi
 CWD=$(echo "$INPUT" | jq -r '.cwd // "unknown"')
 PROJECT=$(basename "$CWD")
-SID8="${SESSION_ID:0:8}"
+SID8="${RAW_SESSION_ID:0:8}"
 FILE_BASE=$(basename "$FILE_PATH")
 
 mkdir -p ~/.claude/terminals
 
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# ─── ACTIVITY LOG (always fires, very cheap) ───
-jq -c -n --arg ts "$NOW" --arg session "$SID8" --arg tool "$TOOL_NAME" \
+# ─── ACTIVITY LOG (always fires, flock-protected for concurrent safety) ───
+ACTIVITY_FILE=~/.claude/terminals/activity.jsonl
+JSON_LINE=$(jq -n --arg ts "$NOW" --arg session "$SID8" --arg tool "$TOOL_NAME" \
       --arg file "$FILE_BASE" --arg path "$FILE_PATH" --arg project "$PROJECT" \
-      '{ts:$ts,session:$session,tool:$tool,file:$file,path:$path,project:$project}' \
-  >> ~/.claude/terminals/activity.jsonl
+      '{ts:$ts,session:$session,tool:$tool,file:$file,path:$path,project:$project}')
+portable_flock_append "${ACTIVITY_FILE}.lock" "echo '$JSON_LINE' >> '$ACTIVITY_FILE'"
 
-# ─── RATE LIMIT CHECK ───
-# Use a lock file with mtime as the rate limiter (5-second cooldown)
+# ─── RATE LIMIT CHECK (portable locking) ───
 LOCK_FILE="/tmp/claude-heartbeat-${SID8}.lock"
 COOLDOWN=5  # seconds
 
-if [ -f "$LOCK_FILE" ]; then
-  LOCK_AGE=$(( $(date +%s) - $(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 0) ))
-  if [ "$LOCK_AGE" -lt "$COOLDOWN" ]; then
-    exit 0  # Skip full heartbeat, activity log already written
-  fi
+if ! portable_flock_try "$LOCK_FILE"; then
+  exit 0  # Another heartbeat is running, activity log already written
+fi
+# Check lock file age (mtime) for cooldown
+LOCK_AGE=$(( $(date +%s) - $(get_file_mtime_epoch "$LOCK_FILE") ))
+if [ "$LOCK_AGE" -lt "$COOLDOWN" ] && [ "$LOCK_AGE" -ge 0 ]; then
+  portable_flock_release "$LOCK_FILE"
+  exit 0  # Skip full heartbeat, activity log already written
 fi
 touch "$LOCK_FILE"
 
 # ─── FULL HEARTBEAT (rate-limited to 1 per 5s) ───
 
-# Capture TTY
-RAW_TTY=$(ps -o tty= -p $PPID 2>/dev/null | sed 's/ //g')
-CURR_TTY=""
-[ -n "$RAW_TTY" ] && [ "$RAW_TTY" != "??" ] && CURR_TTY="/dev/$RAW_TTY"
+# Capture TTY (portable, walks process tree)
+CURR_TTY=$(get_tty)
 
 SESSION_FILE=~/.claude/terminals/session-${SID8}.json
 SCHEMA_VERSION=2  # Increment when adding new fields
@@ -99,7 +112,6 @@ else
        project: $project,
        branch: $branch,
        cwd: $cwd,
-       transcript: "unknown",
        started: $now,
        last_active: $now,
        last_tool: $tool,
@@ -130,15 +142,16 @@ STALE_LOCK="/tmp/claude-stale-check.lock"
 STALE_COOLDOWN=60
 
 DO_STALE=false
-if [ ! -f "$STALE_LOCK" ]; then
-  DO_STALE=true
-else
-  STALE_AGE=$(( $(date +%s) - $(stat -f %m "$STALE_LOCK" 2>/dev/null || stat -c %Y "$STALE_LOCK" 2>/dev/null || echo 0) ))
-  [ "$STALE_AGE" -gt "$STALE_COOLDOWN" ] && DO_STALE=true
+if portable_flock_try "$STALE_LOCK"; then
+  STALE_AGE=$(( $(date +%s) - $(get_file_mtime_epoch "$STALE_LOCK") ))
+  if [ "$STALE_AGE" -gt "$STALE_COOLDOWN" ] || [ "$STALE_AGE" -lt 0 ]; then
+    DO_STALE=true
+    touch "$STALE_LOCK"
+  fi
+  portable_flock_release "$STALE_LOCK"
 fi
 
 if $DO_STALE; then
-  touch "$STALE_LOCK"
   NOW_EPOCH=$(date +%s)
   for sf in ~/.claude/terminals/session-*.json; do
     [ -f "$sf" ] || continue
@@ -148,7 +161,7 @@ if $DO_STALE; then
     [ "$SF_STATUS" != "active" ] && continue
 
     SF_LAST=$(jq -r '.last_active // "1970-01-01T00:00:00Z"' "$sf" 2>/dev/null)
-    SF_EPOCH=$(date -jf "%Y-%m-%dT%H:%M:%SZ" "$SF_LAST" +%s 2>/dev/null || date -d "$SF_LAST" +%s 2>/dev/null || echo 0)
+    SF_EPOCH=$(parse_iso_to_epoch "$SF_LAST")
 
     AGE=$(( NOW_EPOCH - SF_EPOCH ))
     if [ "$AGE" -gt 3600 ]; then
@@ -158,21 +171,12 @@ if $DO_STALE; then
   done
 fi
 
-# ─── Atlas backward compat ───
-case "$CWD" in
-  */Desktop/Atlas*|*/atlas-betting*)
-    mkdir -p ~/.claude/atlas-terminals
-    jq -c -n --arg ts "$NOW" --arg session "$SID8" --arg tool "$TOOL_NAME" \
-          --arg file "$FILE_BASE" --arg path "$FILE_PATH" --arg cwd "$CWD" \
-          '{ts:$ts,session:$session,tool:$tool,file:$file,path:$path,cwd:$cwd}' \
-      >> ~/.claude/atlas-terminals/activity.jsonl
-    ALINES=$(wc -l < ~/.claude/atlas-terminals/activity.jsonl 2>/dev/null || echo 0)
-    [ "$ALINES" -gt 250 ] && tail -200 ~/.claude/atlas-terminals/activity.jsonl > ~/.claude/atlas-terminals/activity.tmp && mv ~/.claude/atlas-terminals/activity.tmp ~/.claude/atlas-terminals/activity.jsonl
-    ;;
-esac
-
-# Auto-truncate activity log
-LINES=$(wc -l < ~/.claude/terminals/activity.jsonl 2>/dev/null || echo 0)
-[ "$LINES" -gt 600 ] && tail -500 ~/.claude/terminals/activity.jsonl > ~/.claude/terminals/activity.tmp && mv ~/.claude/terminals/activity.tmp ~/.claude/terminals/activity.jsonl
+# Auto-truncate activity log (portable lock to avoid concurrent truncation)
+portable_flock_append "${ACTIVITY_FILE}.lock" '
+  LINES=$(wc -l < "'"$ACTIVITY_FILE"'" 2>/dev/null || echo 0)
+  if [ "$LINES" -gt 600 ]; then
+    tail -500 "'"$ACTIVITY_FILE"'" > "'"${ACTIVITY_FILE}"'.tmp" && mv "'"${ACTIVITY_FILE}"'.tmp" "'"$ACTIVITY_FILE"'"
+  fi
+'
 
 exit 0

@@ -11,7 +11,7 @@ jobs:
     name: Lint shell scripts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Install shellcheck
         run: sudo apt-get install -y shellcheck
       - name: Lint hooks
@@ -21,8 +21,8 @@ jobs:
     name: Lint Python hooks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
       - name: Check syntax
@@ -38,8 +38,8 @@ jobs:
     name: Lint MCP coordinator
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: "npm"
@@ -51,12 +51,35 @@ jobs:
       - name: Run coordinator unit tests
         run: cd mcp-coordinator && npm run test:unit
 
+  coverage:
+    name: Test Coverage (80%+ gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mcp-coordinator/package-lock.json
+      - name: Install deps
+        run: cd mcp-coordinator && npm ci
+      - name: Run tests with coverage gate (80% lines)
+        run: cd mcp-coordinator && npx c8 --check-coverage --lines 80 node --test test/*.test.mjs
+      - name: Generate coverage report
+        if: always()
+        run: cd mcp-coordinator && npx c8 --reporter=text node --test test/*.test.mjs || true
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        if: always()
+        with:
+          name: coverage
+          path: mcp-coordinator/coverage/
+
   perf-gate:
     name: Coordinator Performance Gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: "npm"
@@ -70,8 +93,8 @@ jobs:
     name: Coordinator E2E (worker + pipeline)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: "npm"
@@ -93,14 +116,23 @@ jobs:
     name: Hook integration tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Install pytest
+        run: pip install pytest
       - name: Run hook smoke tests
         run: bash tests/hooks-smoke.sh
+      - name: Run shell hook unit tests
+        run: bash tests/test-hooks.sh
+      - name: Run Python hook unit tests
+        run: pytest tests/ -v
       - name: Run health-check regression tests
         run: bash tests/health-check-regression.sh
 
@@ -112,8 +144,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: "npm"
@@ -132,13 +164,13 @@ jobs:
         node: ["18", "20"]
         python: ["3.10", "3.11"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node }}
           cache: "npm"
           cache-dependency-path: mcp-coordinator/package-lock.json
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python }}
       - name: Install jq

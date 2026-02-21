@@ -1,18 +1,30 @@
 {
-  "generated_at": "2026-02-19T21:31:48.052Z",
+  "generated_at": "2026-02-21T02:21:36.297Z",
+  "methodology": "Local filesystem I/O only. No API tokens consumed. 50 iterations with 5 warmup.",
+  "context": "Coordinator uses enriched JSON files (~3KB each) maintained by shell hooks at zero token cost.",
   "dataset": {
-    "transcript_bytes": 7650000,
-    "session_json_bytes": 1357
+    "session_count": 10,
+    "avg_session_bytes": 1708
   },
-  "transcript_scan": {
-    "avg_ms": 3.944,
-    "p50_ms": 3.485,
-    "p95_ms": 5.826
-  },
-  "session_json_read": {
-    "avg_ms": 0.019,
-    "p50_ms": 0.015,
-    "p95_ms": 0.022
-  },
-  "speedup_ratio_avg": 207.58
+  "benchmarks": [
+    {
+      "label": "single_session_read",
+      "avg_ms": 0.016,
+      "p50_ms": 0.015,
+      "p95_ms": 0.022
+    },
+    {
+      "label": "boot_scan_10_sessions",
+      "avg_ms": 0.233,
+      "p50_ms": 0.199,
+      "p95_ms": 0.473
+    },
+    {
+      "label": "conflict_detection",
+      "avg_ms": 0.187,
+      "p50_ms": 0.176,
+      "p95_ms": 0.253
+    }
+  ],
+  "summary": "All coordinator operations complete in <5ms. Zero API tokens added to context window."
 }

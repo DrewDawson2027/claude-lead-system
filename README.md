@@ -2,7 +2,7 @@
 
 # Claude Lead System
 
-**Multi-agent Claude Code orchestration. Zero API tokens. One command.**
+**Power tools for Claude Code Agent Teams. Conflict detection, activity logging, observability, and terminal orchestration — the features Agent Teams doesn't have.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml/badge.svg)](https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml)
@@ -15,15 +15,40 @@
 ---
 
 > **Type `/lead` in any Claude Code session.**
-> It instantly becomes a project lead that sees every other Claude terminal, knows what they're doing, and can message them, wake them, spawn new workers, detect file conflicts, and run multi-step pipelines — **using zero API tokens for coordination.**
+> It complements Claude Code's built-in Agent Teams with capabilities they lack: pre-edit file conflict detection, enriched session observability, native terminal tab spawning, sequential pipelines, and a universal activity log — **all running outside the context window at zero token cost.**
+
+---
+
+## Who Is This For
+
+- **Solo devs running 2+ terminals** — see all sessions at a glance, avoid file conflicts, dispatch work without switching tabs
+- **Team leads orchestrating multi-agent Claude Code** — `/lead` dashboard + workers + pipelines for complex builds
+- **Power users who want pipelines** — sequential multi-step task chains with status tracking
+- **Anyone evaluating multi-agent workflows** — the coordination layer Agent Teams doesn't provide
 
 ---
 
 ## Why This Exists
 
-When you run multiple Claude Code terminals in parallel, they're blind to each other. They step on the same files. They duplicate work. You spend your own tokens babysitting them.
+Claude Code's Agent Teams (`TeamCreate`, `SendMessage`, `TaskCreate`) handle messaging and task management well. But they can't:
 
-`claude-lead-system` fixes this by wiring every terminal together through shell hooks and a lightweight filesystem protocol — **completely outside the context window**.
+- **Detect file conflicts before they happen** — no pre-edit cross-session awareness
+- **Show what each session is actually doing** — tool counts, files touched, recent operations
+- **Open native terminal tabs** — iTerm2 splits, gnome-terminal tabs, Windows Terminal panes
+- **Run sequential multi-step pipelines** — ordered task chains with status tracking
+- **Log activity across sessions** — append-only observability without token cost
+
+`claude-lead-system` fills these gaps by wiring every terminal together through shell hooks and a lightweight filesystem protocol — **completely outside the context window**.
+
+## Authorship and Provenance
+
+- Author and maintainer: **Drew Dawson** (`@DrewDawson2027`)
+- Canonical repository: `https://github.com/DrewDawson2027/claude-lead-system`
+- Citation metadata: [CITATION.cff](CITATION.cff)
+- Provenance verification guide: [docs/PROVENANCE.md](docs/PROVENANCE.md)
+- Release checklist: [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md)
+- Security model: [docs/SECURITY.md](docs/SECURITY.md)
+- Release scripts: `scripts/release/preflight.sh`, `scripts/release/verify-release.sh`
 
 ```
 Terminal A (lead)          Terminal B (coding)       Terminal C (testing)
@@ -64,7 +89,7 @@ Terminal A (lead)          Terminal B (coding)       Terminal C (testing)
 |---|---|
 | *(boot)* | Scans all sessions, shows live dashboard |
 | `tell [session] to [task]` | Sends a message to an active terminal |
-| `wake [session] with [message]` | Wakes an idle terminal (direct wake sends Enter only by default; opt-in message typing via `allow_unsafe_terminal_message=true`) |
+| `wake [session] with [message]` | Wakes an idle terminal (sends Enter keystroke; message content delivered via inbox) |
 | `run [task] in [dir]` | Spawns an autonomous `claude -p` worker |
 | `pipeline: task1, task2, task3 in [dir]` | Runs a multi-step sequential pipeline |
 | `conflicts` | Cross-references `files_touched` arrays across all sessions |
@@ -108,18 +133,19 @@ Expected:
 
 ---
 
-## Benchmarks (Before/After)
+## Coordinator Benchmarks
 
-`claude-lead-system` is optimized to read compact session state instead of scanning large transcripts.
+All coordinator operations are local filesystem reads — zero API tokens, sub-millisecond latency.
 
-| Metric | Transcript Scan | Session JSON Read | Improvement |
+| Operation | Avg | P50 | P95 |
 |---|---:|---:|---:|
-| Average latency | 3.944 ms | 0.019 ms | **207.58x faster** |
-| P50 latency | 3.485 ms | 0.015 ms | **232.33x faster** |
-| P95 latency | 5.826 ms | 0.022 ms | **264.82x faster** |
-| Data size | 7,650,000 bytes | 1,357 bytes | **5,637x smaller** |
+| Single session read | 0.016 ms | 0.015 ms | 0.022 ms |
+| Boot scan (10 sessions) | 0.233 ms | 0.199 ms | 0.473 ms |
+| Conflict detection | 0.187 ms | 0.176 ms | 0.253 ms |
 
-Measured by: `node bench/coord-benchmark.mjs` on `2026-02-19`.
+Each session file is ~1.7 KB of JSON maintained by shell hooks outside the context window.
+
+Measured by: `node bench/coord-benchmark.mjs` (50 iterations, 5 warmup). Source: [bench/latest-results.json](bench/latest-results.json).
 
 ---
 
@@ -129,7 +155,7 @@ Measured by: `node bench/coord-benchmark.mjs` on `2026-02-19`.
 |---|---|---|
 | Multi-session awareness | Manual tab hunting | `/lead` dashboard with active/stale sessions |
 | File conflict detection | Merge-time surprise conflicts | Pre-edit conflict detection via `files_touched` |
-| Task dispatch | Manual copy/paste across terminals | `tell`, `wake`, `assign`, `spawn_worker` |
+| Task dispatch | Manual copy/paste across terminals | `tell`, `wake`, `spawn_worker` |
 | Long-running execution | Idle/forgotten terminal tasks | `coord_spawn_worker` + `coord_get_result` tracking |
 | Sequential workflows | Manual step orchestration | `coord_run_pipeline` statusable pipeline execution |
 
@@ -255,9 +281,11 @@ The filesystem protocol (session JSONs, inbox files, activity log) works without
 | `hooks/session-register.sh` | SessionStart hook — registers sessions with TTY, branch, cwd |
 | `hooks/check-inbox.sh` | PreToolUse hook — surfaces messages from lead/other terminals |
 | `hooks/session-end.sh` | SessionEnd hook — marks closed, preserves final metadata |
+| `hooks/conflict-guard.sh` | PreToolUse advisory — warns before Edit/Write if another session touched the same file |
 | `hooks/health-check.sh` | Manual validator — checks all hooks, deps, and settings |
-| `hooks/token-guard.py` | PreToolUse guard — enforces agent spawn limits (max 3/session) |
+| `hooks/token-guard.py` | PreToolUse guard — enforces agent spawn limits (max 5/session) |
 | `hooks/read-efficiency-guard.py` | PostToolUse advisor — warns about sequential read patterns |
+| `hooks/lib/portable.sh` | Shared cross-platform utilities (stat, date, TTY detection) |
 | `commands/lead.md` | The `/lead` slash command prompt |
 | `mcp-coordinator/index.js` | MCP server — spawn workers, wake sessions, run pipelines |
 | `settings/settings.local.json` | Reference settings file with all hooks wired |
@@ -319,9 +347,10 @@ Mode files load via the Read tool at runtime — they appear as tool results, no
 ## Security Model
 
 - Trust boundary: this system is designed for a single local user account and local machine workflows.
-- Protected by default: coordinator state directories/files are owner-restricted, message payloads are size-capped, and inbox reads are bounded.
+- Protected by default: coordinator state directories/files are owner-restricted (`0700`/`0600`), message payloads are size-capped, and inbox reads are bounded.
 - Out of scope: hostile local root/admin users, compromised OS, and arbitrary shell commands executed by trusted operators.
-- Fail-safe behavior: `hooks/token-guard.py` is fail-closed by default; set `TOKEN_GUARD_FAIL_OPEN=1` only for troubleshooting.
+- Fail-safe behavior: `hooks/token-guard.py` is fail-closed by default; use `TOKEN_GUARD_SKIP_RULES=rule1,rule2` to bypass specific rules only (logged to stderr).
+- Wake safety: terminal wake sends Enter keystroke only; all message content is delivered through inbox. Keystroke injection was removed as an attack surface.
 
 ---
 
@@ -337,7 +366,11 @@ Mode files load via the Read tool at runtime — they appear as tool results, no
 
 **MCP is optional.** The file-based layer works standalone. MCP adds power-user features on top.
 
-**Cross-platform wake strategy.** macOS uses AppleScript, Linux attempts direct safe TTY wake, Windows uses AppActivate best-effort, and all platforms keep inbox fallback. Direct wake defaults to Enter-only safety mode; typed message injection is explicit opt-in.
+**Cross-platform wake strategy.** macOS uses AppleScript, Linux attempts direct safe TTY wake, Windows uses AppActivate best-effort, and all platforms keep inbox fallback. Wake always sends Enter only — message content goes through inbox.
+
+**Pre-edit conflict detection.** The `conflict-guard.sh` hook checks all active sessions' `files_touched` arrays before every Edit/Write. This is something Agent Teams fundamentally cannot do — it has no concept of which files each session has modified.
+
+**Stable filesystem primitives.** The core protocol uses universal filesystem operations: JSON files, JSONL append, directory-based inboxes, and `mkdir`-based locks. Even if Claude Code adds native conflict detection or task routing, the enriched session files, activity log, terminal spawning, and sequential pipelines remain independently valuable — they sit at a different layer.
 
 ---
 
@@ -351,12 +384,30 @@ Mode files load via the Read tool at runtime — they appear as tool results, no
 
 ---
 
+## Works WITH Agent Teams
+
+This system complements Claude Code's built-in Agent Teams. Use both together. See [Agent Teams Integration Patterns](docs/AGENT_TEAMS_INTEGRATION.md) for detailed examples.
+
+| Capability | Agent Teams | Claude Lead System |
+|---|---|---|
+| Task management | `TaskCreate`, `TaskUpdate` | — |
+| Agent messaging | `SendMessage` | `coord_wake_session` (inbox + Enter keystroke) |
+| **Pre-edit conflict detection** | — | `conflict-guard.sh` warns before file overwrites |
+| **Session observability** | Idle notifications only | Tool counts, files touched, recent ops, activity log |
+| **Native terminal tabs** | `Task` tool (background only) | iTerm2 splits, gnome-terminal tabs, Windows Terminal panes |
+| **Sequential pipelines** | Manual chaining | `coord_run_pipeline` with status tracking |
+| **Worker lifecycle** | Background agents | PID tracking, kill, result retrieval |
+
+---
+
 ## Quality Gates
 
 - CI validates shell, Python, and JavaScript syntax
 - CI runs coordinator argument-validation tests
 - CI enforces performance SLO thresholds via `tests/perf-gate.mjs`
 - CI runs hook smoke tests (`session-register` + `terminal-heartbeat`) in isolated HOME
+- CI runs shell hook unit tests (34 tests) and Python hook unit tests (23 tests)
+- CI enforces 80%+ line coverage via `c8` (currently ~90%)
 - `health-check.sh` validates install health on your machine
 - Release supply-chain workflow publishes SBOM, provenance attestation, and keyless cosign signatures
 

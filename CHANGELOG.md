@@ -23,12 +23,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `plugin/`: Claude Code plugin distribution files (plugin.json, hooks.json, install.sh)
 - Agent Teams orchestration in `master-workflow` (TeamCreate, SendMessage, shared task lists)
 - Prompt caching architecture documentation across all agent definitions
+- `lib/gc.js`: Auto-garbage collection for old results, sessions, and pipelines (runs once per server boot, 24h default)
+- `batQuote()` helper for safe Windows .bat script string escaping (prevents cmd.exe metacharacter injection)
+- `docs/TROUBLESHOOTING.md`: Common failure modes and solutions
+- `docs/AGENT_TEAMS_INTEGRATION.md`: Four concrete patterns for using claude-lead-system with Agent Teams
+- Cross-platform portable locking: `portable_flock_try()`, `portable_flock_release()`, `portable_flock_append()` in `hooks/lib/portable.sh`
+- GC test coverage in `security.test.mjs`
+- `batQuote` test coverage and fuzz test (200 random ASCII inputs) in `validation.test.mjs`
+- Branch coverage push: 64% → 75%+ (40 new targeted tests across security, platform-launch, validation, e2e)
+- Shell hook unit tests: worker completion routing, heartbeat auto-stale marking (34 total)
+- CI now runs shell hook unit tests (`test-hooks.sh`) and Python hook unit tests (`pytest`)
+- `isSafeTTYPath` validation tests, `readJSONLLimited` truncation/error tests
+- README: "Who Is This For" section, positioning resilience note, accurate benchmark table
 
 ### Changed
 - `hooks/token-guard.py`: now displays real metered token data alongside heuristic estimates in report
 - `install.sh`: now installs agents, mode files, reference cards, and lead-tools in addition to hooks and MCP coordinator
+- Modularized MCP coordinator: monolithic `index.js` split into 10 modules under `lib/` (security, helpers, constants, sessions, messaging, conflicts, workers, pipelines, gc, platform/)
+- `commands/lead.md`: Removed references to dead tools; updated messaging guidance to use `coord_wake_session`
+- `docs/SECURITY.md`: Updated to document `TOKEN_GUARD_SKIP_RULES` (replaces `FAIL_OPEN`), Enter-only wake safety, pre-edit conflict detection, atomic locking
+- `docs/ARCHITECTURE.md`: Updated goal statement ("Complement Agent Teams"), added `conflict-guard.sh` and `portable.sh` to hook layer
+- `README.md`: Repositioned as "Power Tools for Agent Teams" with comparison table, updated security model references, added coverage gate
+- `bench/coord-benchmark.mjs`: Rewritten to measure actual coordinator operations (session read, boot scan, conflict detection) instead of strawman transcript-vs-JSON comparison
+- Coverage gate: 80%+ line coverage enforced in CI (currently 88%+)
 
-### Added (previous)
+### Removed
+- `coord_send_message` tool (superseded by `coord_wake_session` which delivers via inbox + Enter keystroke)
+- `coord_register_work` tool (superseded by automatic heartbeat-based `files_touched` tracking)
+- `coord_assign_task` tool (superseded by Claude Code Agent Teams' native `TaskCreate`)
+- `handleSendMessage`, `handleRegisterWork`, `handleAssignTask` handler functions and all associated tests
+
+### Fixed
+- `hooks/terminal-heartbeat.sh`: Rate limiting and concurrent file locking now works on stock macOS (was silently no-op due to missing `flock`); replaced with portable `mkdir`-based lock fallback
+- `hooks/terminal-heartbeat.sh`: Removed spurious `transcript: "unknown"` from heartbeat-fallback session creation
+- `mcp-coordinator/lib/pipelines.js`: Windows .bat pipeline scripts now use `batQuote()` for all interpolated paths (was using raw string interpolation)
+- `hooks/session-register.sh`: Debug log auto-truncates to 150 lines (prevents unbounded growth)
+- `mcp-coordinator/lib/platform/common.js`, `lib/pipelines.js`: Replaced GNU-only `env -u CLAUDECODE` with POSIX `unset CLAUDECODE &&`
+- `mcp-coordinator/lib/security.js`, `lib/messaging.js`, `lib/sessions.js`: Added stderr logging to 5 non-trivial catch blocks (was bare `catch {}`)
+- `README.md`: Replaced misleading "207x faster" transcript comparison with actual coordinator benchmark table; removed dead `coord_send_message` and `assign` references
+
+### Security
+- Defense in depth: regex validation + `shellQuote`/`batQuote` + filesystem hardening (0700/0600 + symlink check + ownership check)
+- Windows ACL hardening with `icacls` verification
+- Granular `TOKEN_GUARD_SKIP_RULES` replaces blanket `FAIL_OPEN`
+- Keystroke injection removed entirely — wake sends Enter keystroke only, message delivered via inbox
+- `flock`-based TOCTOU protection on heartbeat rate limit and activity log appends
+- All CI action SHAs pinned (no floating tags)
 - One-line `install.sh` installer for macOS and Linux
 - `LICENSE` file (MIT)
 - `CONTRIBUTING.md` with setup instructions and contribution areas
@@ -46,6 +86,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Demo asset pack and narration script (`assets/demo/*`)
 - Committed visual proof assets (`assets/demo/demo.gif`, `assets/demo/before-after.png`)
 - Health-check regression test (`tests/health-check-regression.sh`)
+- Authorship/provenance artifacts: `.github/CODEOWNERS`, `CITATION.cff`, `docs/PROVENANCE.md`
+- Release operations toolkit: `docs/RELEASE_CHECKLIST.md`, `scripts/release/preflight.sh`, `scripts/release/verify-release.sh`
 
 ### Fixed
 - `hooks/session-register.sh`: removed raw input debug logging that could expose sensitive session metadata; replaced with structured field logging
@@ -76,6 +118,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `hooks/read-efficiency-guard.py`: added secure state dir/file permissions (`0700`/`0600`) aligned with `token-guard.py`
 - `hooks/session-end.sh`: switched `.ended` timestamp update to `jq --arg` (removed fragile shell interpolation)
 - `hooks/check-inbox.sh`: now strips C1 control characters (`0x80-0x9F`) in addition to C0 range
+- Hooks (`session-register`, `session-end`, `terminal-heartbeat`, `check-inbox`, `token-guard`, `read-efficiency-guard`) now validate `session_id` (`^[A-Za-z0-9_-]{8,64}$`) and fail-closed before file access
+- `hooks/check-inbox.sh`: worker completion routing now targets explicit session inbox (`notify_session_id`) and avoids cross-session stdout leakage
+- `hooks/check-inbox.sh`: completion routing now uses per-task lock to avoid duplicate/missed routing races
+- `mcp-coordinator/index.js`: message rate limiter now uses exclusive file lock to avoid concurrent read-modify-write races
+- `mcp-coordinator/index.js`: hardened Unix shell quoting for worker/pipeline paths (including apostrophes)
+- `mcp-coordinator/index.js`: `sanitizeShortSessionId` now enforces minimum 8-character session IDs
+- `hooks/read-efficiency-guard.py`: state-directory hardening is now fail-closed (matches secure posture of `token-guard.py`)
 - Removed remaining project-specific examples/references from docs/prompts
 
 ### Changed
@@ -91,6 +140,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `lint-js` CI job now uses lockfile cache path + `npm ci` for deterministic installs
 - Performance gate now uses multi-run median aggregation to reduce CI timing flake
 - Inbox fuzz tests now use deterministic seeded corpus generation
+- `coord_spawn_worker` now accepts `session_id` as an alias for `notify_session_id`
+- Supply-chain workflow now uploads verification artifacts (`tar.gz`, `.sig`, `.pem`, `sbom.spdx.json`) directly to published GitHub Releases
 
 ## [1.0.0] — 2026-02-01
 

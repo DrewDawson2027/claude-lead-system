@@ -33,6 +33,7 @@ The project guarantees support for:
 8. Supply-chain workflow produced `sbom.spdx.json` + provenance attestation
 9. Performance gate passes (`node tests/perf-gate.mjs`)
 10. Release bundle has keyless cosign signature + verification output
+11. Authorship/provenance metadata present and current (`LICENSE`, `CITATION.cff`, `.github/CODEOWNERS`, `docs/PROVENANCE.md`)
 
 ## Supply Chain Integrity
 
@@ -56,3 +57,4 @@ The project guarantees support for:
 - Semantic versioning (`MAJOR.MINOR.PATCH`)
 - Tag only from `main` after all gates pass
 - Include benchmark snapshot (`bench/latest-results.json`) in release notes
+- Execute `docs/RELEASE_CHECKLIST.md` for signed tags, release publishing, and public verification steps

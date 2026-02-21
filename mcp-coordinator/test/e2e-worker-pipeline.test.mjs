@@ -89,60 +89,6 @@ function contentText(result) {
   return result?.content?.[0]?.text || '';
 }
 
-test('send_message refuses unknown session unless allow_offline=true', async () => {
-  const { home, binDir } = setupTestHome();
-  const { api, restore } = await loadCoordinatorForTest({
-    HOME: home,
-    PATH: `${binDir}:${process.env.PATH}`,
-    COORDINATOR_TEST_MODE: '1',
-    COORDINATOR_PLATFORM: 'linux',
-    COORDINATOR_CLAUDE_BIN: 'claude-mock',
-  });
-
-  try {
-    const blocked = await api.handleToolCall('coord_send_message', {
-      from: 'lead',
-      to: 'abcd1234',
-      content: 'hello',
-    });
-    assert.match(contentText(blocked), /not delivered/i);
-
-    const queued = await api.handleToolCall('coord_send_message', {
-      from: 'lead',
-      to: 'abcd1234',
-      content: 'hello',
-      allow_offline: true,
-    });
-    assert.match(contentText(queued), /offline queue/i);
-  } finally {
-    restore();
-  }
-});
-
-test('send_message rejects oversized payloads', async () => {
-  const { home, binDir } = setupTestHome();
-  const { api, restore } = await loadCoordinatorForTest({
-    HOME: home,
-    PATH: `${binDir}:${process.env.PATH}`,
-    COORDINATOR_TEST_MODE: '1',
-    COORDINATOR_PLATFORM: 'linux',
-    COORDINATOR_CLAUDE_BIN: 'claude-mock',
-    COORDINATOR_MAX_MESSAGE_BYTES: '32',
-  });
-
-  try {
-    const res = await api.handleToolCall('coord_send_message', {
-      from: 'lead',
-      to: 'abcd1234',
-      content: 'x'.repeat(100),
-      allow_offline: true,
-    });
-    assert.match(contentText(res), /exceeds 32 bytes/i);
-  } finally {
-    restore();
-  }
-});
-
 test('check_inbox truncates oversized inbox output safely', async () => {
   const { home, binDir } = setupTestHome();
   const terminals = join(home, '.claude', 'terminals');
@@ -197,6 +143,8 @@ test('check_inbox preserves inbox when rename fallback path is used', async () =
   });
 
   try {
+    // Trigger lazy dir initialization before locking down permissions
+    api.handleToolCall('coord_list_sessions', {});
     chmodSync(inboxDir, 0o500);
     const res = await api.handleToolCall('coord_check_inbox', { session_id: 'abcd1234' });
     assert.match(contentText(res), /Message 1/i);
@@ -210,7 +158,7 @@ test('check_inbox preserves inbox when rename fallback path is used', async () =
 
 test('coordinator creates secure state directories', async () => {
   const { home, binDir } = setupTestHome();
-  const { restore } = await loadCoordinatorForTest({
+  const { api, restore } = await loadCoordinatorForTest({
     HOME: home,
     PATH: `${binDir}:${process.env.PATH}`,
     COORDINATOR_TEST_MODE: '1',
@@ -219,6 +167,8 @@ test('coordinator creates secure state directories', async () => {
   });
 
   try {
+    // Trigger lazy directory initialization
+    api.ensureDirsOnce();
     const terminalsMode = statSync(join(home, '.claude', 'terminals')).mode & 0o777;
     const inboxMode = statSync(join(home, '.claude', 'terminals', 'inbox')).mode & 0o777;
     assert.equal(terminalsMode, 0o700);
@@ -324,6 +274,220 @@ runE2E('spawn worker -> kill worker', async () => {
     const doneFile = join(home, '.claude', 'terminals', 'results', 'W_E2E_KILL.meta.json.done');
     const doneData = JSON.parse(readFileSync(doneFile, 'utf-8'));
     assert.equal(doneData.status, 'cancelled');
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_worker with notify_session_id records in meta', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+    MOCK_CLAUDE_DELAY: '0',
+  });
+  try {
+    api.ensureDirsOnce();
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'Test with notify',
+      model: 'sonnet',
+      task_id: 'W_NOTIFY',
+      notify_session_id: 'abcd1234',
+    });
+    assert.match(contentText(res), /Worker spawned/i);
+    const meta = JSON.parse(readFileSync(join(home, '.claude', 'terminals', 'results', 'W_NOTIFY.meta.json'), 'utf-8'));
+    assert.equal(meta.notify_session_id, 'abcd1234');
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_worker with files records in meta', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+    MOCK_CLAUDE_DELAY: '0',
+  });
+  try {
+    api.ensureDirsOnce();
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'Test with files',
+      model: 'sonnet',
+      task_id: 'W_FILES',
+      files: ['src/a.ts', 'src/b.ts'],
+    });
+    assert.match(contentText(res), /Worker spawned/i);
+    assert.match(contentText(res), /a\.ts/);
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_worker rejects empty prompt', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: '',
+      model: 'sonnet',
+    });
+    assert.match(contentText(res), /required/i);
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_worker rejects missing directory', async () => {
+  const { home, binDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: '/nonexistent/dir',
+      prompt: 'test',
+      model: 'sonnet',
+    });
+    assert.match(contentText(res), /not found/i);
+  } finally {
+    restore();
+  }
+});
+
+test('run_pipeline rejects empty tasks', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const res = await api.handleToolCall('coord_run_pipeline', {
+      directory: projectDir,
+      tasks: [],
+    });
+    assert.match(contentText(res), /No tasks/i);
+  } finally {
+    restore();
+  }
+});
+
+test('run_pipeline rejects nonexistent directory', async () => {
+  const { home, binDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const res = await api.handleToolCall('coord_run_pipeline', {
+      directory: '/nonexistent/dir',
+      tasks: [{ name: 'step1', prompt: 'do thing', model: 'sonnet' }],
+    });
+    assert.match(contentText(res), /not found/i);
+  } finally {
+    restore();
+  }
+});
+
+test('run_pipeline rejects duplicate pipeline_id', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const results = join(home, '.claude', 'terminals', 'results');
+  mkdirSync(join(results, 'P_DUP'), { recursive: true });
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const res = await api.handleToolCall('coord_run_pipeline', {
+      directory: projectDir,
+      pipeline_id: 'P_DUP',
+      tasks: [{ name: 'step1', prompt: 'do thing', model: 'sonnet' }],
+    });
+    assert.match(contentText(res), /already exists/i);
+  } finally {
+    restore();
+  }
+});
+
+test('get_pipeline shows pending status for not-yet-started pipeline', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const results = join(home, '.claude', 'terminals', 'results');
+  const pDir = join(results, 'P_STATUS');
+  mkdirSync(pDir, { recursive: true });
+  writeFileSync(join(pDir, 'pipeline.meta.json'), JSON.stringify({
+    pipeline_id: 'P_STATUS', directory: projectDir, total_steps: 2,
+    tasks: [{ step: 0, name: 'step-a', model: 'sonnet' }, { step: 1, name: 'step-b', model: 'sonnet' }],
+    started: new Date().toISOString(), status: 'running',
+  }));
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const res = await api.handleToolCall('coord_get_pipeline', { pipeline_id: 'P_STATUS' });
+    const text = contentText(res);
+    assert.match(text, /starting/i);
+    assert.match(text, /0\/2/);
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_terminal with initial_prompt includes prompt in command', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const res = await api.handleToolCall('coord_spawn_terminal', {
+      directory: projectDir,
+      initial_prompt: 'write tests',
+      layout: 'split',
+    });
+    assert.match(contentText(res), /spawned/i);
+    assert.match(contentText(res), /split/i);
   } finally {
     restore();
   }

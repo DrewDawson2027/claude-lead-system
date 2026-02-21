@@ -23,7 +23,9 @@ cd mcp-coordinator && npm run test:e2e
 ## Release quality
 
 - Follow the release gates in [docs/RELEASE_HARDENING.md](docs/RELEASE_HARDENING.md)
+- Follow the operator runbook in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md)
 - Update `bench/latest-results.json` when performance-sensitive behavior changes
+- Preserve provenance and authorship metadata (`LICENSE`, `CITATION.cff`, `.github/CODEOWNERS`, `docs/PROVENANCE.md`)
 
 ## Areas that need help
 

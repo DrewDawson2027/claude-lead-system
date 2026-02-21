@@ -1,18 +1,34 @@
 {
   "name": "mcp-coordinator",
   "version": "1.0.0",
+  "description": "Filesystem-native orchestration MCP server for Claude Lead System.",
   "type": "module",
   "main": "index.js",
+  "license": "MIT",
+  "author": "Drew Dawson",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DrewDawson2027/claude-lead-system.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DrewDawson2027/claude-lead-system/issues"
+  },
+  "homepage": "https://github.com/DrewDawson2027/claude-lead-system#readme",
   "scripts": {
     "test": "npm run test:all",
     "test:all": "node --test test/*.test.mjs",
     "test:unit": "node --test test/validation.test.mjs test/platform-launch.test.mjs test/inbox-fuzz.test.mjs",
-    "test:e2e": "node --test test/e2e-worker-pipeline.test.mjs"
+    "test:e2e": "node --test test/e2e-worker-pipeline.test.mjs",
+    "test:coverage": "npx c8 --check-coverage --lines 80 node --test test/*.test.mjs",
+    "test:coverage:report": "npx c8 --reporter=text --reporter=html node --test test/*.test.mjs"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0"
+  },
+  "devDependencies": {
+    "c8": "^10.1.3"
   }
 }

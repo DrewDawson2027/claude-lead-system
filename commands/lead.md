@@ -12,11 +12,8 @@ allowed-tools:
   - AskUserQuestion
   - mcp__coordinator__coord_list_sessions
   - mcp__coordinator__coord_get_session
-  - mcp__coordinator__coord_send_message
   - mcp__coordinator__coord_check_inbox
   - mcp__coordinator__coord_detect_conflicts
-  - mcp__coordinator__coord_register_work
-  - mcp__coordinator__coord_assign_task
   - mcp__coordinator__coord_spawn_terminal
   - mcp__coordinator__coord_spawn_worker
   - mcp__coordinator__coord_get_result
@@ -156,9 +153,7 @@ Users can't see session IDs. Always describe terminals by:
 | **Kill a running worker** | "kill worker [id]" → `coord_kill_worker` |
 | **Wake an idle session** | "wake [session] with [message]" → `coord_wake_session` |
 | **Spawn interactive terminal** | "spawn terminal in [dir]" → `coord_spawn_terminal` |
-| Message active session | "tell [session] to [instruction]" → `coord_send_message` |
-| Assign work | "assign [task] to [project]" → `coord_assign_task` |
-| Register my work | "I'm working on [task]" → `coord_register_work` |
+| Message active session | "tell [session] to [instruction]" → `coord_wake_session` (delivers via inbox) |
 
 ### Worker Dispatch (PREFERRED for autonomous tasks)
 
@@ -168,22 +163,22 @@ Use `coord_spawn_worker` for new work. Workers:
 - Opens in a new terminal tab (iTerm2 split pane or Terminal.app tab)
 - Auto-prepends session cache context so workers know what prior workers did
 - Progress checkable via `coord_get_result`
+- Completion notifications are routed securely to a specific inbox. Always pass your own 8-char `session_id` (or `notify_session_id`) when spawning a worker.
 
 **When to use what:**
 | Situation | Tool |
 |-----------|------|
 | New autonomous task (no session exists) | `coord_spawn_worker` |
 | Multi-step sequential tasks | `coord_run_pipeline` |
-| Message an ACTIVE session (making tool calls) | `coord_send_message` |
-| Wake an IDLE session (sitting at prompt) | `coord_wake_session` |
+| Message or wake a session | `coord_wake_session` (delivers message via inbox + sends Enter keystroke) |
 | Need user to interact with session | `coord_spawn_terminal` |
 
 ### How Communication Works
 
 **Inbox messaging (universal — works in any IDE/terminal):**
-1. `coord_send_message` writes to the target's inbox file
+1. `coord_wake_session` writes to the target's inbox file and sends an Enter keystroke
 2. A PreToolUse hook reads and displays the message before the next tool call
-3. Only works if the session is actively making tool calls
+3. Works whether the session is active or idle
 
 **Waking idle sessions:**
 - **macOS:** AppleScript finds the terminal tab by TTY and injects keystrokes (iTerm2 or Terminal.app)

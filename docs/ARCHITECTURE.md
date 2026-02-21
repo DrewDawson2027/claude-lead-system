@@ -1,13 +1,15 @@
 # Architecture
 
 ## Goal
-Coordinate multiple Claude Code sessions with near-zero overhead by externalizing state into filesystem primitives.
+Complement Claude Code Agent Teams with capabilities they lack — pre-edit conflict detection, enriched session observability, native terminal spawning, and sequential pipelines — by externalizing state into filesystem primitives at zero token cost.
 
 ## Layers
 1. Hook Layer (`~/.claude/hooks`)
 - Produces normalized session metadata (`session-*.json`)
 - Captures activity stream (`activity.jsonl`)
 - Delivers inbox messages (`inbox/<session>.jsonl`)
+- Pre-edit conflict detection (`conflict-guard.sh`)
+- Cross-platform utilities (`lib/portable.sh`)
 
 2. State Layer (`~/.claude/terminals`)
 - Serves as append-only/event-log + current-state cache
@@ -50,7 +52,7 @@ Message queue events:
 `coord_send_message -> inbox file append -> PreToolUse check-inbox.sh drains and prints`
 
 ### Worker lifecycle
-`coord_spawn_worker -> prompt/result/meta/pid files -> terminal run -> done marker`
+`coord_spawn_worker -> prompt/result/meta/pid files (optional notify_session_id) -> terminal run -> done marker -> targeted inbox notification`
 
 ### Pipeline lifecycle
 `coord_run_pipeline -> step prompt/result files + pipeline log/meta/done`
