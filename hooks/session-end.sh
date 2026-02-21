@@ -24,4 +24,11 @@ if [ -f "$SESSION_FILE" ]; then
   jq '.status = "closed" | .ended = "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"' "$SESSION_FILE" > "$TMP" && mv "$TMP" "$SESSION_FILE"
 fi
 
+# Clean per-session guard state files
+GUARD_STATE_DIR=~/.claude/hooks/session-state
+rm -f "${GUARD_STATE_DIR}/${SESSION_ID}.json" 2>/dev/null
+rm -f "${GUARD_STATE_DIR}/${SESSION_ID}-reads.json" 2>/dev/null
+rm -f "${GUARD_STATE_DIR}/${SESSION_ID}.json.lock" 2>/dev/null
+rm -f "${GUARD_STATE_DIR}/${SESSION_ID}-reads.json.lock" 2>/dev/null
+
 exit 0

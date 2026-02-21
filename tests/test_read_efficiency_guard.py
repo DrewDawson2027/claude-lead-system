@@ -1,13 +1,14 @@
 """Unit tests for read-efficiency-guard.py PostToolUse hook."""
 import json
 import os
+import shutil
 import subprocess
 import sys
-import tempfile
 
 import pytest
 
-HOOK_PATH = os.path.join(os.path.dirname(__file__), "..", "hooks", "read-efficiency-guard.py")
+HOOKS_DIR = os.path.join(os.path.dirname(__file__), "..", "hooks")
+HOOK_PATH = os.path.join(HOOKS_DIR, "read-efficiency-guard.py")
 
 
 @pytest.fixture
@@ -20,23 +21,20 @@ def state_dir(tmp_path):
 
 @pytest.fixture
 def patched_hook(tmp_path, state_dir):
-    """Create a patched copy with STATE_DIR pointing to tmp."""
-    src = open(HOOK_PATH, "r").read()
-    patched = src.replace(
-        'STATE_DIR = os.path.expanduser("~/.claude/hooks/session-state")',
-        f'STATE_DIR = "{state_dir}"',
-    )
-    hook_file = tmp_path / "read-guard-test.py"
-    hook_file.write_text(patched)
-    return str(hook_file)
+    """Copy read-efficiency-guard.py + hook_utils.py to temp dir."""
+    shutil.copy(os.path.join(HOOKS_DIR, "hook_utils.py"), tmp_path / "hook_utils.py")
+    shutil.copy(HOOK_PATH, tmp_path / "read-guard-test.py")
+    return str(tmp_path / "read-guard-test.py"), str(state_dir)
 
 
-def run_patched(patched_hook, input_data, env_overrides=None):
+def run_patched(patched_hook_tuple, input_data, env_overrides=None):
+    hook_file, state_dir = patched_hook_tuple
     env = os.environ.copy()
+    env["TOKEN_GUARD_STATE_DIR"] = state_dir
     if env_overrides:
         env.update(env_overrides)
     proc = subprocess.run(
-        [sys.executable, patched_hook],
+        [sys.executable, hook_file],
         input=json.dumps(input_data),
         capture_output=True,
         text=True,
@@ -46,7 +44,7 @@ def run_patched(patched_hook, input_data, env_overrides=None):
     return proc.returncode, proc.stdout, proc.stderr
 
 
-def make_input(tool_name="Read", session_id="abcd1234", **tool_input):
+def make_input(tool_name="Read", session_id="abcd1234efgh", **tool_input):
     return {
         "tool_name": tool_name,
         "session_id": session_id,
@@ -67,7 +65,7 @@ class TestPassthrough:
 
 
 class TestSequentialReadWarning:
-    """Warns after 4+ sequential reads within 60s."""
+    """Warns after 4+ sequential reads within 120s window."""
 
     def test_no_warning_under_threshold(self, patched_hook):
         for i in range(3):
@@ -90,20 +88,12 @@ class TestSequentialReadWarning:
 
 
 class TestSessionIdValidation:
-    """Session ID validation."""
-
-    def test_invalid_session_id_blocks(self, patched_hook):
-        rc, _, stderr = run_patched(
-            patched_hook,
-            make_input(session_id="bad!"),
-        )
-        assert rc == 2
-        assert "session_id" in stderr.lower()
+    """Session ID handling — upstream uses 'unknown' default, no validation."""
 
     def test_valid_session_id_passes(self, patched_hook):
         rc, _, _ = run_patched(
             patched_hook,
-            make_input(session_id="abcd1234", file_path="/tmp/test.ts"),
+            make_input(session_id="abcd1234efgh", file_path="/tmp/test.ts"),
         )
         assert rc == 0
 
@@ -113,9 +103,11 @@ class TestInvalidPayload:
 
     def test_invalid_json_passes(self, patched_hook):
         """Advisory hook — gracefully exits on bad input."""
+        hook_file, state_dir = patched_hook
         env = os.environ.copy()
+        env["TOKEN_GUARD_STATE_DIR"] = state_dir
         proc = subprocess.run(
-            [sys.executable, patched_hook],
+            [sys.executable, hook_file],
             input="not json",
             capture_output=True,
             text=True,
