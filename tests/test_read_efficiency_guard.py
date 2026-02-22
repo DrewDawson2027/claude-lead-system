@@ -22,8 +22,9 @@ def state_dir(tmp_path):
 
 @pytest.fixture
 def patched_hook(tmp_path, state_dir):
-    """Copy read-efficiency-guard.py + hook_utils.py to temp dir."""
-    shutil.copy(os.path.join(HOOKS_DIR, "hook_utils.py"), tmp_path / "hook_utils.py")
+    """Copy read-efficiency-guard.py and helper modules to temp dir."""
+    for helper in ("hook_utils.py", "guard_normalize.py"):
+        shutil.copy(os.path.join(HOOKS_DIR, helper), tmp_path / helper)
     shutil.copy(HOOK_PATH, tmp_path / "read-guard-test.py")
     return str(tmp_path / "read-guard-test.py"), str(state_dir)
 

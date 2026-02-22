@@ -22,9 +22,14 @@ def state_dir(tmp_path):
 
 @pytest.fixture
 def patched_hook(tmp_path, state_dir):
-    """Copy token-guard.py + hook_utils.py to temp dir with env-based STATE_DIR."""
-    # Copy hook_utils.py so imports work
-    shutil.copy(os.path.join(HOOKS_DIR, "hook_utils.py"), tmp_path / "hook_utils.py")
+    """Copy token-guard.py and local helper modules to temp dir with env-based STATE_DIR."""
+    for helper in (
+        "hook_utils.py",
+        "guard_contracts.py",
+        "guard_events.py",
+        "guard_normalize.py",
+    ):
+        shutil.copy(os.path.join(HOOKS_DIR, helper), tmp_path / helper)
     # Copy token-guard-config.json if it exists
     # Create test config with 0s cooldown so rapid-fire spawns work in tests
     config_dst = tmp_path / "token-guard-config.json"
