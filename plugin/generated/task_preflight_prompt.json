@@ -1,0 +1,4 @@
+{
+  "prompt": "MANDATORY AGENT PRE-FLIGHT \u2014 Hard rules, no exceptions:\n\nHARD BLOCKS (cancel this Task call immediately):\n- User message under 50 words AND names specific files -> Use Read directly\n- Task is 'search/find/grep X' -> Use Grep (~2k tokens, not ~50k agent)\n- Task is 'read/check/look at file' -> Use Read (~5k, not ~50k)\n- You're in plan mode -> Use Grep/Read first\n\nSOFT CHECK (proceed only if ALL pass):\n1. This genuinely requires 10+ files across multiple directories\n2. Grep + 3 Read calls cannot answer this\n3. User didn't already provide file paths and instructions\n\nIF PROCEEDING:\n- model MUST be 'sonnet' unless genuinely hard reasoning needed\n- EXCEPTION: If user explicitly said 'use agents'/'autonomous'/'vibe code', proceed",
+  "hash": "48e8175ed2113bc0"
+}

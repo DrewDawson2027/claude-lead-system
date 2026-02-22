@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-02-22T09:04:14Z",
+  "summary": {
+    "total": 7,
+    "passed": 6,
+    "failed": 1
+  },
+  "checks": [
+    {
+      "name": "hooks_pytests",
+      "cmd": [
+        "pytest",
+        "/Users/drewdawson/.claude/hooks/tests"
+      ],
+      "rc": 0,
+      "seconds": 26.08,
+      "stdout_tail": "============================= test session starts ==============================\nplatform darwin -- Python 3.13.11, pytest-9.0.2, pluggy-1.6.0\nbenchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: /Users/drewdawson/.claude/hooks\nconfigfile: pyproject.toml\nplugins: anyio-4.12.1, benchmark-5.2.3, hypothesis-6.151.9, typeguard-4.4.4\ncollected 220 items\n\n.claude/hooks/tests/test_direct_imports.py ............................. [ 13%]\n....                                                                     [ 15%]\n.claude/hooks/tests/test_guard_contracts.py ....                         [ 16%]\n.claude/hooks/tests/test_integration.py .........                        [ 20%]\n.claude/hooks/tests/test_packaging.py .........ss...                     [ 27%]\n.claude/hooks/tests/test_performance.py ...............                  [ 34%]\n.claude/hooks/tests/test_properties.py ................................. [ 49%]\n..                                                                       [ 50%]\n.claude/hooks/tests/test_read_efficiency_guard.py ...................... [ 60%]\n.....                                                                    [ 62%]\n.claude/hooks/tests/test_self_heal.py .................                  [ 70%]\n.claude/hooks/tests/test_token_guard.py ................................ [ 84%]\n..................................                                       [100%]\n\n======================= 218 passed, 2 skipped in 25.72s ========================\n",
+      "stderr_tail": ""
+    },
+    {
+      "name": "scripts_pytests",
+      "cmd": [
+        "pytest",
+        "/Users/drewdawson/.claude/scripts/tests"
+      ],
+      "rc": 1,
+      "seconds": 101.83,
+      "stdout_tail": "mbers: 3 | Messages(open): 0\nE         - Delivery: open=0 stale=0 queue=0 avg_ack=\u2014s p50=\u2014s p95=\u2014s\nE         - Tasks: pending=0 blocked=1 claimed=0 in_progress=1 awaiting_approval=0 completed=1\nE         - Task Priorities: normal=1, low=1\nE         - Labels: test=1, ops=1\nE         \nE         ### Members\nE         - lead: role=lead kind=None status=None tasks=0 session=goldsess1 pane=%0\nE         - alice: role=teammate kind=None status=None tasks=0 session=goldsess2 pane=%1\nE         - bob: role=teammate k\nE         --- Actual (first 500) ---\nE         ## Team Dashboard: golden-team\nE         - State: running | tmux: claude-golden-team\nE         - Members: 3 | Messages(open): 0\nE         - Delivery: open=0 stale=0 queue=0 avg_ack=300.<AGE> p50=<AGE> p95=<AGE>\nE         - Tasks: pending=0 blocked=1 claimed=0 in_progress=1 awaiting_approval=0 completed=1\nE         - Task Priorities: normal=1, low=1\nE         - Labels: test=1, ops=1\nE         \nE         ### Members\nE         - lead: role=lead kind=None status=None tasks=0 session=goldsess1 pane=%0\nE         - alice: role=teammate kind=None status=None tasks=0 session=goldsess2 pane=%1\nE         - bob: ro\nE       assert '## Team Dash...strapped <TS>' == '## Team Dash...strapped <TS>'\nE         \nE         Skipping 141 identical leading characters in diff, use -v to show\nE         - 0 avg_ack=\u2014s p50=\u2014s p95=\u2014s\nE         + 0 avg_ack=300.<AGE> p50=<AGE> p95=<AGE>\nE           - Tasks: pending=0 blocked=1 claimed=0 in_progress=1 awaiting_approval=0 completed=1\nE           - Task Priorities: normal=1, low=1\nE           - Labels: test=1, ops=1...\nE         \nE         ...Full output truncated (8 lines hidden), use '-vv' to show\n\n.claude/scripts/tests/test_golden.py:49: AssertionError\n=========================== short test summary info ============================\nFAILED .claude/scripts/tests/test_golden.py::TestGoldenDashboard::test_dashboard_golden\n=================== 1 failed, 81 passed in 101.40s (0:01:41) ===================\n",
+      "stderr_tail": ""
+    },
+    {
+      "name": "health_check_stats",
+      "cmd": [
+        "bash",
+        "/Users/drewdawson/.claude/hooks/health-check.sh",
+        "--stats"
+      ],
+      "rc": 0,
+      "seconds": 0.22,
+      "stdout_tail": "\n=== Token Guard Audit Stats ===\n\n  All Time:\n    Total decisions:  89\n    Blocks:           33\n    Allows:           56\n    Block rate:       37%\n    Most blocked:     read-guard (19)\n    Sessions tracked: 28\n\n  Last 7 Days:\n    Decisions:        89\n    Blocks:           33\n    Allows:           56\n    Block rate:       37%\n\n  Recent Blocks (last 5):\n    2026-02-22T07:56:30  read-guard  (duplicate_file)\n    2026-02-22T08:15:38  read-guard  (duplicate_file)\n    2026-02-22T08:23:17  read-guard  (duplicate_file)\n    2026-02-22T08:25:30  read-guard  (duplicate_file)\n    2026-02-22T08:32:26  read-guard  (duplicate_file)\n\n  Alerts:\n    alert events:      0\n    suppressed alerts: 0\n    ops snapshot cache: 2026-02-22T09:01:31Z\n\n  Prompt sync:        PASS (hash=48e8175ed2113bc0)\n\n",
+      "stderr_tail": ""
+    },
+    {
+      "name": "cli_ops_today_smoke",
+      "cmd": [
+        "python3",
+        "/Users/drewdawson/.claude/hooks/claude_token_guard/cli.py",
+        "ops",
+        "today",
+        "--json"
+      ],
+      "rc": 0,
+      "seconds": 21.17,
+      "stdout_tail": "e/cost/usage-index.json\": {\n      \"exists\": true,\n      \"mtime\": \"2026-02-22T08:42:16Z\",\n      \"age_seconds\": 1317.2,\n      \"size\": 592828\n    },\n    \"/Users/drewdawson/.claude/cost/budgets.json\": {\n      \"exists\": true,\n      \"mtime\": \"2026-02-22T05:22:20Z\",\n      \"age_seconds\": 13313.4,\n      \"size\": 177\n    },\n    \"/Users/drewdawson/.claude/cost/alerts.jsonl\": {\n      \"exists\": true,\n      \"mtime\": \"2026-02-22T08:44:14Z\",\n      \"age_seconds\": 1198.9,\n      \"size\": 0\n    }\n  },\n  \"timeline\": [\n    {\n      \"ts\": \"2026-02-22T08:15:38\",\n      \"source\": \"audit\",\n      \"event\": \"block\",\n      \"session_key\": \"ef14a2ec-6f4\",\n      \"rule_id\": \"duplicate_file\",\n      \"message\": \"count=3\"\n    },\n    {\n      \"ts\": \"2026-02-22T08:23:17\",\n      \"source\": \"audit\",\n      \"event\": \"block\",\n      \"session_key\": \"ef14a2ec-6f4\",\n      \"rule_id\": \"duplicate_file\",\n      \"message\": \"count=3\"\n    },\n    {\n      \"ts\": \"2026-02-22T08:25:30\",\n      \"source\": \"audit\",\n      \"event\": \"block\",\n      \"session_key\": \"ef14a2ec-6f4\",\n      \"rule_id\": \"duplicate_file\",\n      \"message\": \"count=4\"\n    },\n    {\n      \"ts\": \"2026-02-22T08:29:30Z\",\n      \"source\": \"metrics\",\n      \"event\": \"agent_completed\",\n      \"session_key\": \"ef14a2ec-6f4\",\n      \"message\": \"unknown tokens=0 cost=0.0\"\n    },\n    {\n      \"ts\": \"2026-02-22T08:29:30Z\",\n      \"source\": \"metrics\",\n      \"event\": \"stop\",\n      \"session_key\": \"ef14a2ec-6f4\",\n      \"message\": \"unknown\"\n    },\n    {\n      \"ts\": \"2026-02-22T08:32:26\",\n      \"source\": \"audit\",\n      \"event\": \"block\",\n      \"session_key\": \"ef14a2ec-6f4\",\n      \"rule_id\": \"duplicate_file\",\n      \"message\": \"count=3\"\n    },\n    {\n      \"ts\": \"2026-02-22T08:41:03Z\",\n      \"source\": \"metrics\",\n      \"event\": \"agent_completed\",\n      \"session_key\": \"ef14a2ec-6f4\",\n      \"message\": \"unknown tokens=0 cost=0.0\"\n    },\n    {\n      \"ts\": \"2026-02-22T08:41:03Z\",\n      \"source\": \"metrics\",\n      \"event\": \"stop\",\n      \"session_key\": \"ef14a2ec-6f4\",\n      \"message\": \"unknown\"\n    }\n  ]\n}\n",
+      "stderr_tail": ""
+    },
+    {
+      "name": "cli_session_recap_smoke",
+      "cmd": [
+        "python3",
+        "/Users/drewdawson/.claude/hooks/claude_token_guard/cli.py",
+        "ops",
+        "session-recap",
+        "--latest",
+        "--json"
+      ],
+      "rc": 0,
+      "seconds": 0.15,
+      "stdout_tail": "{\n  \"schema_version\": 1,\n  \"generated_at\": \"2026-02-22T09:04:14Z\",\n  \"session_key\": \"ef14a2ec-6f4\",\n  \"session_started_at\": \"2026-02-22T07:44:23Z\",\n  \"session_ended_at\": \"2026-02-22T08:41:03Z\",\n  \"agents_spawned\": 0,\n  \"blocks_hit\": 4,\n  \"block_rules\": {\n    \"duplicate_file\": 4\n  },\n  \"shadow_near_misses\": 0,\n  \"tokens_used\": 0,\n  \"cost_usd\": 0.0,\n  \"budget_status\": {\n    \"scope\": \"global\",\n    \"period\": \"daily\",\n    \"limitUSD\": 25.0,\n    \"currentUSD\": null,\n    \"pct\": null,\n    \"level\": \"none\"\n  },\n  \"alerts_emitted\": 0,\n  \"self_heal_events\": 0,\n  \"agents\": {},\n  \"data_quality\": {\n    \"audit\": {\n      \"lines\": 89,\n      \"parsed\": 89,\n      \"malformed\": 0,\n      \"missing\": 0\n    },\n    \"metrics\": {\n      \"lines\": 209,\n      \"parsed\": 209,\n      \"malformed\": 0,\n      \"missing\": 0\n    },\n    \"self_heal\": {\n      \"lines\": 136,\n      \"parsed\": 136,\n      \"malformed\": 0,\n      \"missing\": 0\n    },\n    \"alerts\": {\n      \"lines\": 0,\n      \"parsed\": 0,\n      \"malformed\": 0,\n      \"missing\": 0\n    },\n    \"partial\": false\n  },\n  \"sources\": {\n    \"audit_path\": \"/Users/drewdawson/.claude/hooks/session-state/audit.jsonl\",\n    \"metrics_path\": \"/Users/drewdawson/.claude/hooks/session-state/agent-metrics.jsonl\",\n    \"self_heal_path\": \"/Users/drewdawson/.claude/hooks/session-state/self-heal.jsonl\",\n    \"alerts_path\": \"/Users/drewdawson/.claude/cost/alerts.jsonl\"\n  }\n}\n",
+      "stderr_tail": ""
+    },
+    {
+      "name": "mcp_node_check",
+      "cmd": [
+        "node",
+        "--check",
+        "/Users/drewdawson/.claude/mcp-coordinator/index.js"
+      ],
+      "rc": 0,
+      "seconds": 0.07,
+      "stdout_tail": "",
+      "stderr_tail": ""
+    },
+    {
+      "name": "trust_engine_adapter_smoke",
+      "cmd": [
+        "python3",
+        "-c",
+        "import os; print(os.path.exists(\"/Users/drewdawson/Projects/trust-engine\"))"
+      ],
+      "rc": 0,
+      "seconds": 0.02,
+      "stdout_tail": "True\n",
+      "stderr_tail": ""
+    }
+  ]
+}

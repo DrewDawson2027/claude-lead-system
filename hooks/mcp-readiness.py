@@ -58,11 +58,13 @@ def main() -> int:
     catalog_doc = load_json(CATALOG_PATH)
     active_doc = load_json(ACTIVE_PATH)
     catalog_servers = {
-        k: v for k, v in catalog_doc.get("mcpServers", {}).items()
+        k: v
+        for k, v in catalog_doc.get("mcpServers", {}).items()
         if isinstance(v, dict) and not str(k).strip().startswith("//")
     }
     active_servers = {
-        k: v for k, v in active_doc.get("mcpServers", {}).items()
+        k: v
+        for k, v in active_doc.get("mcpServers", {}).items()
         if isinstance(v, dict) and not str(k).strip().startswith("//")
     }
 
@@ -77,21 +79,25 @@ def main() -> int:
         missing_env = [var for var in required_env if not os.environ.get(var)]
         configured = len(missing_env) == 0
         ready = enabled and configured
-        rows.append({
-            "name": name,
-            "enabled": enabled,
-            "configured": configured,
-            "ready": ready,
-            "required_env": required_env,
-            "missing_env": missing_env,
-            "source": "active" if enabled else "catalog-only",
-        })
+        rows.append(
+            {
+                "name": name,
+                "enabled": enabled,
+                "configured": configured,
+                "ready": ready,
+                "required_env": required_env,
+                "missing_env": missing_env,
+                "source": "active" if enabled else "catalog-only",
+            }
+        )
 
     enabled_count = sum(1 for row in rows if row["enabled"])
     ready_count = sum(1 for row in rows if row["ready"])
     configured_count = sum(1 for row in rows if row["configured"])
     missing_env_total = sum(len(row["missing_env"]) for row in rows if row["enabled"])
-    catalog_missing_env_vars = sorted({var for row in rows for var in row["missing_env"]})
+    catalog_missing_env_vars = sorted(
+        {var for row in rows for var in row["missing_env"]}
+    )
     catalog_missing_env_total = len(catalog_missing_env_vars)
     ts = datetime.now(timezone.utc).isoformat()
 

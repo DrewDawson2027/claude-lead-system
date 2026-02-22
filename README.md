@@ -19,6 +19,28 @@
 
 ---
 
+## Start Here (Ops / Cost / Hooks)
+
+If you are operating or hardening the token-management stack (single-pane ops, alerts, recap, trends, hook enforcement), start with these docs:
+
+- Operator playbook: [docs/TOKEN_MANAGEMENT_OPERATOR_PLAYBOOK.md](docs/TOKEN_MANAGEMENT_OPERATOR_PLAYBOOK.md)
+- Migration guide (legacy -> canonical commands): [docs/TOKEN_MANAGEMENT_MIGRATION_GUIDE.md](docs/TOKEN_MANAGEMENT_MIGRATION_GUIDE.md)
+- Compatibility matrix: [docs/TOKEN_MANAGEMENT_COMPATIBILITY_MATRIX.md](docs/TOKEN_MANAGEMENT_COMPATIBILITY_MATRIX.md)
+- Data contracts: [docs/TOKEN_MANAGEMENT_DATA_CONTRACTS.md](docs/TOKEN_MANAGEMENT_DATA_CONTRACTS.md)
+- Benchmark publishing: [docs/TOKEN_MANAGEMENT_BENCHMARK_PUBLISHING.md](docs/TOKEN_MANAGEMENT_BENCHMARK_PUBLISHING.md)
+- Signed releases / provenance: [docs/TOKEN_MANAGEMENT_SIGNED_RELEASES.md](docs/TOKEN_MANAGEMENT_SIGNED_RELEASES.md)
+
+Canonical CLI entrypoints:
+
+- `claude-token-guard ops today`
+- `claude-token-guard ops session-recap --latest`
+- `claude-token-guard ops alerts status`
+- `claude-token-guard ops trends --window 7`
+- `claude-token-guard cost overview`
+- `claude-token-guard hooks report`
+
+---
+
 ## Why This Exists
 
 When you run multiple Claude Code terminals in parallel, they're blind to each other. They step on the same files. They duplicate work. You spend your own tokens babysitting them.
