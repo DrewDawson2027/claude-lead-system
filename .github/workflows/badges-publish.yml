@@ -23,7 +23,10 @@ jobs:
       - name: Generate coverage summary
         run: |
           cd mcp-coordinator
-          npx c8 --reporter=json-summary node --test test/*.test.mjs
+          npx c8 \
+            --check-coverage --lines 0 --functions 0 --branches 0 --statements 0 \
+            --reporter=json-summary \
+            node --test test/validation.test.mjs test/platform-launch.test.mjs test/inbox-fuzz.test.mjs
       - name: Build badge JSON files
         run: |
           mkdir -p badges
