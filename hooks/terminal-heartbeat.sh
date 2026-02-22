@@ -51,13 +51,15 @@ portable_flock_append "${ACTIVITY_FILE}.lock" "echo '$JSON_LINE' >> '$ACTIVITY_F
 # ─── RATE LIMIT CHECK (portable locking) ───
 LOCK_FILE="/tmp/claude-heartbeat-${SID8}.lock"
 COOLDOWN=5  # seconds
+LOCK_PREEXISTED=false
+[ -e "$LOCK_FILE" ] && LOCK_PREEXISTED=true
 
 if ! portable_flock_try "$LOCK_FILE"; then
   exit 0  # Another heartbeat is running, activity log already written
 fi
 # Check lock file age (mtime) for cooldown
 LOCK_AGE=$(( $(date +%s) - $(get_file_mtime_epoch "$LOCK_FILE") ))
-if [ "$LOCK_AGE" -lt "$COOLDOWN" ] && [ "$LOCK_AGE" -ge 0 ]; then
+if $LOCK_PREEXISTED && [ "$LOCK_AGE" -lt "$COOLDOWN" ] && [ "$LOCK_AGE" -ge 0 ]; then
   portable_flock_release "$LOCK_FILE"
   exit 0  # Skip full heartbeat, activity log already written
 fi

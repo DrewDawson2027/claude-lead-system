@@ -64,10 +64,12 @@ jobs:
       - name: Install deps
         run: cd mcp-coordinator && npm ci
       - name: Run tests with coverage gate (80% lines)
-        run: cd mcp-coordinator && npx c8 --check-coverage --lines 80 node --test test/*.test.mjs
+        working-directory: mcp-coordinator
+        run: npm run test:coverage
       - name: Generate coverage report
         if: always()
-        run: cd mcp-coordinator && npx c8 --reporter=text node --test test/*.test.mjs || true
+        working-directory: mcp-coordinator
+        run: npm run test:coverage:report || true
       - name: Verify README coverage claim matches gate/report
         if: always()
         run: node scripts/check-coverage-claim.mjs
