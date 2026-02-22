@@ -12,7 +12,7 @@ import json
 import os
 import sys
 import tempfile
-from typing import Any, Callable, Dict, IO, List, Optional
+from typing import Callable, Dict, IO, List, Optional
 
 # Portable file locking — fcntl on Unix, msvcrt on Windows
 if sys.platform == "win32":
@@ -37,7 +37,9 @@ else:
         fcntl.flock(f, fcntl.LOCK_UN)
 
 
-def load_json_state(path: str, default_factory: Optional[Callable[[], Dict]] = None) -> Dict:
+def load_json_state(
+    path: str, default_factory: Optional[Callable[[], Dict]] = None
+) -> Dict:
     """Load JSON state from file, returning default on any error.
 
     Args:

@@ -72,7 +72,7 @@ PY
     nohup env \
       LEAD_SIDECAR_NATIVE_ENABLE="${NATIVE_ENABLE:-${LEAD_SIDECAR_NATIVE_ENABLE:-0}}" \
       LEAD_SIDECAR_NATIVE_BRIDGE_AUTOSTART="${NATIVE_BRIDGE_AUTOSTART:-${LEAD_SIDECAR_NATIVE_BRIDGE_AUTOSTART:-1}}" \
-      node --input-type=module -e "import(process.argv[1]).then(m=>m.startSidecarServer()).catch(err=>{console.error(err);process.exit(1)})" "$SIDECAR_DIR/server/index.js" > "$LOG_FILE" 2>&1 &
+      "$SIDECAR_DIR/node_modules/.bin/tsx" --tsconfig "$SIDECAR_DIR/tsconfig.json" "$SIDECAR_DIR/server/index.js" > "$LOG_FILE" 2>&1 &
     disown || true
     local i
     for i in {1..30}; do

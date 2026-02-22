@@ -13,6 +13,7 @@ umask 077
 # Load portable utilities
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib/portable.sh
+# shellcheck disable=SC1091
 source "$HOOK_DIR/lib/portable.sh"
 require_jq
 
@@ -245,6 +246,7 @@ if $DO_STALE; then
 fi
 
 # Auto-truncate activity log (portable lock to avoid concurrent truncation)
+# shellcheck disable=SC2016
 portable_flock_append "${ACTIVITY_FILE}.lock" '
   LINES=$(wc -l < "'"$ACTIVITY_FILE"'" 2>/dev/null || echo 0)
   if [ "$LINES" -gt 600 ]; then

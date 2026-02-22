@@ -1,4 +1,5 @@
 """Unit tests for read-efficiency-guard.py PostToolUse hook."""
+
 import json
 import os
 import shutil

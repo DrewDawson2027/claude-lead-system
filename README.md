@@ -79,6 +79,16 @@ Terminal A (lead)          Terminal B (coding)       Terminal C (testing)
 │  coord_detect_conflicts → file overlap detection                    │
 │  coord_run_pipeline     → multi-step sequential task chains         │
 └─────────────────────────────────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              Sidecar Control Plane (persistent state)               │
+│  State store     → schema-versioned snapshots + JSONL timeline     │
+│  Action queue    → pending/inflight/done/failed with audit trail   │
+│  Recovery        → checkpoints, corruption repair, event replay    │
+│  Health          → terminal watchdog, hook validation, lock metrics │
+│  Safe mode       → read-only startup for inspection and repair     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -188,6 +198,7 @@ Inbox messaging via hooks is **universal** — it works on every platform regard
 | Pipeline lifecycle (run/status/completion) | CI (`npm run test:e2e`) |
 | Platform launch-path logic | CI matrix (`ubuntu`, `macos`, `windows`) |
 | Hook behavior (session + heartbeat) | CI smoke test (`tests/hooks-smoke.sh`) |
+| Sidecar core (recovery, repair, health, metrics) | CI (`node --test sidecar/test/*.test.mjs`) |
 
 ---
 
@@ -271,6 +282,23 @@ The heartbeat has a 5-second cooldown per session. Between full beats, only the 
 
 The filesystem protocol (session JSONs, inbox files, activity log) works without the MCP coordinator. The coordinator adds `spawn_worker`, `wake_session`, `run_pipeline`, and `detect_conflicts` — but the core messaging and awareness layer works the moment you install the hooks.
 
+### Sidecar control plane
+
+The sidecar (`sidecar/`) adds persistent state management on top of the hooks and coordinator:
+
+- **Schema-versioned snapshots** — state persisted to disk with migration chain (v1→v2→v3), dry-run migration support
+- **JSONL timeline** — append-only event log for every state change, with event replay and consistency checking
+- **Action queue** — filesystem-based task queue with `pending/inflight/done/failed` lifecycle and per-action audit trail
+- **Recovery checkpoints** — periodic state snapshots (every 5min) with create/restore/rotate lifecycle
+- **Corruption repair** — auto-detects and repairs corrupt JSON/JSONL files with backup-before-fix strategy
+- **Terminal health monitoring** — zombie session detection (dead PID), stale session detection, dead worker shell detection
+- **Hook watchdog** — validates hook syntax (bash -n / py_compile), permissions, and selftest support
+- **Lock contention metrics** — tracks wait times, collisions, and hot paths with circular buffers and percentiles
+- **Safe mode** — `--safe-mode` startup blocks all mutations, allows diagnostics and repair
+- **Versioned HTTP API (`/v1/*`) with legacy aliases** — state management, health checks, recovery operations, diagnostics bundle
+
+The sidecar runs as a local HTTP server and serves as the persistent control plane for the lead system. The maintenance sweep runs every 15 seconds, handling stale action recovery, priority aging, auto-rebalance, checkpoint rotation, and health alerting.
+
 ---
 
 ## Components
@@ -289,6 +317,17 @@ The filesystem protocol (session JSONs, inbox files, activity log) works without
 | `commands/lead.md` | The `/lead` slash command prompt |
 | `mcp-coordinator/index.js` | MCP server — spawn workers, wake sessions, run pipelines |
 | `settings/settings.local.json` | Reference settings file with all hooks wired |
+| `sidecar/server/index.js` | Thin sidecar bootstrap entrypoint (delegates to server implementation) |
+| `sidecar/server/create-server.js` | Sidecar HTTP control plane implementation (state, actions, diagnostics, recovery) |
+| `sidecar/core/state-store.js` | EventEmitter state with disk persistence + JSONL timeline |
+| `sidecar/core/schema.js` | Schema versioning (v1→v2→v3) with migration chain |
+| `sidecar/core/action-queue.js` | Filesystem-based action queue with audit trail |
+| `sidecar/core/checkpoint.js` | Recovery checkpoint create/restore/rotate |
+| `sidecar/core/repair.js` | JSON/JSONL corruption repair with backup-before-fix |
+| `sidecar/core/event-replay.js` | Timeline event replay + consistency checking |
+| `sidecar/core/terminal-health.js` | Zombie/stale/dead shell detection |
+| `sidecar/core/hook-watchdog.js` | Hook syntax + permissions validation |
+| `sidecar/core/lock-metrics.js` | Lock contention tracking with percentiles |
 
 ---
 
@@ -343,7 +382,17 @@ Mode files load via the Read tool at runtime — they appear as tool results, no
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Security](docs/SECURITY.md)
+- [API Contract](docs/API_CONTRACT.md)
+- [MCP Tool Reference](docs/MCP_TOOL_REFERENCE.md)
+- [Operator Runbook](docs/OPERATOR_RUNBOOK.md)
+- [Operator Cheatsheet](docs/OPERATOR_CHEATSHEET.md)
+- [Bridge Runbook](docs/BRIDGE_RUNBOOK.md)
+- [Agent Teams Integration](docs/AGENT_TEAMS_INTEGRATION.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Known Limitations](docs/KNOWN_LIMITATIONS.md)
+- [Provenance](docs/PROVENANCE.md)
 - [Release Hardening](docs/RELEASE_HARDENING.md)
+- [Release Checklist](docs/RELEASE_CHECKLIST.md)
 
 ## Security Model
 
@@ -410,7 +459,26 @@ This system complements Claude Code's built-in Agent Teams. Use both together. S
 - CI enforces performance SLO thresholds via `tests/perf-gate.mjs`
 - CI runs hook smoke tests (`session-register` + `terminal-heartbeat`) in isolated HOME
 - CI runs shell hook unit tests (34 tests) and Python hook unit tests (23 tests)
-- CI enforces 80%+ line coverage via `c8` (currently ~90%)
+- CI runs sidecar unit tests (67 tests across recovery, repair, health, metrics)
+- CI enforces 80%+ line coverage via `c8` (currently ~81%)
+- Sidecar HTTP API exposes canonical `/v1/*` routes and keeps unversioned aliases temporarily with deprecation headers
+
+### Root Workspace (npm Workspaces)
+
+You can now install and run the coordinator + sidecar from the repo root:
+
+```bash
+npm install
+npm run ci:local
+```
+
+Key root scripts:
+- `npm run test:all`
+- `npm run test:coordinator`
+- `npm run test:sidecar`
+- `npm run lint:shell`
+- `npm run lint:python`
+- `npm run typecheck:sidecar`
 - `health-check.sh` validates install health on your machine
 - Release supply-chain workflow publishes SBOM, provenance attestation, and keyless cosign signatures
 

@@ -6,6 +6,7 @@ sums actual input/output tokens from API responses, and logs precise
 cost data. This solves the "no per-invocation token metering" limitation
 by parsing what Claude Code already records.
 """
+
 import json
 import sys
 import os
@@ -15,8 +16,8 @@ METRICS_DIR = os.path.expanduser("~/.claude/hooks/session-state")
 METRICS_FILE = os.path.join(METRICS_DIR, "agent-metrics.jsonl")
 
 # Sonnet 4.6 pricing (per 1K tokens)
-COST_PER_1K_INPUT = 0.003    # $3/M input
-COST_PER_1K_OUTPUT = 0.015   # $15/M output
+COST_PER_1K_INPUT = 0.003  # $3/M input
+COST_PER_1K_OUTPUT = 0.015  # $15/M output
 COST_PER_1K_CACHE_READ = 0.0003  # $0.30/M cache read (90% discount)
 
 
@@ -55,7 +56,9 @@ def parse_transcript(transcript_path: str) -> dict:
                 totals["input_tokens"] += usage.get("input_tokens", 0)
                 totals["output_tokens"] += usage.get("output_tokens", 0)
                 totals["cache_read_tokens"] += usage.get("cache_read_input_tokens", 0)
-                totals["cache_creation_tokens"] += usage.get("cache_creation_input_tokens", 0)
+                totals["cache_creation_tokens"] += usage.get(
+                    "cache_creation_input_tokens", 0
+                )
                 totals["api_calls"] += 1
     except (OSError, PermissionError):
         pass

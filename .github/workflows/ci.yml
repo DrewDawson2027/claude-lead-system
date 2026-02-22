@@ -68,6 +68,9 @@ jobs:
       - name: Generate coverage report
         if: always()
         run: cd mcp-coordinator && npx c8 --reporter=text node --test test/*.test.mjs || true
+      - name: Verify README coverage claim matches gate/report
+        if: always()
+        run: node scripts/check-coverage-claim.mjs
       - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         if: always()
         with:
@@ -103,6 +106,23 @@ jobs:
         run: cd mcp-coordinator && npm ci
       - name: Run worker/pipeline lifecycle tests
         run: cd mcp-coordinator && npm run test:e2e
+
+  sidecar-tests:
+    name: Sidecar unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: sidecar/package-lock.json
+      - name: Install sidecar deps
+        run: cd sidecar && npm ci
+      - name: Typecheck sidecar
+        run: cd sidecar && npm run typecheck
+      - name: Run sidecar tests
+        run: cd sidecar && node --test test/*.test.mjs
 
   mode-path-lint:
     name: Lint mode file paths

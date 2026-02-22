@@ -132,6 +132,10 @@ function passesTextFilter(obj) {
 }
 
 async function api(path, opts = {}) {
+  const targetPath = String(path || '');
+  const apiPath = targetPath.startsWith('/v1/')
+    ? targetPath
+    : (targetPath.startsWith('/') ? `/v1${targetPath}` : `/v1/${targetPath}`);
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   if ((opts.method || 'GET') !== 'GET' && state.csrfToken && !headers['X-Sidecar-CSRF']) {
     headers['X-Sidecar-CSRF'] = state.csrfToken;
@@ -139,7 +143,7 @@ async function api(path, opts = {}) {
   if ((opts.method || 'GET') !== 'GET' && state.apiToken && !headers.Authorization) {
     headers.Authorization = `Bearer ${state.apiToken}`;
   }
-  const res = await fetch(path, { ...opts, headers });
+  const res = await fetch(apiPath, { ...opts, headers });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || json.reason || res.statusText);
   return json;

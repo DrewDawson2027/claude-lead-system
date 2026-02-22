@@ -26,10 +26,20 @@ try:
     from hook_utils import DEFAULT_CONFIG
 except (ImportError, SyntaxError):
     DEFAULT_CONFIG = {
-        "max_agents": 5, "parallel_window_seconds": 30, "global_cooldown_seconds": 5,
-        "max_per_subagent_type": 1, "state_ttl_hours": 24, "audit_log": True,
-        "one_per_session": ["Explore", "master-coder", "master-researcher",
-                            "master-architect", "master-workflow", "Plan"],
+        "max_agents": 5,
+        "parallel_window_seconds": 30,
+        "global_cooldown_seconds": 5,
+        "max_per_subagent_type": 1,
+        "state_ttl_hours": 24,
+        "audit_log": True,
+        "one_per_session": [
+            "Explore",
+            "master-coder",
+            "master-researcher",
+            "master-architect",
+            "master-workflow",
+            "Plan",
+        ],
         "always_allowed": ["claude-code-guide", "statusline-setup", "haiku"],
     }
 
@@ -61,10 +71,31 @@ MASTER_AGENTS_DIR = os.path.expanduser("~/.claude/master-agents")
 
 # Mode files referenced by master agents — validated on session start
 EXPECTED_MODE_FILES = {
-    "coder": ["build-mode.md", "debug-mode.md", "review-mode.md", "refactor-mode.md", "atlas-mode.md"],
-    "researcher": ["academic-mode.md", "market-mode.md", "technical-mode.md", "general-mode.md"],
-    "architect": ["database-design.md", "api-design.md", "system-design.md", "frontend-design.md"],
-    "workflow": ["gsd-exec.md", "feature-workflow.md", "git-workflow.md", "autonomous.md"],
+    "coder": [
+        "build-mode.md",
+        "debug-mode.md",
+        "review-mode.md",
+        "refactor-mode.md",
+        "atlas-mode.md",
+    ],
+    "researcher": [
+        "academic-mode.md",
+        "market-mode.md",
+        "technical-mode.md",
+        "general-mode.md",
+    ],
+    "architect": [
+        "database-design.md",
+        "api-design.md",
+        "system-design.md",
+        "frontend-design.md",
+    ],
+    "workflow": [
+        "gsd-exec.md",
+        "feature-workflow.md",
+        "git-workflow.md",
+        "autonomous.md",
+    ],
 }
 
 
@@ -95,7 +126,9 @@ def phase_mode_validation():
     for agent in EXPECTED_MODE_FILES:
         refs_dir = os.path.join(MASTER_AGENTS_DIR, agent, "refs")
         checks += 1
-        if os.path.isdir(os.path.join(MASTER_AGENTS_DIR, agent)) and not os.path.isdir(refs_dir):
+        if os.path.isdir(os.path.join(MASTER_AGENTS_DIR, agent)) and not os.path.isdir(
+            refs_dir
+        ):
             try:
                 os.makedirs(refs_dir, exist_ok=True)
                 actions.append(f"created refs dir: {agent}/refs/")
@@ -237,20 +270,24 @@ def phase_smoke_tests():
         smoke_env["TOKEN_GUARD_CONFIG_PATH"] = smoke_config
 
         # Task input for token-guard (tests the enforcement path, not just boot)
-        valid_task_input = json.dumps({
-            "tool_name": "Task",
-            "tool_input": {
-                "subagent_type": "general-purpose",
-                "description": "refactor authentication across multiple services",
-            },
-            "session_id": "smoke-test",
-        })
+        valid_task_input = json.dumps(
+            {
+                "tool_name": "Task",
+                "tool_input": {
+                    "subagent_type": "general-purpose",
+                    "description": "refactor authentication across multiple services",
+                },
+                "session_id": "smoke-test",
+            }
+        )
         # Read input for read-efficiency-guard
-        valid_read_input = json.dumps({
-            "tool_name": "Read",
-            "tool_input": {"file_path": "/tmp/test.py"},
-            "session_id": "smoke-test",
-        })
+        valid_read_input = json.dumps(
+            {
+                "tool_name": "Read",
+                "tool_input": {"file_path": "/tmp/test.py"},
+                "session_id": "smoke-test",
+            }
+        )
 
         # Smoke test token-guard.py
         tg_path = REQUIRED_HOOKS.get("token-guard.py", "")
@@ -266,7 +303,9 @@ def phase_smoke_tests():
                     timeout=5,
                 )
                 if result.returncode not in (0, 2):
-                    actions.append(f"token-guard smoke test failed (exit {result.returncode})")
+                    actions.append(
+                        f"token-guard smoke test failed (exit {result.returncode})"
+                    )
                     repairs += 1
             except (subprocess.TimeoutExpired, OSError) as e:
                 actions.append(f"token-guard smoke test error: {type(e).__name__}")
@@ -286,10 +325,14 @@ def phase_smoke_tests():
                     timeout=5,
                 )
                 if result.returncode != 0:
-                    actions.append(f"read-efficiency-guard smoke test failed (exit {result.returncode})")
+                    actions.append(
+                        f"read-efficiency-guard smoke test failed (exit {result.returncode})"
+                    )
                     repairs += 1
             except (subprocess.TimeoutExpired, OSError) as e:
-                actions.append(f"read-efficiency-guard smoke test error: {type(e).__name__}")
+                actions.append(
+                    f"read-efficiency-guard smoke test error: {type(e).__name__}"
+                )
                 repairs += 1
 
         # Syntax check health-check.sh
@@ -307,7 +350,9 @@ def phase_smoke_tests():
                     actions.append("health-check.sh syntax error")
                     repairs += 1
             except (subprocess.TimeoutExpired, OSError) as e:
-                actions.append(f"health-check.sh syntax check error: {type(e).__name__}")
+                actions.append(
+                    f"health-check.sh syntax check error: {type(e).__name__}"
+                )
                 repairs += 1
 
     return checks, repairs, actions

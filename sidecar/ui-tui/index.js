@@ -47,12 +47,16 @@ const state = {
 // ── HTTP Client ──
 
 function request(path, method = 'GET', body = null) {
+  const targetPath = String(path || '');
+  const apiPath = targetPath.startsWith('/v1/')
+    ? targetPath
+    : (targetPath.startsWith('/') ? `/v1${targetPath}` : `/v1/${targetPath}`);
   const targetPort = sidecarPort || 0;
   if (!targetPort) return Promise.reject(new Error('Port not set. Use LEAD_SIDECAR_PORT.'));
   return new Promise((resolve, reject) => {
     const headers = { 'Content-Type': 'application/json' };
     if (sidecarToken) headers.Authorization = `Bearer ${sidecarToken}`;
-    const req = http.request({ host, port: targetPort, path, method, headers }, (res) => {
+    const req = http.request({ host, port: targetPort, path: apiPath, method, headers }, (res) => {
       let raw = '';
       res.on('data', (c) => { raw += c; });
       res.on('end', () => {

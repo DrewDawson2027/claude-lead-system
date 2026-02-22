@@ -869,6 +869,7 @@ export const __test__ = {
   handleTeamAssignNext,
   handleTeamRebalance,
   handleSidecarStatus,
+  handleCheckInbox,
   handleSendMessage,
   handleBroadcast,
   handleSendDirective,

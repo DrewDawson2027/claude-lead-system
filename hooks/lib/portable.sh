@@ -12,8 +12,18 @@
 # Tries macOS stat, GNU stat, date -r fallback.
 get_file_mtime_epoch() {
   local file="$1"
-  if stat -f %m "$file" 2>/dev/null; then return; fi    # macOS
-  if stat -c %Y "$file" 2>/dev/null; then return; fi    # GNU/Linux
+  local out=""
+  # GNU stat may accept `-f` and print filesystem info (non-epoch). Only accept numeric output.
+  out=$(stat -f %m "$file" 2>/dev/null || true)
+  if [[ "$out" =~ ^[0-9]+$ ]]; then
+    echo "$out"
+    return
+  fi
+  out=$(stat -c %Y "$file" 2>/dev/null || true)
+  if [[ "$out" =~ ^[0-9]+$ ]]; then
+    echo "$out"
+    return
+  fi
   if [ -f "$file" ]; then                                # busybox/fallback
     date -r "$file" +%s 2>/dev/null || echo 0
   else
@@ -43,7 +53,7 @@ get_tty() {
   if [ -n "$t" ] && [ "$t" != "not a tty" ]; then echo "$t"; return; fi
 
   # Method 2: Parent process TTY
-  t=$(ps -o tty= -p $PPID 2>/dev/null | sed 's/ //g')
+  t=$(ps -o tty= -p "$PPID" 2>/dev/null | sed 's/ //g')
   if [ -n "$t" ] && [ "$t" != "??" ]; then echo "/dev/$t"; return; fi
 
   # Method 3: Walk up process tree (up to 3 levels)
@@ -107,8 +117,10 @@ portable_flock_release() {
 portable_flock_append() {
   local lockfile="$1"
   shift
+  local cmd="${1-}"
   if command -v flock >/dev/null 2>&1; then
-    ( flock 200; eval "$@" ) 200>"$lockfile"
+    # Intentional shell-string API for callers like: portable_flock_append lock "echo x >> file"
+    eval "( flock 200; $cmd )" 200>"$lockfile"
   else
     # mkdir-based lock with cleanup trap
     local dlock="${lockfile}.d"
@@ -118,7 +130,8 @@ portable_flock_append() {
       if [ "$age" -gt 30 ]; then rmdir "$dlock" 2>/dev/null; fi
       sleep 0.1 2>/dev/null || sleep 1
     done
-    eval "$@"
+    # Intentional shell-string API (see comment above).
+    eval "$cmd"
     rmdir "$dlock" 2>/dev/null || true
   fi
 }

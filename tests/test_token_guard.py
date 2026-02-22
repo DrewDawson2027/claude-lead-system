@@ -1,4 +1,5 @@
 """Unit tests for token-guard.py PreToolUse hook."""
+
 import json
 import os
 import shutil
@@ -27,10 +28,14 @@ def patched_hook(tmp_path, state_dir):
     # Copy token-guard-config.json if it exists
     # Create test config with 0s cooldown so rapid-fire spawns work in tests
     config_dst = tmp_path / "token-guard-config.json"
-    config_dst.write_text(json.dumps({
-        "global_cooldown_seconds": 0,
-        "parallel_window_seconds": 0,
-    }))
+    config_dst.write_text(
+        json.dumps(
+            {
+                "global_cooldown_seconds": 0,
+                "parallel_window_seconds": 0,
+            }
+        )
+    )
     # Copy the hook itself
     shutil.copy(HOOK_PATH, tmp_path / "token-guard-test.py")
     return str(tmp_path / "token-guard-test.py"), str(state_dir), str(config_dst)
@@ -99,7 +104,9 @@ class TestAgentCap:
     def test_first_agent_allowed(self, patched_hook):
         rc, _, _ = run_patched(
             patched_hook,
-            make_input(subagent_type="general-purpose", description="test task for agent"),
+            make_input(
+                subagent_type="general-purpose", description="test task for agent"
+            ),
         )
         assert rc == 0
 
@@ -108,7 +115,10 @@ class TestAgentCap:
         for i in range(5):
             rc, _, stderr = run_patched(
                 patched_hook,
-                make_input(subagent_type=f"type-{i}", description=f"unique agent task number {i}"),
+                make_input(
+                    subagent_type=f"type-{i}",
+                    description=f"unique agent task number {i}",
+                ),
             )
             assert rc == 0, f"Agent {i} should be allowed, stderr: {stderr}"
 
@@ -128,14 +138,18 @@ class TestOnePerSession:
         # First Explore allowed
         rc, _, _ = run_patched(
             patched_hook,
-            make_input(subagent_type="Explore", description="explore the codebase architecture"),
+            make_input(
+                subagent_type="Explore", description="explore the codebase architecture"
+            ),
         )
         assert rc == 0
 
         # Second Explore blocked
         rc, _, stderr = run_patched(
             patched_hook,
-            make_input(subagent_type="Explore", description="explore more things in codebase"),
+            make_input(
+                subagent_type="Explore", description="explore more things in codebase"
+            ),
         )
         assert rc == 2
         assert "BLOCKED" in stderr
@@ -143,13 +157,17 @@ class TestOnePerSession:
     def test_plan_blocked_on_second(self, patched_hook):
         rc, _, _ = run_patched(
             patched_hook,
-            make_input(subagent_type="Plan", description="plan the implementation strategy"),
+            make_input(
+                subagent_type="Plan", description="plan the implementation strategy"
+            ),
         )
         assert rc == 0
 
         rc, _, stderr = run_patched(
             patched_hook,
-            make_input(subagent_type="Plan", description="plan another approach to problem"),
+            make_input(
+                subagent_type="Plan", description="plan another approach to problem"
+            ),
         )
         assert rc == 2
         assert "BLOCKED" in stderr

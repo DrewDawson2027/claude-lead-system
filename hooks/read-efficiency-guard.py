@@ -32,13 +32,19 @@ from typing import Dict, List
 # Shared infrastructure — locking, state, atomic writes
 from hook_utils import lock, unlock, load_json_state, save_json_state
 
-STATE_DIR = os.environ.get("TOKEN_GUARD_STATE_DIR", os.path.expanduser("~/.claude/hooks/session-state"))
+STATE_DIR = os.environ.get(
+    "TOKEN_GUARD_STATE_DIR", os.path.expanduser("~/.claude/hooks/session-state")
+)
 
-SEQUENTIAL_THRESHOLD = 4    # Warn after this many sequential reads
-ESCALATION_THRESHOLD = 15   # Block after this many sequential reads (raised: 10 was too aggressive)
-DUPLICATE_FILE_LIMIT = 3    # Block same file after this many reads
-SEQUENTIAL_WINDOW = 120     # Seconds window for sequential detection (raised: 90s too tight for analysis)
-READ_TTL = 300              # Prune read records older than 5 minutes
+SEQUENTIAL_THRESHOLD = 4  # Warn after this many sequential reads
+ESCALATION_THRESHOLD = (
+    15  # Block after this many sequential reads (raised: 10 was too aggressive)
+)
+DUPLICATE_FILE_LIMIT = 3  # Block same file after this many reads
+SEQUENTIAL_WINDOW = (
+    120  # Seconds window for sequential detection (raised: 90s too tight for analysis)
+)
+READ_TTL = 300  # Prune read records older than 5 minutes
 
 SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
@@ -64,7 +70,10 @@ def main():
     session_id = input_data.get("session_id", "unknown")
 
     if not SESSION_ID_RE.match(str(session_id)):
-        print("BLOCKED: Invalid session_id in read-efficiency-guard payload.", file=sys.stderr)
+        print(
+            "BLOCKED: Invalid session_id in read-efficiency-guard payload.",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     if tool_name != "Read":
@@ -88,33 +97,43 @@ def main():
             now = time.time()
 
             # Prune old reads (older than TTL)
-            state["reads"] = [r for r in state["reads"] if now - r["timestamp"] < READ_TTL]
+            state["reads"] = [
+                r for r in state["reads"] if now - r["timestamp"] < READ_TTL
+            ]
 
             # CHECK 1: Duplicate file — BLOCK at 3+ total reads of same path
-            path_count = sum(1 for r in state["reads"] if r["path"] == file_path) + 1  # +1 for this attempt
+            path_count = (
+                sum(1 for r in state["reads"] if r["path"] == file_path) + 1
+            )  # +1 for this attempt
             if path_count >= DUPLICATE_FILE_LIMIT:
-                state["reads"].append({"path": file_path, "timestamp": now, "blocked": True})
+                state["reads"].append(
+                    {"path": file_path, "timestamp": now, "blocked": True}
+                )
                 save_json_state(state_file, state)
                 print(
                     f"BLOCKED: '{os.path.basename(file_path)}' read {path_count} times already. "
                     f"Trust your first read. Use Grep for specific lines.",
-                    file=sys.stderr
+                    file=sys.stderr,
                 )
                 sys.exit(2)  # REAL block — read never happens
 
             # CHECK 2: Sequential reads — warn at 4 total, BLOCK at 15 total
-            recent = [r for r in state["reads"] if now - r["timestamp"] < SEQUENTIAL_WINDOW]
+            recent = [
+                r for r in state["reads"] if now - r["timestamp"] < SEQUENTIAL_WINDOW
+            ]
             recent_count = len(recent) + 1  # +1 for this attempt
 
             if recent_count >= ESCALATION_THRESHOLD:
                 # UNCONDITIONAL block — no time-based suppression for blocks
                 # (Time suppression is only for warnings, never for enforcement)
-                state["reads"].append({"path": file_path, "timestamp": now, "blocked": True})
+                state["reads"].append(
+                    {"path": file_path, "timestamp": now, "blocked": True}
+                )
                 save_json_state(state_file, state)
                 print(
                     f"BLOCKED: {recent_count} sequential reads in {SEQUENTIAL_WINDOW}s. "
                     f"Batch into parallel groups of 3-4 per turn.",
-                    file=sys.stderr
+                    file=sys.stderr,
                 )
                 sys.exit(2)  # REAL block
             elif recent_count >= SEQUENTIAL_THRESHOLD:
@@ -133,7 +152,10 @@ def main():
             explore_dirs = get_explore_dirs(session_id)
             if explore_dirs:
                 for explore_dir in explore_dirs:
-                    if file_path.startswith(explore_dir + "/") or file_path == explore_dir:
+                    if (
+                        file_path.startswith(explore_dir + "/")
+                        or file_path == explore_dir
+                    ):
                         warn(
                             f"TOKEN EFFICIENCY: Reading '{os.path.basename(file_path)}' which is inside "
                             f"'{explore_dir}' — a directory already mapped by your Explore agent. "

@@ -88,7 +88,23 @@ test('timeline logging handles missing log directory gracefully', () => {
 
   const store = new SidecarStateStore(paths);
   // This should not throw even though the log file directory is missing
-  store.emitTimeline({ type: 'test', ts: new Date().toISOString() });
+  const result = store.emitTimeline({ type: 'test', ts: new Date().toISOString() });
+  assert.equal(result.ok, false);
+  assert.match(result.error_code, /state_store_timeline_append_fail/);
+  assert.ok(store.getSnapshot().alerts.some((a) => a.code === 'state_store_timeline_append_fail'));
+  rmSync(paths.root, { recursive: true, force: true });
+});
+
+test('setSnapshot returns explicit error and records metrics on snapshot write failure', () => {
+  const paths = tmpPaths();
+  rmSync(join(paths.root, 'state'), { recursive: true, force: true });
+  const metricsSeen = [];
+  const store = new SidecarStateStore(paths, { onMetric: (name, value) => metricsSeen.push([name, value]) });
+  const result = store.setSnapshot({ teams: [{ team_name: 'x' }] });
+  assert.equal(result.ok, false);
+  assert.match(String(result.error_code), /state_store_snapshot_write_fail/);
+  assert.ok(metricsSeen.some(([n]) => n === 'snapshot_write_fail'));
+  assert.ok(store.getSnapshot().alerts.some((a) => a.code === 'state_store_snapshot_write_fail'));
   rmSync(paths.root, { recursive: true, force: true });
 });
 

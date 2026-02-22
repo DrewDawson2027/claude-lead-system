@@ -29,7 +29,7 @@ function getJson(port, path, headers = {}) {
       let raw = '';
       res.on('data', (c) => { raw += c; });
       res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(raw) }); }
+        try { resolve({ status: res.statusCode, headers: res.headers, body: JSON.parse(raw) }); }
         catch (err) { reject(err); }
       });
     });
@@ -44,7 +44,7 @@ function postJson(port, path, body, headers = {}) {
       let raw = '';
       res.on('data', (c) => { raw += c; });
       res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(raw || '{}') }); }
+        try { resolve({ status: res.statusCode, headers: res.headers, body: JSON.parse(raw || '{}') }); }
         catch (err) { reject(err); }
       });
     });
@@ -65,11 +65,36 @@ test('sidecar server exposes health and teams endpoints', async () => {
     const health = await getJson(port, '/health');
     assert.equal(health.status, 200);
     assert.equal(health.body.ok, true);
+    assert.equal(health.headers.deprecation, 'true');
+    assert.match(String(health.headers.link || ''), /\/v1\/health/);
+
+    const healthV1 = await getJson(port, '/v1/health');
+    assert.equal(healthV1.status, 200);
+    assert.equal(healthV1.body.ok, true);
+    assert.equal(healthV1.headers.deprecation, undefined);
 
     const teams = await getJson(port, '/teams');
     assert.equal(teams.status, 200);
     assert.equal(Array.isArray(teams.body.teams), true);
     assert.equal(teams.body.teams[0].team_name, 'delta');
+
+    const teamsV1 = await getJson(port, '/v1/teams');
+    assert.equal(teamsV1.status, 200);
+    assert.deepEqual(
+      teamsV1.body.teams.map((t) => t.team_name),
+      teams.body.teams.map((t) => t.team_name),
+    );
+
+    const schemaLegacy = await getJson(port, '/schema/version');
+    assert.equal(schemaLegacy.status, 200);
+    assert.equal(typeof schemaLegacy.body.api_version, 'string');
+    assert.equal(schemaLegacy.body.compat_aliases_enabled, true);
+    assert.equal(typeof schemaLegacy.body.sunset_date, 'string');
+
+    const schemaV1 = await getJson(port, '/v1/schema/version');
+    assert.equal(schemaV1.status, 200);
+    assert.equal(schemaV1.body.api_version, 'v1');
+    assert.equal(schemaV1.headers.deprecation, undefined);
   } finally {
     sidecar.close();
     if (prevHome === undefined) delete process.env.HOME;
@@ -94,6 +119,12 @@ test('sidecar server exposes native status/probe endpoints and action queue meta
     const ns = await getJson(port, '/native/status');
     assert.equal(ns.status, 200);
     assert.equal(typeof ns.body.mode, 'string');
+    assert.equal(ns.headers.deprecation, 'true');
+    assert.match(String(ns.headers.link || ''), /\/v1\/native\/status/);
+
+    const nsV1 = await getJson(port, '/v1/native/status');
+    assert.equal(nsV1.status, 200);
+    assert.equal(nsV1.headers.deprecation, undefined);
 
     const probe = await postJson(port, '/native/probe', {});
     assert.equal(probe.status, 200);
@@ -121,6 +152,13 @@ test('sidecar server exposes native status/probe endpoints and action queue meta
     const actions = await getJson(port, '/actions');
     assert.equal(actions.status, 200);
     assert.equal(actions.body.actions.length >= 1, true);
+    assert.equal(actions.headers.deprecation, 'true');
+    assert.match(String(actions.headers.link || ''), /\/v1\/actions/);
+
+    const actionsV1 = await getJson(port, '/v1/actions');
+    assert.equal(actionsV1.status, 200);
+    assert.equal(actionsV1.headers.deprecation, undefined);
+    assert.equal(Array.isArray(actionsV1.body.actions), true);
   } finally {
     sidecar.close();
     if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;

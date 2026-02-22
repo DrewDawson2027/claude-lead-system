@@ -1,15 +1,21 @@
 {
   "name": "lead-sidecar",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "description": "Local sidecar control plane for Claude Lead System (Mac-first, local-only, adaptive hybrid)",
   "scripts": {
-    "start": "node --input-type=module -e \"import('./server/index.js').then(m=>m.startSidecarServer())\"",
+    "start": "tsx --tsconfig ./tsconfig.json --eval \"import('./server/index.js').then(m=>m.startSidecarServer())\"",
     "tui": "node ui-tui/index.js",
-    "test": "node --test test/*.test.mjs"
+    "test": "tsx --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit -p ./tsconfig.json"
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
   }
 }

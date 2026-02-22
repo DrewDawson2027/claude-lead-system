@@ -1,0 +1,25 @@
+{
+  "name": "claude-lead-system-workspace",
+  "private": true,
+  "workspaces": [
+    "mcp-coordinator",
+    "sidecar"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test:coordinator": "npm --workspace mcp-coordinator test",
+    "test:sidecar": "npm --workspace sidecar test",
+    "test:all": "npm run test:coordinator && npm run test:sidecar && npm run verify:hooks",
+    "lint:shell": "shellcheck hooks/*.sh hooks/lib/*.sh",
+    "lint:python": "ruff check hooks/*.py --ignore E501 && python3 -m py_compile hooks/*.py",
+    "lint:coordinator": "node --check mcp-coordinator/index.js && npm --workspace mcp-coordinator run test:unit",
+    "typecheck:sidecar": "npm --workspace sidecar run typecheck",
+    "verify:hooks": "bash tests/hooks-smoke.sh && bash tests/test-hooks.sh && bash tests/health-check-regression.sh && pytest -q",
+    "ci:local": "npm run lint:shell && npm run lint:python && npm run lint:coordinator && npm --workspace mcp-coordinator run test:coverage && npm run docs:audit && npm run typecheck:sidecar && npm run test:sidecar && npm run verify:hooks",
+    "audit:endpoints": "node scripts/audit-sidecar-endpoints.mjs --json > /tmp/sidecar-endpoints-audit.json && echo endpoint-audit ok",
+    "audit:coverage-claim": "node scripts/check-coverage-claim.mjs",
+    "docs:audit": "npm run audit:endpoints && npm run audit:coverage-claim"
+  }
+}
