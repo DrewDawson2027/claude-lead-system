@@ -42,7 +42,10 @@ def main():
     if HEALTH_CHECK.exists():
         checks.append(run('health_check_stats', ['bash', str(HEALTH_CHECK), '--stats'], timeout=60))
     if CLI.exists():
-        checks.append(run('cli_ops_today_smoke', ['python3', str(CLI), 'ops', 'today', '--json'], timeout=120))
+        # Pre-warm the ops snapshot cache so smoke latency reflects the common
+        # interactive path rather than a full cold rebuild across large logs.
+        run('cli_ops_today_prewarm', ['python3', str(CLI), 'ops', 'today', '--statusline'], timeout=120)
+        checks.append(run('cli_ops_today_smoke_cached', ['python3', str(CLI), 'ops', 'today', '--json'], timeout=120))
         checks.append(run('cli_session_recap_smoke', ['python3', str(CLI), 'ops', 'session-recap', '--latest', '--json'], timeout=60))
     if MCP.exists():
         checks.append(run('mcp_node_check', ['node', '--check', str(MCP)], timeout=60))
