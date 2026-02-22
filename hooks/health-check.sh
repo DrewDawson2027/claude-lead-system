@@ -17,6 +17,7 @@ METRICS_LOG="$STATE_DIR/agent-metrics.jsonl"
 ALERTS_LOG="$HOME/.claude/cost/alerts.jsonl"
 ALERT_STATE="$HOME/.claude/cost/alert-state.json"
 OPS_SNAPSHOT_CACHE="$HOME/.claude/cost/ops-snapshot-cache.json"
+# shellcheck disable=SC2034  # referenced by prompt sync tooling / future checks
 PROMPT_SOURCE="$HOME/Projects/claude-lead-system/hooks/prompts/task_preflight_checklist.md"
 PROMPT_SYNC_TOOL="$HOME/Projects/claude-lead-system/hooks/prompt_sync.py"
 

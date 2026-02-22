@@ -82,6 +82,7 @@ CONFIG_PATH = os.environ.get(
 AUDIT_LOG = os.path.join(STATE_DIR, "audit.jsonl")
 
 BLOCKED_ATTEMPTS_TTL = 300  # Prune blocked attempts older than 5 minutes
+SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
 ## DEFAULT_CONFIG is imported from hook_utils (single source of truth)
 
@@ -707,6 +708,9 @@ def main():
     if not isinstance(tool_input, dict):
         tool_input = {}
     session_id = input_data.get("session_id", "unknown")
+    if not SESSION_ID_RE.match(str(session_id)):
+        print("BLOCKED: Invalid session_id in token-guard payload.", file=sys.stderr)
+        sys.exit(2)
     session_key = normalize_session_key(session_id)
 
     # Only gate Task tool calls

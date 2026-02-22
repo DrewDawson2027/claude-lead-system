@@ -32,6 +32,9 @@ async function loadCoordinatorForTest(envOverrides = {}) {
     COORDINATOR_MAX_INBOX_LINES: process.env.COORDINATOR_MAX_INBOX_LINES,
     COORDINATOR_MAX_INBOX_BYTES: process.env.COORDINATOR_MAX_INBOX_BYTES,
     COORDINATOR_MAX_MESSAGES_PER_MINUTE: process.env.COORDINATOR_MAX_MESSAGES_PER_MINUTE,
+    COORDINATOR_GLOBAL_BUDGET_POLICY: process.env.COORDINATOR_GLOBAL_BUDGET_POLICY,
+    COORDINATOR_GLOBAL_BUDGET_TOKENS: process.env.COORDINATOR_GLOBAL_BUDGET_TOKENS,
+    COORDINATOR_MAX_ACTIVE_WORKERS: process.env.COORDINATOR_MAX_ACTIVE_WORKERS,
   };
 
   Object.assign(process.env, envOverrides);
@@ -55,6 +58,9 @@ async function loadCoordinatorForTest(envOverrides = {}) {
       restoreEnv('COORDINATOR_MAX_INBOX_LINES', previous.COORDINATOR_MAX_INBOX_LINES);
       restoreEnv('COORDINATOR_MAX_INBOX_BYTES', previous.COORDINATOR_MAX_INBOX_BYTES);
       restoreEnv('COORDINATOR_MAX_MESSAGES_PER_MINUTE', previous.COORDINATOR_MAX_MESSAGES_PER_MINUTE);
+      restoreEnv('COORDINATOR_GLOBAL_BUDGET_POLICY', previous.COORDINATOR_GLOBAL_BUDGET_POLICY);
+      restoreEnv('COORDINATOR_GLOBAL_BUDGET_TOKENS', previous.COORDINATOR_GLOBAL_BUDGET_TOKENS);
+      restoreEnv('COORDINATOR_MAX_ACTIVE_WORKERS', previous.COORDINATOR_MAX_ACTIVE_WORKERS);
     },
   };
 }
@@ -205,6 +211,367 @@ test('spawn_worker rejects duplicate task_id collisions', async () => {
       task_id: 'W_COLLIDE',
     });
     assert.match(contentText(second), /already exists/i);
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_worker blocks when global budget policy is enforce', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+    MOCK_CLAUDE_DELAY: '0',
+    COORDINATOR_GLOBAL_BUDGET_POLICY: 'enforce',
+    COORDINATOR_GLOBAL_BUDGET_TOKENS: '10000',
+  });
+
+  try {
+    const resultsDir = join(home, '.claude', 'terminals', 'results');
+    mkdirSync(resultsDir, { recursive: true });
+    writeFileSync(join(resultsDir, 'W_ACTIVE.meta.json'), JSON.stringify({
+      task_id: 'W_ACTIVE',
+      status: 'running',
+      estimated_tokens: 9500,
+    }));
+    writeFileSync(join(resultsDir, 'W_ACTIVE.pid'), String(process.pid));
+
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'Do work under constrained budget',
+      model: 'sonnet',
+      task_id: 'W_BLOCKED',
+    });
+    assert.match(contentText(res), /Global budget policy blocked spawn/i);
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_worker warns (but allows) when global budget policy is warn', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+    MOCK_CLAUDE_DELAY: '0',
+    COORDINATOR_GLOBAL_BUDGET_POLICY: 'warn',
+    COORDINATOR_GLOBAL_BUDGET_TOKENS: '10000',
+  });
+
+  try {
+    const resultsDir = join(home, '.claude', 'terminals', 'results');
+    mkdirSync(resultsDir, { recursive: true });
+    writeFileSync(join(resultsDir, 'W_ACTIVE_WARN.meta.json'), JSON.stringify({
+      task_id: 'W_ACTIVE_WARN',
+      status: 'running',
+      estimated_tokens: 9500,
+    }));
+    writeFileSync(join(resultsDir, 'W_ACTIVE_WARN.pid'), String(process.pid));
+
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'Do work with warning budget policy',
+      model: 'sonnet',
+      task_id: 'W_WARN',
+    });
+    const txt = contentText(res);
+    assert.match(txt, /Worker spawned/i);
+    assert.match(txt, /Global Budget: warn/i);
+    assert.match(txt, /WARNING: Projected global token usage/i);
+  } finally {
+    restore();
+  }
+});
+
+test('team policy applies permission mode and low-overhead preset defaults to worker spawn', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+    MOCK_CLAUDE_DELAY: '0',
+  });
+
+  try {
+    const team = await api.handleToolCall('coord_create_team', {
+      team_name: 'alpha',
+      preset: 'simple',
+      policy: {
+        permission_mode: 'readOnly',
+        require_plan: true,
+        default_context_level: 'standard',
+      },
+      members: [{ name: 'researcher-1', role: 'researcher' }],
+    });
+    assert.match(contentText(team), /Team created/i);
+    assert.match(contentText(team), /Team Permission Mode: readOnly/i);
+
+    const spawn = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'Analyze codebase and report findings',
+      task_id: 'W_TEAMPOL',
+      team_name: 'alpha',
+      role: 'researcher',
+      model: 'sonnet',
+    });
+    const txt = contentText(spawn);
+    assert.match(txt, /Worker spawned/i);
+    assert.match(txt, /Team: alpha/i);
+    assert.match(txt, /Permission Mode: readOnly/i);
+    assert.match(txt, /Plan Mode: enabled/i);
+    assert.match(txt, /Team Policy Applied: yes/i);
+  } finally {
+    restore();
+  }
+});
+
+test('task board supports team-scoped tasking and list filter', async () => {
+  const { home, binDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+
+  try {
+    const t1 = await api.handleToolCall('coord_create_task', {
+      task_id: 'T_TEAM_A',
+      subject: 'Implement auth flow',
+      team_name: 'alpha',
+      assignee: 'worker1',
+    });
+    assert.match(contentText(t1), /Team: alpha/i);
+
+    await api.handleToolCall('coord_create_task', {
+      task_id: 'T_TEAM_B',
+      subject: 'Write docs',
+      team_name: 'beta',
+    });
+
+    const listAlpha = await api.handleToolCall('coord_list_tasks', { team_name: 'alpha' });
+    const alphaTxt = contentText(listAlpha);
+    assert.match(alphaTxt, /T_TEAM_A/);
+    assert.doesNotMatch(alphaTxt, /T_TEAM_B/);
+
+    const getAlpha = await api.handleToolCall('coord_get_task', { task_id: 'T_TEAM_A' });
+    assert.match(contentText(getAlpha), /\*\*Team:\*\* alpha/i);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_team_dispatch creates team task, spawns worker, and links live team state', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+    MOCK_CLAUDE_DELAY: '0',
+  });
+
+  try {
+    await api.handleToolCall('coord_create_team', {
+      team_name: 'gamma',
+      preset: 'simple',
+      members: [{ name: 'alice', role: 'implementer' }],
+    });
+
+    const dispatch = await api.handleToolCall('coord_team_dispatch', {
+      team_name: 'gamma',
+      subject: 'Implement feature X',
+      prompt: 'Implement feature X in the project',
+      directory: projectDir,
+      assignee: 'alice',
+      role: 'implementer',
+      task_id: 'T_DISPATCH',
+      worker_task_id: 'W_DISPATCH',
+      model: 'sonnet',
+    });
+    const dTxt = contentText(dispatch);
+    assert.match(dTxt, /Team Dispatch \(gamma\)/i);
+    assert.match(dTxt, /Team Task: T_DISPATCH/);
+    assert.match(dTxt, /Worker Task: W_DISPATCH/);
+    assert.match(dTxt, /Status: dispatched/);
+
+    const task = await api.handleToolCall('coord_get_task', { task_id: 'T_DISPATCH' });
+    const tTxt = contentText(task);
+    assert.match(tTxt, /\*\*Team:\*\* gamma/i);
+    assert.match(tTxt, /\*\*Status:\*\* in_progress/i);
+    assert.match(tTxt, /worker_task_id/i);
+
+    const team = await api.handleToolCall('coord_get_team', { team_name: 'gamma' });
+    const teamTxt = contentText(team);
+    assert.match(teamTxt, /### Team Tasks/i);
+    assert.match(teamTxt, /T_DISPATCH \| in_progress \| alice/i);
+    assert.match(teamTxt, /\*\*alice\*\*.*\| task: W_DISPATCH/i);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_team_queue_task + coord_team_status_compact + coord_team_assign_next dispatch queued work', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+    MOCK_CLAUDE_DELAY: '0',
+  });
+
+  try {
+    await api.handleToolCall('coord_create_team', {
+      team_name: 'ops',
+      preset: 'simple',
+      members: [
+        { name: 'ivy', role: 'implementer' },
+        { name: 'rhea', role: 'reviewer' },
+      ],
+    });
+
+    const queued = await api.handleToolCall('coord_team_queue_task', {
+      team_name: 'ops',
+      task_id: 'TQ1',
+      subject: 'Implement API endpoint',
+      prompt: 'Implement endpoint and tests',
+      role_hint: 'implementer',
+      priority: 'high',
+      files: ['src/api.ts'],
+    });
+    assert.match(contentText(queued), /Task created: \*\*TQ1\*\*/i);
+
+    const compact = await api.handleToolCall('coord_team_status_compact', { team_name: 'ops' });
+    const compactTxt = contentText(compact);
+    assert.match(compactTxt, /## Team Status \(Compact\): ops/i);
+    assert.match(compactTxt, /TQ1 \| high/i);
+    assert.match(compactTxt, /ivy \(implementer\)/i);
+
+    const assigned = await api.handleToolCall('coord_team_assign_next', {
+      team_name: 'ops',
+      directory: projectDir,
+      worker_task_id: 'WQ1',
+      model: 'sonnet',
+      mode: 'pipe',
+    });
+    const assignedTxt = contentText(assigned);
+    assert.match(assignedTxt, /Team Assign Next \(ops\)/i);
+    assert.match(assignedTxt, /Task: TQ1/i);
+    assert.match(assignedTxt, /Assignee: ivy/i);
+    assert.match(assignedTxt, /Status: dispatched/i);
+
+    const task = await api.handleToolCall('coord_get_task', { task_id: 'TQ1' });
+    const taskTxt = contentText(task);
+    assert.match(taskTxt, /\*\*Status:\*\* in_progress/i);
+    assert.match(taskTxt, /"status":"spawned"/i);
+    assert.match(taskTxt, /"worker_task_id":"WQ1"/i);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_team_rebalance reassigns queued tasks deterministically by role', async () => {
+  const { home, binDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+
+  try {
+    await api.handleToolCall('coord_create_team', {
+      team_name: 'rebalance',
+      preset: 'simple',
+      members: [
+        { name: 'alice', role: 'implementer' },
+        { name: 'bob', role: 'reviewer' },
+      ],
+    });
+
+    await api.handleToolCall('coord_team_queue_task', {
+      team_name: 'rebalance',
+      task_id: 'TQ_IMPL',
+      subject: 'Implement auth',
+      prompt: 'Implement auth flow',
+      assignee: 'bob',
+      role_hint: 'implementer',
+      files: ['src/auth.ts'],
+    });
+    await api.handleToolCall('coord_team_queue_task', {
+      team_name: 'rebalance',
+      task_id: 'TQ_REV',
+      subject: 'Review auth',
+      prompt: 'Review auth changes',
+      assignee: 'alice',
+      role_hint: 'reviewer',
+      files: ['src/auth.ts'],
+    });
+
+    const dryRun = await api.handleToolCall('coord_team_rebalance', {
+      team_name: 'rebalance',
+      apply: false,
+    });
+    assert.match(contentText(dryRun), /Mode: dry-run/i);
+    assert.match(contentText(dryRun), /Changes: 2/i);
+
+    const applied = await api.handleToolCall('coord_team_rebalance', {
+      team_name: 'rebalance',
+      apply: true,
+    });
+    const appliedTxt = contentText(applied);
+    assert.match(appliedTxt, /Mode: apply/i);
+    assert.match(appliedTxt, /TQ_IMPL: bob -> alice/i);
+    assert.match(appliedTxt, /TQ_REV: alice -> bob/i);
+
+    const implTask = await api.handleToolCall('coord_get_task', { task_id: 'TQ_IMPL' });
+    const revTask = await api.handleToolCall('coord_get_task', { task_id: 'TQ_REV' });
+    assert.match(contentText(implTask), /\*\*Assignee:\*\* alice/i);
+    assert.match(contentText(revTask), /\*\*Assignee:\*\* bob/i);
+    assert.match(contentText(implTask), /rebalance_last/i);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_sidecar_status reads local sidecar runtime snapshot metadata', async () => {
+  const { home, binDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+
+  try {
+    const sidecarRoot = join(home, '.claude', 'lead-sidecar');
+    mkdirSync(join(sidecarRoot, 'runtime'), { recursive: true });
+    mkdirSync(join(sidecarRoot, 'state'), { recursive: true });
+    writeFileSync(join(sidecarRoot, 'runtime', 'sidecar.lock'), JSON.stringify({ pid: 12345, started_at: new Date().toISOString() }));
+    writeFileSync(join(sidecarRoot, 'runtime', 'sidecar.port'), JSON.stringify({ port: 43123 }));
+    writeFileSync(join(sidecarRoot, 'state', 'latest.json'), JSON.stringify({ generated_at: new Date().toISOString(), teams: [{ team_name: 'alpha' }] }));
+
+    const res = await api.handleToolCall('coord_sidecar_status', {});
+    const txt = contentText(res);
+    assert.match(txt, /## Sidecar Status/i);
+    assert.match(txt, /Installed: yes/i);
+    assert.match(txt, /PID: 12345/i);
+    assert.match(txt, /Port: 43123/i);
+    assert.match(txt, /Teams: 1/i);
   } finally {
     restore();
   }

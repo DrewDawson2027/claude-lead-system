@@ -11,33 +11,9 @@ AGENT_ID=$(echo "$INPUT" | jq -r '.agent_id // "unknown"')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
 
 # Normalize/sanitize fields for persisted records (best effort, no hard dependency).
-SESSION_KEY=$(python3 - <<'PY' "$SESSION_ID"
-import re, sys
-raw = str(sys.argv[1]) if len(sys.argv) > 1 else "unknown"
-tokens = re.findall(r'[A-Za-z0-9_-]+', raw)
-s = '-'.join(t for t in tokens if t)
-s = re.sub(r'-+', '-', s).strip('-').replace('..','').strip('-')
-if not s:
-    s = 'unknown'
-print(s[:12])
-PY
-2>/dev/null || echo "unknown")
-AGENT_TYPE_SAFE=$(python3 - <<'PY' "$AGENT_TYPE"
-import re, sys
-s = str(sys.argv[1]) if len(sys.argv) > 1 else "unknown"
-s = re.sub(r'[\x00-\x1f\x7f]', ' ', s)
-s = ' '.join(s.split())
-print((s[:80] or 'unknown'))
-PY
-2>/dev/null || echo "unknown")
-AGENT_ID_SAFE=$(python3 - <<'PY' "$AGENT_ID"
-import re, sys
-s = str(sys.argv[1]) if len(sys.argv) > 1 else "unknown"
-s = re.sub(r'[\x00-\x1f\x7f]', ' ', s)
-s = ' '.join(s.split())
-print((s[:64] or 'unknown'))
-PY
-2>/dev/null || echo "unknown")
+SESSION_KEY=$(python3 -c 'import re,sys; raw=str(sys.argv[1]) if len(sys.argv) > 1 else "unknown"; toks=re.findall(r"[A-Za-z0-9_-]+", raw); s="-".join(t for t in toks if t); s=re.sub(r"-+","-",s).strip("-").replace("..","").strip("-"); print((s or "unknown")[:12])' "$SESSION_ID" 2>/dev/null) || SESSION_KEY="unknown"
+AGENT_TYPE_SAFE=$(python3 -c 'import re,sys; s=str(sys.argv[1]) if len(sys.argv) > 1 else "unknown"; s=re.sub(r"[\x00-\x1f\x7f]"," ",s); s=" ".join(s.split()); print((s[:80] or "unknown"))' "$AGENT_TYPE" 2>/dev/null) || AGENT_TYPE_SAFE="unknown"
+AGENT_ID_SAFE=$(python3 -c 'import re,sys; s=str(sys.argv[1]) if len(sys.argv) > 1 else "unknown"; s=re.sub(r"[\x00-\x1f\x7f]"," ",s); s=" ".join(s.split()); print((s[:64] or "unknown"))' "$AGENT_ID" 2>/dev/null) || AGENT_ID_SAFE="unknown"
 
 METRICS_DIR="$HOME/.claude/hooks/session-state"
 METRICS_FILE="$METRICS_DIR/agent-metrics.jsonl"
