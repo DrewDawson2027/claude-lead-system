@@ -1,0 +1,79 @@
+name: badges-publish
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  publish-badges:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mcp-coordinator/package-lock.json
+      - name: Install coordinator deps
+        run: cd mcp-coordinator && npm ci
+      - name: Generate coverage summary
+        run: |
+          cd mcp-coordinator
+          npx c8 --reporter=json-summary node --test test/*.test.mjs
+      - name: Build badge JSON files
+        run: |
+          mkdir -p badges
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          coverage = 0.0
+          cov_path = Path("mcp-coordinator/coverage/coverage-summary.json")
+          if cov_path.exists():
+              data = json.loads(cov_path.read_text())
+              total = (data.get("total") or {})
+              coverage = float((total.get("lines") or {}).get("pct") or 0.0)
+
+          color = "red"
+          if coverage >= 90: color = "brightgreen"
+          elif coverage >= 80: color = "green"
+          elif coverage >= 70: color = "yellowgreen"
+          elif coverage >= 60: color = "yellow"
+          elif coverage >= 50: color = "orange"
+
+          Path("badges/mcp-coverage.json").write_text(json.dumps({
+              "schemaVersion": 1,
+              "label": "mcp coverage",
+              "message": f"{coverage:.1f}%",
+              "color": color,
+          }, indent=2) + "\n")
+
+          report = Path("reports/token-system-regression-latest.json")
+          summary = {"total": 0, "passed": 0, "failed": 0}
+          if report.exists():
+              try:
+                  summary = (json.loads(report.read_text()).get("summary") or summary)
+              except Exception:
+                  pass
+          failed = int(summary.get("failed") or 0)
+          total = int(summary.get("total") or 0)
+          passed = int(summary.get("passed") or 0)
+          Path("badges/token-system-regression.json").write_text(json.dumps({
+              "schemaVersion": 1,
+              "label": "token regression",
+              "message": f"{passed}/{total} passed" if total else "no data",
+              "color": "brightgreen" if total and failed == 0 else ("yellow" if total else "lightgrey"),
+          }, indent=2) + "\n")
+          PY
+      - name: Commit badge updates (main only)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add badges/*.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(badges): refresh coverage and regression badges"
+          git push

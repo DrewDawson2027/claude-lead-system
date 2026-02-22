@@ -6,6 +6,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml/badge.svg)](https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml)
+[![MCP Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/badges/mcp-coverage.json)](https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/badges-publish.yml)
+[![Token Regression](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/badges/token-system-regression.json)](https://github.com/DrewDawson2027/claude-lead-system/blob/main/reports/token-system-regression-latest.json)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)](https://github.com/DrewDawson2027/claude-lead-system)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-green)](https://nodejs.org)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-compatible-orange)](https://claude.ai/code)

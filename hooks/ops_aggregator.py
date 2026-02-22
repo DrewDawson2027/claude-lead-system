@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
@@ -30,6 +31,7 @@ AUDIT_LOG = STATE_DIR / "audit.jsonl"
 METRICS_LOG = STATE_DIR / "agent-metrics.jsonl"
 HEAL_LOG = STATE_DIR / "self-heal.jsonl"
 SNAPSHOT_CACHE = COST_DIR / "ops-snapshot-cache.json"
+TRENDS_CACHE_PREFIX = "ops-trends-cache"
 
 
 def _window_filter(
@@ -146,17 +148,43 @@ def _build_snapshot(
     alerts_doc = alert_status(limit=50)
     alerts_recent = alerts_doc.get("recent") or []
 
-    rc_summary, cost_summary, summary_err = cost_json(
-        ["summary", "--window", "today"], timeout=12
-    )
-    rc_budget, budget, budget_err = cost_json(
-        ["budget-status", "--period", "daily"], timeout=8
-    )
-    rc_burn, burn, burn_err = cost_json(["burn-rate-check"], timeout=8)
-    rc_anom, anomaly, anom_err = cost_json(["anomaly-check"], timeout=8)
-    trends = build_trends(
-        window_days=int(cfg.get("trends_default_window_days", 7) or 7)
-    )
+    # Cold-path optimization: these calls are independent and each may scan
+    # moderately large local cost/index sources. Parallelizing cuts wall time
+    # without changing the output contract.
+    trend_window = int(cfg.get("trends_default_window_days", 7) or 7)
+    trends_ttl = int(cfg.get("ops_trends_cache_ttl_seconds", 300) or 300)
+
+    def _cached_trends(window_days: int, ttl_seconds: int) -> Dict[str, Any]:
+        cache_file = COST_DIR / f"{TRENDS_CACHE_PREFIX}-{window_days}d.json"
+        if ttl_seconds > 0:
+            cached = read_json(cache_file, {}) or {}
+            if isinstance(cached, dict):
+                ts = parse_ts(cached.get("generated_at"))
+                if ts:
+                    age = (datetime.now(timezone.utc) - ts).total_seconds()
+                    if age <= ttl_seconds:
+                        cached.setdefault("cache", {})
+                        cached["cache"]["hit"] = True
+                        cached["cache"]["age_seconds"] = round(age, 1)
+                        return cached
+        doc = build_trends(window_days)
+        if isinstance(doc, dict):
+            doc.setdefault("cache", {})
+            doc["cache"]["hit"] = False
+            write_json(cache_file, doc)
+        return doc
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        fut_summary = pool.submit(cost_json, ["summary", "--window", "today"], 12)
+        fut_budget = pool.submit(cost_json, ["budget-status", "--period", "daily"], 8)
+        fut_burn = pool.submit(cost_json, ["burn-rate-check"], 8)
+        fut_anom = pool.submit(cost_json, ["anomaly-check"], 8)
+        fut_trends = pool.submit(_cached_trends, trend_window, trends_ttl)
+        rc_summary, cost_summary, summary_err = fut_summary.result()
+        rc_budget, budget, budget_err = fut_budget.result()
+        rc_burn, burn, burn_err = fut_burn.result()
+        rc_anom, anomaly, anom_err = fut_anom.result()
+        trends = fut_trends.result()
 
     blocks = [e for e in audit if e.get("event") == "block"]
     warns = [e for e in audit if e.get("event") in {"warn", "shadow"}]
