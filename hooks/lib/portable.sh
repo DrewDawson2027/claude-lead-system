@@ -49,19 +49,19 @@ get_tty() {
   local t pid
 
   # Method 1: Direct tty command (works in interactive terminals)
-  t=$(tty 2>/dev/null)
+  t=$(tty 2>/dev/null || true)
   if [ -n "$t" ] && [ "$t" != "not a tty" ]; then echo "$t"; return; fi
 
   # Method 2: Parent process TTY
-  t=$(ps -o tty= -p "$PPID" 2>/dev/null | sed 's/ //g')
+  t=$(ps -o tty= -p "$PPID" 2>/dev/null | sed 's/ //g' || true)
   if [ -n "$t" ] && [ "$t" != "??" ]; then echo "/dev/$t"; return; fi
 
   # Method 3: Walk up process tree (up to 3 levels)
   pid=$PPID
   for _ in 1 2 3; do
-    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ' || true)
     [ -z "$pid" ] && break
-    t=$(ps -o tty= -p "$pid" 2>/dev/null | sed 's/ //g')
+    t=$(ps -o tty= -p "$pid" 2>/dev/null | sed 's/ //g' || true)
     if [ -n "$t" ] && [ "$t" != "??" ]; then echo "/dev/$t"; return; fi
   done
 

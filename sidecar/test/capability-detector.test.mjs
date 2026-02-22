@@ -20,7 +20,9 @@ function setupPaths() {
 
 test('capability detector caches probe output and reports available', async () => {
   const prev = process.env.LEAD_SIDECAR_NATIVE_ENABLE;
+  const prevMock = process.env.LEAD_SIDECAR_NATIVE_RUNNER_MOCK;
   process.env.LEAD_SIDECAR_NATIVE_ENABLE = '1';
+  process.env.LEAD_SIDECAR_NATIVE_RUNNER_MOCK = '1';
   const paths = setupPaths();
   const detector = new NativeCapabilityDetector({
     paths,
@@ -37,5 +39,7 @@ test('capability detector caches probe output and reports available', async () =
   } finally {
     if (prev === undefined) delete process.env.LEAD_SIDECAR_NATIVE_ENABLE;
     else process.env.LEAD_SIDECAR_NATIVE_ENABLE = prev;
+    if (prevMock === undefined) delete process.env.LEAD_SIDECAR_NATIVE_RUNNER_MOCK;
+    else process.env.LEAD_SIDECAR_NATIVE_RUNNER_MOCK = prevMock;
   }
 });
