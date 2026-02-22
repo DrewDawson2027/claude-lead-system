@@ -19,7 +19,9 @@ jobs:
 
       - name: Build release bundle
         run: |
-          tar --exclude .git -czf claude-lead-system.tar.gz .
+          OUTDIR="$(mktemp -d)"
+          tar --exclude .git -czf "$OUTDIR/claude-lead-system.tar.gz" .
+          mv "$OUTDIR/claude-lead-system.tar.gz" .
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
