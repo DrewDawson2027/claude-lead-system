@@ -97,20 +97,13 @@ export function buildPlatformLaunchCommand(platformName, termApp, command, layou
  * @param {string} layout - "tab" or "split"
  * @returns {string} App name used
  */
-export function openTerminalWithCommand(command, layout = "background") {
+export function openTerminalWithCommand(command, layout = "tab") {
   const { TEST_MODE, PLATFORM } = cfg();
   if (TEST_MODE) {
     if (PLATFORM === "win32") return "test-background-win32";
     const child = spawn("bash", ["-lc", command], { detached: true, stdio: "ignore" });
     child.unref();
     return "test-background";
-  }
-
-  // Background mode: run as detached process, no terminal window
-  if (layout === "background") {
-    const child = spawn("bash", ["-lc", command], { detached: true, stdio: "ignore" });
-    child.unref();
-    return "background";
   }
 
   const termApp = getTerminalApp();

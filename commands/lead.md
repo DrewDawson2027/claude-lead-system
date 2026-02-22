@@ -296,10 +296,9 @@ Workers with `isolate=true` get their own git worktree branch (`worker/{task_id}
 - **All platforms:** If AppleScript fails, falls back to inbox. If session is truly dead, use `coord_spawn_worker` instead.
 
 **Spawning workers (universal):**
-1. Workers run as **background processes** by default — no terminal popup, no screen disruption
-2. Pipe workers use `claude -p` — fire-and-forget, cheapest
-3. Interactive workers use `claude --prompt` — full hook infrastructure, lead has control
-4. Use `layout: "tab"` or `layout: "split"` ONLY when user explicitly wants a visible terminal
+1. Pipe workers use `claude -p` — fire-and-forget, cheapest
+2. Interactive workers use `claude --prompt` — full hook infrastructure, lead has control
+3. Both open in system terminal (iTerm2 or Terminal.app) even if lead is in Cursor/VS Code
 
 ---
 

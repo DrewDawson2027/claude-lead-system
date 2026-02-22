@@ -33,7 +33,7 @@ export function handleSpawnWorker(args) {
   const notifySessionRaw = args.notify_session_id ?? args.session_id ?? null;
   const notify_session_id = notifySessionRaw ? sanitizeShortSessionId(notifySessionRaw) : null;
   const files = (args.files || []).map(f => String(f).trim()).filter(Boolean);
-  const layout = args.layout === "split" ? "split" : args.layout === "tab" ? "tab" : "background";
+  const layout = args.layout === "split" ? "split" : "tab";
   const mode = args.mode === "interactive" ? "interactive" : "pipe";
   const runtime = args.runtime === "codex" ? "codex" : "claude";
   if (!prompt) return text("Prompt is required.");

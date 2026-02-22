@@ -132,7 +132,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           notify_session_id: { type: "string", description: "Session ID (first 8 chars) to receive worker completion inbox notifications." },
           session_id: { type: "string", description: "Alias for notify_session_id (first 8 chars)." },
           files: { type: "array", items: { type: "string" }, description: "Files to edit (checked for conflicts)" },
-          layout: { type: "string", enum: ["background", "tab", "split"], description: "'background' (default, no terminal popup), 'tab' (new terminal tab), or 'split' (side-by-side)" },
+          layout: { type: "string", enum: ["tab", "split"], description: "'tab' or 'split'" },
           isolate: { type: "boolean", description: "Create git worktree for isolated execution (default: false)" },
         },
         required: ["directory", "prompt"],
