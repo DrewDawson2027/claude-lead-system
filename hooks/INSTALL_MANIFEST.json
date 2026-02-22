@@ -1,0 +1,26 @@
+{
+  "manifest_version": 1,
+  "component": "claude-code-token-management",
+  "schema_version": 2,
+  "critical_hooks": [
+    "token-guard.py",
+    "read-efficiency-guard.py",
+    "agent-lifecycle.sh",
+    "agent-metrics.py",
+    "self-heal.py",
+    "health-check.sh"
+  ],
+  "shared_modules": [
+    "hook_utils.py",
+    "guard_normalize.py",
+    "guard_contracts.py",
+    "guard_events.py"
+  ],
+  "config": [
+    "token-guard-config.json"
+  ],
+  "notes": [
+    "token-guard and read-efficiency-guard dual-write v2+legacy records during compatibility window",
+    "agent-metrics.jsonl contains tagged lifecycle and usage records"
+  ]
+}

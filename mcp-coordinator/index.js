@@ -53,6 +53,51 @@ import {
   buildCodexWorkerScript, buildCodexInteractiveWorkerScript,
 } from "./lib/platform/common.js";
 
+// Legacy cost MCP deprecation metadata (compat helpers for tests and envelope wrappers)
+const LEGACY_COST_DEPRECATIONS = {
+  coord_cost_summary: { canonical_tool: "coord_cost_overview", canonical_command: "claude-token-guard cost overview" },
+  coord_cost_statusline: { canonical_tool: "coord_cost_overview", canonical_command: "claude-token-guard cost overview --format statusline" },
+  coord_cost_budget_status: { canonical_tool: "coord_cost_budget", canonical_command: "claude-token-guard cost budget status" },
+  coord_cost_set_budget: { canonical_tool: "coord_cost_budget", canonical_command: "claude-token-guard cost budget set" },
+  coord_cost_session: { canonical_tool: "coord_cost_sessions", canonical_command: "claude-token-guard cost sessions show" },
+  coord_cost_team: { canonical_tool: "coord_cost_teams", canonical_command: "claude-token-guard cost teams show" },
+  coord_cost_spend_leaderboard: { canonical_tool: "coord_cost_teams", canonical_command: "claude-token-guard cost teams leaderboard" },
+  coord_cost_trends: { canonical_tool: "coord_ops_trends", canonical_command: "claude-token-guard ops trends" },
+  coord_cost_anomaly_check: { canonical_tool: "coord_ops_alerts", canonical_command: "claude-token-guard ops alerts check --kind anomaly" },
+  coord_cost_burn_rate_check: { canonical_tool: "coord_ops_alerts", canonical_command: "claude-token-guard ops alerts check --kind burn-rate" },
+  coord_cost_burn_projection: { canonical_tool: "coord_ops_trends", canonical_command: "claude-token-guard ops trends" },
+  coord_cost_anomalies: { canonical_tool: "coord_ops_alerts", canonical_command: "claude-token-guard ops alerts status" },
+  coord_cost_daily_report_generate: { canonical_tool: "coord_ops_today", canonical_command: "claude-token-guard ops today --markdown" },
+};
+
+function applyLegacyDeprecationToOutput(toolName, data) {
+  if (!(toolName in LEGACY_COST_DEPRECATIONS)) return data;
+  const raw = typeof data === "string" ? data : String(data ?? "");
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      parsed.deprecated = true;
+      parsed.canonical_tool = LEGACY_COST_DEPRECATIONS[toolName].canonical_tool;
+      parsed.canonical_command = LEGACY_COST_DEPRECATIONS[toolName].canonical_command;
+      return JSON.stringify(parsed, null, 2);
+    }
+  } catch {}
+  return `${raw}\n\n[DEPRECATED]\ncanonical_tool=${LEGACY_COST_DEPRECATIONS[toolName].canonical_tool}\ncanonical_command=${LEGACY_COST_DEPRECATIONS[toolName].canonical_command}\n`;
+}
+
+function withEnvelope(tool, startedAt, requestId, producer) {
+  const envelopeEnabled = process.env.CLAUDE_COORDINATOR_RESULT_ENVELOPE === "1";
+  const warnings = [];
+  const data = applyLegacyDeprecationToOutput(tool, producer());
+  if (!envelopeEnabled) return text(data);
+  return text(JSON.stringify({
+    ok: true,
+    data: { text: data },
+    error: null,
+    meta: { tool, durationMs: Date.now() - startedAt, requestId, warnings },
+  }, null, 2));
+}
+
 // ─────────────────────────────────────────────────────────
 // SERVER SETUP
 // ─────────────────────────────────────────────────────────
@@ -849,6 +894,9 @@ export const __test__ = {
   runGC,
   isSafeTTYPath,
   selectWakeText,
+  applyLegacyDeprecationToOutput,
+  LEGACY_COST_DEPRECATIONS,
+  withEnvelope,
   sleepMs,
   getSessionStatus,
   acquireExclusiveFileLock,

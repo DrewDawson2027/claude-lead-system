@@ -13,6 +13,12 @@
 
 STATE_DIR="$HOME/.claude/hooks/session-state"
 AUDIT_LOG="$STATE_DIR/audit.jsonl"
+METRICS_LOG="$STATE_DIR/agent-metrics.jsonl"
+ALERTS_LOG="$HOME/.claude/cost/alerts.jsonl"
+ALERT_STATE="$HOME/.claude/cost/alert-state.json"
+OPS_SNAPSHOT_CACHE="$HOME/.claude/cost/ops-snapshot-cache.json"
+PROMPT_SOURCE="$HOME/Projects/claude-lead-system/hooks/prompts/task_preflight_checklist.md"
+PROMPT_SYNC_TOOL="$HOME/Projects/claude-lead-system/hooks/prompt_sync.py"
 
 # --cleanup: remove stale session state files (>24h old)
 if [ "$1" = "--cleanup" ]; then
@@ -95,6 +101,66 @@ if [ "$1" = "--stats" ]; then
     done
   fi
 
+  # Alert log/cache reporting (ops tier)
+  if [ -f "$ALERTS_LOG" ]; then
+    ALERT_TOTAL=$(wc -l < "$ALERTS_LOG" | tr -d ' ')
+    ALERT_SUPPRESSED=$(grep -c '"suppressed":true' "$ALERTS_LOG" 2>/dev/null || true)
+    ALERT_SUPPRESSED=${ALERT_SUPPRESSED:-0}
+    echo ""
+    echo "  Alerts:"
+    echo "    alert events:      $ALERT_TOTAL"
+    echo "    suppressed alerts: $ALERT_SUPPRESSED"
+  else
+    echo ""
+    echo "  Alerts:"
+    echo "    alert log: not yet created"
+  fi
+  if [ -f "$OPS_SNAPSHOT_CACHE" ]; then
+    SNAP_TS=$(python3 - <<PY 2>/dev/null
+import json
+try:
+    d=json.load(open("$OPS_SNAPSHOT_CACHE"))
+    print(d.get("generated_at","unknown"))
+except Exception:
+    print("invalid")
+PY
+)
+    echo "    ops snapshot cache: $SNAP_TS"
+  else
+    echo "    ops snapshot cache: not yet created"
+  fi
+
+  # Prompt hash verification (source-of-truth -> live settings)
+  if [ -f "$PROMPT_SYNC_TOOL" ]; then
+    PROMPT_SYNC_JSON=$(python3 "$PROMPT_SYNC_TOOL" --verify-only 2>/dev/null || true)
+    if [ -n "$PROMPT_SYNC_JSON" ]; then
+      PROMPT_MATCH=$(PROMPT_SYNC_JSON="$PROMPT_SYNC_JSON" python3 - <<'PY' 2>/dev/null
+import json,os
+try:
+    d=json.loads(os.environ.get("PROMPT_SYNC_JSON","{}"))
+    print("true" if d.get("live_settings",{}).get("matches") else "false")
+except Exception:
+    print("unknown")
+PY
+)
+      PROMPT_HASH=$(PROMPT_SYNC_JSON="$PROMPT_SYNC_JSON" python3 - <<'PY' 2>/dev/null
+import json,os
+try:
+    d=json.loads(os.environ.get("PROMPT_SYNC_JSON","{}"))
+    print(d.get("prompt_hash","unknown"))
+except Exception:
+    print("unknown")
+PY
+)
+      echo ""
+      if [ "$PROMPT_MATCH" = "true" ]; then
+        echo "  Prompt sync:        PASS (hash=$PROMPT_HASH)"
+      else
+        echo "  Prompt sync:        WARN (live settings prompt differs from source; hash=$PROMPT_HASH)"
+      fi
+    fi
+  fi
+
   echo ""
   exit 0
 fi
@@ -171,8 +237,13 @@ echo "Token Management:"
 if [ -f ~/.claude/hooks/token-guard-config.json ]; then
   if python3 -c "import json; json.load(open('$HOME/.claude/hooks/token-guard-config.json'))" 2>/dev/null; then
     MAX_AGENTS=$(python3 -c "import json; print(json.load(open('$HOME/.claude/hooks/token-guard-config.json')).get('max_agents', '?'))" 2>/dev/null)
-    echo "  PASS  config valid (max_agents=$MAX_AGENTS)"
+    CONFIG_SCHEMA=$(python3 -c "import json; print(json.load(open('$HOME/.claude/hooks/token-guard-config.json')).get('schema_version', 1))" 2>/dev/null)
+    echo "  PASS  config valid (schema_version=$CONFIG_SCHEMA, max_agents=$MAX_AGENTS)"
     PASS=$((PASS + 1))
+    if [ "$CONFIG_SCHEMA" -lt 2 ] 2>/dev/null; then
+      echo "  WARN  config schema_version < 2 (upgrade recommended)"
+      WARN=$((WARN + 1))
+    fi
   else
     echo "  FAIL  config is invalid JSON"
     FAIL=$((FAIL + 1))
@@ -190,6 +261,177 @@ if [ -f "$AUDIT_LOG" ]; then
   echo "  INFO  audit log: $AUDIT_LINES entries"
 else
   echo "  INFO  audit log: not yet created (will appear after first Task call)"
+fi
+
+if [ -f "$AUDIT_LOG" ] || [ -f "$METRICS_LOG" ]; then
+  DQ_OUT=$(python3 - <<PY 2>/dev/null
+import json, os
+state_dir = os.path.expanduser("$STATE_DIR")
+audit = os.path.join(state_dir, "audit.jsonl")
+metrics = os.path.join(state_dir, "agent-metrics.jsonl")
+invalid_legacy_session = 0
+v2_audit = 0
+v1_audit = 0
+faults = 0
+empty_agent_type = 0
+untagged_metrics = 0
+def lines(path):
+    if not os.path.isfile(path): return []
+    out = []
+    with open(path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return out
+for e in lines(audit):
+    if int(e.get("schema_version", 1) or 1) >= 2:
+        v2_audit += 1
+    else:
+        v1_audit += 1
+    s = str(e.get("session", "")) if "session" in e else ""
+    if ("/" in s or ".." in s or "\\" in s):
+        invalid_legacy_session += 1
+    if e.get("event") == "fault":
+        faults += 1
+for m in lines(metrics):
+    if "record_type" not in m:
+        untagged_metrics += 1
+    if m.get("event") == "agent_completed" and not str(m.get("agent_type", "")).strip():
+        empty_agent_type += 1
+print(f"audit_v2={v2_audit} audit_v1={v1_audit} invalid_legacy_session={invalid_legacy_session} faults={faults} untagged_metrics={untagged_metrics} empty_agent_type={empty_agent_type}")
+PY
+)
+  [ -n "$DQ_OUT" ] && echo "  INFO  data-quality: $DQ_OUT"
+fi
+
+echo ""
+echo "Prompt Sync:"
+if [ -f "$PROMPT_SYNC_TOOL" ]; then
+  PROMPT_SYNC_JSON=$(python3 "$PROMPT_SYNC_TOOL" --verify-only 2>/dev/null || true)
+  if [ -n "$PROMPT_SYNC_JSON" ]; then
+    PROMPT_STATUS=$(PROMPT_SYNC_JSON="$PROMPT_SYNC_JSON" python3 - <<'PY' 2>/dev/null
+import json,os
+try:
+    d=json.loads(os.environ.get("PROMPT_SYNC_JSON","{}"))
+    live=d.get("live_settings",{})
+    if live.get("matches"):
+        print("PASS")
+    elif live.get("exists"):
+        print("WARN")
+    else:
+        print("WARN")
+except Exception:
+    print("WARN")
+PY
+)
+    PROMPT_HASH=$(PROMPT_SYNC_JSON="$PROMPT_SYNC_JSON" python3 - <<'PY' 2>/dev/null
+import json,os
+try:
+    d=json.loads(os.environ.get("PROMPT_SYNC_JSON","{}")); print(d.get("prompt_hash","unknown"))
+except Exception:
+    print("unknown")
+PY
+)
+    if [ "$PROMPT_STATUS" = "PASS" ]; then
+      echo "  PASS  preflight prompt hash matches source ($PROMPT_HASH)"
+      PASS=$((PASS + 1))
+    else
+      echo "  WARN  preflight prompt drift (run prompt_sync.py --apply-live) hash=$PROMPT_HASH"
+      WARN=$((WARN + 1))
+    fi
+  else
+    echo "  WARN  prompt sync tool returned no data"
+    WARN=$((WARN + 1))
+  fi
+else
+  echo "  WARN  prompt sync tool not found ($PROMPT_SYNC_TOOL)"
+  WARN=$((WARN + 1))
+fi
+
+echo ""
+echo "Alerts & Ops Cache:"
+if [ -f "$ALERTS_LOG" ]; then
+  ALERT_LINES=$(wc -l < "$ALERTS_LOG" | tr -d ' ')
+  LAST_ALERT=$(tail -1 "$ALERTS_LOG" 2>/dev/null | jq -r '.ts // "unknown"' 2>/dev/null)
+  echo "  INFO  alerts.jsonl: $ALERT_LINES entries, last: $LAST_ALERT"
+else
+  echo "  INFO  alerts.jsonl: not yet created"
+fi
+if [ -f "$ALERT_STATE" ]; then
+  if python3 -c "import json; json.load(open('$ALERT_STATE'))" 2>/dev/null; then
+    echo "  PASS  alert-state.json valid"
+    PASS=$((PASS + 1))
+  else
+    echo "  WARN  alert-state.json invalid JSON"
+    WARN=$((WARN + 1))
+  fi
+else
+  echo "  INFO  alert-state.json: not yet created"
+fi
+if [ -f "$OPS_SNAPSHOT_CACHE" ]; then
+  SNAP_META=$(python3 - <<PY 2>/dev/null
+import json
+try:
+    d=json.load(open("$OPS_SNAPSHOT_CACHE"))
+    print(f"{d.get('generated_at','unknown')} schema={d.get('schema_version','?')}")
+except Exception:
+    print("invalid")
+PY
+)
+  if [ "$SNAP_META" = "invalid" ]; then
+    echo "  WARN  ops-snapshot-cache.json invalid JSON"
+    WARN=$((WARN + 1))
+  else
+    echo "  INFO  ops-snapshot-cache.json: $SNAP_META"
+  fi
+else
+  echo "  INFO  ops-snapshot-cache.json: not yet created"
+fi
+
+REPO_ROOT="$HOME/Projects/claude-lead-system"
+if [ -d "$REPO_ROOT/hooks" ]; then
+  DRIFT_COUNT=$(python3 - <<PY 2>/dev/null
+import filecmp, os
+home = os.path.expanduser("~")
+repo = os.path.join(home, "Projects", "claude-lead-system", "hooks")
+live = os.path.join(home, ".claude", "hooks")
+files = ["token-guard.py","read-efficiency-guard.py","agent-metrics.py","self-heal.py","health-check.sh","hook_utils.py","token-guard-config.json"]
+drift = 0
+for name in files:
+    a = os.path.join(repo, name)
+    b = os.path.join(live, name)
+    if os.path.isfile(a) and os.path.isfile(b) and not filecmp.cmp(a, b, shallow=False):
+        drift += 1
+print(drift)
+PY
+)
+  echo "  INFO  repo/live hook drift count: ${DRIFT_COUNT:-unknown}"
+fi
+
+echo ""
+echo "Repo Advisories:"
+if [ -d "$REPO_ROOT" ]; then
+  if [ -f "$REPO_ROOT/.github/workflows/benchmark-publish.yml" ]; then
+    echo "  PASS  benchmark workflow present (.github/workflows/benchmark-publish.yml)"
+    PASS=$((PASS + 1))
+  else
+    echo "  WARN  benchmark workflow missing (repo-side advisory)"
+    WARN=$((WARN + 1))
+  fi
+  if [ -f "$REPO_ROOT/docs/TOKEN_MANAGEMENT_BENCHMARK_PUBLISHING.md" ]; then
+    echo "  PASS  benchmark publishing doc present"
+    PASS=$((PASS + 1))
+  else
+    echo "  WARN  benchmark publishing doc missing (repo-side advisory)"
+    WARN=$((WARN + 1))
+  fi
+else
+  echo "  INFO  repo not present at $REPO_ROOT (skipping repo advisories)"
 fi
 
 echo ""
