@@ -35,6 +35,8 @@ SID8="${RAW_SESSION_ID:0:8}"
 FILE_BASE=$(basename "$FILE_PATH")
 
 mkdir -p ~/.claude/terminals
+INBOX_DIR=~/.claude/terminals/inbox
+mkdir -p "$INBOX_DIR"
 
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -72,6 +74,11 @@ if [ -f "$SESSION_FILE" ]; then
   TMP=$(mktemp)
 
   # Use jq --arg for all dynamic values (safe against special chars in filenames)
+  # Worker identity env vars (set by coord_spawn_worker for interactive workers)
+  WORKER_NAME="${CLAUDE_WORKER_NAME:-}"
+  WORKER_TASK_ID="${CLAUDE_WORKER_TASK_ID:-}"
+  WORKER_MAX_TURNS="${CLAUDE_WORKER_MAX_TURNS:-}"
+
   jq --arg now "$NOW" \
      --arg tool "$TOOL_NAME" \
      --arg file_base "$FILE_BASE" \
@@ -79,21 +86,58 @@ if [ -f "$SESSION_FILE" ]; then
      --arg tty "$CURR_TTY" \
      --argjson schema "$SCHEMA_VERSION" \
      --arg is_write_edit "$([ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] && echo "yes" || echo "no")" \
+     --arg worker_name "$WORKER_NAME" \
+     --arg worker_task "$WORKER_TASK_ID" \
      '
      .last_active = $now |
      .last_tool = $tool |
      .last_file = $file_base |
      .schema_version = $schema |
      (if $tty != "" then .tty = $tty else . end) |
+     (if $worker_name != "" then .worker_name = $worker_name else . end) |
+     (if $worker_task != "" then .current_task = $worker_task else . end) |
      .tool_counts = ((.tool_counts // {}) | .[$tool] = ((.[$tool] // 0) + 1)) |
+     .turn_count = ((.turn_count // 0) + 1) |
      (if $is_write_edit == "yes" then
        .files_touched = (((.files_touched // []) | map(select(. != $file_path))) + [$file_path])[-30:]
      else . end) |
      .recent_ops = (((.recent_ops // []) + [{"t": $now, "tool": $tool, "file": $file_base}])[-10:])
      ' "$SESSION_FILE" > "$TMP" 2>/dev/null && mv "$TMP" "$SESSION_FILE"
+
+  # ─── MAX TURNS ENFORCEMENT ───
+  if [ -n "$WORKER_MAX_TURNS" ] && [ -n "$WORKER_TASK_ID" ]; then
+    CURRENT_TURNS=$(jq -r '.turn_count // 0' "$SESSION_FILE" 2>/dev/null || echo "0")
+    if [ "$CURRENT_TURNS" -ge "$WORKER_MAX_TURNS" ]; then
+      # Notify worker and lead
+      jq -n --arg ts "$NOW" --arg task "$WORKER_TASK_ID" --argjson max "$WORKER_MAX_TURNS" \
+        '{ts:$ts,from:"coordinator",priority:"urgent",content:("[MAX_TURNS_REACHED] Task " + $task + " hit limit of " + ($max|tostring) + " turns. Terminating.")}' \
+        >> "${INBOX_DIR}/${SID8}.jsonl" 2>/dev/null
+      # Notify lead if we know their session
+      META_FILE=~/.claude/terminals/results/${WORKER_TASK_ID}.meta.json
+      if [ -f "$META_FILE" ]; then
+        LEAD_SID=$(jq -r '.notify_session_id // empty' "$META_FILE" 2>/dev/null || true)
+        if [ -n "$LEAD_SID" ]; then
+          jq -n --arg ts "$NOW" --arg task "$WORKER_TASK_ID" --argjson max "$WORKER_MAX_TURNS" \
+            '{ts:$ts,from:"coordinator",priority:"urgent",content:("[MAX_TURNS_REACHED] Worker " + $task + " hit " + ($max|tostring) + " turns. Auto-terminated.")}' \
+            >> "${INBOX_DIR}/${LEAD_SID}.jsonl" 2>/dev/null
+        fi
+        # Kill the worker process
+        PID_FILE=~/.claude/terminals/results/${WORKER_TASK_ID}.pid
+        if [ -f "$PID_FILE" ]; then
+          WORKER_PID=$(cat "$PID_FILE" 2>/dev/null)
+          if [[ "$WORKER_PID" =~ ^[0-9]+$ ]]; then
+            kill -TERM "$WORKER_PID" 2>/dev/null || true
+          fi
+        fi
+      fi
+    fi
+  fi
 else
   # Fallback: create session file from PostToolUse context using jq (safe JSON construction)
   BRANCH=$(cd "$CWD" 2>/dev/null && git branch --show-current 2>/dev/null || echo "none")
+
+  WORKER_NAME="${CLAUDE_WORKER_NAME:-}"
+  WORKER_TASK_ID="${CLAUDE_WORKER_TASK_ID:-}"
 
   jq -n \
      --arg session "$SID8" \
@@ -105,6 +149,8 @@ else
      --arg file_base "$FILE_BASE" \
      --arg tty "$CURR_TTY" \
      --argjson schema "$SCHEMA_VERSION" \
+     --arg worker_name "$WORKER_NAME" \
+     --arg worker_task "$WORKER_TASK_ID" \
      '
      {
        session: $session,
@@ -119,10 +165,13 @@ else
        source: "heartbeat-fallback",
        schema_version: $schema,
        tool_counts: {($tool): 1},
+       turn_count: 1,
        files_touched: [],
        recent_ops: [{"t": $now, "tool": $tool, "file": $file_base}]
      } |
-     (if $tty != "" then .tty = $tty else . end)
+     (if $tty != "" then .tty = $tty else . end) |
+     (if $worker_name != "" then .worker_name = $worker_name else . end) |
+     (if $worker_task != "" then .current_task = $worker_task else . end)
      ' > "$SESSION_FILE"
 fi
 
@@ -136,7 +185,7 @@ case "$FILE_PATH" in
     ;;
 esac
 
-# ─── AUTO-STALE: Mark other sessions stale if inactive >1h ───
+# ─── AUTO-STALE: Mark other sessions stale if inactive >5m ───
 # Only check every 60s (not every heartbeat) by using a separate lock
 STALE_LOCK="/tmp/claude-stale-check.lock"
 STALE_COOLDOWN=60
@@ -162,11 +211,35 @@ if $DO_STALE; then
 
     SF_LAST=$(jq -r '.last_active // "1970-01-01T00:00:00Z"' "$sf" 2>/dev/null)
     SF_EPOCH=$(parse_iso_to_epoch "$SF_LAST")
+    SF_SID=$(jq -r '.session // ""' "$sf" 2>/dev/null)
+    SF_TASK=$(jq -r '.current_task // empty' "$sf" 2>/dev/null)
 
     AGE=$(( NOW_EPOCH - SF_EPOCH ))
-    if [ "$AGE" -gt 3600 ]; then
+
+    # Mark stale after 5min (responsive idle detection — matches Claude's agent system)
+    if [ "$AGE" -gt 300 ]; then
       TMP=$(mktemp)
       jq '.status = "stale"' "$sf" > "$TMP" 2>/dev/null && mv "$TMP" "$sf"
+
+      # Notify lead only for the matching worker task (avoid cross-worker false alerts)
+      [ -z "$SF_TASK" ] && continue
+      for mf in ~/.claude/terminals/results/*.meta.json; do
+        [ -f "$mf" ] || continue
+        TASK_ID=$(jq -r '.task_id // empty' "$mf" 2>/dev/null || true)
+        [ -z "$TASK_ID" ] && continue
+        [ "$TASK_ID" != "$SF_TASK" ] && continue
+        LEAD_SID=$(jq -r '.notify_session_id // empty' "$mf" 2>/dev/null || true)
+        WORKER_MODE=$(jq -r '.mode // "pipe"' "$mf" 2>/dev/null || true)
+        [ -z "$LEAD_SID" ] && continue
+        [ "$WORKER_MODE" != "interactive" ] && continue
+        # Notify lead that this interactive worker went stale
+        IDLE_REPORTED=~/.claude/terminals/results/"$(basename "$mf" .meta.json)".${SF_SID}.idle-notified
+        [ -f "$IDLE_REPORTED" ] && continue
+        jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg sid "$SF_SID" \
+          '{ts:$ts,from:"coordinator",priority:"normal",content:("[WORKER IDLE] Session " + $sid + " — inactive for >5min, marked stale.")}' \
+          >> "${INBOX_DIR}/${LEAD_SID}.jsonl" 2>/dev/null
+        touch "$IDLE_REPORTED"
+      done
     fi
   done
 fi
@@ -178,5 +251,19 @@ portable_flock_append "${ACTIVITY_FILE}.lock" '
     tail -500 "'"$ACTIVITY_FILE"'" > "'"${ACTIVITY_FILE}"'.tmp" && mv "'"${ACTIVITY_FILE}"'.tmp" "'"$ACTIVITY_FILE"'"
   fi
 '
+
+# ─── DUAL-HOOK INBOX DRAIN (PostToolUse delivery) ───
+# Same logic as check-inbox.sh — delivers messages AFTER tool calls too.
+# Combined with PreToolUse check, this gives sub-second delivery during active work.
+INBOX_DIR=~/.claude/terminals/inbox
+INBOX="${INBOX_DIR}/${SID8}.jsonl"
+if [ -f "$INBOX" ] && [ -s "$INBOX" ]; then
+  TMP_INBOX=$(mktemp)
+  cp "$INBOX" "$TMP_INBOX"
+  echo "--- INCOMING MESSAGES FROM COORDINATOR ---"
+  tr -d '\000-\010\013\014\016-\037\177\200-\237' < "$TMP_INBOX"
+  echo "--- END MESSAGES ---"
+  rm -f "$INBOX" "$TMP_INBOX"
+fi
 
 exit 0

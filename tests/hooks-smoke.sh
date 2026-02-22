@@ -27,6 +27,10 @@ heartbeat_input=$(jq -n \
   --arg cwd "$HOME/project with \"quotes\"" \
   '{session_id:$sid, tool_name:"Edit", cwd:$cwd, tool_input:{file_path:"src/main.ts"}}')
 
+# Clear heartbeat lock so repeated smoke runs don't skip the full heartbeat path.
+rm -f /tmp/claude-heartbeat-abcd1234.lock
+rm -rf /tmp/claude-heartbeat-abcd1234.lock.d
+
 printf '%s' "$heartbeat_input" | bash "$ROOT/hooks/terminal-heartbeat.sh"
 
 jq -e '.tool_counts.Edit >= 1 and (.files_touched | index("src/main.ts")) != null' "$SESSION_FILE" >/dev/null

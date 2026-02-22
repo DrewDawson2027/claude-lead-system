@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lead Sidecar</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --bg2: #151d24;
+      --panel: rgba(255,255,255,0.04);
+      --line: rgba(255,255,255,0.12);
+      --text: #ebf2f7;
+      --muted: #9fb0bf;
+      --green: #53d17d;
+      --amber: #ffbf47;
+      --red: #ff6b6b;
+      --blue: #4ea1ff;
+      --shadow: 0 8px 30px rgba(0,0,0,0.28);
+      --radius: 16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+      --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 12%, rgba(78,161,255,0.18), transparent 45%),
+        radial-gradient(circle at 88% 20%, rgba(83,209,125,0.15), transparent 40%),
+        radial-gradient(circle at 55% 88%, rgba(255,191,71,0.14), transparent 35%),
+        linear-gradient(180deg, var(--bg), var(--bg2));
+      min-height: 100vh;
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 14px 18px; border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(6px); position: sticky; top: 0; background: rgba(15,20,25,0.66); z-index: 20;
+    }
+    .brand { font-weight: 900; letter-spacing: .02em; }
+    .brand span { color: var(--blue); }
+    .status { color: var(--muted); font-size: 12px; }
+    .hotkeys { color: var(--muted); font-size: 11px; }
+    .wrap { display: grid; gap: 14px; padding: 14px; grid-template-columns: 320px 1fr 420px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .panel h2 { font-size: 12px; margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .panel .body { padding: 12px; max-height: calc(100vh - 118px); overflow: auto; }
+    .stack { display: grid; gap: 10px; }
+    .team-row, .member-row, .task-row, .event-row, .alert-row, .action-row, .approval-card { padding: 10px; border: 1px solid transparent; border-radius: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.02); cursor: pointer; }
+    .team-row.active, .member-row.active { border-color: rgba(78,161,255,0.45); background: rgba(78,161,255,0.08); }
+    .approval-card { border-color: rgba(255,191,71,0.3); background: rgba(255,191,71,0.04); }
+    .mini { color: var(--muted); font-size: 12px; }
+    .tiny { color: var(--muted); font-size: 11px; }
+    .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; margin-right: 6px; background: rgba(255,255,255,0.08); }
+    .p-active { background: rgba(83,209,125,0.2); color: #c7ffd9; }
+    .p-idle { background: rgba(255,191,71,0.18); color: #ffe3a9; }
+    .p-stale, .p-offline { background: rgba(255,107,107,0.16); color: #ffc5c5; }
+    .ok { color: #c7ffd9; } .warn { color: #ffe3a9; } .err { color: #ffc5c5; }
+    .grid2 { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+    .grid3 { display: grid; gap: 10px; grid-template-columns: 1fr 1fr 1fr; }
+    .actions { display:flex; flex-wrap: wrap; gap: 8px; }
+    button { background: rgba(255,255,255,0.06); color: var(--text); border:1px solid var(--line); border-radius: 10px; padding: 8px 10px; cursor: pointer; font-weight: 600; }
+    button:hover { background: rgba(255,255,255,0.1); }
+    button.primary { border-color: rgba(78,161,255,.45); background: rgba(78,161,255,.12); }
+    button.warn { border-color: rgba(255,191,71,.45); background: rgba(255,191,71,.09); }
+    button.err { border-color: rgba(255,107,107,.45); background: rgba(255,107,107,.08); }
+    button.success { border-color: rgba(83,209,125,.45); background: rgba(83,209,125,.09); }
+    input, textarea, select { width: 100%; background: rgba(255,255,255,0.03); border:1px solid var(--line); color: var(--text); border-radius: 10px; padding: 8px 10px; font-family: var(--sans); }
+    textarea { min-height: 64px; resize: vertical; }
+    .mono { font-family: var(--mono); }
+    pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--mono); font-size: 12px; background: rgba(0,0,0,0.22); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+    .section { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: rgba(255,255,255,.02); }
+    .section h3 { margin: 0 0 8px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+    .palette { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: start; justify-content: center; padding-top: 8vh; z-index: 50; }
+    .palette.open { display:flex; }
+    .palette-card { width: min(760px, 92vw); background: #121a20; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+    .palette-card input { border: none; border-bottom: 1px solid var(--line); border-radius: 0; padding: 14px; background: transparent; }
+    .palette-list { max-height: 360px; overflow: auto; padding: 10px; }
+    .palette-item { padding: 10px; border-radius: 10px; cursor: pointer; }
+    .palette-item:hover, .palette-item.active { background: rgba(78,161,255,.08); }
+    .feedback-inline { display:none; margin-top:8px; }
+    .feedback-inline.open { display:block; }
+    .trace-step { padding: 4px 0; border-left: 2px solid var(--line); padding-left: 10px; margin-left: 4px; }
+    .trace-step.final { border-color: var(--blue); }
+    .gate-check { display: inline-block; margin-right: 4px; }
+    .gate-pass { color: var(--green); }
+    .gate-fail { color: var(--red); }
+    .gate-pending { color: var(--muted); }
+    body[data-density="compact"] .team-row,
+    body[data-density="compact"] .member-row,
+    body[data-density="compact"] .task-row,
+    body[data-density="compact"] .alert-row,
+    body[data-density="compact"] .action-row,
+    body[data-density="compact"] .approval-card { padding: 8px; margin-bottom: 6px; }
+    body[data-density="dense"] .team-row,
+    body[data-density="dense"] .member-row,
+    body[data-density="dense"] .task-row,
+    body[data-density="dense"] .alert-row,
+    body[data-density="dense"] .action-row,
+    body[data-density="dense"] .approval-card { padding: 6px; margin-bottom: 4px; border-radius: 10px; }
+    body[data-density="dense"] .tiny { font-size: 10px; }
+    /* B4: Focus mode visibility */
+    [data-focus-visible] { transition: opacity .15s, max-height .15s; }
+    body[data-focus="approval"] [data-focus-visible]:not([data-focus-visible*="approval"]) { display: none !important; }
+    body[data-focus="dispatch"] [data-focus-visible]:not([data-focus-visible*="dispatch"]) { display: none !important; }
+    body[data-focus="recovery"] [data-focus-visible]:not([data-focus-visible*="recovery"]) { display: none !important; }
+    @media (max-width: 1240px) { .wrap { grid-template-columns: 1fr; } .panel .body { max-height: none; } }
+  </style>
+</head>
+<body data-focus="all">
+  <header>
+    <div class="brand">Lead <span>Sidecar</span></div>
+    <div class="status" id="status">Connecting...</div>
+    <div class="hotkeys">Hotkeys: `a` palette · `s` route simulate · `q` queue · `d` dispatch · `r` rebalance · `m` native msg · `i` directive · `p` approve/reject · `w` wake · `u` approve-safe · `z` wake-stale · `b` bridge validate · `f` force-path toggle · `?` help</div>
+  </header>
+  <main class="wrap">
+    <section class="panel">
+      <h2>Teams</h2>
+      <div class="body" id="teams"></div>
+    </section>
+    <section class="panel">
+      <h2>Operations View</h2>
+      <div class="body stack">
+        <div class="section" data-focus-visible="all approval dispatch recovery">
+          <h3>Focus + Triage</h3>
+          <div class="grid3">
+            <div>
+              <label class="mini">Focus Mode</label>
+              <select id="focus-mode">
+                <option value="all">all</option>
+                <option value="approval">approval</option>
+                <option value="dispatch">dispatch</option>
+                <option value="recovery">recovery</option>
+              </select>
+            </div>
+            <div>
+              <label class="mini">Filter</label>
+              <input id="focus-filter" placeholder="task/teammate/action text" />
+            </div>
+            <div>
+              <label class="mini">Layout</label>
+              <select id="layout-density">
+                <option value="standard">standard</option>
+                <option value="compact">compact</option>
+                <option value="dense">dense</option>
+              </select>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:10px">
+            <button id="btn-batch-approve-safe" class="warn">Approve All Safe</button>
+            <button id="btn-batch-wake-stale">Wake All Stale</button>
+            <button id="btn-batch-reject-risky" class="err">Reject All Risky</button>
+            <button id="btn-batch-dismiss-resolved">Dismiss Resolved</button>
+            <button id="btn-route-simulate">Route Preview</button>
+          </div>
+        </div>
+
+        <!-- B1: Dedicated Approval Inbox -->
+        <div class="section" data-focus-visible="all approval">
+          <h3>Approval Inbox</h3>
+          <div id="approval-inbox"></div>
+        </div>
+
+        <div id="detail" class="section" data-focus-visible="all approval dispatch recovery"><div class="mini">Select a team.</div></div>
+
+        <div class="section" data-focus-visible="all recovery">
+          <h3>Native Lane</h3>
+          <div id="native-lane" class="mini">No native status yet.</div>
+          <div class="actions" style="margin-top:8px">
+            <button id="btn-native-probe">Probe Native</button>
+            <button id="btn-bridge-ensure">Bridge Ensure</button>
+            <button id="btn-bridge-validate" class="warn">Bridge Validate</button>
+            <button id="btn-native-team-status">Native TeamStatus</button>
+            <button id="btn-native-task">Native Task</button>
+          </div>
+          <div id="bridge-validation" style="margin-top:8px"></div>
+        </div>
+
+        <div class="section" data-focus-visible="all recovery">
+          <h3>Interrupt Queue</h3>
+          <div id="alerts"></div>
+        </div>
+
+        <div class="section" data-focus-visible="all dispatch recovery">
+          <h3>Recent Actions</h3>
+          <div id="actions-list"></div>
+        </div>
+
+        <div class="section" data-focus-visible="all dispatch">
+          <h3>Rebalance Explainability</h3>
+          <div class="actions" style="margin-bottom:8px">
+            <button id="btn-rebalance-preview">Preview Rebalance (Dry Run)</button>
+          </div>
+          <div id="rebalance-explain"></div>
+        </div>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Action Console</h2>
+      <div class="body stack">
+        <div class="section" data-focus-visible="all dispatch">
+          <h3>Tasking</h3>
+          <!-- C3: Template selector -->
+          <div style="margin-bottom:10px">
+            <label class="mini">Template</label>
+            <select id="task-template"><option value="">— none —</option></select>
+          </div>
+          <div class="grid2">
+            <div>
+              <label class="mini">Subject</label>
+              <input id="dispatch-subject" placeholder="Implement X" />
+            </div>
+            <div>
+              <label class="mini">Directory</label>
+              <input id="dispatch-directory" placeholder="/path/to/repo" />
+            </div>
+          </div>
+          <div style="margin-top:10px">
+            <label class="mini">Prompt / Native Task Text</label>
+            <textarea id="dispatch-prompt" placeholder="Worker prompt or native task"></textarea>
+          </div>
+          <div class="grid3" style="margin-top:10px">
+            <div>
+              <label class="mini">Priority</label>
+              <select id="dispatch-priority"><option value="normal">normal</option><option value="high">high</option><option value="low">low</option><option value="critical">critical</option></select>
+            </div>
+            <div>
+              <label class="mini">Role Hint</label>
+              <select id="dispatch-role"><option value="">auto</option><option value="implementer">implementer</option><option value="reviewer">reviewer</option><option value="researcher">researcher</option><option value="planner">planner</option></select>
+            </div>
+            <div>
+              <label class="mini">Force Path</label>
+              <select id="force-path"><option value="">auto</option><option value="coordinator">coordinator</option><option value="native">native</option></select>
+            </div>
+          </div>
+          <div class="grid2" style="margin-top:8px">
+            <div>
+              <label class="mini">Native Path Mode</label>
+              <select id="native-force-mode"><option value="">auto</option><option value="bridge">bridge</option><option value="ephemeral">ephemeral</option></select>
+            </div>
+            <div>
+              <!-- B3: Preview before dispatch -->
+              <label class="mini" style="display:flex;align-items:center;gap:6px">
+                <input type="checkbox" id="preview-before-dispatch" style="width:auto" />
+                Preview route before dispatch
+              </label>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:12px">
+            <button id="btn-queue">Queue</button>
+            <button id="btn-assign">Assign Next</button>
+            <button id="btn-rebalance">Rebalance</button>
+            <button id="btn-dispatch" class="primary">Dispatch</button>
+          </div>
+        </div>
+
+        <div class="section" data-focus-visible="all approval dispatch">
+          <h3>Teammate Quick Actions</h3>
+          <div class="grid2">
+            <div>
+              <label class="mini">Native Agent / Worker Name</label>
+              <input id="target-agent" placeholder="reviewer or alpha" />
+            </div>
+            <div>
+              <label class="mini">Session ID (directive/wake)</label>
+              <input id="target-session" placeholder="abcd1234" />
+            </div>
+          </div>
+          <div style="margin-top:8px">
+            <label class="mini">Message / Directive</label>
+            <textarea id="message-content" placeholder="Instruction or message"></textarea>
+          </div>
+          <div class="grid2" style="margin-top:8px">
+            <div>
+              <label class="mini">Worker Task ID (approval)</label>
+              <input id="approval-task-id" placeholder="W123" />
+            </div>
+            <div>
+              <label class="mini">Approval Mode</label>
+              <select id="approval-mode"><option value="approve">approve</option><option value="reject">reject</option></select>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:10px">
+            <button id="btn-native-message">Native Message</button>
+            <button id="btn-directive">Directive</button>
+            <button id="btn-wake">Wake</button>
+            <button id="btn-approval" class="warn">Approve/Reject</button>
+          </div>
+        </div>
+
+        <div class="section" data-focus-visible="all dispatch recovery">
+          <h3>Result + Route</h3>
+          <pre id="result"></pre>
+          <!-- C6: No-candidate explanation -->
+          <div id="no-candidate-explain" style="margin-top:8px"></div>
+        </div>
+
+        <div class="section" data-focus-visible="all dispatch">
+          <h3>Route Simulation</h3>
+          <div class="grid2">
+            <div>
+              <label class="mini">Action</label>
+              <select id="route-sim-action">
+                <option value="dispatch">dispatch</option>
+                <option value="queue-task">queue-task</option>
+                <option value="assign-next">assign-next</option>
+                <option value="rebalance">rebalance</option>
+                <option value="message">message</option>
+                <option value="directive">directive</option>
+                <option value="wake">wake</option>
+                <option value="native-task">native-task</option>
+                <option value="native-message">native-message</option>
+              </select>
+            </div>
+            <div>
+              <label class="mini">Preview Path</label>
+              <div class="tiny">See adapter/path decision before executing.</div>
+            </div>
+          </div>
+          <!-- B3: Decision trace display -->
+          <div id="route-sim-trace" style="margin-top:8px"></div>
+          <pre id="route-sim-result" style="margin-top:8px"></pre>
+        </div>
+
+        <div class="section" data-focus-visible="all">
+          <h3>UI Preferences</h3>
+          <div class="grid2">
+            <div>
+              <label class="mini">Custom Hotkeys (JSON)</label>
+              <textarea id="hotkeys-json" placeholder='{"simulate":"s","approveSafe":"u","wakeStale":"z"}'></textarea>
+            </div>
+            <div>
+              <label class="mini">Saved Macros (JSON)</label>
+              <textarea id="macros-json" placeholder='[{"name":"Bridge Recovery","steps":[{"kind":"bridgeEnsure"},{"kind":"bridgeValidate"}]}]'></textarea>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:8px">
+            <button id="btn-save-ui-prefs">Save UI Prefs</button>
+            <button id="btn-run-macro">Run First Macro</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="palette" id="palette">
+    <div class="palette-card">
+      <input id="palette-input" placeholder="Type an action (queue, dispatch, rebalance, native message, directive, probe native)..." />
+      <div class="palette-list" id="palette-list"></div>
+    </div>
+  </div>
+
+  <script src="/ui/app.js"></script>
+</body>
+</html>

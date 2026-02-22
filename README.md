@@ -331,6 +331,7 @@ Hard rules: configurable agent cap per session (default 5), no parallel same-typ
 | `pre-compact-save.sh` | PreCompact | Saves session state before context compaction |
 | `self-heal.py` | SessionStart | Auto-repairs missing/corrupt files |
 | `mcp-readiness.py` | SessionStart | Validates MCP server availability |
+| `teammate-lifecycle.sh` | TeammateIdle/TaskCompleted | Ingests native Agent Teams lifecycle events into telemetry |
 
 ### On-Demand Mode Loading
 
@@ -390,13 +391,15 @@ This system complements Claude Code's built-in Agent Teams. Use both together. S
 
 | Capability | Agent Teams | Claude Lead System |
 |---|---|---|
-| Task management | `TaskCreate`, `TaskUpdate` | — |
-| Agent messaging | `SendMessage` | `coord_wake_session` (inbox + Enter keystroke) |
+| Task management | `TaskCreate`, `TaskUpdate` | `coord_create_task`, dependency graph, metadata |
+| Agent messaging | `SendMessage` | `coord_send_message`, `coord_send_directive`, `coord_wake_session` |
+| Native team APIs | `TeamCreate`, `TeamStatus`, `SendMessage`, `Task` | Supported as optional execution path from `/lead` |
+| Native teammate lifecycle hooks | `TeammateIdle`, `TaskCompleted` | Ingested into activity/session telemetry via `teammate-lifecycle.sh` |
 | **Pre-edit conflict detection** | — | `conflict-guard.sh` warns before file overwrites |
 | **Session observability** | Idle notifications only | Tool counts, files touched, recent ops, activity log |
 | **Native terminal tabs** | `Task` tool (background only) | iTerm2 splits, gnome-terminal tabs, Windows Terminal panes |
 | **Sequential pipelines** | Manual chaining | `coord_run_pipeline` with status tracking |
-| **Worker lifecycle** | Background agents | PID tracking, kill, result retrieval |
+| **Worker lifecycle** | Background agents | PID tracking, kill, resume, result retrieval, budget-aware plan gating |
 
 ---
 

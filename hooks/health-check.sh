@@ -157,6 +157,7 @@ check "terminal-heartbeat" ~/.claude/hooks/terminal-heartbeat.sh required
 check "session-register" ~/.claude/hooks/session-register.sh required
 check "check-inbox" ~/.claude/hooks/check-inbox.sh required
 check "session-end" ~/.claude/hooks/session-end.sh required
+check "teammate-lifecycle" ~/.claude/hooks/teammate-lifecycle.sh required
 check "token-guard" ~/.claude/hooks/token-guard.py required
 check "read-efficiency-guard" ~/.claude/hooks/read-efficiency-guard.py required
 check "hook-utils" ~/.claude/hooks/hook_utils.py required
@@ -212,6 +213,10 @@ fi
 echo ""
 echo "Settings:"
 if [ -f ~/.claude/settings.local.json ]; then
+  if jq -e '.mcpServers.coordinator.args[]? | strings | contains("__HOME__")' ~/.claude/settings.local.json &>/dev/null; then
+    echo "  FAIL  unresolved __HOME__ placeholder in coordinator args"
+    FAIL=$((FAIL + 1))
+  fi
   # Check heartbeat is registered
   if jq -e '.hooks.PostToolUse[].hooks[]? | select(.command | contains("terminal-heartbeat"))' ~/.claude/settings.local.json &>/dev/null; then
     echo "  PASS  heartbeat registered in PostToolUse"
@@ -231,6 +236,20 @@ if [ -f ~/.claude/settings.local.json ]; then
       echo "  WARN  inbox hook not found (messaging may not work)"
       WARN=$((WARN + 1))
     fi
+  fi
+  if jq -e '.hooks.TeammateIdle[].hooks[]? | select(.command | contains("teammate-lifecycle"))' ~/.claude/settings.local.json &>/dev/null; then
+    echo "  PASS  teammate-lifecycle registered in TeammateIdle"
+    PASS=$((PASS + 1))
+  else
+    echo "  WARN  TeammateIdle hook not registered (native team idle telemetry missing)"
+    WARN=$((WARN + 1))
+  fi
+  if jq -e '.hooks.TaskCompleted[].hooks[]? | select(.command | contains("teammate-lifecycle"))' ~/.claude/settings.local.json &>/dev/null; then
+    echo "  PASS  teammate-lifecycle registered in TaskCompleted"
+    PASS=$((PASS + 1))
+  else
+    echo "  WARN  TaskCompleted hook not registered (native completion telemetry missing)"
+    WARN=$((WARN + 1))
   fi
 else
   echo "  FAIL  settings.local.json not found"

@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
+SIDECAR_DIR="$CLAUDE_DIR/lead-sidecar"
+RUNTIME_DIR="$SIDECAR_DIR/runtime"
+PORT_FILE="$RUNTIME_DIR/sidecar.port"
+LOCK_FILE="$RUNTIME_DIR/sidecar.lock"
+LOG_FILE="$SIDECAR_DIR/logs/sidecar.out.log"
+MODE="${LEAD_SIDECAR_MODE:-lite}"
+OPEN_DASHBOARD=0
+SIDECAR_ONLY=0
+NO_SIDECAR=0
+NATIVE_ENABLE="${LEAD_SIDECAR_NATIVE_ENABLE:-}"
+NATIVE_BRIDGE_AUTOSTART="${LEAD_SIDECAR_NATIVE_BRIDGE_AUTOSTART:-}"
+
+usage() {
+  cat <<USAGE
+Usage: claudex [--mode lite|hybrid|full] [--native] [--no-native] [--bridge-autostart] [--no-bridge-autostart] [--open-dashboard] [--sidecar-only] [--no-sidecar] [--] [claude args...]
+
+Starts/ensures the local Lead Sidecar, auto-merges Claude settings, then launches Claude.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mode)
+      MODE="$2"; shift 2 ;;
+    --open-dashboard)
+      OPEN_DASHBOARD=1; shift ;;
+    --sidecar-only)
+      SIDECAR_ONLY=1; shift ;;
+    --native)
+      NATIVE_ENABLE=1; shift ;;
+    --no-native)
+      NATIVE_ENABLE=0; shift ;;
+    --bridge-autostart)
+      NATIVE_BRIDGE_AUTOSTART=1; shift ;;
+    --no-bridge-autostart)
+      NATIVE_BRIDGE_AUTOSTART=0; shift ;;
+    --no-sidecar)
+      NO_SIDECAR=1; shift ;;
+    --help|-h)
+      usage; exit 0 ;;
+    --)
+      shift; break ;;
+    *)
+      break ;;
+  esac
+done
+
+ensure_sidecar_running() {
+  mkdir -p "$RUNTIME_DIR" "$SIDECAR_DIR/logs" "$SIDECAR_DIR/state"
+  local need_start=1
+  if [[ -f "$LOCK_FILE" ]]; then
+    local pid
+    pid=$(python3 - <<PY 2>/dev/null
+import json
+p="$LOCK_FILE"
+try:
+    print(json.load(open(p)).get('pid',''))
+except Exception:
+    print('')
+PY
+)
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+      need_start=0
+    fi
+  fi
+
+  if [[ "$need_start" -eq 1 ]]; then
+    nohup env \
+      LEAD_SIDECAR_NATIVE_ENABLE="${NATIVE_ENABLE:-${LEAD_SIDECAR_NATIVE_ENABLE:-0}}" \
+      LEAD_SIDECAR_NATIVE_BRIDGE_AUTOSTART="${NATIVE_BRIDGE_AUTOSTART:-${LEAD_SIDECAR_NATIVE_BRIDGE_AUTOSTART:-1}}" \
+      node --input-type=module -e "import(process.argv[1]).then(m=>m.startSidecarServer()).catch(err=>{console.error(err);process.exit(1)})" "$SIDECAR_DIR/server/index.js" > "$LOG_FILE" 2>&1 &
+    disown || true
+    local i
+    for i in {1..30}; do
+      [[ -f "$PORT_FILE" ]] && break
+      sleep 0.2
+    done
+    if [[ ! -f "$PORT_FILE" ]]; then
+      echo "Lead Sidecar failed to start (no port file created)." >&2
+      if [[ -f "$LOG_FILE" ]]; then
+        echo "--- sidecar log (tail) ---" >&2
+        tail -40 "$LOG_FILE" >&2 || true
+      fi
+      return 1
+    fi
+  fi
+}
+
+open_dashboard() {
+  if [[ -f "$PORT_FILE" ]]; then
+    local port
+    port=$(python3 - <<PY 2>/dev/null
+import json
+try:
+    print(json.load(open("$PORT_FILE")).get('port',''))
+except Exception:
+    print('')
+PY
+)
+    if [[ -n "${port:-}" ]]; then
+      if command -v open >/dev/null 2>&1; then open "http://127.0.0.1:${port}/" >/dev/null 2>&1 || true; fi
+      echo "Lead Sidecar dashboard: http://127.0.0.1:${port}/"
+    fi
+  fi
+}
+
+if [[ -x "$SIDECAR_DIR/bin/merge-settings.mjs" ]]; then
+  node "$SIDECAR_DIR/bin/merge-settings.mjs" --mode "$MODE" --quiet || true
+fi
+
+if [[ "$NO_SIDECAR" -ne 1 ]]; then
+  ensure_sidecar_running
+fi
+
+if [[ "$OPEN_DASHBOARD" -eq 1 ]]; then
+  open_dashboard
+fi
+
+if [[ "$NO_SIDECAR" -ne 1 ]] && [[ "${NATIVE_ENABLE:-0}" = "1" ]]; then
+  if [[ -x "$SIDECAR_DIR/bin/sidecarctl" ]]; then
+    "$SIDECAR_DIR/bin/sidecarctl" native-probe >/dev/null 2>&1 || true
+    if [[ "${NATIVE_BRIDGE_AUTOSTART:-1}" = "1" ]]; then
+      "$SIDECAR_DIR/bin/sidecarctl" bridge ensure >/dev/null 2>&1 || true
+    fi
+  fi
+fi
+
+if [[ "$SIDECAR_ONLY" -eq 1 ]]; then
+  exit 0
+fi
+
+if command -v claude >/dev/null 2>&1; then
+  exec claude "$@"
+fi
+
+echo "claude binary not found in PATH. Sidecar setup completed; launch Claude normally or install Claude CLI." >&2
+exit 1

@@ -10,17 +10,22 @@ allowed-tools:
   - Grep
   - Glob
   - Task
+  - TeamCreate
+  - TeamStatus
+  - SendMessage
   - AskUserQuestion
   - mcp__coordinator__coord_list_sessions
   - mcp__coordinator__coord_get_session
-  - mcp__coordinator__coord_send_message
   - mcp__coordinator__coord_check_inbox
   - mcp__coordinator__coord_detect_conflicts
   - mcp__coordinator__coord_spawn_terminal
   - mcp__coordinator__coord_spawn_worker
+  - mcp__coordinator__coord_spawn_workers
   - mcp__coordinator__coord_get_result
   - mcp__coordinator__coord_wake_session
   - mcp__coordinator__coord_kill_worker
+  - mcp__coordinator__coord_resume_worker
+  - mcp__coordinator__coord_upgrade_worker
   - mcp__coordinator__coord_run_pipeline
   - mcp__coordinator__coord_get_pipeline
   - mcp__coordinator__coord_create_task
@@ -30,6 +35,19 @@ allowed-tools:
   - mcp__coordinator__coord_create_team
   - mcp__coordinator__coord_get_team
   - mcp__coordinator__coord_list_teams
+  - mcp__coordinator__coord_team_dispatch
+  - mcp__coordinator__coord_team_status_compact
+  - mcp__coordinator__coord_team_queue_task
+  - mcp__coordinator__coord_team_assign_next
+  - mcp__coordinator__coord_team_rebalance
+  - mcp__coordinator__coord_sidecar_status
+  - mcp__coordinator__coord_approve_plan
+  - mcp__coordinator__coord_reject_plan
+  - mcp__coordinator__coord_shutdown_request
+  - mcp__coordinator__coord_shutdown_response
+  - mcp__coordinator__coord_write_context
+  - mcp__coordinator__coord_read_context
+  - mcp__coordinator__coord_export_context
   - mcp__coordinator__coord_broadcast
   - mcp__coordinator__coord_send_message
   - mcp__coordinator__coord_send_directive
@@ -149,7 +167,7 @@ Users can't see session IDs. Always describe terminals by:
 | State Signal | Recommended Action |
 |-------------|-------------------|
 | `files_touched` overlap between sessions | **URGENT:** Conflict — message both sessions |
-| Session stale >1h (auto-detected by heartbeat) | Note in dashboard, suggest cleanup |
+| Session stale >5m (auto-detected by heartbeat) | Note in dashboard, suggest cleanup |
 | tool_counts shows 0 Writes but many Reads | Session is exploring/stuck, may need direction |
 | tool_counts shows many Writes, few Bash | Session is writing but not testing |
 | No active sessions, pending queue tasks | Spawn a worker |
@@ -172,10 +190,13 @@ Users can't see session IDs. Always describe terminals by:
 | Need | Say |
 |------|-----|
 | **Run a task autonomously** | "run [task] in [dir]" → `coord_spawn_worker` (PREFERRED) |
+| **Run multiple workers in parallel** | "run these tasks in parallel: [...]" → `coord_spawn_workers` |
 | **Run a multi-step pipeline** | "pipeline: [task1], [task2], [task3] in [dir]" → `coord_run_pipeline` |
 | **Check worker progress** | "check worker [id]" → `coord_get_result` |
 | **Check pipeline progress** | "check pipeline [id]" → `coord_get_pipeline` |
 | **Kill a running worker** | "kill worker [id]" → `coord_kill_worker` |
+| **Resume failed worker** | "resume worker [id]" → `coord_resume_worker` |
+| **Upgrade to interactive worker** | "upgrade worker [id]" → `coord_upgrade_worker` |
 | **Wake an idle session** | "wake [session] with [message]" → `coord_wake_session` |
 | **Spawn interactive terminal** | "spawn terminal in [dir]" → `coord_spawn_terminal` |
 | Message active session | "tell [session] to [instruction]" → `coord_send_message` |
@@ -185,8 +206,10 @@ Users can't see session IDs. Always describe terminals by:
 | Need | Say |
 |------|-----|
 | **Create a task** | "task: [subject] for [assignee]" → `coord_create_task` |
+| **Create a team task** | "team [name] task: [subject]" → `coord_create_task` with `team_name` |
 | **Update task status** | "mark [task_id] as completed" → `coord_update_task` |
 | **List all tasks** | "tasks" → `coord_list_tasks` |
+| **List team tasks** | "tasks for team [name]" → `coord_list_tasks` with `team_name` |
 | **Get task details** | "task [task_id]" → `coord_get_task` |
 | **Add dependency** | "[task_id] depends on [other_id]" → `coord_update_task` with add_blocked_by |
 | **Assign task** | "assign [task_id] to [worker]" → `coord_update_task` with assignee |
@@ -194,10 +217,32 @@ Users can't see session IDs. Always describe terminals by:
 ### Team Management (persists across sessions)
 | Need | Say |
 |------|-----|
+| **Create a low-overhead team (recommended)** | "simple team [name] for [project]" → `coord_create_team preset=simple low_overhead_mode=simple` |
+| **Create a native-first team** | "native-first team [name]" → `coord_create_team preset=native-first execution_path=native` |
+| **Create a strict team** | "strict team [name]" → `coord_create_team preset=strict` |
 | **Create a team** | "team [name] for [project]" → `coord_create_team` |
+| **Dispatch team work (one call)** | "team [name] dispatch [task]" → `coord_team_dispatch` |
+| **Queue team task (no spawn yet)** | "queue [task] for team [name]" → `coord_team_queue_task` |
+| **Assign next queued task** | "assign next for team [name]" → `coord_team_assign_next` |
+| **Rebalance queued tasks** | "rebalance team [name]" → `coord_team_rebalance` |
+| **Compact team ops summary** | "team [name] status compact" → `coord_team_status_compact` |
 | **Add member** | "add [worker] to team [name]" → `coord_create_team` with members |
-| **View team** | "team [name]" → `coord_get_team` |
+| **View team (live)** | "team [name]" → `coord_get_team` (members + session activity + team tasks) |
 | **List teams** | "teams" → `coord_list_teams` |
+
+### Native Team APIs (optional execution path)
+| Need | Say |
+|------|-----|
+| **Create native team** | "native team for [goal]" → `TeamCreate` |
+| **Check native team state** | "native team status" → `TeamStatus` |
+| **Send native teammate message** | "native message [agent]" → `SendMessage` |
+| **Delegate native teammate task** | "native task [agent]: [work]" → `Task` |
+
+Use native APIs when collaboration quality matters more than strict cost. Use coordinator tools when you need conflict safety, pipelines, terminal control, or zero-token coordination.
+For lower setup overhead, start with `coord_create_team preset=simple` or `preset=native-first`, then layer policy only if needed.
+Use `coord_team_dispatch` when you want built-in tasking + worker dispatch + live team linkage in one step (best "native-like" UX on the coordinator path).
+Use `coord_team_queue_task` + `coord_team_assign_next` + `coord_team_rebalance` for first-class queued team tasking with deterministic load-aware dispatch.
+Use `coord_sidecar_status` to verify the local sidecar runtime (`claudex` wrapper / dashboard) is installed and healthy.
 
 ### Broadcast & Messaging (zero API tokens)
 | Need | Say |
@@ -255,6 +300,7 @@ Workers with `isolate=true` get their own git worktree branch (`worker/{task_id}
 | Simple fire-and-forget task | `coord_spawn_worker` (mode=pipe, default) |
 | Task needing mid-execution control | `coord_spawn_worker` with mode=interactive |
 | Multi-step sequential tasks | `coord_run_pipeline` |
+| Native team multi-agent reasoning | `TeamCreate` + `Task` + `SendMessage` |
 | Send instruction to interactive worker | `coord_send_directive` (auto-wakes) |
 | Message an ACTIVE session | `coord_send_message` |
 | Wake an IDLE session | `coord_wake_session` |
@@ -300,6 +346,22 @@ Workers with `isolate=true` get their own git worktree branch (`worker/{task_id}
 2. Interactive workers use `claude --prompt` — full hook infrastructure, lead has control
 3. Both open in system terminal (iTerm2 or Terminal.app) even if lead is in Cursor/VS Code
 
+### Budget Policy (mandatory for plan mode)
+
+When spawning workers, default to:
+- `budget_policy=warn`
+- `budget_tokens=60000`
+- `global_budget_policy=warn`
+- `global_budget_tokens=240000`
+- `max_active_workers=8`
+
+If `require_plan=true` or `permission_mode=planOnly`, include budget fields and enforce hard cap (`budget_policy=enforce`) for expensive tasks. If estimated cost exceeds budget, reduce `context_level`, switch to `pipe`, or disable plan mode.
+
+For large parallel runs (`coord_spawn_workers`), enforce global fairness:
+- set `global_budget_policy=enforce`
+- set `global_budget_tokens` for total concurrent spend
+- set `max_active_workers` to cap simultaneous workers
+
 ---
 
 ## Conflict Resolution
@@ -319,7 +381,7 @@ Run `bash ~/.claude/hooks/health-check.sh` to validate all hooks, dependencies, 
 
 ## Stale Session Cleanup
 
-Heartbeat auto-marks sessions stale after 1h of inactivity. To purge:
+Heartbeat auto-marks sessions stale after 5 minutes of inactivity. To purge:
 ```bash
 for f in ~/.claude/terminals/session-*.json; do
   STATUS=$(jq -r '.status' "$f" 2>/dev/null)

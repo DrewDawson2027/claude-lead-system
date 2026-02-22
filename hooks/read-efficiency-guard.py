@@ -24,6 +24,7 @@ Cross-platform: Works on macOS, Linux, and Windows (portable file locking).
 
 import json
 import os
+import re
 import sys
 import time
 from typing import Dict, List
@@ -38,6 +39,8 @@ ESCALATION_THRESHOLD = 15   # Block after this many sequential reads (raised: 10
 DUPLICATE_FILE_LIMIT = 3    # Block same file after this many reads
 SEQUENTIAL_WINDOW = 120     # Seconds window for sequential detection (raised: 90s too tight for analysis)
 READ_TTL = 300              # Prune read records older than 5 minutes
+
+SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
 
 def default_read_state() -> Dict:
@@ -59,6 +62,10 @@ def main():
     tool_name = input_data.get("tool_name", "")
     tool_input = input_data.get("tool_input", {})
     session_id = input_data.get("session_id", "unknown")
+
+    if not SESSION_ID_RE.match(str(session_id)):
+        print("BLOCKED: Invalid session_id in read-efficiency-guard payload.", file=sys.stderr)
+        sys.exit(2)
 
     if tool_name != "Read":
         sys.exit(0)

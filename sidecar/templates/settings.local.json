@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Task",
+      "TeamCreate",
+      "TeamStatus",
+      "SendMessage",
+      "mcp__coordinator__coord_create_team",
+      "mcp__coordinator__coord_get_team",
+      "mcp__coordinator__coord_list_teams",
+      "mcp__coordinator__coord_team_dispatch",
+      "mcp__coordinator__coord_team_status_compact",
+      "mcp__coordinator__coord_team_queue_task",
+      "mcp__coordinator__coord_team_assign_next",
+      "mcp__coordinator__coord_team_rebalance",
+      "mcp__coordinator__coord_sidecar_status",
+      "mcp__coordinator__coord_send_message",
+      "mcp__coordinator__coord_send_directive",
+      "mcp__coordinator__coord_approve_plan",
+      "mcp__coordinator__coord_reject_plan",
+      "mcp__coordinator__coord_wake_session"
+    ]
+  }
+}

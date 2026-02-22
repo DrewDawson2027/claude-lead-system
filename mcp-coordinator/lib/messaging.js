@@ -3,7 +3,7 @@
  * @module messaging
  */
 
-import { existsSync, renameSync, unlinkSync } from "fs";
+import { existsSync, readdirSync, renameSync, unlinkSync } from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
 import {
@@ -62,19 +62,62 @@ export function handleCheckInbox(args) {
 }
 
 /**
+ * Resolve a worker name to a session ID by scanning session files.
+ * Checks active sessions first, then falls back to meta files.
+ * @param {string} targetName - Worker name to resolve
+ * @returns {string|null} Session ID (8-char) or null
+ */
+function resolveWorkerName(targetName) {
+  // Check session files for worker_name field (set by heartbeat from CLAUDE_WORKER_NAME env var)
+  const sessions = getAllSessions();
+  for (const s of sessions) {
+    if (s.worker_name === targetName && getSessionStatus(s) !== "closed") {
+      return s.session;
+    }
+  }
+  // Fallback: check meta files for worker_name matching task_id pattern
+  const { RESULTS_DIR } = cfg();
+  try {
+    const files = readdirSync(RESULTS_DIR).filter(f => f.endsWith(".meta.json") && !f.includes(".done"));
+    for (const f of files) {
+      const meta = readJSON(join(RESULTS_DIR, f));
+      if (meta?.worker_name === targetName && meta.notify_session_id) {
+        // Find the worker's session by checking its notify relationship
+        const workerSessions = sessions.filter(s => s.current_task === meta.task_id);
+        if (workerSessions.length > 0) return workerSessions[0].session;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+/**
  * Handle coord_send_message tool call.
  * Writes message to target session's inbox file — zero API tokens.
- * @param {object} args - { from, to, content, priority }
+ * Supports name-based targeting via target_name parameter.
+ * @param {object} args - { from, to, target_name, content, priority }
  * @returns {object} MCP text response
  */
 export function handleSendMessage(args) {
   const { INBOX_DIR, TERMINALS_DIR } = cfg();
   const from = String(args.from || "lead").trim();
-  const to = sanitizeShortSessionId(args.to);
   const content = String(args.content || "").trim();
   const priority = args.priority === "urgent" ? "urgent" : "normal";
   if (!content) return text("Message content is required.");
   assertMessageBudget(content);
+
+  // Name-based resolution: resolve target_name → session ID
+  let to;
+  const targetName = args.target_name ? String(args.target_name).trim() : null;
+  if (targetName) {
+    const resolved = resolveWorkerName(targetName);
+    if (!resolved) return text(`Worker name "${targetName}" not found. Use coord_list_sessions to find active workers.`);
+    to = resolved;
+  } else if (args.to) {
+    to = sanitizeShortSessionId(args.to);
+  } else {
+    return text("Either 'to' (session ID) or 'target_name' (worker name) is required.");
+  }
 
   const inboxFile = join(INBOX_DIR, `${to}.jsonl`);
   appendJSONLineSecure(inboxFile, {

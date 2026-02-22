@@ -94,11 +94,33 @@ Session file (session-a1b2c3d4.json):
 
 | Need | Use |
 |---|---|
+| Native multi-agent collaboration | Agent Teams (`TeamCreate`, `Task`, `SendMessage`, `TeamStatus`) |
 | Task assignment | Agent Teams (`TaskCreate`) |
+| Low-overhead team bootstrap | `coord_create_team preset=simple` or `preset=native-first` |
 | Agent-to-agent messaging | Agent Teams (`SendMessage`) or `coord_wake_session` |
 | Pre-edit conflict detection | `conflict-guard.sh` (automatic) |
 | Session dashboard | `/lead` |
+| Live teammate UX (session + task board view) | `coord_get_team` |
+| Compact team ops summary (action-panel feed) | `coord_team_status_compact` |
+| One-call team task + dispatch | `coord_team_dispatch` |
+| Queue / assign / rebalance first-class team tasks | `coord_team_queue_task`, `coord_team_assign_next`, `coord_team_rebalance` |
+| Local sidecar runtime status (wrapper + dashboard) | `coord_sidecar_status` |
 | Background autonomous work | `coord_spawn_worker` |
+| Role-based worker defaults | `coord_spawn_worker role=researcher|implementer|reviewer|planner` |
+| Budget-aware plan gating | `coord_spawn_worker budget_policy=warn|enforce budget_tokens=N` |
+| Global fleet budget + fairness | `coord_spawn_worker global_budget_policy=warn|enforce global_budget_tokens=N max_active_workers=N` |
+| Team-scoped built-in task board flow | `coord_create_task team_name=X`, `coord_list_tasks team_name=X` |
 | Sequential task chains | `coord_run_pipeline` |
 | Terminal spawning | `coord_spawn_terminal` |
+| Teammate lifecycle telemetry | `teammate-lifecycle.sh` (`TeammateIdle`, `TaskCompleted`) |
 | Activity metrics | `activity.jsonl` + session files |
+
+### Sidecar UX (Active In-Session Teammate Control)
+
+The local sidecar (`~/.claude/lead-sidecar`) adds a faster operator surface above native teams + coordinator tools:
+
+- Web dashboard: `http://127.0.0.1:<port>/` (live roster, queue, timeline, actions)
+- TUI: `sidecarctl tui` (hotkeys for queue/dispatch/rebalance/message/approve/wake)
+- Wrapper launch: `claudex --mode lite|hybrid|full` (starts sidecar + merges settings idempotently)
+
+This is the practical path to a stronger in-session teammate UX than native-only Agent Teams, while keeping coordinator policy/cost controls available.

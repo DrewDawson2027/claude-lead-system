@@ -3,7 +3,8 @@
  * @module gc
  */
 
-import { readdirSync, readFileSync, statSync, unlinkSync, rmSync } from "fs";
+import { readdirSync, readFileSync, statSync, unlinkSync, rmSync, existsSync, writeFileSync, mkdirSync } from "fs";
+import { execFileSync } from "child_process";
 import { join } from "path";
 import { cfg } from "./constants.js";
 
@@ -15,7 +16,30 @@ import { cfg } from "./constants.js";
 export function runGC() {
   const { TERMINALS_DIR, RESULTS_DIR, GC_MAX_AGE_MS } = cfg();
   const cutoff = Date.now() - GC_MAX_AGE_MS;
-  let sessions = 0, results = 0, pipelines = 0;
+  let sessions = 0, results = 0, pipelines = 0, worktrees = 0;
+
+  // E2e: Pre-GC backup — record what will be cleaned
+  try {
+    const backupsDir = join(TERMINALS_DIR, '..', 'lead-sidecar', 'state', 'backups');
+    mkdirSync(backupsDir, { recursive: true });
+    const gcTargets = [];
+    try {
+      for (const f of readdirSync(TERMINALS_DIR).filter(x => x.startsWith('session-') && x.endsWith('.json'))) {
+        try {
+          if (statSync(join(TERMINALS_DIR, f)).mtimeMs <= cutoff) {
+            const d = JSON.parse(readFileSync(join(TERMINALS_DIR, f), 'utf-8'));
+            if (d.status === 'stale' || d.status === 'closed') gcTargets.push(f);
+          }
+        } catch {}
+      }
+    } catch {}
+    if (gcTargets.length > 0) {
+      writeFileSync(
+        join(backupsDir, `pre-gc-${Date.now()}.json`),
+        JSON.stringify({ operation: 'gc', created_at: new Date().toISOString(), targets: { sessions: gcTargets } }),
+      );
+    }
+  } catch {}
 
   // Clean old session files (stale/closed only)
   try {
@@ -65,5 +89,36 @@ export function runGC() {
     }
   } catch { /* RESULTS_DIR may not exist yet */ }
 
-  return { sessions, results, pipelines };
+  // Clean worktrees for completed isolated workers with no uncommitted changes
+  try {
+    for (const f of readdirSync(RESULTS_DIR)) {
+      if (!f.endsWith(".meta.json.done")) continue;
+      const metaFile = join(RESULTS_DIR, f.replace(".done", ""));
+      try {
+        const meta = JSON.parse(readFileSync(metaFile, "utf-8"));
+        if (!meta?.isolated || !meta.directory) continue;
+        if (!existsSync(meta.directory)) continue;
+        // Check for uncommitted changes in the worktree
+        const diff = execFileSync("git", ["diff", "--stat"], {
+          cwd: meta.directory,
+          timeout: 5000,
+        }).toString().trim();
+        const untracked = execFileSync("git", ["ls-files", "--others", "--exclude-standard"], {
+          cwd: meta.directory,
+          timeout: 5000,
+        }).toString().trim();
+        if (!diff && !untracked) {
+          // No changes — safe to remove worktree
+          const parentDir = meta.original_directory || join(meta.directory, "..");
+          execFileSync("git", ["worktree", "remove", meta.directory], {
+            cwd: parentDir,
+            timeout: 10000,
+          });
+          worktrees++;
+        }
+      } catch { /* skip problematic worktrees */ }
+    }
+  } catch { /* worktree cleanup is best-effort */ }
+
+  return { sessions, results, pipelines, worktrees };
 }

@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+set -euo pipefail
+CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
+SIDECAR_DIR="$CLAUDE_DIR/lead-sidecar"
+RUNTIME_DIR="$SIDECAR_DIR/runtime"
+PORT_FILE="$RUNTIME_DIR/sidecar.port"
+LOCK_FILE="$RUNTIME_DIR/sidecar.lock"
+API_TOKEN_FILE="$RUNTIME_DIR/api.token"
+
+get_port() {
+  [[ -f "$PORT_FILE" ]] || return 1
+  python3 - <<PY 2>/dev/null
+import json
+print(json.load(open("$PORT_FILE")).get("port",""))
+PY
+}
+
+get_token() {
+  [[ -f "$API_TOKEN_FILE" ]] || return 0
+  python3 - <<PY 2>/dev/null
+import json
+print(json.load(open("$API_TOKEN_FILE")).get("token",""))
+PY
+}
+
+api() {
+  local method="$1"; shift
+  local path="$1"; shift
+  local body="${1:-}"
+  local port token
+  port=$(get_port) || { echo "sidecar not running (no port file)" >&2; return 1; }
+  token=$(get_token || true)
+  local headers=(-H 'Content-Type: application/json')
+  if [[ -n "${token:-}" ]]; then headers+=(-H "Authorization: Bearer $token"); fi
+  if [[ "$method" = "GET" ]]; then
+    curl -fsS "http://127.0.0.1:${port}${path}" "${headers[@]}"
+  else
+    curl -fsS -X "$method" "http://127.0.0.1:${port}${path}" "${headers[@]}" -d "${body:-{}}"
+  fi
+}
+
+launchagent_plist() {
+  cat <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.drewdawson.lead-sidecar</string>
+  <key>ProgramArguments</key>
+  <array><string>$SIDECAR_DIR/bin/claudex</string><string>--sidecar-only</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>$SIDECAR_DIR/logs/launchagent.out.log</string>
+  <key>StandardErrorPath</key><string>$SIDECAR_DIR/logs/launchagent.err.log</string>
+</dict></plist>
+PLIST
+}
+
+cmd="${1:-status}"
+case "$cmd" in
+  start)
+    "$SIDECAR_DIR/bin/claudex" --sidecar-only
+    ;;
+  status)
+    if [[ -f "$LOCK_FILE" ]]; then cat "$LOCK_FILE"; echo; else echo '{"running":false}'; fi
+    if [[ -f "$PORT_FILE" ]]; then echo 'port:'; cat "$PORT_FILE"; echo; fi
+    ;;
+  open)
+    "$SIDECAR_DIR/bin/claudex" --sidecar-only --open-dashboard
+    ;;
+  tui)
+    node "$SIDECAR_DIR/ui-tui/index.js"
+    ;;
+  native-status)
+    api GET /native/status
+    echo
+    ;;
+  native-probe)
+    api POST /native/probe '{}'
+    echo
+    ;;
+  bridge)
+    sub="${2:-status}"
+    case "$sub" in
+      status)
+        api GET /native/bridge/status; echo ;;
+      validation)
+        api GET /native/bridge/validation; echo ;;
+      start|ensure)
+        api POST /native/bridge/ensure '{}'; echo ;;
+      restart)
+        # No dedicated stop endpoint yet; ensure will recover if stale.
+        api POST /native/bridge/ensure '{}'; echo ;;
+      validate)
+        api POST /native/bridge/validate '{}'; echo ;;
+      validate-sim)
+        api POST /native/bridge/validate '{"simulate":true}'; echo ;;
+      *)
+        echo "Usage: sidecarctl bridge [status|validation|start|ensure|restart|validate|validate-sim]" >&2; exit 1 ;;
+    esac
+    ;;
+  maintenance)
+    sub="${2:-run}"
+    case "$sub" in
+      run)
+        api POST /maintenance/run '{}'; echo ;;
+      *)
+        echo "Usage: sidecarctl maintenance [run]" >&2; exit 1 ;;
+    esac
+    ;;
+  diagnostics)
+    sub="${2:-export}"
+    case "$sub" in
+      export)
+        api POST /diagnostics/export "{\"label\":\"sidecarctl\"}"; echo ;;
+      latest|show)
+        api GET /diagnostics/latest; echo ;;
+      *)
+        echo "Usage: sidecarctl diagnostics [export|latest]" >&2; exit 1 ;;
+    esac
+    ;;
+  doctor)
+    echo "== Lead Sidecar Doctor =="
+    echo "sidecar dir: $SIDECAR_DIR"
+    command -v node >/dev/null && echo "node: ok" || echo "node: missing"
+    command -v claude >/dev/null && echo "claude: ok" || echo "claude: missing"
+    [[ -f "$CLAUDE_DIR/settings.local.json" ]] && echo "settings.local.json: present" || echo "settings.local.json: missing"
+    if [[ -f "$CLAUDE_DIR/settings.local.json" ]]; then
+      python3 - <<PY 2>/dev/null || true
+import json
+s=json.load(open("$CLAUDE_DIR/settings.local.json"))
+a=set(s.get("permissions",{}).get("allow",[]))
+need=["TeamCreate","TeamStatus","SendMessage","Task"]
+print("native perms:", "ok" if all(x in a for x in need) else "missing", [x for x in need if x not in a])
+print("coordinator mcp:", "ok" if "coordinator" in s.get("mcpServers",{}) else "missing")
+PY
+    fi
+    if [[ -f "$PORT_FILE" ]]; then
+      echo "sidecar api /health:" && api GET /health || true
+      echo
+      echo "sidecar native status:" && api GET /native/status || true
+      echo
+      echo "sidecar bridge validation:" && api GET /native/bridge/validation || true
+      echo
+      echo "diagnostics latest:" && api GET /diagnostics/latest || true
+      echo
+    else
+      echo "sidecar runtime: not running"
+    fi
+    ;;
+  autostart)
+    sub="${2:-install}"
+    plist="$HOME/Library/LaunchAgents/com.drewdawson.lead-sidecar.plist"
+    case "$sub" in
+      install)
+        mkdir -p "$HOME/Library/LaunchAgents" "$SIDECAR_DIR/logs"
+        launchagent_plist > "$plist"
+        launchctl unload "$plist" >/dev/null 2>&1 || true
+        launchctl load "$plist"
+        echo "Installed LaunchAgent: $plist"
+        ;;
+      remove|uninstall)
+        launchctl unload "$plist" >/dev/null 2>&1 || true
+        rm -f "$plist"
+        echo "Removed LaunchAgent: $plist"
+        ;;
+      *)
+        echo "Usage: sidecarctl autostart [install|remove]" >&2; exit 1 ;;
+    esac
+    ;;
+  *)
+    echo "Usage: sidecarctl [start|status|open|tui|doctor|native-status|native-probe|bridge ...|maintenance ...|diagnostics ...|autostart ...]" >&2
+    exit 1
+    ;;
+esac

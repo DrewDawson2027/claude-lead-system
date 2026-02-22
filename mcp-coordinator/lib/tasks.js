@@ -4,11 +4,133 @@
  * @module tasks
  */
 
-import { existsSync, readdirSync, mkdirSync } from "fs";
+import { existsSync, readdirSync, mkdirSync, appendFileSync, readFileSync } from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
 import { sanitizeId, sanitizeName, writeFileSecure, ensureSecureDirectory } from "./security.js";
 import { readJSON, text } from "./helpers.js";
+
+// ── C2: Audit Trail ──
+
+function auditFile(taskId) {
+  return join(cfg().RESULTS_DIR, `${sanitizeId(taskId, "task_id")}.audit.jsonl`);
+}
+
+export function appendAuditEntry(taskId, event, from, to, details = {}) {
+  const entry = { ts: new Date().toISOString(), event, from: from || null, to: to || null, details };
+  try {
+    appendFileSync(auditFile(taskId), JSON.stringify(entry) + "\n", "utf-8");
+  } catch {}
+}
+
+export function readAuditTrail(taskId) {
+  try {
+    return readFileSync(auditFile(taskId), "utf-8")
+      .split("\n")
+      .filter(Boolean)
+      .map(line => { try { return JSON.parse(line); } catch { return null; } })
+      .filter(Boolean);
+  } catch { return []; }
+}
+
+export function handleGetTaskAudit(args) {
+  const taskId = sanitizeId(args.task_id, "task_id");
+  const trail = readAuditTrail(taskId);
+  if (trail.length === 0) return text(`No audit trail for task ${taskId}.`);
+  let out = `## Audit Trail: ${taskId} (${trail.length} events)\n\n`;
+  for (const e of trail) {
+    out += `- **${e.ts}** ${e.event}`;
+    if (e.from) out += ` from=${e.from}`;
+    if (e.to) out += ` to=${e.to}`;
+    if (e.details && Object.keys(e.details).length) out += ` | ${JSON.stringify(e.details)}`;
+    out += `\n`;
+  }
+  return text(out);
+}
+
+// ── C3: Quality Gates ──
+
+export function handleCheckQualityGates(args) {
+  const taskId = sanitizeId(args.task_id, "task_id");
+  const task = readJSON(join(tasksDir(), `${taskId}.json`));
+  if (!task) return text(`Task ${taskId} not found.`);
+  const gates = Array.isArray(task.metadata?.quality_gates) ? task.metadata.quality_gates : [];
+  const criteria = Array.isArray(task.metadata?.acceptance_criteria) ? task.metadata.acceptance_criteria : [];
+  if (gates.length === 0 && criteria.length === 0) return text(`Task ${taskId} has no quality gates or acceptance criteria.`);
+
+  const results = [];
+  for (const gate of gates) {
+    const passed = task.metadata?.gate_results?.[gate] === true;
+    results.push({ gate, passed, type: "quality_gate" });
+  }
+  for (const criterion of criteria) {
+    const passed = (task.metadata?.criteria_results || []).includes(criterion);
+    results.push({ gate: criterion, passed, type: "acceptance_criterion" });
+  }
+  const allPassed = results.every(r => r.passed);
+  let out = `## Quality Gates: ${taskId}\n\n`;
+  out += `- Overall: ${allPassed ? "PASS" : "FAIL"}\n\n`;
+  for (const r of results) {
+    out += `- ${r.passed ? "[x]" : "[ ]"} (${r.type}) ${r.gate}\n`;
+  }
+  return text(out);
+}
+
+// ── C1: Reassignment ──
+
+export function handleReassignTask(args) {
+  const taskId = sanitizeId(args.task_id, "task_id");
+  const dir = tasksDir();
+  const taskFile = join(dir, `${taskId}.json`);
+  const task = readJSON(taskFile);
+  if (!task) return text(`Task ${taskId} not found.`);
+  if (task.status !== "in_progress") return text(`Task ${taskId} is not in_progress (current: ${task.status}). Only in-progress tasks can be reassigned.`);
+
+  const newAssignee = args.new_assignee ? sanitizeName(args.new_assignee, "new_assignee") : null;
+  if (!newAssignee) return text("new_assignee is required.");
+  const oldAssignee = task.assignee || null;
+  if (oldAssignee === newAssignee) return text(`Task ${taskId} is already assigned to ${newAssignee}.`);
+
+  // Build handoff snapshot
+  const handoff = {
+    task_id: taskId,
+    subject: task.subject,
+    from: oldAssignee,
+    to: newAssignee,
+    reason: args.reason || "manual reassignment",
+    handoff_at: new Date().toISOString(),
+    task_description: task.description || "",
+    files: task.files || [],
+    metadata_snapshot: task.metadata || {},
+    progress_context: args.progress_context || null,
+  };
+  const handoffFile = join(cfg().RESULTS_DIR, `${taskId}.handoff.json`);
+  writeFileSecure(handoffFile, JSON.stringify(handoff, null, 2));
+
+  // Update task
+  task.assignee = newAssignee;
+  task.updated = new Date().toISOString();
+  if (!task.metadata) task.metadata = {};
+  task.metadata.last_reassignment = {
+    from: oldAssignee,
+    to: newAssignee,
+    at: handoff.handoff_at,
+    reason: handoff.reason,
+  };
+  writeFileSecure(taskFile, JSON.stringify(task, null, 2));
+
+  // Audit trail
+  appendAuditEntry(taskId, "reassigned", oldAssignee, newAssignee, { reason: handoff.reason });
+
+  return text(
+    `## Task Reassigned: ${taskId}\n\n` +
+    `- Subject: ${task.subject}\n` +
+    `- From: ${oldAssignee || "unassigned"}\n` +
+    `- To: ${newAssignee}\n` +
+    `- Reason: ${handoff.reason}\n` +
+    `- Handoff snapshot: ${handoffFile}\n`
+  );
+}
 
 /**
  * Get the tasks directory path, ensuring it exists.
@@ -58,11 +180,13 @@ export function handleCreateTask(args) {
     subject,
     description: String(args.description || "").trim(),
     status: "pending",
+    team_name: args.team_name ? sanitizeName(args.team_name, "team_name") : null,
     assignee: args.assignee ? sanitizeName(args.assignee, "assignee") : null,
     priority: args.priority === "high" ? "high" : args.priority === "low" ? "low" : "normal",
     files: (args.files || []).map(f => String(f).trim()).filter(Boolean),
     blocked_by: (args.blocked_by || []).map(id => sanitizeId(id, "blocked_by")),
     blocks: [],
+    metadata: (args.metadata && typeof args.metadata === "object" && !Array.isArray(args.metadata)) ? args.metadata : {},
     created: new Date().toISOString(),
     updated: new Date().toISOString(),
   };
@@ -80,10 +204,13 @@ export function handleCreateTask(args) {
   }
 
   writeFileSecure(taskFile, JSON.stringify(task, null, 2));
+  appendAuditEntry(taskId, "created", null, task.assignee, { subject, priority: task.priority, team: task.team_name });
+  if (task.assignee) appendAuditEntry(taskId, "assigned", null, task.assignee, {});
   return text(
     `Task created: **${taskId}**\n` +
     `- Subject: ${subject}\n` +
     `- Priority: ${task.priority}\n` +
+    `- Team: ${task.team_name || "none"}\n` +
     `- Assignee: ${task.assignee || "unassigned"}\n` +
     `- Blocked by: ${task.blocked_by.length ? task.blocked_by.join(", ") : "none"}`
   );
@@ -112,6 +239,10 @@ export function handleUpdateTask(args) {
   if (args.assignee !== undefined) {
     task.assignee = args.assignee ? sanitizeName(args.assignee, "assignee") : null;
     changes.push(`assignee → ${task.assignee || "unassigned"}`);
+  }
+  if (args.team_name !== undefined) {
+    task.team_name = args.team_name ? sanitizeName(args.team_name, "team_name") : null;
+    changes.push(`team → ${task.team_name || "none"}`);
   }
   if (args.subject) {
     task.subject = String(args.subject).trim();
@@ -168,10 +299,29 @@ export function handleUpdateTask(args) {
     changes.push(`blocks += ${args.add_blocks.join(", ")}`);
   }
 
+  // Merge metadata (null values delete keys)
+  if (args.metadata && typeof args.metadata === "object" && !Array.isArray(args.metadata)) {
+    if (!task.metadata) task.metadata = {};
+    for (const [k, v] of Object.entries(args.metadata)) {
+      if (v === null) {
+        delete task.metadata[k];
+      } else {
+        task.metadata[k] = v;
+      }
+    }
+    changes.push(`metadata updated`);
+  }
+
   if (changes.length === 0) return text("No changes specified.");
 
   task.updated = new Date().toISOString();
   writeFileSecure(taskFile, JSON.stringify(task, null, 2));
+  // C2: Audit trail for updates
+  for (const change of changes) {
+    if (change.startsWith("status")) appendAuditEntry(taskId, `status_${args.status}`, null, null, { change });
+    else if (change.startsWith("assignee")) appendAuditEntry(taskId, "assigned", null, task.assignee, { change });
+    else appendAuditEntry(taskId, "updated", null, null, { change });
+  }
   return text(`Task ${taskId} updated:\n${changes.map(c => `- ${c}`).join("\n")}`);
 }
 
@@ -184,6 +334,10 @@ export function handleListTasks(args = {}) {
   let tasks = getAllTasks();
   if (args.status) tasks = tasks.filter(t => t.status === args.status);
   if (args.assignee) tasks = tasks.filter(t => t.assignee === args.assignee);
+  if (args.team_name) {
+    const tn = sanitizeName(args.team_name, "team_name");
+    tasks = tasks.filter(t => t.team_name === tn || t.metadata?.team_name === tn);
+  }
 
   if (tasks.length === 0) return text("No tasks found.");
 
@@ -200,10 +354,10 @@ export function handleListTasks(args = {}) {
       return s && s !== "completed" && s !== "cancelled";
     });
     const blocked = openBlockers.length > 0 ? `BLOCKED(${openBlockers.join(",")})` : "";
-    return `| ${t.task_id} | ${t.subject.slice(0, 40)} | ${t.status} | ${t.priority} | ${t.assignee || "-"} | ${blocked} |`;
+    return `| ${t.task_id} | ${t.team_name || "-"} | ${t.subject.slice(0, 40)} | ${t.status} | ${t.priority} | ${t.assignee || "-"} | ${blocked} |`;
   });
 
-  const table = `| ID | Subject | Status | Priority | Assignee | Blocked |\n|-----|---------|--------|----------|----------|---------|` + "\n" + rows.join("\n");
+  const table = `| ID | Team | Subject | Status | Priority | Assignee | Blocked |\n|-----|------|---------|--------|----------|----------|---------|` + "\n" + rows.join("\n");
   return text(`## Tasks (${tasks.length})\n\n${table}`);
 }
 
@@ -221,6 +375,7 @@ export function handleGetTask(args) {
   output += `- **Subject:** ${task.subject}\n`;
   output += `- **Status:** ${task.status}\n`;
   output += `- **Priority:** ${task.priority}\n`;
+  output += `- **Team:** ${task.team_name || "none"}\n`;
   output += `- **Assignee:** ${task.assignee || "unassigned"}\n`;
   output += `- **Created:** ${task.created}\n`;
   output += `- **Updated:** ${task.updated}\n`;
@@ -228,6 +383,9 @@ export function handleGetTask(args) {
   if (task.files?.length) output += `\n### Files\n${task.files.map(f => `- ${f}`).join("\n")}\n`;
   if (task.blocked_by?.length) output += `\n### Blocked By\n${task.blocked_by.map(id => `- ${id}`).join("\n")}\n`;
   if (task.blocks?.length) output += `\n### Blocks\n${task.blocks.map(id => `- ${id}`).join("\n")}\n`;
+  if (task.metadata && Object.keys(task.metadata).length > 0) {
+    output += `\n### Metadata\n${Object.entries(task.metadata).map(([k, v]) => `- **${k}:** ${JSON.stringify(v)}`).join("\n")}\n`;
+  }
 
   return text(output);
 }

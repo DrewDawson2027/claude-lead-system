@@ -8,20 +8,46 @@
       "Write",
       "Edit",
       "Task",
+      "TeamCreate",
+      "TeamStatus",
+      "SendMessage",
       "mcp__coordinator__coord_list_sessions",
       "mcp__coordinator__coord_get_session",
-      "mcp__coordinator__coord_send_message",
       "mcp__coordinator__coord_check_inbox",
       "mcp__coordinator__coord_detect_conflicts",
-      "mcp__coordinator__coord_register_work",
-      "mcp__coordinator__coord_assign_task",
       "mcp__coordinator__coord_spawn_terminal",
       "mcp__coordinator__coord_spawn_worker",
+      "mcp__coordinator__coord_spawn_workers",
       "mcp__coordinator__coord_get_result",
       "mcp__coordinator__coord_wake_session",
       "mcp__coordinator__coord_kill_worker",
+      "mcp__coordinator__coord_resume_worker",
+      "mcp__coordinator__coord_upgrade_worker",
       "mcp__coordinator__coord_run_pipeline",
-      "mcp__coordinator__coord_get_pipeline"
+      "mcp__coordinator__coord_get_pipeline",
+      "mcp__coordinator__coord_create_task",
+      "mcp__coordinator__coord_update_task",
+      "mcp__coordinator__coord_list_tasks",
+      "mcp__coordinator__coord_get_task",
+      "mcp__coordinator__coord_create_team",
+      "mcp__coordinator__coord_get_team",
+      "mcp__coordinator__coord_list_teams",
+      "mcp__coordinator__coord_team_dispatch",
+      "mcp__coordinator__coord_team_status_compact",
+      "mcp__coordinator__coord_team_queue_task",
+      "mcp__coordinator__coord_team_assign_next",
+      "mcp__coordinator__coord_team_rebalance",
+      "mcp__coordinator__coord_sidecar_status",
+      "mcp__coordinator__coord_approve_plan",
+      "mcp__coordinator__coord_reject_plan",
+      "mcp__coordinator__coord_shutdown_request",
+      "mcp__coordinator__coord_shutdown_response",
+      "mcp__coordinator__coord_write_context",
+      "mcp__coordinator__coord_read_context",
+      "mcp__coordinator__coord_export_context",
+      "mcp__coordinator__coord_broadcast",
+      "mcp__coordinator__coord_send_message",
+      "mcp__coordinator__coord_send_directive"
     ],
     "deny": []
   },
@@ -90,6 +116,30 @@
             "type": "command",
             "command": "~/.claude/hooks/session-end.sh",
             "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/teammate-lifecycle.sh TeammateIdle",
+            "timeout": 1000
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/teammate-lifecycle.sh TaskCompleted",
+            "timeout": 1000
           }
         ]
       }

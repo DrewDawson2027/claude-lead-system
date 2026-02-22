@@ -115,6 +115,8 @@ Registry of all modes, reference cards, keywords, and purposes. Source of truth 
 | PreToolUse (Read) | `read-efficiency-guard.py` | Blocks duplicate/sequential reads |
 | SessionStart | `session-register.sh` | Registers session, bootstraps cache |
 | SessionStart | `self-heal.py` | Validates 60+ checks, auto-repairs config |
+| TeammateIdle | `teammate-lifecycle.sh` | Logs native Agent Teams idle events to activity/session telemetry |
+| TaskCompleted | `teammate-lifecycle.sh` | Logs native Agent Teams completion events to activity/session telemetry |
 
 Metrics log: `~/.claude/hooks/session-state/agent-metrics.jsonl`
 Compaction log: `~/.claude/session-cache/compaction-log.jsonl`

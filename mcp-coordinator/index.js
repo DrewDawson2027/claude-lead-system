@@ -27,12 +27,23 @@ import { handleListSessions, handleGetSession, getSessionStatus } from "./lib/se
 import { handleCheckInbox, handleSendMessage, handleBroadcast, handleSendDirective } from "./lib/messaging.js";
 import { handleDetectConflicts } from "./lib/conflicts.js";
 import {
-  handleSpawnWorker, handleGetResult, handleKillWorker,
-  handleSpawnTerminal,
+  handleSpawnWorker, handleSpawnWorkers, handleGetResult, handleKillWorker,
+  handleSpawnTerminal, handleResumeWorker, handleUpgradeWorker,
 } from "./lib/workers.js";
 import { handleRunPipeline, handleGetPipeline } from "./lib/pipelines.js";
-import { handleCreateTask, handleUpdateTask, handleListTasks, handleGetTask } from "./lib/tasks.js";
+import { handleCreateTask, handleUpdateTask, handleListTasks, handleGetTask, handleReassignTask, handleGetTaskAudit, handleCheckQualityGates } from "./lib/tasks.js";
+import { handleApprovePlan, handleRejectPlan } from "./lib/approval.js";
+import { handleShutdownRequest, handleShutdownResponse } from "./lib/shutdown.js";
+import { handleWriteContext, handleReadContext, handleExportContext } from "./lib/context-store.js";
 import { handleCreateTeam, handleGetTeam, handleListTeams } from "./lib/teams.js";
+import { handleTeamDispatch } from "./lib/team-dispatch.js";
+import {
+  handleTeamStatusCompact,
+  handleTeamQueueTask,
+  handleTeamAssignNext,
+  handleTeamRebalance,
+  handleSidecarStatus,
+} from "./lib/team-tasking.js";
 import { runGC } from "./lib/gc.js";
 import { handleWakeSession } from "./lib/platform/wake.js";
 import { selectWakeText } from "./lib/platform/wake.js";
@@ -132,10 +143,65 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           notify_session_id: { type: "string", description: "Session ID (first 8 chars) to receive worker completion inbox notifications." },
           session_id: { type: "string", description: "Alias for notify_session_id (first 8 chars)." },
           files: { type: "array", items: { type: "string" }, description: "Files to edit (checked for conflicts)" },
-          layout: { type: "string", enum: ["tab", "split"], description: "'tab' or 'split'" },
+          layout: { type: "string", enum: ["tab", "split", "background"], description: "'tab', 'split', or 'background' (no terminal, fastest spawn)" },
           isolate: { type: "boolean", description: "Create git worktree for isolated execution (default: false)" },
+          role: { type: "string", enum: ["researcher", "implementer", "reviewer", "planner"], description: "Role preset. Applies default model/agent/permission/isolation unless explicitly overridden." },
+          require_plan: { type: "boolean", description: "Require worker to submit plan for approval before editing files. ENFORCED by hook — Edit/Write/Bash physically blocked until approved. (default: false). Alias: use permission_mode='planOnly'." },
+          permission_mode: { type: "string", enum: ["acceptEdits", "planOnly", "readOnly", "editOnly"], description: "Worker permission mode. acceptEdits (default, full access), planOnly (plan approval required before edits), readOnly (Read/Grep/Glob only — for research workers), editOnly (Read/Edit/Write only, no Bash — safe editing). ENFORCED by hook." },
+          context_level: { type: "string", enum: ["minimal", "standard", "full"], description: "How much prior context to include: minimal (3KB), standard (10KB + lead files), full (30KB + plan + lead context). Default: minimal" },
+          budget_policy: { type: "string", enum: ["off", "warn", "enforce"], description: "Budget behavior for estimated token spend. off=ignore, warn=annotate, enforce=reject over-budget spawns. Default: warn" },
+          budget_tokens: { type: "integer", description: "Estimated token budget cap for this worker (default from COORDINATOR_WORKER_BUDGET_TOKENS or 60000)." },
+          global_budget_policy: { type: "string", enum: ["off", "warn", "enforce"], description: "Global fleet budget policy for active workers. enforce blocks spawn when global limits are exceeded. Default from COORDINATOR_GLOBAL_BUDGET_POLICY or warn." },
+          global_budget_tokens: { type: "integer", description: "Global estimated token cap across active workers (default from COORDINATOR_GLOBAL_BUDGET_TOKENS or 240000)." },
+          max_active_workers: { type: "integer", description: "Global max concurrent running workers (default from COORDINATOR_MAX_ACTIVE_WORKERS or 8)." },
+          team_name: { type: "string", description: "Team name — enables peer messaging and shared context" },
+          worker_name: { type: "string", description: "Human-readable worker name for name-based messaging (e.g., 'alpha', 'reviewer'). Workers can be messaged by name instead of session ID." },
+          max_turns: { type: "integer", description: "Maximum tool calls before auto-termination. Worker is killed when limit reached." },
+          context_summary: { type: "string", description: "Lead's conversation context summary. Injected into worker prompt so worker inherits lead's knowledge. Use this to share decisions, requirements, and findings." },
         },
         required: ["directory", "prompt"],
+      },
+    },
+    {
+      name: "coord_spawn_workers",
+      description: "Spawn multiple workers in parallel from a single call. Fastest way to launch N workers. Each entry uses same params as coord_spawn_worker.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          workers: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                directory: { type: "string" },
+                prompt: { type: "string" },
+                model: { type: "string" },
+                agent: { type: "string" },
+                task_id: { type: "string" },
+                mode: { type: "string", enum: ["pipe", "interactive"] },
+                runtime: { type: "string", enum: ["claude", "codex"] },
+                notify_session_id: { type: "string" },
+                worker_name: { type: "string" },
+                max_turns: { type: "integer" },
+                context_summary: { type: "string" },
+                layout: { type: "string", enum: ["tab", "split", "background"] },
+                isolate: { type: "boolean" },
+                role: { type: "string", enum: ["researcher", "implementer", "reviewer", "planner"] },
+                require_plan: { type: "boolean" },
+                context_level: { type: "string", enum: ["minimal", "standard", "full"] },
+                budget_policy: { type: "string", enum: ["off", "warn", "enforce"] },
+                budget_tokens: { type: "integer" },
+                global_budget_policy: { type: "string", enum: ["off", "warn", "enforce"] },
+                global_budget_tokens: { type: "integer" },
+                max_active_workers: { type: "integer" },
+                team_name: { type: "string" },
+              },
+              required: ["directory", "prompt"],
+            },
+            description: "Array of worker configurations (max 10)",
+          },
+        },
+        required: ["workers"],
       },
     },
     {
@@ -169,6 +235,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         type: "object",
         properties: {
           task_id: { type: "string", description: "Task ID of the worker to kill" },
+        },
+        required: ["task_id"],
+      },
+    },
+    {
+      name: "coord_resume_worker",
+      description: "Resume a dead/failed worker. Reads its prior output and original prompt, spawns a new worker with continuation context.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "string", description: "Task ID of the dead worker to resume" },
+          mode: { type: "string", enum: ["pipe", "interactive"], description: "Mode for the resumed worker (default: same as original)" },
+        },
+        required: ["task_id"],
+      },
+    },
+    {
+      name: "coord_upgrade_worker",
+      description: "Upgrade a pipe (deaf) worker to interactive mode. Kills the pipe worker and respawns with message-receiving capability, carrying over progress.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "string", description: "Task ID of the pipe worker to upgrade" },
         },
         required: ["task_id"],
       },
@@ -223,13 +312,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           priority: { type: "string", enum: ["low", "normal", "high"], description: "Priority (default: normal)" },
           files: { type: "array", items: { type: "string" }, description: "Files this task will touch" },
           blocked_by: { type: "array", items: { type: "string" }, description: "Task IDs that must complete first" },
+          team_name: { type: "string", description: "Team this task belongs to (optional, enables team task views)" },
+          metadata: { type: "object", description: "Arbitrary key-value metadata (any JSON object)" },
         },
         required: ["subject"],
       },
     },
     {
       name: "coord_update_task",
-      description: "Update a task: change status, assignee, add dependencies.",
+      description: "Update a task: change status, assignee, add dependencies, merge metadata.",
       inputSchema: {
         type: "object",
         properties: {
@@ -238,9 +329,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           assignee: { type: "string", description: "New assignee (empty string to unassign)" },
           subject: { type: "string", description: "New subject" },
           description: { type: "string", description: "New description" },
+          team_name: { type: "string", description: "Team name (set empty string to clear)" },
           priority: { type: "string", enum: ["low", "normal", "high"], description: "New priority" },
           add_blocked_by: { type: "array", items: { type: "string" }, description: "Add dependency on these task IDs" },
           add_blocks: { type: "array", items: { type: "string" }, description: "This task blocks these task IDs" },
+          metadata: { type: "object", description: "Merge key-value metadata. Set key to null to delete it." },
         },
         required: ["task_id"],
       },
@@ -253,6 +346,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {
           status: { type: "string", description: "Filter by status" },
           assignee: { type: "string", description: "Filter by assignee" },
+          team_name: { type: "string", description: "Filter by team_name" },
         },
       },
     },
@@ -267,6 +361,45 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["task_id"],
       },
     },
+    // ── C1: Task Reassignment ──
+    {
+      name: "coord_reassign_task",
+      description: "Reassign an in-progress task to a different team member. Creates a handoff snapshot and audit trail entry.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "string", description: "Task ID to reassign" },
+          new_assignee: { type: "string", description: "Name of the new assignee" },
+          reason: { type: "string", description: "Reason for reassignment" },
+          progress_context: { type: "string", description: "Summary of progress so far for handoff" },
+        },
+        required: ["task_id", "new_assignee"],
+      },
+    },
+    // ── C2: Audit Trail ──
+    {
+      name: "coord_get_task_audit",
+      description: "Get the full audit trail for a task — all state changes, assignments, reassignments, and handoffs.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "string", description: "Task ID" },
+        },
+        required: ["task_id"],
+      },
+    },
+    // ── C3: Quality Gates ──
+    {
+      name: "coord_check_quality_gates",
+      description: "Check quality gates and acceptance criteria status for a task.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "string", description: "Task ID to check" },
+        },
+        required: ["task_id"],
+      },
+    },
     // ── Teams ──
     {
       name: "coord_create_team",
@@ -277,6 +410,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           team_name: { type: "string", description: "Team name (required)" },
           project: { type: "string", description: "Project name" },
           description: { type: "string", description: "Team purpose" },
+          preset: { type: "string", enum: ["simple", "strict", "native-first"], description: "Apply a team preset for lower setup (simple/native-first) or strict controlled execution." },
+          execution_path: { type: "string", enum: ["native", "coordinator", "hybrid"], description: "Preferred execution path for this team." },
+          low_overhead_mode: { type: "string", enum: ["simple", "advanced"], description: "simple reduces setup/controls; advanced enables full coordinator policy surface." },
+          policy: {
+            type: "object",
+            description: "Team-level defaults/enforcement for worker spawns. Supported keys: permission_mode, require_plan, default_mode, default_runtime, default_context_level, budget_policy, budget_tokens, global_budget_policy, global_budget_tokens, max_active_workers, default_isolate",
+          },
           members: {
             type: "array",
             items: {
@@ -311,6 +451,226 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       description: "List all teams.",
       inputSchema: { type: "object", properties: {} },
     },
+    {
+      name: "coord_team_dispatch",
+      description: "Create a team-scoped task and dispatch a worker using team policy defaults in one call.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          team_name: { type: "string", description: "Existing team name" },
+          subject: { type: "string", description: "Task title for the team task board" },
+          prompt: { type: "string", description: "Worker prompt" },
+          directory: { type: "string", description: "Worker working directory" },
+          description: { type: "string" },
+          assignee: { type: "string", description: "Preferred team member name (auto-picked if omitted)" },
+          priority: { type: "string", enum: ["low", "normal", "high"] },
+          files: { type: "array", items: { type: "string" } },
+          blocked_by: { type: "array", items: { type: "string" } },
+          metadata: { type: "object" },
+          create_task: { type: "boolean", description: "Create a task board record (default true)" },
+          task_id: { type: "string", description: "Optional explicit task board ID" },
+          worker_task_id: { type: "string", description: "Optional explicit worker task ID" },
+          model: { type: "string" },
+          agent: { type: "string" },
+          role: { type: "string", enum: ["researcher", "implementer", "reviewer", "planner"] },
+          mode: { type: "string", enum: ["pipe", "interactive"] },
+          runtime: { type: "string", enum: ["claude", "codex"] },
+          layout: { type: "string", enum: ["tab", "split", "background"] },
+          isolate: { type: "boolean" },
+          worker_name: { type: "string" },
+          notify_session_id: { type: "string" },
+          require_plan: { type: "boolean" },
+          permission_mode: { type: "string", enum: ["acceptEdits", "planOnly", "readOnly", "editOnly"] },
+          context_level: { type: "string", enum: ["minimal", "standard", "full"] },
+          budget_policy: { type: "string", enum: ["off", "warn", "enforce"] },
+          budget_tokens: { type: "integer" },
+          global_budget_policy: { type: "string", enum: ["off", "warn", "enforce"] },
+          global_budget_tokens: { type: "integer" },
+          max_active_workers: { type: "integer" },
+          max_turns: { type: "integer" },
+          context_summary: { type: "string" },
+        },
+        required: ["team_name", "subject", "prompt", "directory"],
+      },
+    },
+    {
+      name: "coord_team_status_compact",
+      description: "High-signal operational team summary for action panels: members, presence/load, queued tasks, blockers, policy state.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          team_name: { type: "string", description: "Existing team name" },
+        },
+        required: ["team_name"],
+      },
+    },
+    {
+      name: "coord_team_queue_task",
+      description: "Queue a team task without dispatching a worker yet. Stores dispatch prompt and affinity metadata for later assignment.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          team_name: { type: "string" },
+          subject: { type: "string" },
+          prompt: { type: "string", description: "Dispatch prompt to use later when assigning" },
+          description: { type: "string" },
+          task_id: { type: "string" },
+          assignee: { type: "string" },
+          priority: { type: "string", enum: ["low", "normal", "high"] },
+          files: { type: "array", items: { type: "string" } },
+          blocked_by: { type: "array", items: { type: "string" } },
+          role_hint: { type: "string", description: "Preferred role for assignment (e.g. reviewer)" },
+          load_affinity: { type: "string", enum: ["research", "implement", "review", "plan"] },
+          acceptance_criteria: { type: "array", items: { type: "string" } },
+          metadata: { type: "object" },
+        },
+        required: ["team_name", "subject", "prompt"],
+      },
+    },
+    {
+      name: "coord_team_assign_next",
+      description: "Select the best teammate for the next queued team task using deterministic load-aware scoring, then dispatch it.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          team_name: { type: "string" },
+          assignee: { type: "string", description: "Force a specific assignee instead of auto-scoring" },
+          directory: { type: "string", description: "Default working directory for queued tasks missing dispatch.directory" },
+          worker_task_id: { type: "string" },
+          model: { type: "string" },
+          agent: { type: "string" },
+          role: { type: "string", enum: ["researcher", "implementer", "reviewer", "planner"] },
+          mode: { type: "string", enum: ["pipe", "interactive"] },
+          runtime: { type: "string", enum: ["claude", "codex"] },
+          layout: { type: "string", enum: ["tab", "split", "background"] },
+          isolate: { type: "boolean" },
+          notify_session_id: { type: "string" },
+          context_summary: { type: "string" },
+        },
+        required: ["team_name"],
+      },
+    },
+    {
+      name: "coord_team_rebalance",
+      description: "Re-score queued team tasks and reassign them to the best teammates. Optional dry-run and optional dispatch-next.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          team_name: { type: "string" },
+          limit: { type: "integer", description: "Max queued tasks to evaluate (default: all, max 50)" },
+          apply: { type: "boolean", description: "Apply reassignments (default: true). Set false for dry-run." },
+          dispatch_next: { type: "boolean", description: "After rebalance, dispatch the best queued task." },
+          include_in_progress: { type: "boolean", description: "Include guidance for in-progress handoffs (no automatic reassignment in v1)." },
+          directory: { type: "string", description: "Default working directory if dispatch_next=true" },
+          worker_task_id: { type: "string" },
+          mode: { type: "string", enum: ["pipe", "interactive"] },
+          runtime: { type: "string", enum: ["claude", "codex"] },
+          layout: { type: "string", enum: ["tab", "split", "background"] },
+          isolate: { type: "boolean" },
+        },
+        required: ["team_name"],
+      },
+    },
+    {
+      name: "coord_sidecar_status",
+      description: "Check local sidecar installation/runtime status and latest generated snapshot metadata.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+      },
+    },
+    // ── Plan Approval ──
+    {
+      name: "coord_approve_plan",
+      description: "Approve a worker's plan, allowing it to proceed with implementation.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "string", description: "Task ID of the worker whose plan to approve" },
+          message: { type: "string", description: "Optional approval note" },
+        },
+        required: ["task_id"],
+      },
+    },
+    {
+      name: "coord_reject_plan",
+      description: "Reject a worker's plan with feedback, requesting revision.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "string", description: "Task ID of the worker whose plan to reject" },
+          feedback: { type: "string", description: "What needs to change (required)" },
+        },
+        required: ["task_id", "feedback"],
+      },
+    },
+    // ── Shutdown Protocol ──
+    {
+      name: "coord_shutdown_request",
+      description: "Request a worker to shut down gracefully. Worker receives the request and can approve or reject. If no response within timeout, force kills. Matches Claude's shutdown_request/shutdown_response pattern.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          task_id: { type: "string", description: "Task ID of the worker to shut down" },
+          target_name: { type: "string", description: "Worker name (alternative to task_id)" },
+          target_session: { type: "string", description: "Session ID (alternative to task_id)" },
+          message: { type: "string", description: "Shutdown reason/message (default: 'Task complete, wrapping up the session.')" },
+          force_timeout_seconds: { type: "integer", description: "Seconds before force kill if no response (default: 60, max: 300)" },
+        },
+      },
+    },
+    {
+      name: "coord_shutdown_response",
+      description: "Worker responds to a shutdown request — approve (will terminate) or reject (will continue working).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          request_id: { type: "string", description: "Shutdown request ID from the [SHUTDOWN_REQUEST:...] message" },
+          approve: { type: "boolean", description: "true to approve shutdown, false to reject" },
+          reason: { type: "string", description: "Reason for rejection (required if approve=false)" },
+        },
+        required: ["request_id", "approve"],
+      },
+    },
+    // ── Context Store ──
+    {
+      name: "coord_write_context",
+      description: "Store shared context (decisions, file summaries, architecture notes) that workers can read on boot.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          team_name: { type: "string", description: "Team name (default: 'default')" },
+          key: { type: "string", description: "Context key (e.g., 'architecture', 'decisions', 'file-index')" },
+          value: { type: "string", description: "Context content" },
+          append: { type: "boolean", description: "Append to existing key instead of replacing (default: false)" },
+        },
+        required: ["key", "value"],
+      },
+    },
+    {
+      name: "coord_read_context",
+      description: "Read shared context for a team. Workers use this to get lead's analysis without re-doing exploration. Set include_lead=true to also get lead's exported conversation context.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          team_name: { type: "string", description: "Team name (default: 'default')" },
+          key: { type: "string", description: "Optional: specific key to read (returns all if omitted)" },
+          include_lead: { type: "boolean", description: "Include lead's exported conversation context (from coord_export_context). Default: false" },
+        },
+      },
+    },
+    {
+      name: "coord_export_context",
+      description: "Export lead's conversation context so ALL spawned workers automatically inherit it. Call this to share your current knowledge: decisions made, files analyzed, user requirements, current state. Workers receive this context in their prompt at spawn time.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          session_id: { type: "string", description: "Your session ID (first 8 chars)" },
+          summary: { type: "string", description: "Rich summary of your conversation context: decisions made, files analyzed, user requirements, architecture notes, current state" },
+        },
+        required: ["session_id", "summary"],
+      },
+    },
     // ── Broadcast ──
     {
       name: "coord_broadcast",
@@ -343,16 +703,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     // ── Send Message (MCP tool version) ──
     {
       name: "coord_send_message",
-      description: "Send a message to a specific session's inbox. Zero API tokens — file write only. Target reads it on next tool call.",
+      description: "Send a message to a specific session's inbox. Zero API tokens — file write only. Target reads it on next tool call. Supports name-based targeting.",
       inputSchema: {
         type: "object",
         properties: {
           from: { type: "string", description: "Sender identifier" },
-          to: { type: "string", description: "Target session ID (first 8 chars)" },
+          to: { type: "string", description: "Target session ID (first 8 chars). Use this OR target_name." },
+          target_name: { type: "string", description: "Worker name to message (resolves to session ID). Use this OR to." },
           content: { type: "string", description: "Message content" },
           priority: { type: "string", enum: ["normal", "urgent"], description: "Priority (default: normal)" },
         },
-        required: ["from", "to", "content"],
+        required: ["from", "content"],
       },
     },
   ],
@@ -375,7 +736,8 @@ function ensureDirsOnce() {
   const { TERMINALS_DIR, INBOX_DIR, RESULTS_DIR, SESSION_CACHE_DIR } = cfg();
   const TASKS_DIR = join(TERMINALS_DIR, "tasks");
   const TEAMS_DIR = join(TERMINALS_DIR, "teams");
-  for (const dir of [TERMINALS_DIR, INBOX_DIR, RESULTS_DIR, SESSION_CACHE_DIR, TASKS_DIR, TEAMS_DIR]) {
+  const CONTEXT_DIR = join(TERMINALS_DIR, "context");
+  for (const dir of [TERMINALS_DIR, INBOX_DIR, RESULTS_DIR, SESSION_CACHE_DIR, TASKS_DIR, TEAMS_DIR, CONTEXT_DIR]) {
     if (!_initializedDirs.has(dir)) {
       ensureSecureDirectory(dir);
       _initializedDirs.add(dir);
@@ -399,18 +761,37 @@ function handleToolCall(name, args = {}) {
     case "coord_detect_conflicts": return handleDetectConflicts(args);
     case "coord_spawn_terminal":   return handleSpawnTerminal(args);
     case "coord_spawn_worker":     return handleSpawnWorker(args);
+    case "coord_spawn_workers":    return handleSpawnWorkers(args);
     case "coord_get_result":       return handleGetResult(args);
     case "coord_wake_session":     return handleWakeSession(args);
     case "coord_kill_worker":      return handleKillWorker(args);
+    case "coord_resume_worker":    return handleResumeWorker(args);
+    case "coord_upgrade_worker":   return handleUpgradeWorker(args);
     case "coord_run_pipeline":     return handleRunPipeline(args);
     case "coord_get_pipeline":     return handleGetPipeline(args);
     case "coord_create_task":      return handleCreateTask(args);
     case "coord_update_task":      return handleUpdateTask(args);
     case "coord_list_tasks":       return handleListTasks(args);
     case "coord_get_task":         return handleGetTask(args);
+    case "coord_reassign_task":    return handleReassignTask(args);
+    case "coord_get_task_audit":   return handleGetTaskAudit(args);
+    case "coord_check_quality_gates": return handleCheckQualityGates(args);
     case "coord_create_team":      return handleCreateTeam(args);
     case "coord_get_team":         return handleGetTeam(args);
     case "coord_list_teams":       return handleListTeams(args);
+    case "coord_team_dispatch":    return handleTeamDispatch(args);
+    case "coord_team_status_compact": return handleTeamStatusCompact(args);
+    case "coord_team_queue_task":  return handleTeamQueueTask(args);
+    case "coord_team_assign_next": return handleTeamAssignNext(args);
+    case "coord_team_rebalance":   return handleTeamRebalance(args);
+    case "coord_sidecar_status":   return handleSidecarStatus(args);
+    case "coord_approve_plan":     return handleApprovePlan(args);
+    case "coord_reject_plan":      return handleRejectPlan(args);
+    case "coord_shutdown_request": return handleShutdownRequest(args);
+    case "coord_shutdown_response":return handleShutdownResponse(args);
+    case "coord_write_context":    return handleWriteContext(args);
+    case "coord_read_context":     return handleReadContext(args);
+    case "coord_export_context":   return handleExportContext(args);
     case "coord_broadcast":        return handleBroadcast(args);
     case "coord_send_message":     return handleSendMessage(args);
     case "coord_send_directive":   return handleSendDirective(args);
@@ -476,13 +857,32 @@ export const __test__ = {
   handleUpdateTask,
   handleListTasks,
   handleGetTask,
+  handleReassignTask,
+  handleGetTaskAudit,
+  handleCheckQualityGates,
   handleCreateTeam,
   handleGetTeam,
   handleListTeams,
+  handleTeamDispatch,
+  handleTeamStatusCompact,
+  handleTeamQueueTask,
+  handleTeamAssignNext,
+  handleTeamRebalance,
+  handleSidecarStatus,
   handleSendMessage,
   handleBroadcast,
   handleSendDirective,
   buildInteractiveWorkerScript,
   buildCodexWorkerScript,
   buildCodexInteractiveWorkerScript,
+  handleResumeWorker,
+  handleUpgradeWorker,
+  handleSpawnWorkers,
+  handleApprovePlan,
+  handleRejectPlan,
+  handleShutdownRequest,
+  handleShutdownResponse,
+  handleWriteContext,
+  handleReadContext,
+  handleExportContext,
 };

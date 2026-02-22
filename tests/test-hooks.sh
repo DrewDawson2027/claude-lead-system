@@ -126,6 +126,8 @@ restore_home "$TEST_HOME"
 
 # Test: heartbeat fallback creates session file
 TEST_HOME=$(new_home)
+rm -f /tmp/claude-heartbeat-new12345.lock
+rm -rf /tmp/claude-heartbeat-new12345.lock.d
 echo '{"session_id":"new12345abcdef","tool_name":"Read","tool_input":{"file_path":"/tmp/file.ts"},"cwd":"/tmp/project"}' | \
   HOME="$TEST_HOME" bash "$HOOK_DIR/terminal-heartbeat.sh" 2>/dev/null || true
 assert_file_exists "creates session via fallback" "$TEST_HOME/.claude/terminals/session-new12345.json"
@@ -319,8 +321,13 @@ jq -n --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 jq -n '{session:"stale123",status:"active",cwd:"/tmp",last_active:"2020-01-01T00:00:00Z",tool_counts:{},files_touched:[],recent_ops:[]}' \
   > "$TEST_HOME/.claude/terminals/session-stale123.json"
 
-# Remove the stale-check lock to force the stale scan to run
-rm -f /tmp/claude-stale-check.lock
+# Seed stale-check lock as old so the scan path is guaranteed to run
+touch /tmp/claude-stale-check.lock
+touch -t 200001010000 /tmp/claude-stale-check.lock 2>/dev/null || true
+rm -rf /tmp/claude-stale-check.lock.d
+# Clear per-session heartbeat lock so full heartbeat path is not skipped.
+rm -f /tmp/claude-heartbeat-me123456.lock
+rm -rf /tmp/claude-heartbeat-me123456.lock.d
 
 echo '{"session_id":"me123456abcdef","tool_name":"Read","tool_input":{"file_path":"/tmp/x"},"cwd":"/tmp"}' | \
   HOME="$TEST_HOME" bash "$HOOK_DIR/terminal-heartbeat.sh" 2>/dev/null || true
@@ -331,6 +338,41 @@ assert_eq "marks old session stale" "stale" "$STALE_STATUS"
 # Verify current session is NOT marked stale
 MY_STATUS=$(jq -r '.status' "$TEST_HOME/.claude/terminals/session-me123456.json" 2>/dev/null)
 assert_eq "does not mark current session stale" "active" "$MY_STATUS"
+restore_home "$TEST_HOME"
+
+# ─── teammate-lifecycle.sh tests ───
+echo ""
+echo "=== teammate-lifecycle.sh ==="
+
+TEST_HOME=$(new_home)
+jq -n '{"session":"team1234","status":"active","cwd":"/tmp"}' > "$TEST_HOME/.claude/terminals/session-team1234.json"
+echo '{"session_id":"team1234abcd","task_id":"T42","teammate_session_id":"mate9999","reason":"idle"}' | \
+  HOME="$TEST_HOME" bash "$HOOK_DIR/teammate-lifecycle.sh" TeammateIdle 2>/dev/null || true
+
+assert_file_exists "writes activity log" "$TEST_HOME/.claude/terminals/activity.jsonl"
+ACT_TOOL=$(tail -1 "$TEST_HOME/.claude/terminals/activity.jsonl" | jq -r '.tool // ""' 2>/dev/null)
+assert_eq "records teammate event tool name" "TeammateIdle" "$ACT_TOOL"
+TEAM_EVENTS=$(jq -r '.teammate_events // 0' "$TEST_HOME/.claude/terminals/session-team1234.json" 2>/dev/null)
+assert_eq "increments teammate_events counter" "1" "$TEAM_EVENTS"
+restore_home "$TEST_HOME"
+
+# ─── terminal-heartbeat.sh max-turns tests ───
+echo ""
+echo "=== terminal-heartbeat.sh max-turns ==="
+
+TEST_HOME=$(new_home)
+jq -n '{"session":"turn1234","status":"active","cwd":"/tmp","last_active":"2020-01-01T00:00:00Z","tool_counts":{},"files_touched":[],"recent_ops":[],"turn_count":0}' > "$TEST_HOME/.claude/terminals/session-turn1234.json"
+jq -n '{"task_id":"WMAX","notify_session_id":"lead1234","mode":"interactive"}' > "$TEST_HOME/.claude/terminals/results/WMAX.meta.json"
+
+# Clear heartbeat lock so max-turn path is deterministic even in repeated runs.
+rm -f /tmp/claude-heartbeat-turn1234.lock
+rm -rf /tmp/claude-heartbeat-turn1234.lock.d
+
+MAX_TURN_OUTPUT=$(echo '{"session_id":"turn1234abcdef","tool_name":"Read","tool_input":{"file_path":"/tmp/a"},"cwd":"/tmp"}' | \
+  HOME="$TEST_HOME" CLAUDE_WORKER_TASK_ID="WMAX" CLAUDE_WORKER_MAX_TURNS="1" bash "$HOOK_DIR/terminal-heartbeat.sh" 2>/dev/null || true)
+
+assert_match "surfaces max-turn notification to worker output" "MAX_TURNS_REACHED" "$MAX_TURN_OUTPUT"
+assert_file_exists "writes max-turn notification to lead inbox" "$TEST_HOME/.claude/terminals/inbox/lead1234.jsonl"
 restore_home "$TEST_HOME"
 
 # ─── SUMMARY ───

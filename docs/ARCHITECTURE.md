@@ -9,6 +9,7 @@ Complement Claude Code Agent Teams with capabilities they lack — pre-edit conf
 - Captures activity stream (`activity.jsonl`)
 - Delivers inbox messages (`inbox/<session>.jsonl`)
 - Pre-edit conflict detection (`conflict-guard.sh`)
+- Ingests native teammate lifecycle events (`teammate-lifecycle.sh` via `TeammateIdle`/`TaskCompleted`)
 - Cross-platform utilities (`lib/portable.sh`)
 
 2. State Layer (`~/.claude/terminals`)
@@ -21,6 +22,8 @@ Complement Claude Code Agent Teams with capabilities they lack — pre-edit conf
   - message passing
   - conflict detection
   - worker spawn/kill
+  - role presets (model/tool/permission/isolation defaults)
+  - budget-aware plan gating (`budget_policy`, `budget_tokens`)
   - sequential pipelines
 
 4. Lead Command Layer (`/lead`)

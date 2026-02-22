@@ -3,7 +3,7 @@
  * @module platform/common
  */
 
-import { existsSync } from "fs";
+import { existsSync, openSync, writeFileSync, closeSync } from "fs";
 import { spawn, spawnSync, execFileSync } from "child_process";
 import { cfg } from "../constants.js";
 import { shellQuote } from "../helpers.js";
@@ -124,6 +124,24 @@ export function openTerminalWithCommand(command, layout = "tab") {
 }
 
 /**
+ * Spawn a worker as a background process (no terminal).
+ * Fastest spawn mode — eliminates all terminal overhead.
+ * @param {string} script - Shell script to execute
+ * @param {string} resultFile - Path for stdout/stderr capture
+ * @param {string} pidFile - Path to write child PID
+ */
+export function spawnBackgroundWorker(script, resultFile, pidFile) {
+  const out = openSync(resultFile, "a");
+  const child = spawn("sh", ["-c", script], {
+    detached: true,
+    stdio: ["ignore", out, out],
+  });
+  writeFileSync(pidFile, String(child.pid));
+  child.unref();
+  closeSync(out);
+}
+
+/**
  * Check if a process is alive. Cross-platform.
  * @param {string|number} pid - Process ID
  * @returns {boolean} Whether the process is running
@@ -185,6 +203,9 @@ export function buildInteractiveWorkerScript(opts) {
     taskId, workDir, resultFile, pidFile, metaFile,
     model, agent, promptFile,
   } = opts;
+  const workerName = opts.workerName || "";
+  const maxTurns = opts.maxTurns || "";
+  const permissionMode = opts.permissionMode || "acceptEdits";
   const platformName = opts.platformName ?? PLATFORM;
 
   // Windows: fall back to pipe mode (interactive not yet supported)
@@ -202,14 +223,37 @@ export function buildInteractiveWorkerScript(opts) {
   const agentArgs = agent ? `--agent ${shellQuote(agent)}` : "";
   const settingsArgs = existsSync(SETTINGS_FILE) ? `--settings ${shellQuote(SETTINGS_FILE)}` : "";
 
+  // Worker identity env vars — inherited by Claude process and all hooks
+  const envExports = [
+    `export CLAUDE_WORKER_TASK_ID=${shellQuote(taskId)}`,
+    workerName ? `export CLAUDE_WORKER_NAME=${shellQuote(workerName)}` : "",
+    maxTurns ? `export CLAUDE_WORKER_MAX_TURNS=${shellQuote(String(maxTurns))}` : "",
+    permissionMode && permissionMode !== "acceptEdits" ? `export CLAUDE_WORKER_PERMISSION_MODE=${shellQuote(permissionMode)}` : "",
+  ].filter(Boolean).join(" && ");
+
+  // Transcript file for true resume capability
+  const transcriptFile = resultFile.replace(/\.txt$/, ".transcript");
+  const qTranscript = shellQuote(transcriptFile);
+
+  // Use `script` to capture full terminal transcript for true resume
+  // macOS: script -q file command...
+  // Linux: script -q file -c "command..."
+  const isLinux = platformName === "linux";
+  const qPermMode = shellQuote(permissionMode);
+  const claudeCmd = `${qClaudeBin} --prompt "$WORKER_PROMPT" --permission-mode ${qPermMode} --model ${qModel} ${agentArgs} ${settingsArgs}`;
+  const scriptWrapped = isLinux
+    ? `script -q ${qTranscript} -c "${claudeCmd.replace(/"/g, '\\"')}"`
+    : `script -q ${qTranscript} ${claudeCmd}`;
+
   // Interactive mode: claude runs with --prompt and full hook infrastructure
   // Uses ; instead of && after claude so done file is written even on non-zero exit
   return [
     `cd ${qDir}`,
     `echo $$ > ${qPid}`,
+    envExports,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     // unset CLAUDECODE prevents child inheriting parent session env
-    `unset CLAUDECODE && ${qClaudeBin} --prompt "$WORKER_PROMPT" --permission-mode acceptEdits --model ${qModel} ${agentArgs} ${settingsArgs}` +
+    `unset CLAUDECODE && ${scriptWrapped}` +
     `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
     `; rm -f ${qPid}`,
   ].join(" && ");

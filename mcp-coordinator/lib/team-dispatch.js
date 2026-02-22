@@ -1,0 +1,152 @@
+/**
+ * Team dispatch: one-call team task creation + worker spawn + team/member linkage.
+ * @module team-dispatch
+ */
+
+import { text } from "./helpers.js";
+import { sanitizeName, sanitizeId } from "./security.js";
+import { readTeamConfig, handleCreateTeam } from "./teams.js";
+import { handleCreateTask, handleUpdateTask } from "./tasks.js";
+import { handleSpawnWorker } from "./workers.js";
+
+function contentText(res) {
+  return res?.content?.[0]?.text || "";
+}
+
+function pickAssignee(team, args) {
+  if (args.assignee) return sanitizeName(args.assignee, "assignee");
+  const members = Array.isArray(team?.members) ? team.members : [];
+  if (members.length === 0) return null;
+  const role = args.role ? String(args.role) : null;
+  if (role) {
+    const byRole = members.find(m => String(m.role || "").toLowerCase() === role.toLowerCase());
+    if (byRole?.name) return byRole.name;
+  }
+  return members[0]?.name ? sanitizeName(members[0].name, "assignee") : null;
+}
+
+/**
+ * Handle coord_team_dispatch tool call.
+ * Creates a team-scoped task, dispatches a worker using team policy, and links task/member state.
+ */
+export function handleTeamDispatch(args) {
+  const team_name = sanitizeName(args.team_name, "team_name");
+  const team = readTeamConfig(team_name);
+  if (!team) return text(`Team ${team_name} not found. Create it first with coord_create_team.`);
+
+  const subject = String(args.subject || "").trim();
+  const prompt = String(args.prompt || "").trim();
+  if (!subject) return text("subject is required.");
+  if (!prompt) return text("prompt is required.");
+  if (!args.directory) return text("directory is required.");
+
+  const createTask = args.create_task !== false;
+  const assignee = pickAssignee(team, args);
+  const workerName = args.worker_name ? String(args.worker_name).trim() : (assignee || null);
+
+  const taskId = args.task_id
+    ? sanitizeId(args.task_id, "task_id")
+    : `T${Date.now()}`;
+  const workerTaskId = args.worker_task_id
+    ? sanitizeId(args.worker_task_id, "worker_task_id")
+    : `W${Date.now()}`;
+
+  let createTaskRes = null;
+  if (createTask) {
+    createTaskRes = handleCreateTask({
+      task_id: taskId,
+      subject,
+      description: args.description || "",
+      assignee,
+      team_name,
+      priority: args.priority,
+      files: args.files || [],
+      blocked_by: args.blocked_by || [],
+      metadata: {
+        ...(args.metadata && typeof args.metadata === "object" && !Array.isArray(args.metadata) ? args.metadata : {}),
+        dispatch: {
+          via: "coord_team_dispatch",
+          worker_task_id: workerTaskId,
+        },
+      },
+    });
+    const createTxt = contentText(createTaskRes);
+    if (!/Task created:/i.test(createTxt)) {
+      return text(`Team dispatch failed during task creation.\n\n${createTxt}`);
+    }
+  }
+
+  const spawnRes = handleSpawnWorker({
+    directory: args.directory,
+    prompt,
+    model: args.model,
+    agent: args.agent,
+    task_id: workerTaskId,
+    mode: args.mode,
+    runtime: args.runtime,
+    notify_session_id: args.notify_session_id,
+    files: args.files || [],
+    layout: args.layout,
+    isolate: args.isolate,
+    role: args.role,
+    require_plan: args.require_plan,
+    permission_mode: args.permission_mode,
+    context_level: args.context_level,
+    budget_policy: args.budget_policy,
+    budget_tokens: args.budget_tokens,
+    global_budget_policy: args.global_budget_policy,
+    global_budget_tokens: args.global_budget_tokens,
+    max_active_workers: args.max_active_workers,
+    team_name,
+    worker_name: workerName,
+    max_turns: args.max_turns,
+    context_summary: args.context_summary,
+  });
+  const spawnTxt = contentText(spawnRes);
+  const spawned = /Worker spawned:/i.test(spawnTxt);
+
+  if (createTask) {
+    if (spawned) {
+      handleUpdateTask({
+        task_id: taskId,
+        status: "in_progress",
+        assignee,
+        metadata: {
+          worker_task_id: workerTaskId,
+          dispatch_status: "spawned",
+        },
+      });
+    } else {
+      handleUpdateTask({
+        task_id: taskId,
+        assignee,
+        metadata: {
+          worker_task_id: workerTaskId,
+          dispatch_status: "spawn_failed",
+          dispatch_error: spawnTxt.slice(0, 500),
+        },
+      });
+    }
+  }
+
+  if (assignee && spawned) {
+    // Link current worker task to the team member for live `coord_get_team` UX.
+    handleCreateTeam({
+      team_name,
+      members: [{ name: assignee, task_id: workerTaskId }],
+    });
+  }
+
+  return text(
+    `## Team Dispatch (${team_name})\n\n` +
+    `- Subject: ${subject}\n` +
+    `- Team Task: ${createTask ? taskId : "skipped"}\n` +
+    `- Worker Task: ${workerTaskId}\n` +
+    `- Assignee: ${assignee || "auto:none"}\n` +
+    `- Worker Name: ${workerName || "none"}\n` +
+    `- Status: ${spawned ? "dispatched" : "worker spawn failed"}\n\n` +
+    (createTaskRes ? `### Task\n${contentText(createTaskRes)}\n\n` : "") +
+    `### Worker\n${spawnTxt}`
+  );
+}
+
