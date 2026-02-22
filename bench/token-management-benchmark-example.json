@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-02-22T00:00:00Z",
+  "tool": "claude-token-guard benchmark",
+  "environment": {
+    "platform": "darwin",
+    "python": "3.12",
+    "node": "20.x"
+  },
+  "targets": [
+    {
+      "name": "token-guard.py",
+      "scenario": "passthrough",
+      "iterations": 20,
+      "latency_ms": {
+        "min": 6.4,
+        "p50": 8.9,
+        "p95": 12.8,
+        "p99": 14.6,
+        "max": 15.2
+      },
+      "status": "pass"
+    },
+    {
+      "name": "read-efficiency-guard.py",
+      "scenario": "duplicate-check",
+      "iterations": 20,
+      "latency_ms": {
+        "min": 4.9,
+        "p50": 7.1,
+        "p95": 9.4,
+        "p99": 10.7,
+        "max": 11.0
+      },
+      "status": "pass"
+    }
+  ],
+  "notes": [
+    "Example artifact for docs and CI publishing format.",
+    "Do not treat sample values as production benchmarks."
+  ]
+}

@@ -29,6 +29,8 @@ import sys
 import time
 from typing import Dict, List
 
+from guard_normalize import normalize_file_path, normalize_session_key, short_hash
+
 # Shared infrastructure — locking, state, atomic writes
 from hook_utils import lock, unlock, load_json_state, save_json_state
 
@@ -51,7 +53,12 @@ SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
 def default_read_state() -> Dict:
     """Return the default empty state for read tracking."""
-    return {"reads": [], "last_sequential_warn": 0}
+    return {
+        "schema_version": 2,
+        "session_key": "",
+        "reads": [],
+        "last_sequential_warn": 0,
+    }
 
 
 def main():
@@ -70,10 +77,7 @@ def main():
     session_id = input_data.get("session_id", "unknown")
 
     if not SESSION_ID_RE.match(str(session_id)):
-        print(
-            "BLOCKED: Invalid session_id in read-efficiency-guard payload.",
-            file=sys.stderr,
-        )
+        print("BLOCKED: Invalid session_id in read-efficiency-guard payload.", file=sys.stderr)
         sys.exit(2)
 
     if tool_name != "Read":
@@ -82,6 +86,8 @@ def main():
     file_path = tool_input.get("file_path", "")
     if not file_path:
         sys.exit(0)
+    normalized_file_path = normalize_file_path(file_path)
+    session_key = normalize_session_key(session_id)
 
     state_file = os.path.join(STATE_DIR, f"{session_id}-reads.json")
     lock_file = state_file + ".lock"
@@ -95,6 +101,8 @@ def main():
         try:
             state = load_json_state(state_file, default_read_state)
             now = time.time()
+            state.setdefault("schema_version", 2)
+            state["session_key"] = session_key
 
             # Prune old reads (older than TTL)
             state["reads"] = [
@@ -103,11 +111,23 @@ def main():
 
             # CHECK 1: Duplicate file — BLOCK at 3+ total reads of same path
             path_count = (
-                sum(1 for r in state["reads"] if r["path"] == file_path) + 1
+                sum(
+                    1
+                    for r in state["reads"]
+                    if r.get("normalized_path") == normalized_file_path
+                    or r.get("path") == file_path
+                )
+                + 1
             )  # +1 for this attempt
             if path_count >= DUPLICATE_FILE_LIMIT:
                 state["reads"].append(
-                    {"path": file_path, "timestamp": now, "blocked": True}
+                    {
+                        "path": file_path,
+                        "normalized_path": normalized_file_path,
+                        "path_hash": short_hash(normalized_file_path, 12),
+                        "timestamp": now,
+                        "blocked": True,
+                    }
                 )
                 save_json_state(state_file, state)
                 print(
@@ -127,7 +147,13 @@ def main():
                 # UNCONDITIONAL block — no time-based suppression for blocks
                 # (Time suppression is only for warnings, never for enforcement)
                 state["reads"].append(
-                    {"path": file_path, "timestamp": now, "blocked": True}
+                    {
+                        "path": file_path,
+                        "normalized_path": normalized_file_path,
+                        "path_hash": short_hash(normalized_file_path, 12),
+                        "timestamp": now,
+                        "blocked": True,
+                    }
                 )
                 save_json_state(state_file, state)
                 print(
@@ -152,9 +178,18 @@ def main():
             explore_dirs = get_explore_dirs(session_id)
             if explore_dirs:
                 for explore_dir in explore_dirs:
+                    explore_norm = normalize_file_path(explore_dir)
                     if (
                         file_path.startswith(explore_dir + "/")
                         or file_path == explore_dir
+                        or (
+                            normalized_file_path
+                            and explore_norm
+                            and (
+                                normalized_file_path.startswith(explore_norm + os.sep)
+                                or normalized_file_path == explore_norm
+                            )
+                        )
                     ):
                         warn(
                             f"TOKEN EFFICIENCY: Reading '{os.path.basename(file_path)}' which is inside "
@@ -165,7 +200,14 @@ def main():
                         break
 
             # ALLOWED — record and proceed
-            state["reads"].append({"path": file_path, "timestamp": now})
+            state["reads"].append(
+                {
+                    "path": file_path,
+                    "normalized_path": normalized_file_path,
+                    "path_hash": short_hash(normalized_file_path, 12),
+                    "timestamp": now,
+                }
+            )
             save_json_state(state_file, state)
 
         finally:
@@ -205,7 +247,7 @@ def get_explore_dirs(session_id: str) -> List[str]:
         if agent.get("type") == "Explore":
             for known_dir in agent.get("target_dirs", []):
                 if known_dir not in dirs:
-                    dirs.append(known_dir)
+                    dirs.append(normalize_file_path(known_dir) or known_dir)
     return dirs
 
 

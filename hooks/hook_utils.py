@@ -50,7 +50,13 @@ def load_json_state(
     try:
         with open(path, "r") as f:
             return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except (
+        FileNotFoundError,
+        json.JSONDecodeError,
+        OSError,
+        UnicodeDecodeError,
+        ValueError,
+    ):
         return default_factory() if default_factory else {}
 
 
@@ -125,12 +131,24 @@ def read_jsonl_fault_tolerant(path: str) -> List[Dict]:
 # Single source of truth for default config — used by token-guard.py and self-heal.py.
 # Both import from here to prevent config drift.
 DEFAULT_CONFIG = {
+    "schema_version": 2,
     "max_agents": 5,
     "parallel_window_seconds": 30,
     "global_cooldown_seconds": 5,
     "max_per_subagent_type": 1,
     "state_ttl_hours": 24,
     "audit_log": True,
+    "failure_mode": "fail_open",
+    "sanitize_session_ids": True,
+    "normalize_paths": True,
+    "fault_audit": True,
+    "max_string_field_length": 512,
+    "metrics_correlation_window_seconds": 15,
+    "shadow_rules": {},
+    "shadow_default_mode": "enforce",
+    "shadow_sample_pct": 100,
+    "shadow_audit": True,
+    "session_recap_default_window_minutes": 180,
     "one_per_session": [
         "Explore",
         "master-coder",

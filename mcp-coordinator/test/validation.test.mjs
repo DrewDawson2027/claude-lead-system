@@ -4,6 +4,7 @@ import { __test__ } from '../index.js';
 import { resolve, join } from 'node:path';
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 
 test('sanitizeId accepts safe IDs', () => {
   assert.equal(__test__.sanitizeId('W123_abc-DEF', 'task_id'), 'W123_abc-DEF');
@@ -115,4 +116,39 @@ test('isSafeTTYPath validates tty paths', () => {
   assert.equal(__test__.isSafeTTYPath('/tmp/evil'), false);
   assert.equal(__test__.isSafeTTYPath('/dev/../etc/passwd'), false);
   assert.equal(__test__.isSafeTTYPath(''), false);
+});
+
+test('legacy cost JSON output is decorated with deprecation metadata', () => {
+  const raw = JSON.stringify({ window: 'today', totalUSD: 12.34 });
+  const out = __test__.applyLegacyDeprecationToOutput('coord_cost_summary', raw);
+  const parsed = JSON.parse(out);
+  assert.equal(parsed.deprecated, true);
+  assert.equal(parsed.canonical_tool, 'coord_cost_overview');
+  assert.match(parsed.canonical_command, /cost overview/);
+});
+
+test('legacy envelope-mode output preserves deprecation metadata inside data.text', () => {
+  const script = `
+    process.env.CLAUDE_COORDINATOR_RESULT_ENVELOPE = "1";
+    const mod = await import('./index.js');
+    const r = mod.__test__.withEnvelope(
+      'coord_cost_trends',
+      Date.now(),
+      'req-test',
+      () => JSON.stringify({ period: 'week', series: [] })
+    );
+    console.log(JSON.stringify(r));
+  `;
+  const cp = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: resolve(process.cwd()),
+    encoding: 'utf8',
+    env: { ...process.env },
+  });
+  assert.equal(cp.status, 0, cp.stderr || cp.stdout);
+  const outer = JSON.parse(cp.stdout.trim());
+  const envelope = JSON.parse(outer.content[0].text);
+  const inner = JSON.parse(envelope.data.text);
+  assert.equal(inner.deprecated, true);
+  assert.equal(inner.canonical_tool, 'coord_ops_trends');
+  assert.match(inner.canonical_command, /ops trends/);
 });

@@ -41,16 +41,26 @@ cp "$PLUGIN_DIR/modes/architect/refs/"*.md "$CLAUDE_DIR/master-agents/architect/
 
 # Copy hook scripts
 echo "  Installing hooks..."
-cp "$PLUGIN_DIR/scripts/token-guard.py" "$CLAUDE_DIR/hooks/"
-cp "$PLUGIN_DIR/scripts/read-efficiency-guard.py" "$CLAUDE_DIR/hooks/"
-cp "$PLUGIN_DIR/scripts/hook_utils.py" "$CLAUDE_DIR/hooks/"
-cp "$PLUGIN_DIR/scripts/self-heal.py" "$CLAUDE_DIR/hooks/"
-cp "$PLUGIN_DIR/scripts/agent-metrics.py" "$CLAUDE_DIR/hooks/"
-cp "$PLUGIN_DIR/scripts/agent-lifecycle.sh" "$CLAUDE_DIR/hooks/"
-cp "$PLUGIN_DIR/scripts/pre-compact-save.sh" "$CLAUDE_DIR/hooks/"
-cp "$PLUGIN_DIR/scripts/session-register.sh" "$CLAUDE_DIR/hooks/"
-cp "$PLUGIN_DIR/scripts/health-check.sh" "$CLAUDE_DIR/hooks/"
-cp "$PLUGIN_DIR/scripts/token-guard-config.json" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/token-guard.py" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/read-efficiency-guard.py" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/hook_utils.py" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/guard_normalize.py" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/guard_contracts.py" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/guard_events.py" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/ops_sources.py" "$CLAUDE_DIR/hooks/" 2>/dev/null || true
+cp "$PLUGIN_DIR/hooks/ops_trends.py" "$CLAUDE_DIR/hooks/" 2>/dev/null || true
+cp "$PLUGIN_DIR/hooks/ops_alerts.py" "$CLAUDE_DIR/hooks/" 2>/dev/null || true
+cp "$PLUGIN_DIR/hooks/ops_recap.py" "$CLAUDE_DIR/hooks/" 2>/dev/null || true
+cp "$PLUGIN_DIR/hooks/ops_aggregator.py" "$CLAUDE_DIR/hooks/" 2>/dev/null || true
+cp "$PLUGIN_DIR/hooks/self-heal.py" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/agent-metrics.py" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/agent-lifecycle.sh" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/pre-compact-save.sh" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/session-register.sh" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/health-check.sh" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/token-guard-config.json" "$CLAUDE_DIR/hooks/"
+cp "$PLUGIN_DIR/hooks/INSTALL_MANIFEST.json" "$CLAUDE_DIR/hooks/" 2>/dev/null || true
+cp "$PLUGIN_DIR/plugin/generated/task_preflight_prompt.json" "$CLAUDE_DIR/hooks/" 2>/dev/null || true
 
 # Make scripts executable
 chmod +x "$CLAUDE_DIR/hooks/"*.sh
@@ -60,5 +70,12 @@ cp "$PLUGIN_DIR/MANIFEST.md" "$CLAUDE_DIR/master-agents/"
 
 echo ""
 echo "  Installed successfully."
+echo "  Verifying critical files..."
+for f in token-guard.py read-efficiency-guard.py guard_normalize.py guard_contracts.py guard_events.py hook_utils.py; do
+  if [ ! -f "$CLAUDE_DIR/hooks/$f" ]; then
+    echo "  ERROR: missing $f after install"
+    exit 1
+  fi
+done
 echo "  Run: bash ~/.claude/hooks/health-check.sh"
 echo "  to verify installation."
