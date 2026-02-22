@@ -116,13 +116,13 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: sidecar/package-lock.json
+          cache-dependency-path: package-lock.json
       - name: Install sidecar deps
-        run: cd sidecar && npm ci
+        run: npm ci
       - name: Typecheck sidecar
-        run: cd sidecar && npm run typecheck
+        run: npm --workspace sidecar run typecheck
       - name: Run sidecar tests
-        run: cd sidecar && node --test test/*.test.mjs
+        run: npm --workspace sidecar test
 
   mode-path-lint:
     name: Lint mode file paths
