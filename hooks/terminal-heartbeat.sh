@@ -192,11 +192,13 @@ esac
 # Only check every 60s (not every heartbeat) by using a separate lock
 STALE_LOCK="/tmp/claude-stale-check.lock"
 STALE_COOLDOWN=60
+STALE_LOCK_PREEXISTED=false
+[ -e "$STALE_LOCK" ] && STALE_LOCK_PREEXISTED=true
 
 DO_STALE=false
 if portable_flock_try "$STALE_LOCK"; then
   STALE_AGE=$(( $(date +%s) - $(get_file_mtime_epoch "$STALE_LOCK") ))
-  if [ "$STALE_AGE" -gt "$STALE_COOLDOWN" ] || [ "$STALE_AGE" -lt 0 ]; then
+  if { ! $STALE_LOCK_PREEXISTED; } || [ "$STALE_AGE" -gt "$STALE_COOLDOWN" ] || [ "$STALE_AGE" -lt 0 ]; then
     DO_STALE=true
     touch "$STALE_LOCK"
   fi
