@@ -39,6 +39,7 @@ import { selectWakeText } from "./lib/platform/wake.js";
 import {
   buildPlatformLaunchCommand, isProcessAlive, killProcess,
   isSafeTTYPath, buildWorkerScript, buildInteractiveWorkerScript,
+  buildCodexWorkerScript, buildCodexInteractiveWorkerScript,
 } from "./lib/platform/common.js";
 
 // ─────────────────────────────────────────────────────────
@@ -127,6 +128,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           agent: { type: "string", description: "Agent name (optional)" },
           task_id: { type: "string", description: "Custom task ID (auto-generated if not provided)" },
           mode: { type: "string", enum: ["pipe", "interactive"], description: "pipe (fire-and-forget, cheapest) or interactive (lead can message mid-execution via inbox hooks, 3-5x more tokens). Default: pipe" },
+          runtime: { type: "string", enum: ["claude", "codex"], description: "claude (Claude Code CLI, default) or codex (OpenAI Codex CLI — uses ChatGPT Plus plan). Default: claude" },
           notify_session_id: { type: "string", description: "Session ID (first 8 chars) to receive worker completion inbox notifications." },
           session_id: { type: "string", description: "Alias for notify_session_id (first 8 chars)." },
           files: { type: "array", items: { type: "string" }, description: "Files to edit (checked for conflicts)" },
@@ -481,4 +483,6 @@ export const __test__ = {
   handleBroadcast,
   handleSendDirective,
   buildInteractiveWorkerScript,
+  buildCodexWorkerScript,
+  buildCodexInteractiveWorkerScript,
 };

@@ -173,22 +173,6 @@ export function isSafeTTYPath(pathValue) {
 }
 
 /**
- * Build a cross-platform worker script.
- * All dynamic values are shell-quoted to prevent injection.
- * @param {object} opts - Worker options
- * @param {string} opts.taskId - Worker task ID
- * @param {string} opts.workDir - Working directory
- * @param {string} opts.resultFile - Output file path
- * @param {string} opts.pidFile - PID file path
- * @param {string} opts.metaFile - Metadata file path
- * @param {string} opts.model - Model name (validated via sanitizeModel)
- * @param {string} opts.agent - Agent name (validated via sanitizeAgent, may be empty)
- * @param {string} opts.promptFile - Prompt file path
- * @param {string} opts.workerPs1File - Windows PS1 file path
- * @param {string} [opts.platformName] - Platform override
- * @returns {string} Shell script string
- */
-/**
  * Build a cross-platform interactive worker script.
  * Interactive workers run as full Claude sessions with hooks (inbox checking, heartbeat).
  * The lead can send mid-execution messages that the worker receives on every tool call.
@@ -226,6 +210,78 @@ export function buildInteractiveWorkerScript(opts) {
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     // unset CLAUDECODE prevents child inheriting parent session env
     `unset CLAUDECODE && ${qClaudeBin} --prompt "$WORKER_PROMPT" --permission-mode acceptEdits --model ${qModel} ${agentArgs} ${settingsArgs}` +
+    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
+    `; rm -f ${qPid}`,
+  ].join(" && ");
+}
+
+/**
+ * Build a Codex CLI worker script (pipe mode).
+ * Uses `codex exec` for non-interactive execution with stdout captured to result file.
+ * @param {object} opts - Worker options
+ * @returns {string} Shell script string
+ */
+export function buildCodexWorkerScript(opts) {
+  const {
+    taskId, workDir, resultFile, pidFile, metaFile,
+    model, promptFile,
+  } = opts;
+  const platformName = opts.platformName ?? cfg().PLATFORM;
+
+  // Windows not yet supported for Codex workers
+  if (platformName === "win32") {
+    return `echo "Codex workers not supported on Windows yet" && exit 1`;
+  }
+
+  const qDir = shellQuote(workDir);
+  const qResult = shellQuote(resultFile);
+  const qPid = shellQuote(pidFile);
+  const qPrompt = shellQuote(promptFile);
+  const qMetaDone = shellQuote(`${metaFile}.done`);
+  const qTaskId = shellQuote(taskId);
+  // Codex uses -m for model; default is fine if not specified
+  const modelArgs = model && model !== "sonnet" ? `-m ${shellQuote(model)}` : "";
+
+  return [
+    `cd ${qDir}`,
+    `echo "Codex Worker ${qTaskId} starting at $(date)" > ${qResult}`,
+    `echo $$ > ${qPid}`,
+    `WORKER_PROMPT=$(cat ${qPrompt})`,
+    `codex exec "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs} >> ${qResult} 2>&1` +
+    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
+    `; rm -f ${qPid}`,
+  ].join(" && ");
+}
+
+/**
+ * Build a Codex CLI interactive worker script.
+ * Uses `codex` TUI mode with --full-auto for autonomous execution with live terminal.
+ * @param {object} opts - Worker options
+ * @returns {string} Shell script string
+ */
+export function buildCodexInteractiveWorkerScript(opts) {
+  const {
+    taskId, workDir, resultFile, pidFile, metaFile,
+    model, promptFile,
+  } = opts;
+  const platformName = opts.platformName ?? cfg().PLATFORM;
+
+  if (platformName === "win32") {
+    return `echo "Codex workers not supported on Windows yet" && exit 1`;
+  }
+
+  const qDir = shellQuote(workDir);
+  const qPid = shellQuote(pidFile);
+  const qPrompt = shellQuote(promptFile);
+  const qMetaDone = shellQuote(`${metaFile}.done`);
+  const qTaskId = shellQuote(taskId);
+  const modelArgs = model && model !== "sonnet" ? `-m ${shellQuote(model)}` : "";
+
+  return [
+    `cd ${qDir}`,
+    `echo $$ > ${qPid}`,
+    `WORKER_PROMPT=$(cat ${qPrompt})`,
+    `codex "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs}` +
     `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
     `; rm -f ${qPid}`,
   ].join(" && ");

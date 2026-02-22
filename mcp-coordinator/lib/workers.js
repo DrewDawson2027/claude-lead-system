@@ -13,7 +13,10 @@ import {
   normalizeFilePath, writeFileSecure,
 } from "./security.js";
 import { readJSON, shellQuote, text } from "./helpers.js";
-import { isProcessAlive, killProcess, buildWorkerScript, buildInteractiveWorkerScript, openTerminalWithCommand } from "./platform/common.js";
+import {
+  isProcessAlive, killProcess, buildWorkerScript, buildInteractiveWorkerScript,
+  buildCodexWorkerScript, buildCodexInteractiveWorkerScript, openTerminalWithCommand,
+} from "./platform/common.js";
 
 /**
  * Handle coord_spawn_worker tool call.
@@ -32,6 +35,7 @@ export function handleSpawnWorker(args) {
   const files = (args.files || []).map(f => String(f).trim()).filter(Boolean);
   const layout = args.layout === "split" ? "split" : "tab";
   const mode = args.mode === "interactive" ? "interactive" : "pipe";
+  const runtime = args.runtime === "codex" ? "codex" : "claude";
   if (!prompt) return text("Prompt is required.");
   if (!existsSync(directory)) return text(`Directory not found: ${directory}`);
 
@@ -88,7 +92,7 @@ export function handleSpawnWorker(args) {
     prompt: prompt.slice(0, 500),
     model, agent: agent || null,
     notify_session_id, isolated: isolate, worktree_branch: worktreeBranch,
-    mode, files, spawned: new Date().toISOString(), status: "running",
+    mode, runtime, files, spawned: new Date().toISOString(), status: "running",
   };
   writeFileSecure(metaFile, JSON.stringify(meta, null, 2));
 
@@ -152,21 +156,27 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       writeFileSecure(workerPs1File, ps1);
     }
 
-    const workerScript = mode === "interactive"
-      ? buildInteractiveWorkerScript({
-          taskId, workDir: workerDir, resultFile, pidFile, metaFile,
-          model, agent, promptFile, platformName: PLATFORM,
-        })
-      : buildWorkerScript({
-          taskId, workDir: workerDir, resultFile, pidFile, metaFile,
-          model, agent, promptFile, workerPs1File, platformName: PLATFORM,
-        });
+    const scriptOpts = {
+      taskId, workDir: workerDir, resultFile, pidFile, metaFile,
+      model, agent, promptFile, workerPs1File, platformName: PLATFORM,
+    };
+    let workerScript;
+    if (runtime === "codex") {
+      workerScript = mode === "interactive"
+        ? buildCodexInteractiveWorkerScript(scriptOpts)
+        : buildCodexWorkerScript(scriptOpts);
+    } else {
+      workerScript = mode === "interactive"
+        ? buildInteractiveWorkerScript(scriptOpts)
+        : buildWorkerScript(scriptOpts);
+    }
     const usedApp = openTerminalWithCommand(workerScript, layout);
 
     return text(
       `Worker spawned: **${taskId}**\n` +
       `- Directory: ${workerDir}\n- Model: ${model}\n- Agent: ${agent || "default"}\n` +
       `- Notify Session: ${notify_session_id || "none"}\n` +
+      `- Runtime: ${runtime}\n` +
       `- Mode: ${mode}${mode === "interactive" ? " (lead can message mid-execution)" : " (fire-and-forget)"}\n` +
       `- Layout: ${layout} via ${usedApp}\n- Platform: ${PLATFORM}\n` +
       `- Isolated: ${isolate ? `yes (branch: ${worktreeBranch})` : "no"}\n` +
