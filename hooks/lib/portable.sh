@@ -78,7 +78,8 @@ portable_flock_try() {
   local lockpath="$1"
   if command -v flock >/dev/null 2>&1; then
     # Real flock available (Linux, Homebrew on macOS)
-    exec 9>"$lockpath"
+    # Open for append (not truncate) so lock file mtime remains meaningful for cooldown/stale logic.
+    exec 9>>"$lockpath"
     flock -n 9 2>/dev/null && return 0
     exec 9>&-
     return 1
