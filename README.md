@@ -2,75 +2,143 @@
 
 # Claude Lead System
 
-**Power tools for Claude Code Agent Teams. Conflict detection, activity logging, observability, and terminal orchestration — the features Agent Teams doesn't have.**
+### Zero-token multi-agent orchestration for Claude Code
+
+**Agent Teams costs 2-3x more tokens. This does the same thing — plus 13 features it can't do — for free.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml/badge.svg)](https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-81%25-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)](https://github.com/DrewDawson2027/claude-lead-system)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-green)](https://nodejs.org)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-compatible-orange)](https://claude.ai/code)
 
 </div>
 
 ---
 
-> **Type `/lead` in any Claude Code session.**
-> It complements Claude Code's built-in Agent Teams with capabilities they lack: pre-edit file conflict detection, enriched session observability, native terminal tab spawning, sequential pipelines, and a universal activity log — **all running outside the context window at zero token cost.**
+```bash
+curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash
+```
+
+Type `/lead` in any Claude Code session. That's it.
 
 ---
 
-## Who Is This For
-
-- **Solo devs running 2+ terminals** — see all sessions at a glance, avoid file conflicts, dispatch work without switching tabs
-- **Team leads orchestrating multi-agent Claude Code** — `/lead` dashboard + workers + pipelines for complex builds
-- **Power users who want pipelines** — sequential multi-step task chains with status tracking
-- **Anyone evaluating multi-agent workflows** — the coordination layer Agent Teams doesn't provide
+![Demo](assets/demo/demo.gif)
 
 ---
 
-## Start Here (Ops / Cost / Hooks)
+## TL;DR
 
-If you are operating or hardening the token-management stack (single-pane ops, alerts, recap, trends, hook enforcement), start with these docs:
-
-- Operator playbook: [docs/TOKEN_MANAGEMENT_OPERATOR_PLAYBOOK.md](docs/TOKEN_MANAGEMENT_OPERATOR_PLAYBOOK.md)
-- Migration guide (legacy -> canonical commands): [docs/TOKEN_MANAGEMENT_MIGRATION_GUIDE.md](docs/TOKEN_MANAGEMENT_MIGRATION_GUIDE.md)
-- Compatibility matrix: [docs/TOKEN_MANAGEMENT_COMPATIBILITY_MATRIX.md](docs/TOKEN_MANAGEMENT_COMPATIBILITY_MATRIX.md)
-- Data contracts: [docs/TOKEN_MANAGEMENT_DATA_CONTRACTS.md](docs/TOKEN_MANAGEMENT_DATA_CONTRACTS.md)
-- Benchmark publishing: [docs/TOKEN_MANAGEMENT_BENCHMARK_PUBLISHING.md](docs/TOKEN_MANAGEMENT_BENCHMARK_PUBLISHING.md)
-- Signed releases / provenance: [docs/TOKEN_MANAGEMENT_SIGNED_RELEASES.md](docs/TOKEN_MANAGEMENT_SIGNED_RELEASES.md)
-
-Canonical CLI entrypoints:
-
-- `claude-token-guard ops today`
-- `claude-token-guard ops session-recap --latest`
-- `claude-token-guard ops alerts status`
-- `claude-token-guard ops trends --window 7`
-- `claude-token-guard cost overview`
-- `claude-token-guard hooks report`
+- **One command** installs hooks + MCP coordinator + sidecar
+- **Type `/lead`** — dashboard shows every terminal session with live tool counts
+- **Spawn workers** — autonomous `claude -p` agents in native terminal tabs
+- **Send messages** — cross-terminal messaging at zero token cost
+- **Detect conflicts** — warns before two sessions edit the same file
+- **Run pipelines** — sequential multi-step task chains with status tracking
+- **All coordination runs outside the context window** — filesystem-based, zero API tokens
 
 ---
 
-## Why This Exists
+## Cost Comparison
 
-Claude Code's Agent Teams (`TeamCreate`, `SendMessage`, `TaskCreate`) handle messaging and task management well. But they can't:
+Every Agent Teams teammate is a full Claude instance with a growing context window. Every message between teammates costs tokens. The coordinator session holding the team together burns tokens just sitting there.
 
-- **Detect file conflicts before they happen** — no pre-edit cross-session awareness
-- **Show what each session is actually doing** — tool counts, files touched, recent operations
-- **Open native terminal tabs** — iTerm2 splits, gnome-terminal tabs, Windows Terminal panes
-- **Run sequential multi-step pipelines** — ordered task chains with status tracking
-- **Log activity across sessions** — append-only observability without token cost
+The Lead System replaces all of that with filesystem coordination.
 
-`claude-lead-system` fills these gaps by wiring every terminal together through shell hooks and a lightweight filesystem protocol — **completely outside the context window**.
+```
+Agent Teams (2 teammates, 1 lead):
+  Lead session:     ~150K tokens (Opus)    = $2.25
+  Teammate A:       ~300K tokens (Sonnet)  = $2.70  ← context grows with every tool call
+  Teammate B:       ~250K tokens (Sonnet)  = $2.25  ← sitting idle still costs tokens
+  Coordination:     ~100K tokens           = $0.90  ← messaging costs tokens
+  TOTAL                                     $8.10
 
-## Authorship and Provenance
+Lead System (2 workers, 1 lead):
+  Lead session:     ~150K tokens (Opus)    = $2.25
+  Worker 1:         ~80K tokens (Sonnet)   = $0.72  ← does job, exits
+  Worker 2:         ~60K tokens (Sonnet)   = $0.54  ← does job, exits
+  Coordination:     0 tokens (filesystem)  = $0.00  ← hooks + JSON files
+  TOTAL                                     $3.51
 
-- Author and maintainer: **Drew Dawson** (`@DrewDawson2027`)
-- Canonical repository: `https://github.com/DrewDawson2027/claude-lead-system`
-- Citation metadata: [CITATION.cff](CITATION.cff)
-- Provenance verification guide: [docs/PROVENANCE.md](docs/PROVENANCE.md)
-- Release checklist: [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md)
-- Security model: [docs/SECURITY.md](docs/SECURITY.md)
-- Release scripts: `scripts/release/preflight.sh`, `scripts/release/verify-release.sh`
+  SAVINGS: 57% ($4.59 per task)
+```
+
+**Why?** Agent Teams teammates maintain full context windows that grow with every tool call. Lead System workers are stateless — they get a task, execute it, return a result, and exit. Coordination happens through shell hooks and JSON files on disk, not through the API.
+
+---
+
+## Features Agent Teams Doesn't Have
+
+| Feature | Agent Teams | Lead System |
+|---------|-------------|-------------|
+| Pre-edit conflict detection | No | Warns before two sessions edit the same file |
+| Session observability | Idle notifications only | Tool counts, files touched, recent ops — per session |
+| Native terminal tabs | Background-only agents | iTerm2 splits, gnome-terminal tabs, Windows Terminal panes |
+| Sequential pipelines | Manual chaining | `coord_run_pipeline` with per-step status tracking |
+| Activity log | None | Append-only `activity.jsonl` across all sessions |
+| Worker lifecycle | Spawn + wait | PID track, kill, resume, upgrade between modes |
+| Token enforcement | None | 7-rule mechanical enforcement via PreToolUse hooks |
+| Budget-aware gating | None | Per-worker and global budget policies (off/warn/enforce) |
+| Plan-first mode | None | Workers require approval before making edits |
+| Git worktree isolation | None | Workers get isolated branches automatically |
+| Cross-platform terminal spawning | None | macOS + Linux + Windows native terminal integration |
+| Context sharing | In-context messages | `coord_write_context` / `coord_read_context` between sessions |
+| Worker runtimes | Claude only | Claude + OpenAI Codex |
+
+---
+
+## Tool Parity
+
+Everything Agent Teams can do, the Lead System can do too — often better.
+
+| Agent Teams | Lead System | Verdict |
+|-------------|-------------|---------|
+| `TeamCreate` | `coord_create_team` | **Better** — team presets (simple/strict/native-first), policy engine |
+| `TeamStatus` | `coord_get_team`, `coord_team_status_compact` | **Better** — richer data, presence scoring |
+| `SendMessage` | `coord_send_message`, `coord_send_directive` | **Equal** — plus auto-wake and name resolution |
+| `TaskCreate` | `coord_create_task` | **Better** — dependencies, priority, metadata, audit trail |
+| `TaskList` | `coord_list_tasks` | **Better** — filtering, dependency status |
+| `TaskUpdate` | `coord_update_task` | **Better** — metadata merge, handoff snapshots, audit trail |
+| `Task` (spawn) | `coord_spawn_worker` | **Better** — role presets, budget gating, worktree isolation |
+
+---
+
+## 2-Minute Demo
+
+```bash
+# 1. Install (one command)
+curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash
+
+# 2. Open two Claude Code terminals in the same project
+
+# 3. In terminal A, type /lead — you'll see a dashboard like:
+#    | Session  | TTY       | Project  | Status | W/E/B/R    | Recent Files          |
+#    |----------|-----------|----------|--------|------------|-----------------------|
+#    | a1b2c3d4 | ttys003   | my-app   | active | 12/8/23/5  | src/auth.ts, db.ts    |
+#    | e5f6g7h8 | ttys004   | my-app   | active | 3/1/7/2    | tests/auth.test.ts    |
+
+# 4. Send a message to the other terminal:
+#    tell e5f6g7h8 to write integration tests for src/auth.ts
+
+# 5. Check for file conflicts:
+#    conflicts
+#    → ⚠ src/auth.ts touched by sessions a1b2c3d4 AND e5f6g7h8
+
+# 6. Spawn an autonomous worker:
+#    run "add error handling to src/api.ts" in ~/my-app
+
+# 7. Run a pipeline:
+#    pipeline: lint, test, build in ~/my-app
+```
+
+---
+
+## How It Works
+
+### Zero-token filesystem protocol
+
+Every Claude Code tool call fires shell hooks. These hooks maintain a live JSON state file per session — `tool_counts`, `files_touched`, `recent_ops` — updated on every tool invocation. **This costs zero API tokens.** The lead reads a few KB of JSON instead of parsing megabytes of transcripts.
 
 ```
 Terminal A (lead)          Terminal B (coding)       Terminal C (testing)
@@ -80,6 +148,7 @@ Terminal A (lead)          Terminal B (coding)       Terminal C (testing)
 │                     Shell Hooks (0 API tokens)                      │
 │  PostToolUse  → terminal-heartbeat.sh  → enriches session JSON     │
 │  PreToolUse   → check-inbox.sh         → delivers messages          │
+│  PreToolUse   → conflict-guard.sh      → warns before file overlaps │
 │  SessionStart → session-register.sh    → registers new sessions     │
 │  SessionEnd   → session-end.sh         → marks sessions closed      │
 └─────────────────────────────────────────────────────────────────────┘
@@ -87,155 +156,83 @@ Terminal A (lead)          Terminal B (coding)       Terminal C (testing)
       ▼                          ▼                          ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                      ~/.claude/terminals/                           │
-│  session-*.json   → live state: tool counts, files, recent ops     │
+│  session-*.json   → live state per session (tool counts, files)    │
 │  activity.jsonl   → universal append-only activity log             │
 │  inbox/           → per-session message queues                      │
 │  results/         → autonomous worker output files                  │
+│  tasks/           → dependency-tracked task board                   │
 └─────────────────────────────────────────────────────────────────────┘
       │
       ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│               MCP Coordinator (optional — enhances)                 │
-│  coord_spawn_worker     → autonomous workers via claude -p          │
-│  coord_wake_session     → AppleScript / inbox injection             │
+│               MCP Coordinator (40+ tools)                           │
+│  coord_spawn_worker     → autonomous workers in terminal tabs      │
+│  coord_send_message     → cross-session messaging with auto-wake   │
 │  coord_detect_conflicts → file overlap detection                    │
-│  coord_run_pipeline     → multi-step sequential task chains         │
-└─────────────────────────────────────────────────────────────────────┘
-      │
-      ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│              Sidecar Control Plane (persistent state)               │
-│  State store     → schema-versioned snapshots + JSONL timeline     │
-│  Action queue    → pending/inflight/done/failed with audit trail   │
-│  Recovery        → checkpoints, corruption repair, event replay    │
-│  Health          → terminal watchdog, hook validation, lock metrics │
-│  Safe mode       → read-only startup for inspection and repair     │
+│  coord_run_pipeline     → sequential multi-step task chains         │
+│  coord_create_task      → dependency-tracked task management        │
+│  coord_create_team      → team presets with policy engine           │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+### Enriched session files
+
+Each session file is ~2 KB of JSON maintained by shell hooks outside the context window:
+
+```json
+{
+  "session": "a1b2c3d4",
+  "status": "active",
+  "project": "my-app",
+  "branch": "feat/auth",
+  "tty": "/dev/ttys003",
+  "tool_counts": { "Write": 12, "Edit": 8, "Bash": 23, "Read": 5 },
+  "files_touched": ["src/auth.ts", "src/db.ts", "tests/auth.test.ts"],
+  "recent_ops": [
+    { "tool": "Edit", "file": "src/auth.ts", "ts": "2026-02-25T14:32:01Z" }
+  ]
+}
+```
+
+### Rate-limited heartbeat
+
+5-second cooldown per session. Between full beats, only the activity log is appended. No IO storms on busy sessions.
 
 ---
 
 ## What `/lead` Can Do
 
-| Command | What happens |
-|---|---|
-| *(boot)* | Scans all sessions, shows live dashboard |
-| `tell [session] to [task]` | Sends a message to an active terminal |
-| `wake [session] with [message]` | Wakes an idle terminal (sends Enter keystroke; message content delivered via inbox) |
-| `run [task] in [dir]` | Spawns an autonomous `claude -p` worker |
-| `pipeline: task1, task2, task3 in [dir]` | Runs a multi-step sequential pipeline |
-| `conflicts` | Cross-references `files_touched` arrays across all sessions |
+| Command | What Happens |
+|---------|-------------|
+| *(boot)* | Scans all sessions, shows live dashboard with W/E/B/R counters |
+| `tell [session] to [task]` | Sends a message to an active terminal (delivered via inbox hook) |
+| `wake [session] with [message]` | Wakes an idle terminal (AppleScript/TTY/SendKeys + inbox) |
+| `run [task] in [dir]` | Spawns an autonomous `claude -p` worker in a new terminal tab |
+| `pipeline: A, B, C in [dir]` | Runs sequential multi-step pipeline with per-step status |
+| `conflicts` | Cross-references `files_touched` across all sessions |
 | `spawn terminal in [dir]` | Opens a new interactive Claude Code terminal |
-| `kill worker [id]` | Terminates a running worker |
-| `health check` | Validates all hooks, deps, and settings |
-
----
-
-## 2-Minute Demo
-
-```bash
-# 1) Install
-curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash
-
-# 2) Open two Claude Code terminals in the same project
-# 3) In terminal A, run /lead
-# 4) In terminal A, send:
-#    tell [session] to write tests for src/auth.ts
-# 5) In terminal A, run:
-#    conflicts
-```
-
-Expected:
-- Session dashboard appears with live `W/E/B/R` counters
-- Message is delivered through inbox hook
-- Conflict checker reports overlap when both sessions touch same file
-
----
-
-## Demo Assets
-
-![Demo GIF](assets/demo/demo.gif)
-
-![Before vs After](assets/demo/before-after.png)
-
-- Demo recording guide: [assets/demo/README.md](assets/demo/README.md)
-- Narration script: [assets/demo/DEMO_SCRIPT.md](assets/demo/DEMO_SCRIPT.md)
-- Benchmark source: [bench/coord-benchmark.mjs](bench/coord-benchmark.mjs)
-- Latest benchmark output: [bench/latest-results.json](bench/latest-results.json)
-
----
-
-## Coordinator Benchmarks
-
-All coordinator operations are local filesystem reads — zero API tokens, sub-millisecond latency.
-
-| Operation | Avg | P50 | P95 |
-|---|---:|---:|---:|
-| Single session read | 0.016 ms | 0.015 ms | 0.022 ms |
-| Boot scan (10 sessions) | 0.233 ms | 0.199 ms | 0.473 ms |
-| Conflict detection | 0.187 ms | 0.176 ms | 0.253 ms |
-
-Each session file is ~1.7 KB of JSON maintained by shell hooks outside the context window.
-
-Measured by: `node bench/coord-benchmark.mjs` (50 iterations, 5 warmup). Source: [bench/latest-results.json](bench/latest-results.json).
-
----
-
-## Before/After Outcomes
-
-| Scenario | Before | After |
-|---|---|---|
-| Multi-session awareness | Manual tab hunting | `/lead` dashboard with active/stale sessions |
-| File conflict detection | Merge-time surprise conflicts | Pre-edit conflict detection via `files_touched` |
-| Task dispatch | Manual copy/paste across terminals | `tell`, `wake`, `spawn_worker` |
-| Long-running execution | Idle/forgotten terminal tasks | `coord_spawn_worker` + `coord_get_result` tracking |
-| Sequential workflows | Manual step orchestration | `coord_run_pipeline` statusable pipeline execution |
+| `kill worker [id]` | Terminates a running worker by PID |
+| `health check` | Validates all hooks, deps, settings, and MCP |
 
 ---
 
 ## Platform Support
 
 | Platform | Terminal Spawning | Session Waking | Messaging |
-|---|---|---|---|
-| **macOS — iTerm2** | Split panes + tabs | AppleScript by TTY | Inbox hooks |
-| **macOS — Terminal.app** | New windows | AppleScript by title | Inbox hooks |
-| **Windows — Windows Terminal** | Split panes + tabs (`wt`) | AppActivate + SendKeys (Enter-only by default), inbox fallback | Inbox hooks |
-| **Windows — PowerShell / cmd** | New windows | AppActivate + SendKeys (Enter-only by default), inbox fallback | Inbox hooks |
-| **Linux — gnome-terminal / konsole / kitty** | New windows / tabs | Direct safe TTY write (Enter-only by default), inbox fallback | Inbox hooks |
-| **Cursor / VS Code** | Background `claude -p` workers | Inbox fallback | Inbox hooks |
+|----------|-------------------|----------------|-----------|
+| **macOS — iTerm2** | Split panes + tabs | AppleScript | Inbox hooks |
+| **macOS — Terminal.app** | New windows | AppleScript | Inbox hooks |
+| **Windows — Windows Terminal** | Split panes (`wt`) | SendKeys + inbox | Inbox hooks |
+| **Linux — gnome-terminal / konsole / kitty** | New windows / tabs | TTY write + inbox | Inbox hooks |
+| **Cursor / VS Code** | Background `claude -p` | Inbox fallback | Inbox hooks |
 
-Inbox messaging via hooks is **universal** — it works on every platform regardless of terminal emulator.
-
----
-
-## Reliability Matrix
-
-| Capability | Test Coverage |
-|---|---|
-| Hook shell syntax | CI (`bash -n hooks/*.sh`) |
-| Python hook validity | CI (`py_compile` + `ruff` in workflow) |
-| Coordinator syntax | CI (`node --check`) |
-| Coordinator validation rules | CI (`npm run test:unit`) |
-| Worker lifecycle (spawn/result/kill) | CI (`npm run test:e2e`) |
-| Pipeline lifecycle (run/status/completion) | CI (`npm run test:e2e`) |
-| Platform launch-path logic | CI matrix (`ubuntu`, `macos`, `windows`) |
-| Hook behavior (session + heartbeat) | CI smoke test (`tests/hooks-smoke.sh`) |
-| Sidecar core (recovery, repair, health, metrics) | CI (`node --test sidecar/test/*.test.mjs`) |
-
----
-
-## Compatibility Guarantees
-
-- Node.js: **18.x, 20.x**
-- Python: **3.10+**
-- OS: **macOS, Linux, Windows** (with inbox fallback where native terminal wake/injection is unavailable)
-- Release gating + versioned matrix: [docs/RELEASE_HARDENING.md](docs/RELEASE_HARDENING.md)
+Inbox messaging is **universal** — works on every platform regardless of terminal emulator.
 
 ---
 
 ## Installation
 
-### One-line install (macOS / Linux)
+### One-line install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash
@@ -244,275 +241,183 @@ curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/m
 ### Manual install
 
 ```bash
-# 1. Clone
 git clone https://github.com/DrewDawson2027/claude-lead-system.git
 cd claude-lead-system
 
-# 2. Copy hooks, commands, and MCP coordinator
+# Copy hooks, commands, and MCP coordinator
 cp -r hooks/ ~/.claude/hooks/
 cp -r commands/ ~/.claude/commands/
 cp -r mcp-coordinator/ ~/.claude/mcp-coordinator/
 chmod +x ~/.claude/hooks/*.sh
 
-# 3. Install MCP coordinator dependencies
+# Install MCP coordinator dependencies
 cd ~/.claude/mcp-coordinator && npm install
 
-# 4. Add hooks to your settings
-# Option A (recommended): run install.sh (auto-expands __HOME__ in coordinator path)
-# Option B (manual):
-sed "s|__HOME__|$HOME|g" settings/settings.local.json > ~/.claude/settings.local.json
-# or merge the hooks + mcpServers.coordinator blocks into your existing file
+# Wire up settings (auto-expands __HOME__)
+cd - && bash install.sh --mode full
 
-# 5. Verify everything is working
+# Verify
 bash ~/.claude/hooks/health-check.sh
-
-# 6. Done — type /lead in any Claude Code session
 ```
 
----
+### Requirements
 
-## How It Works
-
-### Hooks run outside the context window
-
-Every Claude Code tool call fires shell hooks. These hooks maintain a live state file per session — writing `tool_counts`, `files_touched`, and `recent_ops` to a small JSON blob on every tool invocation. **This costs zero tokens.** The lead reads a few KB of JSON instead of parsing MB of transcripts.
-
-### Enriched session files
-
-```json
-{
-  "session": "a1b2c3d4",
-  "status": "active",
-  "project": "my-app",
-  "branch": "main",
-  "cwd": "/Users/you/my-app",
-  "tty": "/dev/ttys003",
-  "schema_version": 2,
-  "tool_counts": { "Write": 12, "Edit": 8, "Bash": 23, "Read": 5 },
-  "files_touched": ["src/auth.ts", "src/db.ts", "tests/auth.test.ts"],
-  "recent_ops": [
-    { "tool": "Edit", "file": "src/auth.ts", "ts": "2026-02-19T14:32:01Z" }
-  ]
-}
-```
-
-### Rate-limited heartbeat
-
-The heartbeat has a 5-second cooldown per session. Between full beats, only the activity log is appended (cheap). Stale detection runs max once per 60 seconds.
-
-### MCP is optional
-
-The filesystem protocol (session JSONs, inbox files, activity log) works without the MCP coordinator. The coordinator adds `spawn_worker`, `wake_session`, `run_pipeline`, and `detect_conflicts` — but the core messaging and awareness layer works the moment you install the hooks.
-
-### Sidecar control plane
-
-The sidecar (`sidecar/`) adds persistent state management on top of the hooks and coordinator:
-
-- **Schema-versioned snapshots** — state persisted to disk with migration chain (v1→v2→v3), dry-run migration support
-- **JSONL timeline** — append-only event log for every state change, with event replay and consistency checking
-- **Action queue** — filesystem-based task queue with `pending/inflight/done/failed` lifecycle and per-action audit trail
-- **Recovery checkpoints** — periodic state snapshots (every 5min) with create/restore/rotate lifecycle
-- **Corruption repair** — auto-detects and repairs corrupt JSON/JSONL files with backup-before-fix strategy
-- **Terminal health monitoring** — zombie session detection (dead PID), stale session detection, dead worker shell detection
-- **Hook watchdog** — validates hook syntax (bash -n / py_compile), permissions, and selftest support
-- **Lock contention metrics** — tracks wait times, collisions, and hot paths with circular buffers and percentiles
-- **Safe mode** — `--safe-mode` startup blocks all mutations, allows diagnostics and repair
-- **Versioned HTTP API (`/v1/*`) with legacy aliases** — state management, health checks, recovery operations, diagnostics bundle
-
-The sidecar runs as a local HTTP server and serves as the persistent control plane for the lead system. The maintenance sweep runs every 15 seconds, handling stale action recovery, priority aging, auto-rebalance, checkpoint rotation, and health alerting.
+- [Claude Code](https://claude.ai/code) installed and authenticated
+- `jq` (`brew install jq` / `apt install jq`)
+- Node.js >= 18
+- `bash`, `python3`
 
 ---
 
-## Components
+## Architecture
 
-| File | Role |
-|---|---|
-| `hooks/terminal-heartbeat.sh` | Rate-limited PostToolUse hook — enriches session JSON |
-| `hooks/session-register.sh` | SessionStart hook — registers sessions with TTY, branch, cwd |
-| `hooks/check-inbox.sh` | PreToolUse hook — surfaces messages from lead/other terminals |
-| `hooks/session-end.sh` | SessionEnd hook — marks closed, preserves final metadata |
-| `hooks/conflict-guard.sh` | PreToolUse advisory — warns before Edit/Write if another session touched the same file |
-| `hooks/health-check.sh` | Manual validator — checks all hooks, deps, and settings |
-| `hooks/token-guard.py` | PreToolUse guard — enforces agent spawn limits (max 5/session) |
-| `hooks/read-efficiency-guard.py` | PostToolUse advisor — warns about sequential read patterns |
-| `hooks/lib/portable.sh` | Shared cross-platform utilities (stat, date, TTY detection) |
-| `commands/lead.md` | The `/lead` slash command prompt |
-| `mcp-coordinator/index.js` | MCP server — spawn workers, wake sessions, run pipelines |
-| `settings/settings.local.json` | Reference settings file with all hooks wired |
-| `sidecar/server/index.js` | Thin sidecar bootstrap entrypoint (delegates to server implementation) |
-| `sidecar/server/create-server.js` | Sidecar HTTP control plane implementation (state, actions, diagnostics, recovery) |
-| `sidecar/core/state-store.js` | EventEmitter state with disk persistence + JSONL timeline |
-| `sidecar/core/schema.js` | Schema versioning (v1→v2→v3) with migration chain |
-| `sidecar/core/action-queue.js` | Filesystem-based action queue with audit trail |
-| `sidecar/core/checkpoint.js` | Recovery checkpoint create/restore/rotate |
-| `sidecar/core/repair.js` | JSON/JSONL corruption repair with backup-before-fix |
-| `sidecar/core/event-replay.js` | Timeline event replay + consistency checking |
-| `sidecar/core/terminal-health.js` | Zombie/stale/dead shell detection |
-| `sidecar/core/hook-watchdog.js` | Hook syntax + permissions validation |
-| `sidecar/core/lock-metrics.js` | Lock contention tracking with percentiles |
+### Components
+
+| Component | Lines | What It Does |
+|-----------|-------|-------------|
+| **MCP Coordinator** | 3,812 | 40+ tools: workers, tasks, teams, messaging, pipelines, conflicts |
+| **Shell Hooks** | 6,400 | Session tracking, inbox delivery, conflict detection, token enforcement |
+| **Sidecar** | 4,000+ | HTTP API, TUI dashboard, web dashboard, native bridge, recovery |
+| **Lead Tools** | 200 | Bash fallbacks for core coordinator operations |
+
+### MCP Coordinator Modules
+
+| Module | Lines | Purpose |
+|--------|-------|---------|
+| `workers.js` | 739 | Spawn (pipe/interactive), kill, resume, upgrade, multi-spawn. Role presets, budget gating, worktree isolation, codex runtime |
+| `team-tasking.js` | 697 | Queue task, assign next (load-aware scoring), rebalance, compact status |
+| `tasks.js` | 392 | CRUD with dependencies (blocked_by/blocks), audit trail, quality gates |
+| `platform/common.js` | 386 | Cross-platform terminal detection and launch commands |
+| `security.js` | 285 | Input validation, secure writes (0600), file locking, rate limiting |
+| `teams.js` | 272 | Team CRUD with presets (simple/strict/native-first), policy engine |
+| `platform/wake.js` | 250 | AppleScript (macOS), TTY write (Linux), SendKeys (Windows), inbox fallback |
+| `messaging.js` | 250 | Atomic inbox drain, send message, broadcast, send directive + auto-wake |
+| `shutdown.js` | 188 | Graceful shutdown request/response protocol |
+| `context-store.js` | 165 | Shared context write/read/export between sessions |
+| `pipelines.js` | 159 | Sequential pipeline runner with per-step status tracking |
+| `team-dispatch.js` | 152 | One-call: create task + spawn worker + link member |
+| `gc.js` | 124 | Garbage collection: stale sessions, old results, orphaned files |
+| `approval.js` | 111 | Plan approval/rejection workflow |
+
+### Hook System
+
+| Hook | Event | Purpose |
+|------|-------|---------|
+| `token-guard.py` (1,546 lines) | PreToolUse → Task | 7-rule agent enforcement with audit trail |
+| `terminal-heartbeat.sh` | PostToolUse → Edit\|Write\|Bash\|Read | Rate-limited session enrichment (5s cooldown) |
+| `check-inbox.sh` | PreToolUse → * | Inbox delivery + permission mode enforcement |
+| `conflict-guard.sh` | PreToolUse → Edit\|Write | Cross-session file conflict detection |
+| `session-register.sh` | SessionStart | Creates session JSON, sets terminal tab title |
+| `session-end.sh` | SessionEnd | Marks session closed |
+| `health-check.sh` | Manual | Validates all hooks, deps, settings, MCP |
+| `self-heal.py` | PostToolUse | Auto-repairs corrupt files, stale locks, orphaned workers |
+| `agent-metrics.py` | SubagentStop | Extracts real token usage from agent transcripts |
+| `read-efficiency-guard.py` | PostToolUse → Read | Blocks wasteful sequential reads |
+
+All hooks **fail-open** (exit 0 on error) except `token-guard.py` which is **fail-closed** by design.
+
+### Sidecar Control Plane
+
+The sidecar adds persistent state management:
+
+- **Schema-versioned snapshots** with migration chain
+- **JSONL timeline** for event replay and consistency checking
+- **Recovery checkpoints** every 5 minutes
+- **Corruption repair** with backup-before-fix
+- **Terminal health monitoring** (zombie/stale/dead shell detection)
+- **TUI dashboard** (terminal) and **web dashboard** (browser)
+- **Native bridge** to Claude Code's Agent Teams APIs
+- **Safe mode** for read-only inspection and repair
 
 ---
 
-## Master Agent System
-
-The lead system now includes a production-grade multi-agent orchestration layer: 4 master agents that consolidate 17 archived specialists, with mechanical token enforcement and lifecycle observability.
-
-### Agents
-
-| Agent | Modes | Ref Cards | Purpose |
-|-------|-------|-----------|---------|
-| `master-coder` | 5 (build, debug, refactor, scrape, school) | 14 | Multi-file builds, cross-system debugging |
-| `master-researcher` | 4 (deep, academic, competitor, market) | 2 | Multi-source research synthesis |
-| `master-architect` | 4 (system, api, database, frontend) | 2 | System design, architecture decisions |
-| `master-workflow` | 4 (gsd, feature, git, autonomous) | 0 | GSD execution, Agent Teams orchestration |
-
-### Token Governance
+## Token Governance
 
 `token-guard.py` enforces a strict Tool Ladder via PreToolUse hooks:
 
 | Level | Tool | Cost | When |
 |-------|------|------|------|
-| 1 | Grep | ~1-2k tokens | Know what you're looking for |
-| 2 | Grep + Read | ~5-15k | Need context around matches |
-| 3 | Single Explore | ~40-60k | Need architecture understanding |
-| 4 | 2 Explores | ~80-120k | Truly separate areas (rare) |
+| 1 | Grep | ~1-2K tokens | Know what you're looking for |
+| 2 | Grep + Read | ~5-15K | Need context around matches |
+| 3 | Single Explore agent | ~40-60K | Need architecture understanding |
+| 4 | 2 Explores parallel | ~80-120K | Truly separate areas (rare) |
 
-Hard rules: configurable agent cap per session (default 5), no parallel same-type agents, blocks spawns when Grep/Read suffice.
-
-### Real Token Metering
-
-`agent-metrics.py` parses subagent transcript JSONL on every `SubagentStop` event to extract actual `input_tokens`, `output_tokens`, and `cache_read_input_tokens` from each API call. Calculates real cost and logs to `agent-metrics.jsonl`.
-
-### Lifecycle Hooks
-
-| Hook | Event | Purpose |
-|------|-------|---------|
-| `agent-lifecycle.sh` | SubagentStart/Stop | Spawn/stop tracking with duration |
-| `agent-metrics.py` | SubagentStop | Real token metering via transcript parsing |
-| `pre-compact-save.sh` | PreCompact | Saves session state before context compaction |
-| `self-heal.py` | SessionStart | Auto-repairs missing/corrupt files |
-| `mcp-readiness.py` | SessionStart | Validates MCP server availability |
-| `teammate-lifecycle.sh` | TeammateIdle/TaskCompleted | Ingests native Agent Teams lifecycle events into telemetry |
-
-### On-Demand Mode Loading
-
-Mode files load via the Read tool at runtime — they appear as tool results, not system prompt, so they never break Claude Code's internal prompt cache prefix. Each agent reads only the mode it needs for the current task.
-
----
-
-## Docs
-
-- [Architecture](docs/ARCHITECTURE.md)
-- [Security](docs/SECURITY.md)
-- [API Contract](docs/API_CONTRACT.md)
-- [MCP Tool Reference](docs/MCP_TOOL_REFERENCE.md)
-- [Operator Runbook](docs/OPERATOR_RUNBOOK.md)
-- [Operator Cheatsheet](docs/OPERATOR_CHEATSHEET.md)
-- [Bridge Runbook](docs/BRIDGE_RUNBOOK.md)
-- [Agent Teams Integration](docs/AGENT_TEAMS_INTEGRATION.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Known Limitations](docs/KNOWN_LIMITATIONS.md)
-- [Provenance](docs/PROVENANCE.md)
-- [Release Hardening](docs/RELEASE_HARDENING.md)
-- [Release Checklist](docs/RELEASE_CHECKLIST.md)
-
-## Security Model
-
-- Trust boundary: this system is designed for a single local user account and local machine workflows.
-- Protected by default: coordinator state directories/files are owner-restricted (`0700`/`0600`), message payloads are size-capped, and inbox reads are bounded.
-- Out of scope: hostile local root/admin users, compromised OS, and arbitrary shell commands executed by trusted operators.
-- Fail-safe behavior: `hooks/token-guard.py` is fail-closed by default; use `TOKEN_GUARD_SKIP_RULES=rule1,rule2` to bypass specific rules only (logged to stderr).
-- Wake safety: terminal wake sends Enter keystroke only; all message content is delivered through inbox. Keystroke injection was removed as an attack surface.
-
----
-
-## Key Design Decisions
-
-**Zero API tokens for coordination.** Hooks are shell scripts. They run outside the Claude context window. Coordination is free.
-
-**Enriched session files eliminate transcript parsing.** Reading 3KB of JSON per session is orders of magnitude cheaper than parsing a transcript to infer state.
-
-**Rate-limited heartbeat.** 5-second cooldown prevents IO storms on busy sessions.
-
-**Schema versioned.** `schema_version` in session files enables non-breaking migrations.
-
-**MCP is optional.** The file-based layer works standalone. MCP adds power-user features on top.
-
-**Cross-platform wake strategy.** macOS uses AppleScript, Linux attempts direct safe TTY wake, Windows uses AppActivate best-effort, and all platforms keep inbox fallback. Wake always sends Enter only — message content goes through inbox.
-
-**Pre-edit conflict detection.** The `conflict-guard.sh` hook checks all active sessions' `files_touched` arrays before every Edit/Write. This is something Agent Teams fundamentally cannot do — it has no concept of which files each session has modified.
-
-**Stable filesystem primitives.** The core protocol uses universal filesystem operations: JSON files, JSONL append, directory-based inboxes, and `mkdir`-based locks. Even if Claude Code adds native conflict detection or task routing, the enriched session files, activity log, terminal spawning, and sequential pipelines remain independently valuable — they sit at a different layer.
-
----
-
-## Requirements
-
-- [Claude Code](https://claude.ai/code) installed and authenticated
-- `jq` (`brew install jq` / `apt install jq` / `choco install jq`)
-- Node.js ≥ 18 (for MCP coordinator)
-- `bash` (hooks)
-- `python3` (optional guards)
-
----
-
-## Works WITH Agent Teams
-
-This system complements Claude Code's built-in Agent Teams. Use both together. See [Agent Teams Integration Patterns](docs/AGENT_TEAMS_INTEGRATION.md) for detailed examples.
-
-| Capability | Agent Teams | Claude Lead System |
-|---|---|---|
-| Task management | `TaskCreate`, `TaskUpdate` | `coord_create_task`, dependency graph, metadata |
-| Agent messaging | `SendMessage` | `coord_send_message`, `coord_send_directive`, `coord_wake_session` |
-| Native team APIs | `TeamCreate`, `TeamStatus`, `SendMessage`, `Task` | Supported as optional execution path from `/lead` |
-| Native teammate lifecycle hooks | `TeammateIdle`, `TaskCompleted` | Ingested into activity/session telemetry via `teammate-lifecycle.sh` |
-| **Pre-edit conflict detection** | — | `conflict-guard.sh` warns before file overwrites |
-| **Session observability** | Idle notifications only | Tool counts, files touched, recent ops, activity log |
-| **Native terminal tabs** | `Task` tool (background only) | iTerm2 splits, gnome-terminal tabs, Windows Terminal panes |
-| **Sequential pipelines** | Manual chaining | `coord_run_pipeline` with status tracking |
-| **Worker lifecycle** | Background agents | PID tracking, kill, resume, result retrieval, budget-aware plan gating |
+Hard rules: configurable agent cap per session (default 5), no parallel same-type agents, blocks spawns when Grep/Read would suffice. All decisions logged to `audit.jsonl`.
 
 ---
 
 ## Quality Gates
 
-- CI validates shell, Python, and JavaScript syntax
-- CI runs coordinator argument-validation tests
-- CI enforces performance SLO thresholds via `tests/perf-gate.mjs`
-- CI runs hook smoke tests (`session-register` + `terminal-heartbeat`) in isolated HOME
-- CI runs shell hook unit tests (34 tests) and Python hook unit tests (23 tests)
-- CI runs sidecar unit tests (67 tests across recovery, repair, health, metrics)
-- CI enforces 80%+ line coverage via `c8` (currently ~81%)
-- Sidecar HTTP API exposes canonical `/v1/*` routes and keeps unversioned aliases temporarily with deprecation headers
-
-### Root Workspace (npm Workspaces)
-
-You can now install and run the coordinator + sidecar from the repo root:
+| What | How |
+|------|-----|
+| Shell syntax | CI: `bash -n hooks/*.sh` |
+| Python validity | CI: `py_compile` + `ruff` |
+| Coordinator syntax | CI: `node --check` |
+| Validation rules | CI: unit tests |
+| Worker lifecycle | CI: e2e tests |
+| Pipeline lifecycle | CI: e2e tests |
+| Platform matrix | CI: ubuntu + macos + windows |
+| Hook behavior | CI: smoke tests + unit tests (57 tests) |
+| Sidecar core | CI: 67 tests (recovery, repair, health, metrics) |
+| Line coverage | CI: 81%+ enforced via `c8` |
 
 ```bash
-npm install
-npm run ci:local
+# Run locally
+npm install && npm run ci:local
 ```
 
-Key root scripts:
-- `npm run test:all`
-- `npm run test:coordinator`
-- `npm run test:sidecar`
-- `npm run lint:shell`
-- `npm run lint:python`
-- `npm run typecheck:sidecar`
-- `health-check.sh` validates install health on your machine
-- Release supply-chain workflow publishes SBOM, provenance attestation, and keyless cosign signatures
+---
+
+## Security Model
+
+- **Single local user** — designed for one user account on one machine
+- **Owner-restricted state** — directories `0700`, files `0600`, symlink checks
+- **Size-capped messages** — inbox reads bounded, rate-limited (120/min)
+- **Wake safety** — only sends Enter keystroke; all content via inbox
+- **Fail-closed token guard** — `token-guard.py` blocks by default; bypass requires explicit env vars (logged)
+- **Input validation** — all coordinator inputs sanitized (IDs, names, paths, models)
+
+Full details: [docs/SECURITY.md](docs/SECURITY.md)
+
+---
+
+## Key Design Decisions
+
+**Zero API tokens for coordination.** Hooks are shell scripts running outside the Claude context window. Coordination is free.
+
+**Enriched session files eliminate transcript parsing.** Reading 2KB of JSON per session is orders of magnitude cheaper than parsing transcripts.
+
+**Rate-limited heartbeat.** 5-second cooldown prevents IO storms on busy sessions.
+
+**MCP is optional.** The filesystem protocol works standalone. MCP adds power-user features on top.
+
+**Pre-edit conflict detection.** Something Agent Teams fundamentally cannot do — it has no concept of which files each session has modified.
+
+**Stable filesystem primitives.** JSON files, JSONL append, directory-based inboxes, `mkdir`-based locks. Even if Claude Code adds native conflict detection, the enriched session files, activity log, terminal spawning, and sequential pipelines remain independently valuable.
+
+---
+
+## Docs
+
+- [Architecture](docs/ARCHITECTURE.md) — system design and data flow
+- [Security](docs/SECURITY.md) — threat model and mitigations
+- [API Contract](docs/API_CONTRACT.md) — coordinator tool schemas
+- [MCP Tool Reference](docs/MCP_TOOL_REFERENCE.md) — all 40+ tools documented
+- [Operator Runbook](docs/OPERATOR_RUNBOOK.md) — ops procedures
+- [Agent Teams Integration](docs/AGENT_TEAMS_INTEGRATION.md) — using both together
+- [Troubleshooting](docs/TROUBLESHOOTING.md) — common issues and fixes
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). PRs welcome — especially for:
-- `tmux` / `zellij` split pane support
-- Tests for hooks
+PRs welcome — especially for `tmux`/`zellij` split pane support and additional tests. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
+
+## Author
+
+**Drew Dawson** — [@DrewDawson2027](https://github.com/DrewDawson2027)
 
 ## License
 

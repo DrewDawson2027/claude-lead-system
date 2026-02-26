@@ -35,21 +35,30 @@ echo "$PROMPT" > "$PROMPT_FILE"
 ESCAPED_DIR=$(echo "$DIR" | sed "s/'/'\\\\''/g")
 WORKER_CMD="cd '${ESCAPED_DIR}' && echo 'Worker ${TASK_ID} starting at \$(date)' > '${RESULT_FILE}' && echo \$\$ > '${PID_FILE}' && env -u CLAUDECODE claude -p --model ${MODEL} < '${PROMPT_FILE}' >> '${RESULT_FILE}' 2>&1 && echo '{\"status\":\"completed\",\"finished\":\"'\$(date -u +%Y-%m-%dT%H:%M:%SZ)'\",\"task_id\":\"${TASK_ID}\"}' > '${META_FILE}.done' && rm -f '${PID_FILE}'"
 
-# Spawn in iTerm2
+# Spawn worker: try iTerm2, fall back to background process
 ESCAPED_CMD=$(echo "$WORKER_CMD" | sed 's/"/\\"/g')
+SPAWN_METHOD="background"
 
-if [ "$LAYOUT" = "split" ]; then
-  osascript -e "tell application \"iTerm2\" to tell current session of current window to split vertically with default profile" \
-            -e "tell application \"iTerm2\" to tell current session of current window to write text \"$ESCAPED_CMD\"" 2>/dev/null
-else
-  osascript -e "tell application \"iTerm2\" to tell current window to create tab with default profile" \
-            -e "tell application \"iTerm2\" to tell current session of current window to write text \"$ESCAPED_CMD\"" 2>/dev/null
+if command -v osascript &>/dev/null && osascript -e 'tell application "System Events" to get name of processes' 2>/dev/null | grep -q "iTerm2"; then
+  if [ "$LAYOUT" = "split" ]; then
+    osascript -e "tell application \"iTerm2\" to tell current session of current window to split vertically with default profile" \
+              -e "tell application \"iTerm2\" to tell current session of current window to write text \"$ESCAPED_CMD\"" 2>/dev/null && SPAWN_METHOD="iterm2-split"
+  else
+    osascript -e "tell application \"iTerm2\" to tell current window to create tab with default profile" \
+              -e "tell application \"iTerm2\" to tell current session of current window to write text \"$ESCAPED_CMD\"" 2>/dev/null && SPAWN_METHOD="iterm2-tab"
+  fi
+fi
+
+# Fallback: spawn as background process via claude -p
+if [ "$SPAWN_METHOD" = "background" ]; then
+  bash -c "$WORKER_CMD" &
+  disown
 fi
 
 echo "Worker spawned: $TASK_ID"
 echo "- Directory: $DIR"
 echo "- Model: $MODEL"
-echo "- Layout: $LAYOUT via iTerm2"
+echo "- Method: $SPAWN_METHOD"
 echo "- Results: $RESULT_FILE"
 echo ""
 echo "Check with: bash ~/.claude/lead-tools/get_result.sh $TASK_ID"

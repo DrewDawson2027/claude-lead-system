@@ -4,7 +4,7 @@
  * @module teams
  */
 
-import { existsSync, readdirSync, mkdirSync } from "fs";
+import { existsSync, readdirSync, mkdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
 import { sanitizeName, writeFileSecure, ensureSecureDirectory } from "./security.js";
@@ -268,4 +268,45 @@ export function handleListTeams() {
     const table = `| Team | Project | Path | Members | Updated |\n|------|---------|------|---------|---------|` + "\n" + rows.join("\n");
     return text(`## Teams (${teams.length})\n\n${table}`);
   } catch { return text("No teams found."); }
+}
+
+/**
+ * Handle coord_delete_team tool call.
+ * Removes team config and optionally cleans associated tasks.
+ * @param {object} args - { team_name, clean_tasks }
+ * @returns {object} MCP text response
+ */
+export function handleDeleteTeam(args) {
+  const teamName = sanitizeName(args.team_name, "team_name");
+  const dir = teamsDir();
+  const teamFile = join(dir, `${teamName}.json`);
+
+  if (!existsSync(teamFile)) return text(`Team ${teamName} not found.`);
+
+  const team = readJSON(teamFile);
+  const memberCount = team?.members?.length || 0;
+
+  try { unlinkSync(teamFile); } catch (e) {
+    return text(`Failed to delete team ${teamName}: ${e.message}`);
+  }
+
+  let tasksRemoved = 0;
+  if (args.clean_tasks) {
+    const tasksDir = join(cfg().TERMINALS_DIR, "tasks");
+    try {
+      const files = readdirSync(tasksDir).filter(f => f.endsWith(".json"));
+      for (const f of files) {
+        const task = readJSON(join(tasksDir, f));
+        if (task && (task.team_name === teamName || task.metadata?.team_name === teamName)) {
+          try { unlinkSync(join(tasksDir, f)); tasksRemoved++; } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  return text(
+    `Team **${teamName}** deleted.\n` +
+    `- Members removed: ${memberCount}\n` +
+    (args.clean_tasks ? `- Tasks cleaned: ${tasksRemoved}\n` : "- Tasks preserved (use clean_tasks: true to remove)\n")
+  );
 }

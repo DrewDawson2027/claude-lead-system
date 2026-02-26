@@ -1,0 +1,10 @@
+{
+  "name": "lead-system-demo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "echo 'Tests pass'",
+    "lint": "echo 'Lint pass'",
+    "build": "echo 'Build pass'"
+  }
+}

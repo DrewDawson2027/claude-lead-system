@@ -35,7 +35,7 @@ import { handleCreateTask, handleUpdateTask, handleListTasks, handleGetTask, han
 import { handleApprovePlan, handleRejectPlan } from "./lib/approval.js";
 import { handleShutdownRequest, handleShutdownResponse } from "./lib/shutdown.js";
 import { handleWriteContext, handleReadContext, handleExportContext } from "./lib/context-store.js";
-import { handleCreateTeam, handleGetTeam, handleListTeams } from "./lib/teams.js";
+import { handleCreateTeam, handleGetTeam, handleListTeams, handleDeleteTeam } from "./lib/teams.js";
 import { handleTeamDispatch } from "./lib/team-dispatch.js";
 import {
   handleTeamStatusCompact,
@@ -45,6 +45,7 @@ import {
   handleSidecarStatus,
 } from "./lib/team-tasking.js";
 import { runGC } from "./lib/gc.js";
+import { handleCostComparison } from "./lib/cost-comparison.js";
 import { handleWakeSession } from "./lib/platform/wake.js";
 import { selectWakeText } from "./lib/platform/wake.js";
 import {
@@ -497,6 +498,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: { type: "object", properties: {} },
     },
     {
+      name: "coord_delete_team",
+      description: "Delete a team and optionally clean its associated tasks.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          team_name: { type: "string", description: "Team name to delete" },
+          clean_tasks: { type: "boolean", description: "Also remove tasks associated with this team (default: false)" },
+        },
+        required: ["team_name"],
+      },
+    },
+    {
       name: "coord_team_dispatch",
       description: "Create a team-scoped task and dispatch a worker using team policy defaults in one call.",
       inputSchema: {
@@ -619,6 +632,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "coord_sidecar_status",
       description: "Check local sidecar installation/runtime status and latest generated snapshot metadata.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+      },
+    },
+    {
+      name: "coord_cost_comparison",
+      description: "Compare estimated Lead System cost vs projected Agent Teams cost for current session's workers.",
       inputSchema: {
         type: "object",
         properties: {},
@@ -824,12 +845,14 @@ function handleToolCall(name, args = {}) {
     case "coord_create_team":      return handleCreateTeam(args);
     case "coord_get_team":         return handleGetTeam(args);
     case "coord_list_teams":       return handleListTeams(args);
+    case "coord_delete_team":      return handleDeleteTeam(args);
     case "coord_team_dispatch":    return handleTeamDispatch(args);
     case "coord_team_status_compact": return handleTeamStatusCompact(args);
     case "coord_team_queue_task":  return handleTeamQueueTask(args);
     case "coord_team_assign_next": return handleTeamAssignNext(args);
     case "coord_team_rebalance":   return handleTeamRebalance(args);
     case "coord_sidecar_status":   return handleSidecarStatus(args);
+    case "coord_cost_comparison":  return handleCostComparison(args);
     case "coord_approve_plan":     return handleApprovePlan(args);
     case "coord_reject_plan":      return handleRejectPlan(args);
     case "coord_shutdown_request": return handleShutdownRequest(args);
