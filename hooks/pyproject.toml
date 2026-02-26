@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-token-guard"
+version = "1.1.0"
+description = "Stop Claude Code from burning your API budget. Mechanical enforcement via sys.exit(2)."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [{name = "Drew Dawson"}]
+keywords = ["claude", "claude-code", "token-management", "cost-optimization", "hooks"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Quality Assurance"
+]
+
+[project.urls]
+Homepage = "https://github.com/DrewDawson2027/claude-lead-system"
+Repository = "https://github.com/DrewDawson2027/claude-lead-system"
+Issues = "https://github.com/DrewDawson2027/claude-lead-system/issues"
+
+[project.scripts]
+claude-token-guard = "claude_token_guard.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["claude_token_guard*"]

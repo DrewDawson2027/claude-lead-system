@@ -1,0 +1,65 @@
+name: tag-policy
+
+on:
+  push:
+    tags:
+      - "v*"
+  release:
+    types: [published, prereleased]
+
+jobs:
+  semver-and-version-match:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate semver tag and hooks package version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+          from pathlib import Path
+          try:
+              import tomllib
+          except ModuleNotFoundError:
+              import tomli as tomllib  # type: ignore
+
+          event = os.environ.get("EVENT_NAME", "")
+          tag = (os.environ.get("RELEASE_TAG") if event == "release" else os.environ.get("REF_NAME")) or ""
+          if not tag:
+              print("Missing tag name")
+              sys.exit(1)
+
+          semver_re = re.compile(r"^v(?P<maj>0|[1-9]\d*)\.(?P<min>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<pre>[0-9A-Za-z.-]+))?(?:\+(?P<build>[0-9A-Za-z.-]+))?$")
+          m = semver_re.match(tag)
+          if not m:
+              print(f"Tag '{tag}' is not valid semver (expected vMAJOR.MINOR.PATCH[-PRERELEASE][+BUILD])")
+              sys.exit(1)
+
+          pkg_path = Path("hooks/pyproject.toml")
+          if not pkg_path.exists():
+              print("hooks/pyproject.toml not found")
+              sys.exit(1)
+          data = tomllib.loads(pkg_path.read_text(encoding="utf-8"))
+          pkg_ver = str(((data.get("project") or {}).get("version")) or "").strip()
+          if not pkg_ver:
+              print("project.version missing in hooks/pyproject.toml")
+              sys.exit(1)
+
+          tag_core = f"{m.group('maj')}.{m.group('min')}.{m.group('patch')}"
+          if m.group("pre"):
+              if not pkg_ver.startswith(tag_core):
+                  print(f"Prerelease tag core {tag_core} does not match hooks package version {pkg_ver}")
+                  sys.exit(1)
+          else:
+              if pkg_ver != tag_core:
+                  print(f"Release tag {tag} does not match hooks package version {pkg_ver}")
+                  sys.exit(1)
+
+          print(f"OK: tag {tag} passes semver policy and matches hooks package version {pkg_ver}")
+          PY

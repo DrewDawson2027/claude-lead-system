@@ -29,6 +29,7 @@ DEFAULT_COST_CONFIG: Dict[str, Any] = {
     "alert_cooldown_seconds": 1800,
     "alert_repeat_crit_seconds": 600,
     "ops_snapshot_cache_ttl_seconds": 60,
+    "ops_trends_cache_ttl_seconds": 300,
     "trends_default_window_days": 7,
 }
 

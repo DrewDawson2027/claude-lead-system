@@ -4,12 +4,12 @@
 Mechanical enforcement, not suggestions. `sys.exit(2)` can't be rationalized.
 
 <p align="center">
-  <a href="https://github.com/DrewDawson2027/claude-token-guard/actions/workflows/ci.yml"><img src="https://github.com/DrewDawson2027/claude-token-guard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml"><img src="https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://codecov.io/gh/DrewDawson2027/claude-token-guard"><img src="https://codecov.io/gh/DrewDawson2027/claude-token-guard/graph/badge.svg" alt="Coverage"></a>
   <a href="#"><img src="https://img.shields.io/badge/tests-140%2B%20passed-brightgreen" alt="Tests"></a>
   <a href="https://pypi.org/project/claude-token-guard/"><img src="https://img.shields.io/pypi/v/claude-token-guard" alt="PyPI"></a>
   <a href="https://pepy.tech/project/claude-token-guard"><img src="https://pepy.tech/badge/claude-token-guard" alt="Downloads"></a>
-  <a href="https://github.com/DrewDawson2027/claude-token-guard/stargazers"><img src="https://img.shields.io/github/stars/DrewDawson2027/claude-token-guard" alt="Stars"></a>
+  <a href="https://github.com/DrewDawson2027/claude-lead-system/stargazers"><img src="https://img.shields.io/github/stars/DrewDawson2027/claude-token-guard" alt="Stars"></a>
   <a href="#"><img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
   <a href="#"><img src="https://img.shields.io/badge/dependencies-zero-orange" alt="Dependencies"></a>
@@ -133,19 +133,19 @@ claude-token-guard install
 
 ```bash
 # 1. Clone
-git clone https://github.com/DrewDawson2027/claude-token-guard.git
+git clone https://github.com/DrewDawson2027/claude-lead-system.git
 
 # 2. Copy the hooks into your Claude Code config
-cp claude-token-guard/{token-guard.py,read-efficiency-guard.py,hook_utils.py,self-heal.py} \
+cp claude-lead-system/hooks/{token-guard.py,read-efficiency-guard.py,hook_utils.py,self-heal.py} \
    ~/.claude/hooks/
 
 # 3. Copy the config
-cp claude-token-guard/token-guard-config.json ~/.claude/hooks/
+cp claude-lead-system/hooks/token-guard-config.json ~/.claude/hooks/
 
 # 4. Register the hooks in your settings.json (see Configuration below)
 
 # 5. Verify
-cd claude-token-guard && python3 -m pytest tests/ -v
+cd claude-lead-system/hooks && python3 -m pytest tests/ -v
 ```
 
 **That's it.** Zero dependencies. Pure Python standard library.
@@ -391,7 +391,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). PRs welcome, especially:
 ---
 
 <p align="center">
-  <strong>If this saved you money, <a href="https://github.com/DrewDawson2027/claude-token-guard">star the repo</a>.</strong>
+  <strong>If this saved you money, <a href="https://github.com/DrewDawson2027/claude-lead-system">star the repo</a>.</strong>
   <br>
   Built with frustration, tested with rigor.
 </p>

@@ -24,7 +24,6 @@ Cross-platform: Works on macOS, Linux, and Windows (portable file locking).
 
 import json
 import os
-import re
 import sys
 import time
 from typing import Dict, List
@@ -48,9 +47,6 @@ SEQUENTIAL_WINDOW = (
 )
 READ_TTL = 300  # Prune read records older than 5 minutes
 
-SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
-
-
 def default_read_state() -> Dict:
     """Return the default empty state for read tracking."""
     return {
@@ -71,14 +67,12 @@ def main():
         input_data = json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError):
         sys.exit(0)
+    if not isinstance(input_data, dict):
+        sys.exit(0)
 
     tool_name = input_data.get("tool_name", "")
     tool_input = input_data.get("tool_input", {})
     session_id = input_data.get("session_id", "unknown")
-
-    if not SESSION_ID_RE.match(str(session_id)):
-        print("BLOCKED: Invalid session_id in read-efficiency-guard payload.", file=sys.stderr)
-        sys.exit(2)
 
     if tool_name != "Read":
         sys.exit(0)
@@ -89,7 +83,7 @@ def main():
     normalized_file_path = normalize_file_path(file_path)
     session_key = normalize_session_key(session_id)
 
-    state_file = os.path.join(STATE_DIR, f"{session_id}-reads.json")
+    state_file = os.path.join(STATE_DIR, f"{session_key}-reads.json")
     lock_file = state_file + ".lock"
 
     try:
@@ -175,7 +169,7 @@ def main():
                     state["last_sequential_warn"] = now
 
             # CHECK 3: Post-Explore duplicate (advisory only — Explore context is useful)
-            explore_dirs = get_explore_dirs(session_id)
+            explore_dirs = get_explore_dirs(session_key)
             if explore_dirs:
                 for explore_dir in explore_dirs:
                     explore_norm = normalize_file_path(explore_dir)
@@ -223,23 +217,33 @@ def warn(message: str) -> None:
     print(message, file=sys.stderr)
 
 
-def get_explore_dirs(session_id: str) -> List[str]:
+def get_explore_dirs(session_key: str) -> List[str]:
     """Read token-guard state to find directories mapped by Explore agents.
 
     Acquires the token-guard lock to prevent reading a partially-written state file
     during concurrent token-guard writes.
     """
-    guard_state_file = os.path.join(STATE_DIR, f"{session_id}.json")
-    guard_lock_file = guard_state_file + ".lock"
-    try:
-        with open(guard_lock_file, "w") as lf:
-            lock(lf)
-            try:
-                with open(guard_state_file, "r") as f:
-                    guard_state = json.load(f)
-            finally:
-                unlock(lf)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    safe_session_key = normalize_session_key(session_key)
+    candidates = [safe_session_key]
+    if str(session_key) not in candidates:
+        candidates.append(str(session_key))
+
+    guard_state = None
+    for candidate in candidates:
+        guard_state_file = os.path.join(STATE_DIR, f"{candidate}.json")
+        guard_lock_file = guard_state_file + ".lock"
+        try:
+            with open(guard_lock_file, "w") as lf:
+                lock(lf)
+                try:
+                    with open(guard_state_file, "r") as f:
+                        guard_state = json.load(f)
+                    break
+                finally:
+                    unlock(lf)
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            continue
+    if not isinstance(guard_state, dict):
         return []
 
     dirs = []
