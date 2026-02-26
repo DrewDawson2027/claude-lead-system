@@ -24,7 +24,15 @@ Type `/lead` in any Claude Code session. That's it.
 
 ---
 
-![Demo](assets/demo/demo.gif)
+![Lead orchestrating 2 workers — conflict detection, messaging, cost comparison](assets/demo/demo-hero.png)
+
+<details><summary>Watch the full demo video (45s)</summary>
+
+The video shows: Workers A and B running autonomously → Lead boots `/lead` dashboard → Detects file conflict on `src/auth.ts` → Sends new instructions to both workers → Workers pivot to new tasks → Updated dashboard shows progress → Cost comparison: $3.51 vs $8.10.
+
+[Download demo-final.mp4](assets/demo/demo-final.mp4)
+
+</details>
 
 ---
 
