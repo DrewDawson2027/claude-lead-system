@@ -22,6 +22,7 @@ jobs:
         run: |
           mkdir -p dist/release-assets
           BUNDLE="dist/release-assets/claude-lead-system.tar.gz"
+          TMP_BUNDLE="$(mktemp)"
           tar \
             --sort=name \
             --mtime='UTC 1970-01-01' \
@@ -30,7 +31,9 @@ jobs:
             --numeric-owner \
             --exclude .git \
             --exclude node_modules \
-            -czf "$BUNDLE" .
+            --exclude dist \
+            -czf "$TMP_BUNDLE" .
+          mv "$TMP_BUNDLE" "$BUNDLE"
       - name: Attest release bundle provenance
         uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
         with:
