@@ -49,7 +49,8 @@ echo "Checking screenshot freshness..."
 SCREENSHOTS_DIR="$REPO_ROOT/assets/demo/screenshots"
 if [ -d "$SCREENSHOTS_DIR" ]; then
   now=$(date +%s)
-  for img in "$SCREENSHOTS_DIR"/*.{png,jpg,gif} 2>/dev/null; do
+  shopt -s nullglob
+  for img in "$SCREENSHOTS_DIR"/*.{png,jpg,gif,webp}; do
     [ -f "$img" ] || continue
     name=$(basename "$img")
     if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -64,6 +65,7 @@ if [ -d "$SCREENSHOTS_DIR" ]; then
       log_ok "$name (${age_days} days old)"
     fi
   done
+  shopt -u nullglob
 else
   log_warn "screenshots/ directory not found"
 fi

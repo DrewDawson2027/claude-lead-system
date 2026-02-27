@@ -467,14 +467,20 @@ echo ""
 # ── Source acquisition (verified tarball or git clone) ───────────────
 if [ -n "$SOURCE_TARBALL" ]; then
   echo "Extracting verified source tarball..."
-  top_dir=$(tar -tzf "$SOURCE_TARBALL" | head -n 1 | cut -d/ -f1)
-  if [ -z "${top_dir:-}" ]; then
-    echo "  ✗  Could not determine top-level directory from tarball: $SOURCE_TARBALL" >&2
-    exit 1
+  EXTRACT_DIR="$TMP_DIR/source"
+  mkdir -p "$EXTRACT_DIR"
+  tar -xzf "$SOURCE_TARBALL" -C "$EXTRACT_DIR"
+  SRC="$EXTRACT_DIR"
+  if [ ! -d "$SRC/hooks" ] || [ ! -d "$SRC/mcp-coordinator" ]; then
+    shopt -s nullglob
+    subdirs=("$EXTRACT_DIR"/*)
+    shopt -u nullglob
+    if [ "${#subdirs[@]}" -eq 1 ] && [ -d "${subdirs[0]}" ] && [ -d "${subdirs[0]}/hooks" ] && [ -d "${subdirs[0]}/mcp-coordinator" ]; then
+      SRC="${subdirs[0]}"
+    fi
   fi
-  tar -xzf "$SOURCE_TARBALL" -C "$TMP_DIR"
-  SRC="$TMP_DIR/$top_dir"
-  [ -d "$SRC" ] || { echo "  ✗  Extracted source directory missing: $SRC" >&2; exit 1; }
+  [ -d "$SRC/hooks" ] || { echo "  ✗  Extracted source missing hooks/ directory: $SOURCE_TARBALL" >&2; exit 1; }
+  [ -d "$SRC/mcp-coordinator" ] || { echo "  ✗  Extracted source missing mcp-coordinator/ directory: $SOURCE_TARBALL" >&2; exit 1; }
   echo ""
 else
   echo "Cloning repository..."

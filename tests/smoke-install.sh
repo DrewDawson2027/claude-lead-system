@@ -65,6 +65,18 @@ trap 'rm -rf "$FAKE_HOME"' EXIT
 
 log() { echo "  [smoke] $*"; }
 fail() { echo "  [FAIL]  $*" >&2; exit 1; }
+sha256_file() {
+  local target="$1"
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$target" | awk '{print $1}'
+    return 0
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$target" | awk '{print $1}'
+    return 0
+  fi
+  return 1
+}
 
 log "Isolated HOME: $FAKE_HOME"
 log "Mode: $MODE | Ref: $REF${VERSION:+ | Version: $VERSION}"
@@ -104,19 +116,15 @@ elif [ "$REF" = "HEAD" ]; then
   tar --exclude .git -czf "$LOCAL_TAR" -C "$REPO_ROOT" .
   # Create a minimal checksums.txt for the tarball
   LOCAL_CHECKSUMS="$FAKE_HOME/checksums.txt"
-  if command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 "$LOCAL_TAR" | sed "s|$LOCAL_TAR|local-source.tar.gz|" > "$LOCAL_CHECKSUMS"
-  elif command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$LOCAL_TAR" | sed "s|$LOCAL_TAR|local-source.tar.gz|" > "$LOCAL_CHECKSUMS"
-  else
+  local_tar_sha="$(sha256_file "$LOCAL_TAR" || true)"
+  installer_sha="$(sha256_file "$REPO_ROOT/install.sh" || true)"
+  if [ -z "${local_tar_sha:-}" ] || [ -z "${installer_sha:-}" ]; then
     fail "No SHA256 tool found"
   fi
-  # Also add install.sh to the checksums
-  if command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 "$REPO_ROOT/install.sh" | awk '{print $1 "  install.sh"}' >> "$LOCAL_CHECKSUMS"
-  else
-    sha256sum "$REPO_ROOT/install.sh" | awk '{print $1 "  install.sh"}' >> "$LOCAL_CHECKSUMS"
-  fi
+  {
+    printf '%s  %s\n' "$local_tar_sha" "local-source.tar.gz"
+    printf '%s  %s\n' "$installer_sha" "install.sh"
+  } > "$LOCAL_CHECKSUMS"
   INSTALL_ARGS+=(--source-tarball "$LOCAL_TAR" --checksum-file "$LOCAL_CHECKSUMS")
 else
   INSTALL_ARGS+=(--ref "$REF" --allow-unsigned-release)
