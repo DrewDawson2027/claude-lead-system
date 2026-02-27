@@ -1,14 +1,73 @@
+import { API_SCHEMA } from '../http/schema.js';
+import { isPathWithin } from './shared.js';
+
 export function registerSystemRoutes(registry: any): void {
   registry.add('system:health', async (ctx: any) => {
     const { req, res, url, snapshot, SAFE_MODE, processInfo } = ctx;
     if (req.method === 'GET' && url.pathname === '/health') {
+      let lockAgeMs: number | null = null;
+      try {
+        const lockData = ctx.readJSON?.(ctx.paths?.lockFile);
+        if (lockData?.started_at) lockAgeMs = Date.now() - new Date(lockData.started_at).getTime();
+      } catch { /* best effort */ }
+
+      let checkpointFreshness: { newest_age_ms: number; newest_label: string } | null = null;
+      try {
+        const cps = ctx.listCheckpoints?.(ctx.paths);
+        if (cps?.length) {
+          const newest = cps[cps.length - 1];
+          if (newest.created_at) {
+            checkpointFreshness = {
+              newest_age_ms: Date.now() - new Date(newest.created_at).getTime(),
+              newest_label: newest.label || 'unknown',
+            };
+          }
+        }
+      } catch { /* best effort */ }
+
+      const degraded_reasons: string[] = [];
+      let tokenTelemetry: any = null;
+      try {
+        const t = ctx.readJSON?.(ctx.paths?.apiTokenFile) || null;
+        if (t) {
+          const pivot = t.rotated_at || t.created_at || null;
+          const ageMs = pivot ? Math.max(0, Date.now() - new Date(pivot).getTime()) : null;
+          tokenTelemetry = {
+            last_rotated_at: t.rotated_at || null,
+            created_at: t.created_at || null,
+            age_ms: ageMs,
+          };
+          const maxAgeHours = Number(process.env.LEAD_SIDECAR_API_TOKEN_MAX_AGE_HOURS || 0);
+          if (maxAgeHours > 0 && ageMs !== null && ageMs > maxAgeHours * 3600_000) {
+            degraded_reasons.push('api_token_age_exceeded');
+          }
+        }
+      } catch { /* best effort */ }
+      if (lockAgeMs !== null && lockAgeMs > 30_000) degraded_reasons.push('stale_lock');
+      if (checkpointFreshness && checkpointFreshness.newest_age_ms > 10 * 60_000) degraded_reasons.push('checkpoint_stale');
+      if (SAFE_MODE) degraded_reasons.push('safe_mode_active');
+      const queueCounts = ctx.actionQueue?.counts();
+      if (queueCounts && (queueCounts.pending || 0) > 50) degraded_reasons.push('queue_backlog');
+      if (ctx.filePermissions && !ctx.filePermissions.ok) degraded_reasons.push('file_permissions');
+      const status = degraded_reasons.length > 0 ? 'degraded' : 'healthy';
+
       return ctx.sendJson(res, 200, {
         ok: true,
+        status,
+        degraded_reasons,
         pid: processInfo.pid,
         generated_at: snapshot.generated_at,
         teams: (snapshot.teams || []).length,
         native: snapshot.native || null,
         safe_mode: SAFE_MODE,
+        file_permissions: ctx.filePermissions || null,
+        queue_depth: queueCounts || null,
+        lock_age_ms: lockAgeMs,
+        checkpoint_freshness: checkpointFreshness,
+        security_telemetry: {
+          api_token: tokenTelemetry,
+          log_schema_version: 'sidecar-security-audit/v1',
+        },
       }, req) || true;
     }
     return false;
@@ -55,8 +114,8 @@ export function registerSystemRoutes(registry: any): void {
     let baseline = null;
     if (body.baseline_file) {
       const resolved = ctx.pathResolve(String(body.baseline_file));
-      if (!resolved.startsWith(ctx.pathResolve(paths.diagnosticsDir))) {
-        ctx.sendJson(res, 400, { error: 'baseline_file must be within diagnostics directory' }, req);
+      if (!isPathWithin(paths.diagnosticsDir, resolved, ctx.pathResolve)) {
+        ctx.sendError(res, 400, 'VALIDATION_ERROR', 'baseline_file must be within diagnostics directory', req);
         return true;
       }
       baseline = ctx.readJSON(resolved);
@@ -117,6 +176,13 @@ export function registerSystemRoutes(registry: any): void {
     return true;
   });
 
+  registry.add('system:schema-routes', (ctx: any) => {
+    const { req, res, url } = ctx;
+    if (req.method !== 'GET' || url.pathname !== '/schema/routes') return false;
+    ctx.sendJson(res, 200, { ok: true, ...API_SCHEMA }, req);
+    return true;
+  });
+
   registry.add('system:reports-latest', (ctx: any) => {
     const { req, res, url, paths } = ctx;
     if (req.method !== 'GET' || url.pathname !== '/reports/latest') return false;
@@ -150,7 +216,7 @@ export function registerSystemRoutes(registry: any): void {
     if (req.method !== 'POST' || url.pathname !== '/diagnostics/export') return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const out = ctx.diagnosticsBundle(String(body.label || 'manual'));
     ctx.sendJson(res, 200, out, req);
     return true;
@@ -162,6 +228,21 @@ export function registerSystemRoutes(registry: any): void {
     const latestName = ctx.latestJsonFileName(paths.diagnosticsDir);
     const latest = latestName ? ctx.readJSON(`${paths.diagnosticsDir}/${latestName}`) : null;
     ctx.sendJson(res, 200, { ok: true, latest }, req);
+    return true;
+  });
+
+  registry.add('system:security-audit-export', (ctx: any) => {
+    const { req, res, url } = ctx;
+    if (req.method !== 'GET' || url.pathname !== '/health/security-audit/export') return false;
+    const limit = Math.max(1, Math.min(5000, Number(url.searchParams.get('limit') || 500)));
+    const payload = {
+      ok: true,
+      schema_version: 'sidecar-security-audit/v1',
+      generated_at: new Date().toISOString(),
+      events: ctx.securityAuditLog.entries(limit),
+      summary: ctx.securityAuditLog.snapshot(),
+    };
+    ctx.sendJson(res, 200, payload, req);
     return true;
   });
 }

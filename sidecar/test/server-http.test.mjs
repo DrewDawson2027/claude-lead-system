@@ -24,23 +24,30 @@ function setupHome() {
 }
 
 function getJson(port, path, headers = {}) {
-  return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path, method: 'GET', headers }, (res) => {
-      let raw = '';
-      res.on('data', (c) => { raw += c; });
-      res.on('end', () => {
-        try { resolve({ status: res.statusCode, headers: res.headers, body: JSON.parse(raw) }); }
-        catch (err) { reject(err); }
-      });
-    });
-    req.on('error', reject);
-    req.end();
-  });
+  return requestJson(port, path, 'GET', null, headers);
 }
 
 function postJson(port, path, body, headers = {}) {
+  return requestJson(port, path, 'POST', body, headers);
+}
+
+function putJson(port, path, body, headers = {}) {
+  return requestJson(port, path, 'PUT', body, headers);
+}
+
+function patchJson(port, path, body, headers = {}) {
+  return requestJson(port, path, 'PATCH', body, headers);
+}
+
+function requestJson(port, path, method, body = null, headers = {}) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path, method: 'POST', headers: { 'Content-Type': 'application/json', ...headers } }, (res) => {
+    const req = http.request({
+      host: '127.0.0.1',
+      port,
+      path,
+      method,
+      headers: body === null ? headers : { 'Content-Type': 'application/json', ...headers },
+    }, (res) => {
       let raw = '';
       res.on('data', (c) => { raw += c; });
       res.on('end', () => {
@@ -49,7 +56,7 @@ function postJson(port, path, body, headers = {}) {
       });
     });
     req.on('error', reject);
-    req.write(JSON.stringify(body || {}));
+    if (body !== null) req.write(JSON.stringify(body || {}));
     req.end();
   });
 }
@@ -206,15 +213,118 @@ test('sidecar secure mode enforces auth and CSRF, and Phase A maintenance/diagno
     assert.equal(bootstrap.status, 200);
     const csrf = bootstrap.body.csrf_token;
     assert.equal(typeof csrf, 'string');
+    assert.equal(bootstrap.body.token_required, true);
+    assert.equal(Object.hasOwn(bootstrap.body, 'api_token'), false);
+
+    const bootstrapSameOrigin = await getJson(port, '/ui/bootstrap.json', { Origin: `http://127.0.0.1:${port}` });
+    assert.equal(bootstrapSameOrigin.status, 200);
+    assert.equal(bootstrapSameOrigin.headers['access-control-allow-origin'], `http://127.0.0.1:${port}`);
+
+    const bootstrapCrossPort127 = await getJson(port, '/ui/bootstrap.json', { Origin: 'http://127.0.0.1:3000' });
+    assert.equal(bootstrapCrossPort127.status, 403);
+    assert.equal(bootstrapCrossPort127.headers['access-control-allow-origin'], undefined);
+
+    const bootstrapCrossPortLocalhost = await getJson(port, '/ui/bootstrap.json', { Origin: 'http://localhost:3000' });
+    assert.equal(bootstrapCrossPortLocalhost.status, 403);
+    assert.equal(bootstrapCrossPortLocalhost.headers['access-control-allow-origin'], undefined);
 
     const csrfFail = await postJson(port, '/maintenance/run', { source: 'test' }, {
       Origin: `http://127.0.0.1:${port}`,
       Authorization: `Bearer ${apiToken}`,
     });
-    assert.equal(csrfFail.status, 200, 'auth header bypasses csrf by design');
+    assert.equal(csrfFail.status, 403);
+    assert.equal(csrfFail.body.error_code, 'CSRF_REQUIRED');
 
     const noCsrfNoAuth = await postJson(port, '/maintenance/run', { source: 'test' }, { Origin: `http://127.0.0.1:${port}` });
     assert.equal(noCsrfNoAuth.status, 401);
+
+    const noAuthWithCsrf = await postJson(port, '/maintenance/run', { source: 'test' }, {
+      Origin: `http://127.0.0.1:${port}`,
+      'X-Sidecar-CSRF': csrf,
+    });
+    assert.equal(noAuthWithCsrf.status, 401);
+
+    const prefsUnauth = await putJson(port, '/ui/preferences', { theme: 'light' });
+    assert.equal(prefsUnauth.status, 401);
+
+    const prefsNoCsrf = await putJson(port, '/ui/preferences', { theme: 'light' }, { Origin: `http://127.0.0.1:${port}` });
+    assert.equal(prefsNoCsrf.status, 401);
+
+    const prefsOk = await putJson(port, '/ui/preferences', { theme: 'light' }, {
+      Origin: `http://127.0.0.1:${port}`,
+      Authorization: `Bearer ${apiToken}`,
+      'X-Sidecar-CSRF': csrf,
+    });
+    assert.equal(prefsOk.status, 200);
+    assert.equal(prefsOk.body.ok, true);
+
+    const patchUnauth = await patchJson(port, '/teams/delta/interrupt-priorities', { approval: 10 });
+    assert.equal(patchUnauth.status, 401);
+
+    const patchNoCsrf = await patchJson(port, '/teams/delta/interrupt-priorities', { approval: 10 }, { Origin: `http://127.0.0.1:${port}` });
+    assert.equal(patchNoCsrf.status, 401);
+
+    const patchOk = await patchJson(port, '/teams/delta/interrupt-priorities', { approval: 10 }, {
+      Origin: `http://127.0.0.1:${port}`,
+      Authorization: `Bearer ${apiToken}`,
+      'X-Sidecar-CSRF': csrf,
+    });
+    assert.equal(patchOk.status, 200);
+    assert.equal(patchOk.body.ok, true);
+
+    const diagnosticsBypassDir = join(home, '.claude', 'lead-sidecar', 'logs', 'diagnostics-evil');
+    mkdirSync(diagnosticsBypassDir, { recursive: true });
+    const diagnosticsBypassFile = join(diagnosticsBypassDir, 'outside-baseline.json');
+    writeFileSync(diagnosticsBypassFile, JSON.stringify({ ok: true }));
+    const diagnosticsBypass = await postJson(port, '/reports/comparison', {
+      label: 'test',
+      baseline_file: diagnosticsBypassFile,
+    }, {
+      Authorization: `Bearer ${apiToken}`,
+      'X-Sidecar-CSRF': csrf,
+    });
+    assert.equal(diagnosticsBypass.status, 400);
+    assert.equal(diagnosticsBypass.body.error_code, 'VALIDATION_ERROR');
+
+    const sidecarSiblingDir = join(home, '.claude', 'lead-sidecar-evil');
+    mkdirSync(sidecarSiblingDir, { recursive: true });
+    const sidecarSiblingFile = join(sidecarSiblingDir, 'probe.json');
+    writeFileSync(sidecarSiblingFile, JSON.stringify({ probe: true }));
+    const repairBypass = await postJson(port, '/repair/fix', {
+      path: sidecarSiblingFile,
+      dry_run: true,
+    }, {
+      Authorization: `Bearer ${apiToken}`,
+      'X-Sidecar-CSRF': csrf,
+    });
+    assert.equal(repairBypass.status, 400);
+    assert.equal(repairBypass.body.error_code, 'VALIDATION_ERROR');
+
+    const checkpointsBypassDir = join(home, '.claude', 'lead-sidecar', 'state', 'checkpoints-evil');
+    mkdirSync(checkpointsBypassDir, { recursive: true });
+    const checkpointsBypassFile = join(checkpointsBypassDir, 'outside-checkpoint.json');
+    writeFileSync(checkpointsBypassFile, JSON.stringify({}));
+    const checkpointsBypass = await postJson(port, '/checkpoints/restore', {
+      file: checkpointsBypassFile,
+    }, {
+      Authorization: `Bearer ${apiToken}`,
+      'X-Sidecar-CSRF': csrf,
+    });
+    assert.equal(checkpointsBypass.status, 400);
+    assert.equal(checkpointsBypass.body.error_code, 'VALIDATION_ERROR');
+
+    const backupsBypassDir = join(home, '.claude', 'lead-sidecar', 'state', 'backups-evil');
+    mkdirSync(backupsBypassDir, { recursive: true });
+    const backupsBypassFile = join(backupsBypassDir, 'outside-backup.json');
+    writeFileSync(backupsBypassFile, JSON.stringify({}));
+    const backupsBypass = await postJson(port, '/backups/restore', {
+      file: backupsBypassFile,
+    }, {
+      Authorization: `Bearer ${apiToken}`,
+      'X-Sidecar-CSRF': csrf,
+    });
+    assert.equal(backupsBypass.status, 400);
+    assert.equal(backupsBypass.body.error_code, 'VALIDATION_ERROR');
 
     const badOrigin = await postJson(port, '/maintenance/run', { source: 'test' }, {
       Authorization: `Bearer ${apiToken}`,

@@ -1,0 +1,66 @@
+name: release-canary
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag (vX.Y.Z)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  canary-install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p dist/release-assets
+          gh release download "${{ steps.tag.outputs.tag }}" \
+            --repo DrewDawson2027/claude-lead-system \
+            --pattern "install.sh" \
+            --pattern "checksums.txt" \
+            --pattern "checksums.txt.sig" \
+            --pattern "checksums.txt.pem" \
+            --pattern "release.json" \
+            --pattern "release.json.sig" \
+            --pattern "release.json.pem" \
+            --pattern "claude-lead-system.tar.gz" \
+            --dir dist/release-assets
+      - name: Canary install + uninstall
+        shell: bash
+        run: |
+          bash tests/smoke-install.sh \
+            --version "${{ steps.tag.outputs.tag }}" \
+            --source-tarball dist/release-assets/claude-lead-system.tar.gz \
+            --checksum-file dist/release-assets/checksums.txt \
+            --checksum-signature dist/release-assets/checksums.txt.sig \
+            --checksum-cert dist/release-assets/checksums.txt.pem \
+            --release-manifest dist/release-assets/release.json \
+            --release-manifest-signature dist/release-assets/release.json.sig \
+            --release-manifest-cert dist/release-assets/release.json.pem \
+            --mode lite

@@ -35,6 +35,12 @@ echo "Running coordinator tests..."
   npm test
 )
 
+echo "Running policy/docs audits..."
+npm run docs:audit
+
+echo "Running sidecar security smoke..."
+bash scripts/release/security-smoke.sh
+
 echo "Running perf gate..."
 node tests/perf-gate.mjs
 

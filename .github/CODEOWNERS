@@ -1,2 +1,24 @@
 # Default owner for all files in this repository.
 * @DrewDawson2027
+
+# Security-critical paths (require explicit review)
+hooks/token-guard.py                    @DrewDawson2027
+hooks/conflict-guard.sh                 @DrewDawson2027
+hooks/check-inbox.sh                    @DrewDawson2027
+sidecar/server/http/security.ts         @DrewDawson2027
+sidecar/server/http/audit.ts            @DrewDawson2027
+sidecar/server/http/validation.ts       @DrewDawson2027
+install.sh                              @DrewDawson2027
+docs/SECURITY.md                        @DrewDawson2027
+
+# Supply chain
+.github/workflows/                      @DrewDawson2027
+scripts/release/                        @DrewDawson2027
+
+# Core coordinator
+mcp-coordinator/index.js                @DrewDawson2027
+mcp-coordinator/lib/security.js         @DrewDawson2027
+
+# Sidecar server
+sidecar/server/create-server.ts         @DrewDawson2027
+sidecar/server/routes/                  @DrewDawson2027

@@ -4,9 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+> **Note:** Breaking changes are listed separately under `### Breaking Changes`. Check this section before upgrading.
+
 ## [Unreleased]
 
+### Breaking Changes
+- **API error schema**: Error responses now use `{ error_code, message, request_id }` instead of `{ error: string }`. Clients parsing error responses must update their JSON key expectations.
+- **Token-required browser auth contract**: when `LEAD_SIDECAR_REQUIRE_TOKEN=1`, same-origin browser requests no longer substitute for bearer authentication on mutations; `Authorization: Bearer <token>` is required and CSRF remains mandatory for browser-origin writes.
+- **Installer dev/ref contract**: `--ref` installs are now explicitly dev-only and require `--allow-unsigned-release`; verified release installs should use `--version` with signed metadata + source tarball.
+
 ### Added
+- `scripts/release/security-smoke.sh`: release-focused sidecar smoke gate for auth bypass resistance, path-containment regression coverage, and TLS dashboard URL behavior
 - **Master Agent System**: 4 consolidated master agents (`master-coder`, `master-researcher`, `master-architect`, `master-workflow`) with on-demand mode loading
 - 17 mode files across 4 agent types (build, debug, refactor, scrape, school, deep, academic, competitor, market, system, api, database, frontend, gsd, feature, git, autonomous)
 - 18 reference cards (quick-reference cheat sheets loaded on-demand)
@@ -63,6 +71,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `README.md`: Replaced misleading "207x faster" transcript comparison with actual coordinator benchmark table; removed dead `coord_send_message` and `assign` references
 
 ### Security
+- Release verification examples/docs now pin cosign identity to signed release workflows + tag refs (no trust-all regex patterns).
+- Installer release mode now enforces signed checksums, signed release manifest, source tarball hash binding, and provenance verification by default.
 - Defense in depth: regex validation + `shellQuote`/`batQuote` + filesystem hardening (0700/0600 + symlink check + ownership check)
 - Windows ACL hardening with `icacls` verification
 - Granular `TOKEN_GUARD_SKIP_RULES` replaces blanket `FAIL_OPEN`

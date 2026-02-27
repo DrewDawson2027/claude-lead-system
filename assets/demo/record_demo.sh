@@ -6,6 +6,18 @@
 
 set -e
 
+# ─── Version Flag ─────────────────────────────────────────────────────────────
+VERSION=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --version) VERSION="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+if [[ -z "$VERSION" ]]; then
+  VERSION=$(git describe --tags 2>/dev/null || echo "dev")
+fi
+
 # ─── ANSI Colors ──────────────────────────────────────────────────────────────
 RESET="\033[0m"
 BOLD="\033[1m"
@@ -40,7 +52,7 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════════════════
 # Scene 1: Show the problem
 # ═══════════════════════════════════════════════════════════════════════════════
-slow_print "${BOLD}${WHITE}Claude Lead System${RESET} — Demo" 1.5
+slow_print "${BOLD}${WHITE}Claude Lead System ${VERSION}${RESET} — Demo" 1.5
 echo ""
 slow_print "${DIM}The problem: multiple Claude Code terminals in one repo.${RESET}" 1
 slow_print "${DIM}They can't see each other. They step on the same files.${RESET}" 1
@@ -49,7 +61,7 @@ echo ""
 slow_print "${BOLD}${CYAN}The fix: one command.${RESET}" 1
 
 echo ""
-echo -ne "${GREEN}\$ ${RESET}"
+echo -ne "${GREEN}[claude-lead ${VERSION}] \$ ${RESET}"
 type_text "/lead" 0.08
 echo ""
 sleep 1.5

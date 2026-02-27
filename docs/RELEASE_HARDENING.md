@@ -33,20 +33,30 @@ The project guarantees support for:
 8. Supply-chain workflow produced `sbom.spdx.json` + provenance attestation
 9. Performance gate passes (`node tests/perf-gate.mjs`)
 10. Release bundle has keyless cosign signature + verification output
-11. Authorship/provenance metadata present and current (`LICENSE`, `CITATION.cff`, `.github/CODEOWNERS`, `docs/PROVENANCE.md`)
+11. Release assets include `install.sh` + `checksums.txt` (SHA256) for pinned installer flow
+12. Authorship/provenance metadata present and current (`LICENSE`, `CITATION.cff`, `.github/CODEOWNERS`, `docs/PROVENANCE.md`)
+13. Security review checklist gate passes (`docs/SECURITY_REVIEW_CHECKLIST.md`)
+14. Artifact naming policy gate passes (`scripts/policy/check-release-artifact-contract.mjs`)
+15. Workflow action pinning gate passes (`scripts/policy/check-workflow-action-pinning.mjs`)
+16. Sidecar security smoke gate passes (`scripts/release/security-smoke.sh`)
 
 ## Supply Chain Integrity
 
 - Workflow: `.github/workflows/supply-chain.yml`
 - Produces a repository bundle (`claude-lead-system.tar.gz`) and SPDX SBOM (`sbom.spdx.json`)
+- Release helper script should also publish installer assets (`install.sh`, `checksums.txt`)
 - Publishes GitHub artifact attestation for the release bundle using `actions/attest-build-provenance`
 - Produces keyless `cosign` signature + certificate and verifies the signed blob in workflow
+- Signs release metadata (`release.json`, `checksums.txt`) for installer-side verification
 
 ## Manual Verification Checklist
 
 1. Run install script on a fresh profile
-2. Confirm `health-check.sh` shows healthy status
-3. Start two Claude sessions and verify:
+2. Verify `install.sh` SHA256 against `checksums.txt` before executing
+3. Confirm `health-check.sh` shows healthy status
+4. Run sidecar release security smoke:
+- `bash scripts/release/security-smoke.sh`
+5. Start two Claude sessions and verify:
 - inbox messaging
 - conflict detection
 - worker spawn/result

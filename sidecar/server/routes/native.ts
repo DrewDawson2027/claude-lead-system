@@ -32,7 +32,7 @@ export function registerNativeRoutes(registry: any): void {
     if (!(req.method === 'POST' && url.pathname === '/native/bridge/ensure')) return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const team = body.team_name ? ctx.findTeam(snapshot, body.team_name) : { team_name: null, execution_path: 'hybrid', policy: { native_bridge_policy: 'auto' } };
     const ensured = await ctx.nativeAdapter.ensureBridge(team);
     await ctx.rebuild('bridge-ensure');
@@ -45,7 +45,7 @@ export function registerNativeRoutes(registry: any): void {
     if (!(req.method === 'POST' && url.pathname === '/native/bridge/validate')) return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const team = body.team_name ? ctx.findTeam(snapshot, body.team_name) : { team_name: null, execution_path: 'hybrid', policy: { native_bridge_policy: 'auto' } };
     const report = await ctx.nativeAdapter.validateBridge({
       team,
@@ -64,7 +64,7 @@ export function registerNativeRoutes(registry: any): void {
     if (!(req.method === 'POST' && url.pathname === '/native/probe')) return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const caps = await ctx.nativeAdapter.probe({ force: true });
     await ctx.rebuild('native-probe');
     ctx.sendJson(res, 200, { ok: true, capabilities: caps }, req);
@@ -76,10 +76,10 @@ export function registerNativeRoutes(registry: any): void {
     if (!(req.method === 'POST' && /^\/native\/actions\/[^/]+$/.test(url.pathname))) return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const action = ctx.mapNativeHttpAction(lastPathSegment(url.pathname));
     if (!action) {
-      ctx.sendJson(res, 400, { error: 'Unsupported native action' }, req);
+      ctx.sendError(res, 400, 'VALIDATION_ERROR', 'Unsupported native action', req);
       return true;
     }
     const team = body.team_name ? ctx.findTeam(snapshot, body.team_name) : { team_name: body.team_name || null, execution_path: 'native', policy: { preferred_execution_path: 'native' } };

@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // @ts-nocheck
 import http from 'http';
+import https from 'https';
+import crypto from 'crypto';
 import { URL } from 'url';
 import { spawn } from 'child_process';
-import { unlinkSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from 'fs';
+import { unlinkSync, readFileSync, readdirSync, mkdirSync, writeFileSync, chmodSync } from 'fs';
 import { resolve as pathResolve } from 'path';
 
 import { sidecarPaths } from '../core/paths.js';
@@ -30,13 +32,15 @@ import { checkTerminalHealth, suggestRecovery } from '../core/terminal-health.js
 import { validateHooks, runHookSelftest } from '../core/hook-watchdog.js';
 
 import { attachRouteMeta, currentApiVersion, legacyDeprecationHeaders, normalizeApiPath } from './http/versioning.js';
-import { createBaseHeaders, sendJson as sendJsonRaw, sendText as sendTextRaw, sendHtml as sendHtmlRaw, sendJs as sendJsRaw, sseBroadcast } from './http/response.js';
-import { readBody as readBodyRaw } from './http/body.js';
-import { requireApiAuth as requireApiAuthRaw, requireSameOrigin as requireSameOriginRaw, requireCsrf as requireCsrfRaw, createRateLimiter as createRateLimiterRaw } from './http/security.js';
+import { createBaseHeaders, sendJson as sendJsonRaw, sendText as sendTextRaw, sendHtml as sendHtmlRaw, sendJs as sendJsRaw, sendError as sendErrorRaw, sseBroadcast } from './http/response.js';
+import { readBody as readBodyRaw, bodyLimitForRoute } from './http/body.js';
+import { requireApiAuth as requireApiAuthRaw, requireSameOrigin as requireSameOriginRaw, requireCsrf as requireCsrfRaw, createRateLimiter as createRateLimiterRaw, createReplayProtector as createReplayProtectorRaw } from './http/security.js';
 import { validateBody as validateBodyRaw } from './http/validation.js';
+import { SecurityAuditLog, RequestAuditLog } from './http/audit.js';
+import { createLogger } from './http/logger.js';
 import { buildServerRouter } from './routes/index.js';
 
-import { readFileSafe, parseArgs, ensureApiToken, ensureCsrfToken, writeRuntimeFiles } from './runtime/bootstrap.js';
+import { readFileSafe, parseArgs, ensureApiToken, ensureCsrfToken, rotateApiToken, checkFilePermissions, writeRuntimeFiles } from './runtime/bootstrap.js';
 import { trimLongStrings, latestJsonFileName, findTeam, buildActionPayload, buildTeamInterrupts, mapNativeHttpAction } from './runtime/team-utils.js';
 import { createRebuildOps } from './runtime/rebuild.js';
 import { createMaintenanceSweep, createDiagnosticsBundle } from './runtime/maintenance.js';
@@ -56,8 +60,19 @@ export async function startSidecarServer(options = {}) {
   ]);
 
   const apiToken = ensureApiToken(paths, fileExists, readJSON, writeJsonFile);
-  const csrfToken = ensureCsrfToken(paths, fileExists, readJSON, writeJsonFile);
+  let currentApiToken = apiToken;
+  const csrfToken = ensureCsrfToken(paths, fileExists, readJSON, writeJsonFile, { rotateCsrf: Boolean(args.rotateCsrf) });
   const SAFE_MODE = Boolean(args.safeMode);
+  const log = createLogger({ format: (process.env.LOG_FORMAT || 'text') as any });
+  const securityAuditLog = new SecurityAuditLog();
+  const requestAuditLog = new RequestAuditLog({ auditAll: Boolean(process.env.LEAD_SIDECAR_AUDIT_ALL) });
+  const originAllowlist = (process.env.LEAD_SIDECAR_ORIGIN_ALLOWLIST || '').split(',').map(s => s.trim()).filter(Boolean);
+  const permCheck = checkFilePermissions(paths, fileExists);
+  if (!permCheck.ok) {
+    for (const issue of permCheck.issues) {
+      log.warn(`file permission issue: ${issue.file} — ${issue.action}`);
+    }
+  }
 
   const store = new SidecarStateStore(paths);
   const actionQueue = new ActionQueue(paths);
@@ -66,21 +81,38 @@ export async function startSidecarServer(options = {}) {
   const nativeAdapter = new NativeTeamAdapter({ paths, coordinatorAdapter, store });
   const router = new ActionRouter({ coordinatorAdapter, nativeAdapter, store });
   const clients = new Set();
+  const rateLimitMax = Number(process.env.LEAD_SIDECAR_RATE_LIMIT || 180);
   const rateLimiter = createRateLimiterRaw({
     windowMs: Number(process.env.LEAD_SIDECAR_RATE_WINDOW_MS || 60_000),
-    max: Number(process.env.LEAD_SIDECAR_RATE_LIMIT || 180),
+    max: rateLimitMax,
   });
+  const replayProtector = createReplayProtectorRaw();
+  let allowedBrowserOrigin: string | null = null;
+  const unixSocketPath = String(args.unixSocket || process.env.LEAD_SIDECAR_UNIX_SOCKET || '').trim() || null;
+  const tlsKeyFile = String(args.tlsKeyFile || process.env.LEAD_SIDECAR_TLS_KEY_FILE || '').trim();
+  const tlsCertFile = String(args.tlsCertFile || process.env.LEAD_SIDECAR_TLS_CERT_FILE || '').trim();
+  const tlsCaFile = String(args.tlsCaFile || process.env.LEAD_SIDECAR_TLS_CA_FILE || '').trim();
+  const mtlsRequired = Boolean(args.mtls || process.env.LEAD_SIDECAR_MTLS_REQUIRE_CLIENT_CERT === '1');
+  const tlsEnabled = Boolean(tlsKeyFile && tlsCertFile);
+  const isMutatingMethod = (method: string | undefined) => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(String(method || '').toUpperCase());
 
-  const baseHeaders = (req = null) => createBaseHeaders(req);
+  const baseHeaders = (req = null) => createBaseHeaders(req, allowedBrowserOrigin, originAllowlist);
   const sendJson = (res, status, payload, req = null) => sendJsonRaw(baseHeaders, res, status, payload, req);
   const sendText = (res, status, body, req = null) => sendTextRaw(baseHeaders, res, status, body, req);
   const sendHtml = (res, status, body, req = null) => sendHtmlRaw(baseHeaders, res, status, body, req);
   const sendJs = (res, status, body, req = null) => sendJsRaw(baseHeaders, res, status, body, req);
-  const readBody = (req, opts = {}) => readBodyRaw(req, opts);
+  const sendError = (res, status, errorCode, message, req = null, details?) => sendErrorRaw(baseHeaders, res, status, errorCode, message, req, details);
+  const readBody = (req, opts: any = {}) => {
+    if (!opts.limitBytes) {
+      const pathname = req._routeMeta?.routePath || new URL(req.url || '/', 'http://127.0.0.1').pathname;
+      opts = { ...opts, limitBytes: bodyLimitForRoute(pathname) };
+    }
+    return readBodyRaw(req, opts);
+  };
   const validateBody = (pathname, body) => validateBodyRaw(pathname, body);
-  const requireApiAuth = (req, res) => requireApiAuthRaw(sendJson, req, res, apiToken);
-  const requireSameOrigin = (req, res) => requireSameOriginRaw(sendJson, req, res);
-  const requireCsrf = (req, res) => requireCsrfRaw(sendJson, req, res, csrfToken);
+  const requireApiAuth = (req, res) => requireApiAuthRaw(sendJson, req, res, currentApiToken, allowedBrowserOrigin, originAllowlist, securityAuditLog);
+  const requireSameOrigin = (req, res) => requireSameOriginRaw(sendJson, req, res, allowedBrowserOrigin, originAllowlist, securityAuditLog);
+  const requireCsrf = (req, res) => requireCsrfRaw(sendJson, req, res, csrfToken, securityAuditLog);
 
   const { rebuild } = createRebuildOps({
     store,
@@ -138,8 +170,22 @@ export async function startSidecarServer(options = {}) {
 
   const routeRegistry = buildServerRouter();
 
-  let server;
-  server = http.createServer(async (req, res) => {
+  const requestHandler = async (req, res) => {
+    (req as any).__requestId = crypto.randomUUID();
+    const __startMs = Date.now();
+    const origEnd = res.end.bind(res);
+    res.end = function (...args: any[]) {
+      log.request(req, res.statusCode, __startMs);
+      requestAuditLog.log({
+        method: String(req.method || 'GET'),
+        path: String(req.url || '/'),
+        status: res.statusCode,
+        request_id: String((req as any).__requestId || '-'),
+        ip: String(req.socket?.remoteAddress || 'unknown'),
+        duration_ms: Date.now() - __startMs,
+      });
+      return origEnd(...args);
+    };
     const url = new URL(req.url || '/', 'http://127.0.0.1');
     const routeMeta = normalizeApiPath(url.pathname);
     attachRouteMeta(req, routeMeta);
@@ -154,33 +200,42 @@ export async function startSidecarServer(options = {}) {
     }
     if (!requireSameOrigin(req, res)) return;
 
-    if (req.method === 'POST') {
+    if (isMutatingMethod(req.method)) {
       const rlKey = `${req.socket?.remoteAddress || 'local'}:${url.pathname}`;
       const rl = rateLimiter.check(rlKey);
-      if (!rl.ok) return sendJson(res, 429, { error: 'Rate limit exceeded', retry_after_ms: rl.retry_after_ms }, req);
+      if (!rl.ok) {
+        securityAuditLog.log({ type: 'rate_limit', ip: req.socket?.remoteAddress || 'unknown', path: req.url || '' });
+        res.setHeader('Retry-After', String(Math.ceil((rl.retry_after_ms || 0) / 1000)));
+        return sendError(res, 429, 'RATE_LIMITED', 'Rate limit exceeded', req, { retry_after_ms: rl.retry_after_ms });
+      }
+      res.setHeader('X-RateLimit-Limit', String(rateLimitMax));
+      res.setHeader('X-RateLimit-Remaining', String(rl.remaining ?? 0));
       if (!requireApiAuth(req, res)) return;
       if (!requireCsrf(req, res)) return;
+      const replayCheck = replayProtector.check(req, url.pathname);
+      if (!replayCheck.ok) return sendError(res, 409, 'REPLAY_DETECTED', replayCheck.error || 'Nonce already used', req);
       if (SAFE_MODE) {
         const safeModeBlocked = [
           /^\/dispatch$/, /^\/teams\/[^/]+\/actions\//, /^\/teams\/[^/]+\/batch-triage$/,
           /^\/teams\/[^/]+\/rebalance$/, /^\/native\/actions\//, /^\/native\/bridge\/ensure$/,
           /^\/native\/probe$/, /^\/maintenance\/run$/,
         ];
-        if (safeModeBlocked.some((rx) => rx.test(url.pathname))) {
-          return sendJson(res, 503, { error: 'Server is in safe mode — mutation endpoints disabled' }, req);
+        const isBlockedPost = String(req.method).toUpperCase() === 'POST' && safeModeBlocked.some((rx) => rx.test(url.pathname));
+        const isBlockedMutation = String(req.method).toUpperCase() !== 'POST';
+        if (isBlockedPost || isBlockedMutation) {
+          return sendError(res, 503, 'SAFE_MODE_ACTIVE', 'Server is in safe mode — mutation endpoints disabled', req);
         }
       }
-    }
-    if (SAFE_MODE && req.method === 'PATCH') {
-      return sendJson(res, 503, { error: 'Server is in safe mode — mutation endpoints disabled' }, req);
     }
 
     const handled = await routeRegistry.handle({
       req, res, url, routeMeta, snapshot, server, clients, paths,
       store, metrics, actionQueue, coordinatorAdapter, nativeAdapter, router,
-      SAFE_MODE, apiToken, csrfToken, DASHBOARD_HTML, DASHBOARD_JS,
+      SAFE_MODE, apiToken: currentApiToken, csrfToken, DASHBOARD_HTML, DASHBOARD_JS,
       processInfo: { pid: process.pid },
-      baseHeaders, sendJson, sendText, sendHtml, sendJs,
+      securityAuditLog, requestAuditLog, rotateApiToken: () => { const r = rotateApiToken(paths, writeJsonFile); currentApiToken = r.new_token; return r; },
+      filePermissions: permCheck, bodyLimitForRoute,
+      baseHeaders, sendJson, sendText, sendHtml, sendJs, sendError,
       readBody, validateBody,
       findTeam, buildActionPayload, buildTeamInterrupts, mapNativeHttpAction,
       maintenanceSweep, diagnosticsBundle, rebuild, runTrackedAction, runBatchTriage,
@@ -198,20 +253,46 @@ export async function startSidecarServer(options = {}) {
       listBackups, restoreFromBackup,
     });
     if (handled) return;
-    return sendText(res, 404, 'Not found', req);
-  });
+    return sendError(res, 404, 'NOT_FOUND', `No route for ${req.method} ${url.pathname}`, req);
+  };
 
-  await new Promise((resolve) => server.listen(args.port || 0, '127.0.0.1', resolve));
+  let server;
+  if (tlsEnabled) {
+    const tlsOptions: any = {
+      key: readFileSafe(readFileSync, tlsKeyFile as any),
+      cert: readFileSafe(readFileSync, tlsCertFile as any),
+      requestCert: mtlsRequired,
+      rejectUnauthorized: mtlsRequired,
+    };
+    if (tlsCaFile) tlsOptions.ca = readFileSafe(readFileSync, tlsCaFile as any);
+    server = https.createServer(tlsOptions, requestHandler);
+  } else {
+    server = http.createServer(requestHandler);
+  }
+
+  if (unixSocketPath) {
+    try { unlinkSync(unixSocketPath); } catch {}
+    await new Promise((resolve) => server.listen(unixSocketPath, resolve));
+    try { chmodSync(unixSocketPath, 0o600); } catch {}
+  } else {
+    await new Promise((resolve) => server.listen(args.port || 0, '127.0.0.1', resolve));
+  }
   const port = writeRuntimeFiles(paths, server, writeJSON);
+  allowedBrowserOrigin = unixSocketPath ? null : `${tlsEnabled ? 'https' : 'http'}://127.0.0.1:${port}`;
 
   if (args.open && process.platform === 'darwin') {
-    try { spawn('open', [`http://127.0.0.1:${port}/`], { detached: true, stdio: 'ignore' }).unref(); } catch {}
+    try { spawn('open', [`${tlsEnabled ? 'https' : 'http'}://127.0.0.1:${port}/`], { detached: true, stdio: 'ignore' }).unref(); } catch {}
   }
 
   const cleanup = (exitAfter = false) => {
     lifecycle.stop();
+    process.off('SIGINT', shutdown);
+    process.off('SIGTERM', shutdown);
     try { unlinkSync(paths.lockFile); } catch {}
     try { unlinkSync(paths.portFile); } catch {}
+    if (unixSocketPath) {
+      try { unlinkSync(unixSocketPath); } catch {}
+    }
     for (const clientRes of clients) { try { clientRes.end(); } catch {} }
     server.close(() => { if (exitAfter) process.exit(0); });
     if (exitAfter) setTimeout(() => process.exit(0), 1000).unref();
@@ -220,11 +301,15 @@ export async function startSidecarServer(options = {}) {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  console.log(`lead-sidecar listening on http://127.0.0.1:${port}`);
+  if (unixSocketPath) {
+    log.info(`listening on unix socket ${unixSocketPath}`, { socket: unixSocketPath, tls: tlsEnabled, mtls_required: mtlsRequired });
+  } else {
+    log.info(`listening on ${tlsEnabled ? 'https' : 'http'}://127.0.0.1:${port}`, { port, tls: tlsEnabled, mtls_required: mtlsRequired });
+  }
   return {
     server,
     port,
-    apiToken,
+    get apiToken() { return currentApiToken; },
     store,
     router,
     nativeAdapter,

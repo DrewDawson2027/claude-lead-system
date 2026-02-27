@@ -15,6 +15,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { fileURLToPath } from "url";
 import { join } from "path";
+import { performance } from "perf_hooks";
 
 import { cfg } from "./lib/constants.js";
 import {
@@ -818,53 +819,61 @@ function ensureDirsOnce() {
 
 function handleToolCall(name, args = {}) {
   ensureDirsOnce();
+  const metricsEnabled = process.env.COORDINATOR_METRICS === "1";
+  const callStart = metricsEnabled ? performance.now() : 0;
 
   try {
+    let result;
     switch (name) {
-    case "coord_list_sessions":    return handleListSessions(args);
-    case "coord_get_session":      return handleGetSession(args);
-    case "coord_check_inbox":      return handleCheckInbox(args);
-    case "coord_detect_conflicts": return handleDetectConflicts(args);
-    case "coord_spawn_terminal":   return handleSpawnTerminal(args);
-    case "coord_spawn_worker":     return handleSpawnWorker(args);
-    case "coord_spawn_workers":    return handleSpawnWorkers(args);
-    case "coord_get_result":       return handleGetResult(args);
-    case "coord_wake_session":     return handleWakeSession(args);
-    case "coord_kill_worker":      return handleKillWorker(args);
-    case "coord_resume_worker":    return handleResumeWorker(args);
-    case "coord_upgrade_worker":   return handleUpgradeWorker(args);
-    case "coord_run_pipeline":     return handleRunPipeline(args);
-    case "coord_get_pipeline":     return handleGetPipeline(args);
-    case "coord_create_task":      return handleCreateTask(args);
-    case "coord_update_task":      return handleUpdateTask(args);
-    case "coord_list_tasks":       return handleListTasks(args);
-    case "coord_get_task":         return handleGetTask(args);
-    case "coord_reassign_task":    return handleReassignTask(args);
-    case "coord_get_task_audit":   return handleGetTaskAudit(args);
-    case "coord_check_quality_gates": return handleCheckQualityGates(args);
-    case "coord_create_team":      return handleCreateTeam(args);
-    case "coord_get_team":         return handleGetTeam(args);
-    case "coord_list_teams":       return handleListTeams(args);
-    case "coord_delete_team":      return handleDeleteTeam(args);
-    case "coord_team_dispatch":    return handleTeamDispatch(args);
-    case "coord_team_status_compact": return handleTeamStatusCompact(args);
-    case "coord_team_queue_task":  return handleTeamQueueTask(args);
-    case "coord_team_assign_next": return handleTeamAssignNext(args);
-    case "coord_team_rebalance":   return handleTeamRebalance(args);
-    case "coord_sidecar_status":   return handleSidecarStatus(args);
-    case "coord_cost_comparison":  return handleCostComparison(args);
-    case "coord_approve_plan":     return handleApprovePlan(args);
-    case "coord_reject_plan":      return handleRejectPlan(args);
-    case "coord_shutdown_request": return handleShutdownRequest(args);
-    case "coord_shutdown_response":return handleShutdownResponse(args);
-    case "coord_write_context":    return handleWriteContext(args);
-    case "coord_read_context":     return handleReadContext(args);
-    case "coord_export_context":   return handleExportContext(args);
-    case "coord_broadcast":        return handleBroadcast(args);
-    case "coord_send_message":     return handleSendMessage(args);
-    case "coord_send_directive":   return handleSendDirective(args);
-    default:                       return text(`Unknown tool: ${name}`);
+    case "coord_list_sessions":    result = handleListSessions(args); break;
+    case "coord_get_session":      result = handleGetSession(args); break;
+    case "coord_check_inbox":      result = handleCheckInbox(args); break;
+    case "coord_detect_conflicts": result = handleDetectConflicts(args); break;
+    case "coord_spawn_terminal":   result = handleSpawnTerminal(args); break;
+    case "coord_spawn_worker":     result = handleSpawnWorker(args); break;
+    case "coord_spawn_workers":    result = handleSpawnWorkers(args); break;
+    case "coord_get_result":       result = handleGetResult(args); break;
+    case "coord_wake_session":     result = handleWakeSession(args); break;
+    case "coord_kill_worker":      result = handleKillWorker(args); break;
+    case "coord_resume_worker":    result = handleResumeWorker(args); break;
+    case "coord_upgrade_worker":   result = handleUpgradeWorker(args); break;
+    case "coord_run_pipeline":     result = handleRunPipeline(args); break;
+    case "coord_get_pipeline":     result = handleGetPipeline(args); break;
+    case "coord_create_task":      result = handleCreateTask(args); break;
+    case "coord_update_task":      result = handleUpdateTask(args); break;
+    case "coord_list_tasks":       result = handleListTasks(args); break;
+    case "coord_get_task":         result = handleGetTask(args); break;
+    case "coord_reassign_task":    result = handleReassignTask(args); break;
+    case "coord_get_task_audit":   result = handleGetTaskAudit(args); break;
+    case "coord_check_quality_gates": result = handleCheckQualityGates(args); break;
+    case "coord_create_team":      result = handleCreateTeam(args); break;
+    case "coord_get_team":         result = handleGetTeam(args); break;
+    case "coord_list_teams":       result = handleListTeams(args); break;
+    case "coord_delete_team":      result = handleDeleteTeam(args); break;
+    case "coord_team_dispatch":    result = handleTeamDispatch(args); break;
+    case "coord_team_status_compact": result = handleTeamStatusCompact(args); break;
+    case "coord_team_queue_task":  result = handleTeamQueueTask(args); break;
+    case "coord_team_assign_next": result = handleTeamAssignNext(args); break;
+    case "coord_team_rebalance":   result = handleTeamRebalance(args); break;
+    case "coord_sidecar_status":   result = handleSidecarStatus(args); break;
+    case "coord_cost_comparison":  result = handleCostComparison(args); break;
+    case "coord_approve_plan":     result = handleApprovePlan(args); break;
+    case "coord_reject_plan":      result = handleRejectPlan(args); break;
+    case "coord_shutdown_request": result = handleShutdownRequest(args); break;
+    case "coord_shutdown_response":result = handleShutdownResponse(args); break;
+    case "coord_write_context":    result = handleWriteContext(args); break;
+    case "coord_read_context":     result = handleReadContext(args); break;
+    case "coord_export_context":   result = handleExportContext(args); break;
+    case "coord_broadcast":        result = handleBroadcast(args); break;
+    case "coord_send_message":     result = handleSendMessage(args); break;
+    case "coord_send_directive":   result = handleSendDirective(args); break;
+    default:                       result = text(`Unknown tool: ${name}`); break;
     }
+    if (metricsEnabled && result?.content?.[0]?.text) {
+      const elapsed = performance.now() - callStart;
+      result.content[0].text += `\n\n_timing: ${elapsed.toFixed(1)}ms_`;
+    }
+    return result;
   } catch (err) {
     return text(`Invalid arguments for ${name}: ${err.message}`);
   }

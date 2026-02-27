@@ -15,13 +15,55 @@
 
 </div>
 
+## The Problem
+
+Agent Teams gives you multi-agent coordination — but every teammate maintains a full, growing context window. Messages between teammates cost tokens. Idle teammates still hold their context open. The coordinator session burns tokens just existing.
+
+**The Lead System replaces all coordination with filesystem operations.** Shell hooks write JSON state files on every tool call. The lead session reads a few KB of JSON instead of parsing megabytes of transcripts. Workers get a task, execute it, return a result, and exit — no idle cost, no context growth from coordination.
+
+Same capabilities as Agent Teams. Plus 13 features it can't do. 50-60% lower cost.
+
 ---
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash
+VERSION=v1.0.0 # replace with latest release tag
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/install.sh"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt.sig"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt.pem"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json.sig"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json.pem"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/claude-lead-system.tar.gz"
+shasum -a 256 -c checksums.txt --ignore-missing
+bash install.sh --version "${VERSION}" \
+  --checksum-file checksums.txt \
+  --checksum-signature checksums.txt.sig \
+  --checksum-cert checksums.txt.pem \
+  --release-manifest release.json \
+  --release-manifest-signature release.json.sig \
+  --release-manifest-cert release.json.pem \
+  --source-tarball claude-lead-system.tar.gz
 ```
 
 Type `/lead` in any Claude Code session. That's it.
+
+### Safety Defaults
+
+The sidecar ships hardened defaults for local operation:
+
+- **Localhost-only binding** — `127.0.0.1`, never `0.0.0.0`
+- **Same-origin enforcement** — rejects cross-origin requests
+- **CSRF protection** — double-submit token on all mutations
+- **Bearer token auth (opt-in hardening)** — auto-generated, file-permission-protected (`LEAD_SIDECAR_REQUIRE_TOKEN=1`)
+- **Rate limiting** — 180 req/min per endpoint (configurable)
+- **Input validation** — allowlisted keys, size caps, depth limits
+- **File permissions** — state dirs `0700`, token files `0600`
+- **Fail-closed hooks** — `token-guard.py` blocks by default; bypass logged
+
+Full details: [docs/SECURITY.md](docs/SECURITY.md)
+Threat model: [docs/THREAT_MODEL_LOCAL_BROWSER.md](docs/THREAT_MODEL_LOCAL_BROWSER.md)
+Release channels: [docs/RELEASE_CHANNELS.md](docs/RELEASE_CHANNELS.md)
 
 ---
 
@@ -117,7 +159,24 @@ Everything Agent Teams can do, the Lead System can do too — often better.
 
 ```bash
 # 1. Install (one command)
-curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash
+VERSION=v1.0.0 # replace with latest release tag
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/install.sh"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt.sig"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt.pem"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json.sig"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json.pem"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/claude-lead-system.tar.gz"
+shasum -a 256 -c checksums.txt --ignore-missing
+bash install.sh --version "${VERSION}" \
+  --checksum-file checksums.txt \
+  --checksum-signature checksums.txt.sig \
+  --checksum-cert checksums.txt.pem \
+  --release-manifest release.json \
+  --release-manifest-signature release.json.sig \
+  --release-manifest-cert release.json.pem \
+  --source-tarball claude-lead-system.tar.gz
 
 # 2. Open two Claude Code terminals in the same project
 
@@ -184,6 +243,35 @@ Terminal A (lead)          Terminal B (coding)       Terminal C (testing)
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+### Request Lifecycle
+
+```
+  Lead types "run fix auth.ts"
+       │
+       ▼
+  MCP Coordinator ──────► coord_spawn_worker(task, dir)
+       │                         │
+       │                         ▼
+       │                  Terminal spawns `claude -p "fix auth.ts"`
+       │                         │
+       │                         ├─► PostToolUse → terminal-heartbeat.sh
+       │                         │     └─► Updates session-*.json (files, tools, ops)
+       │                         │
+       │                         ├─► PreToolUse → check-inbox.sh
+       │                         │     └─► Delivers messages from inbox/
+       │                         │
+       │                         ├─► PreToolUse → conflict-guard.sh
+       │                         │     └─► Warns if file touched by another session
+       │                         │
+       │                         └─► Worker completes → writes results/task_id.json
+       │
+       ▼
+  Lead calls "check worker task_id"
+       │
+       ▼
+  coord_get_result ──────► Reads results/task_id.json (0 tokens)
+```
+
 ### Enriched session files
 
 Each session file is ~2 KB of JSON maintained by shell hooks outside the context window:
@@ -237,6 +325,14 @@ Each session file is ~2 KB of JSON maintained by shell hooks outside the context
 
 Inbox messaging is **universal** — works on every platform regardless of terminal emulator.
 
+<details><summary>Platform screenshots</summary>
+
+See `assets/demo/screenshots/` for iTerm2 split panes, gnome-terminal tabs, and Windows Terminal panes.
+
+Full compatibility details: [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)
+
+</details>
+
 ---
 
 ## Installation
@@ -244,7 +340,53 @@ Inbox messaging is **universal** — works on every platform regardless of termi
 ### One-line install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash
+VERSION=v1.0.0 # replace with latest release tag
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/install.sh"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt.sig"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt.pem"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json.sig"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json.pem"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/claude-lead-system.tar.gz"
+shasum -a 256 -c checksums.txt --ignore-missing
+bash install.sh --version "${VERSION}" \
+  --checksum-file checksums.txt \
+  --checksum-signature checksums.txt.sig \
+  --checksum-cert checksums.txt.pem \
+  --release-manifest release.json \
+  --release-manifest-signature release.json.sig \
+  --release-manifest-cert release.json.pem \
+  --source-tarball claude-lead-system.tar.gz
+```
+
+### Strongest Verified Install (Installer + Source Tarball)
+
+```bash
+VERSION=v1.0.0 # replace with latest release tag
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/install.sh"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt.sig"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt.pem"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json.sig"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/release.json.pem"
+curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/claude-lead-system.tar.gz"
+shasum -a 256 -c checksums.txt
+bash install.sh --version "${VERSION}" \
+  --checksum-file checksums.txt \
+  --checksum-signature checksums.txt.sig \
+  --checksum-cert checksums.txt.pem \
+  --release-manifest release.json \
+  --release-manifest-signature release.json.sig \
+  --release-manifest-cert release.json.pem \
+  --source-tarball claude-lead-system.tar.gz
+```
+
+### Dev / Nightly Install (Unpinned)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash -- --ref main --allow-unsigned-release
 ```
 
 ### Manual install
@@ -263,7 +405,7 @@ chmod +x ~/.claude/hooks/*.sh
 cd ~/.claude/mcp-coordinator && npm install
 
 # Wire up settings (auto-expands __HOME__)
-cd - && bash install.sh --mode full
+cd - && bash install.sh --mode full --ref main --allow-unsigned-release
 
 # Verify
 bash ~/.claude/hooks/health-check.sh
@@ -368,12 +510,25 @@ Hard rules: configurable agent cap per session (default 5), no parallel same-typ
 | Platform matrix | CI: ubuntu + macos + windows |
 | Hook behavior | CI: smoke tests + unit tests (57 tests) |
 | Sidecar core | CI: 67 tests (recovery, repair, health, metrics) |
-| Line coverage | CI: 81%+ enforced via `c8` |
+| Line coverage | CI enforces 80%+ line coverage (currently ~87.8%) via `c8` |
 
 ```bash
 # Run locally
 npm install && npm run ci:local
 ```
+
+## Production Readiness
+
+| Component | Status | Evidence |
+|-----------|--------|----------|
+| MCP Coordinator | Stable | 88%+ line coverage, 900+ tests |
+| Shell Hooks | Stable | CI lint + smoke tests (57 tests) |
+| Python Hooks | Stable | CI lint + unit tests |
+| Sidecar HTTP | Stable | 180+ tests, recovery, repair, health |
+| Native Bridge | Beta | Integration tested, fallback paths |
+| Auto-Rebalance | Beta | Policy-gated, cooldown-protected |
+| Installer | Stable | Cross-platform smoke tests (ubuntu/macOS/Windows) |
+| Supply Chain | Stable | Cosign-signed releases, SBOM, checksums |
 
 ---
 
@@ -415,6 +570,25 @@ Full details: [docs/SECURITY.md](docs/SECURITY.md)
 - [Operator Runbook](docs/OPERATOR_RUNBOOK.md) — ops procedures
 - [Agent Teams Integration](docs/AGENT_TEAMS_INTEGRATION.md) — using both together
 - [Troubleshooting](docs/TROUBLESHOOTING.md) — common issues and fixes
+- [Claim Provenance](docs/CLAIM_PROVENANCE.md) — every README claim mapped to its proof artifact
+- [Comparison Methodology](docs/COMPARISON_METHODOLOGY.md) — how cost numbers were calculated
+- [Workflow Examples](docs/WORKFLOW_EXAMPLES.md) — realistic end-to-end transcripts
+- [Operational SLOs](docs/OPERATIONAL_SLOS.md) — performance targets and measurement
+
+### Verification
+
+Every claim in this README is CI-verified. To verify a signed release locally:
+
+```bash
+cosign verify-blob \
+  --signature checksums.txt.sig \
+  --certificate checksums.txt.pem \
+  --certificate-identity-regexp "^https://github.com/DrewDawson2027/claude-lead-system/.github/workflows/(release-bundle|supply-chain)\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+([-.][A-Za-z0-9._-]+)?$" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  checksums.txt
+```
+
+Benchmark results are published in `bench/latest-results.json` (SHA256-stamped in CI).
 
 ---
 

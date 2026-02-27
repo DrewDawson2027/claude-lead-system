@@ -1,4 +1,6 @@
 // @ts-nocheck
+import { createHash } from 'crypto';
+
 export function createMaintenanceSweep({ actionQueue, paths, findStuckBridgeRequests, sweepBridgeQueues, store, rateLimiter, getAllTasksSnapshot, applyPriorityAging, getTeamsSnapshot, shouldAutoRebalance, coordinatorAdapter, metrics, createCheckpoint, rotateCheckpoints, checkTerminalHealth, suggestRecovery, validateHooks }) {
   const seenBridgeStuck = new Set();
   let lastCheckpointTime = 0;
@@ -95,6 +97,31 @@ export function createMaintenanceSweep({ actionQueue, paths, findStuckBridgeRequ
   };
 }
 
+const REDACT_KEY_PATTERNS = /token|secret|password|key|auth|credential/i;
+const REDACT_SAFE_KEYS = new Set(['csrf_token_present', 'api_token_present', 'token_required', 'action_counts']);
+
+function redactSecrets(obj, depth = 0) {
+  if (depth > 20 || !obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map((v) => redactSecrets(v, depth + 1));
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (REDACT_SAFE_KEYS.has(k)) {
+      out[k] = v;
+    } else if (typeof v === 'string' && REDACT_KEY_PATTERNS.test(k) && v.length > 4) {
+      out[k] = `[REDACTED:${v.slice(0, 4)}...]`;
+    } else if (typeof v === 'string' && /^[0-9a-f]{20,}$/i.test(v)) {
+      out[k] = `[REDACTED:${v.slice(0, 4)}...]`;
+    } else if (typeof v === 'string' && /^Bearer\s+\S{8,}/.test(v)) {
+      out[k] = `[REDACTED:Bearer...]`;
+    } else if (v && typeof v === 'object') {
+      out[k] = redactSecrets(v, depth + 1);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 export function createDiagnosticsBundle({ store, paths, readJSON, fileExists, actionQueue, metrics, lockMetrics, checkTerminalHealth, CURRENT_SCHEMA_VERSION, writeJSON, trimLongStrings, appendJSONL }) {
   return function diagnosticsBundle(label = 'manual') {
     const snapshot = store.getSnapshot();
@@ -125,9 +152,21 @@ export function createDiagnosticsBundle({ store, paths, readJSON, fileExists, ac
       lock_metrics: lockMetrics.snapshot(),
       terminal_health: checkTerminalHealth(paths),
     };
+    const redacted = redactSecrets(trimLongStrings(bundle, 2048));
+
+    const manifest: Record<string, number> = {};
+    for (const [section, value] of Object.entries(redacted)) {
+      manifest[section] = JSON.stringify(value).length;
+    }
+    (redacted as any).manifest = manifest;
+
+    const withoutChecksum = JSON.stringify(redacted);
+    const checksum = createHash('sha256').update(withoutChecksum).digest('hex');
+    (redacted as any).checksum = checksum;
+
     const file = `${paths.diagnosticsDir}/diag-${Date.now()}.json`;
-    writeJSON(file, trimLongStrings(bundle, 2048));
+    writeJSON(file, redacted);
     try { appendJSONL(paths.logFile, { ts: new Date().toISOString(), type: 'diagnostics.export', file, label }); } catch {}
-    return { ok: true, file, generated_at: bundle.generated_at, counts: bundle.runtime.action_counts };
+    return { ok: true, file, generated_at: bundle.generated_at, counts: bundle.runtime.action_counts, checksum };
   };
 }

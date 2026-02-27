@@ -20,7 +20,7 @@ export function registerTeamRoutes(registry: any): void {
     const timeline = (snapshot.timeline || []).filter((t: any) => t.team_name === teamName).slice(-50);
     const alerts = (snapshot.alerts || []).filter((a: any) => !a.team_name || a.team_name === teamName).slice(0, 30);
     if (!team) {
-      ctx.sendJson(res, 404, { error: `Team ${teamName} not found` }, req);
+      ctx.sendError(res, 404, 'NOT_FOUND', `Team ${teamName} not found`, req);
       return true;
     }
     ctx.sendJson(res, 200, { team, teammates, tasks, timeline, alerts, native: snapshot.native || null, actions: snapshot.actions || { recent: [] }, generated_at: snapshot.generated_at }, req);
@@ -53,6 +53,8 @@ export function registerTeamRoutes(registry: any): void {
     if (!(req.method === 'PATCH' && /^\/teams\/[^/]+\/interrupt-priorities$/.test(url.pathname))) return false;
     const teamName = teamNameFromPath(url.pathname);
     const body = await ctx.readBody(req);
+    const v = ctx.validateBody(url.pathname, body);
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const weights: Record<string, number> = {};
     for (const [k, v] of Object.entries(body)) {
       if (typeof v === 'number' && v >= 0 && v <= 200) weights[k] = v;
@@ -77,7 +79,7 @@ export function registerTeamRoutes(registry: any): void {
     if (!(req.method === 'POST' && url.pathname === '/task-templates')) return false;
     const body = await ctx.readBody(req);
     if (body.__parse_error) {
-      ctx.sendJson(res, 400, { error: body.__parse_error }, req);
+      ctx.sendError(res, 400, body.__parse_error === 'payload_too_large' ? 'PAYLOAD_TOO_LARGE' : 'INVALID_JSON', body.__parse_error, req);
       return true;
     }
     const templates = ctx.readJSON(paths.taskTemplatesFile) || [];
@@ -141,10 +143,10 @@ export function registerTeamRoutes(registry: any): void {
     const teamName = teamNameFromPath(url.pathname);
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const team = ctx.findTeam(snapshot, teamName);
     const routed = await ctx.runTrackedAction({ team, action: 'rebalance', payload: { team_name: teamName, ...body }, routeMode: 'router' });
-    if (!routed.ok) { ctx.sendJson(res, 400, routed, req); return true; }
+    if (!routed.ok) { ctx.sendError(res, 400, 'ACTION_FAILED', routed.error || 'Rebalance failed', req, routed.details); return true; }
     await ctx.rebuild('rebalance');
     ctx.sendJson(res, 200, routed, req);
     return true;
@@ -166,7 +168,7 @@ export function registerTeamRoutes(registry: any): void {
     const teamName = teamNameFromPath(url.pathname);
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const out = await ctx.coordinatorAdapter.execute('rebalance-explain', { team_name: teamName, ...body });
     ctx.sendJson(res, 200, out, req);
     return true;
@@ -180,11 +182,11 @@ export function registerTeamRoutes(registry: any): void {
     const action = decodeURIComponent(rawAction || '');
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const payload = ctx.buildActionPayload(teamName, action, body);
     const team = ctx.findTeam(snapshot, teamName);
     const routed = await ctx.runTrackedAction({ team, action, payload, routeMode: 'router' });
-    if (!routed.ok) { ctx.sendJson(res, 400, routed, req); return true; }
+    if (!routed.ok) { ctx.sendError(res, 400, 'ACTION_FAILED', routed.error || 'Action failed', req, routed.details); return true; }
     await ctx.rebuild(`action:${action}`);
     ctx.sendJson(res, 200, routed, req);
     return true;
@@ -196,7 +198,7 @@ export function registerTeamRoutes(registry: any): void {
     const teamName = teamNameFromPath(url.pathname);
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const out = await ctx.runBatchTriage({ teamName, op: String(body.op || ''), confirm: body.confirm === true, message: String(body.message || ''), limit: body.limit });
     await ctx.rebuild('batch-triage');
     ctx.sendJson(res, out.ok ? 200 : 400, out, req);

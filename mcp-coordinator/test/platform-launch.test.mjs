@@ -163,3 +163,132 @@ test('unix worker script omits agent flag when empty', () => {
   });
   assert.doesNotMatch(cmd, /--agent/);
 });
+
+test('interactive worker script on linux uses script -c wrapper and exports worker env', () => {
+  const cmd = __test__.buildInteractiveWorkerScript({
+    taskId: 'W5',
+    workDir: '/tmp/work',
+    resultFile: '/tmp/result.txt',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    model: 'sonnet',
+    agent: 'reviewer-agent',
+    promptFile: '/tmp/prompt.txt',
+    workerName: 'worker-1',
+    maxTurns: 42,
+    permissionMode: 'planOnly',
+    platformName: 'linux',
+  });
+  assert.match(cmd, /export CLAUDE_WORKER_TASK_ID=/);
+  assert.match(cmd, /export CLAUDE_WORKER_NAME=/);
+  assert.match(cmd, /export CLAUDE_WORKER_MAX_TURNS=/);
+  assert.match(cmd, /CLAUDE_WORKER_PERMISSION_MODE=/);
+  assert.match(cmd, /script -q /);
+  assert.match(cmd, /\.transcript' -c /);
+  assert.match(cmd, /--permission-mode 'planOnly'/);
+  assert.match(cmd, /--agent 'reviewer-agent'/);
+  assert.match(cmd, /rm -f '\/tmp\/pid\.txt'/);
+});
+
+test('interactive worker script on darwin uses script without -c wrapper', () => {
+  const cmd = __test__.buildInteractiveWorkerScript({
+    taskId: 'W6',
+    workDir: '/tmp/work',
+    resultFile: '/tmp/result.txt',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    model: 'sonnet',
+    agent: '',
+    promptFile: '/tmp/prompt.txt',
+    permissionMode: 'acceptEdits',
+    platformName: 'darwin',
+  });
+  assert.match(cmd, /script -q /);
+  assert.match(cmd, /\.transcript' 'claude'/);
+  assert.doesNotMatch(cmd, /\.transcript' -c /);
+});
+
+test('interactive worker script on windows falls back to pipe-mode worker script', () => {
+  const cmd = __test__.buildInteractiveWorkerScript({
+    taskId: 'W7',
+    workDir: 'C:\\\\work',
+    resultFile: 'C:\\\\r.txt',
+    pidFile: 'C:\\\\p.pid',
+    metaFile: 'C:\\\\m.meta.json',
+    model: 'sonnet',
+    agent: '',
+    promptFile: 'C:\\\\prompt.txt',
+    workerPs1File: 'C:\\\\worker.ps1',
+    platformName: 'win32',
+  });
+  assert.match(cmd, /ExecutionPolicy Bypass -File/);
+});
+
+test('codex worker script supports model flag and cleanup', () => {
+  const cmd = __test__.buildCodexWorkerScript({
+    taskId: 'W8',
+    workDir: '/tmp/work',
+    resultFile: '/tmp/result.txt',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    model: 'gpt-5',
+    promptFile: '/tmp/prompt.txt',
+    platformName: 'linux',
+  });
+  assert.match(cmd, /codex exec "\$WORKER_PROMPT" --full-auto/);
+  assert.match(cmd, / -m 'gpt-5'/);
+  assert.match(cmd, /rm -f '\/tmp\/pid\.txt'/);
+});
+
+test('codex worker script omits default sonnet model flag and windows is unsupported', () => {
+  const linuxCmd = __test__.buildCodexWorkerScript({
+    taskId: 'W9',
+    workDir: '/tmp/work',
+    resultFile: '/tmp/result.txt',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    model: 'sonnet',
+    promptFile: '/tmp/prompt.txt',
+    platformName: 'linux',
+  });
+  assert.doesNotMatch(linuxCmd, / -m /);
+
+  const winCmd = __test__.buildCodexWorkerScript({
+    taskId: 'W9',
+    workDir: 'C:\\\\work',
+    resultFile: 'C:\\\\result.txt',
+    pidFile: 'C:\\\\pid.txt',
+    metaFile: 'C:\\\\meta.json',
+    model: 'sonnet',
+    promptFile: 'C:\\\\prompt.txt',
+    platformName: 'win32',
+  });
+  assert.match(winCmd, /not supported on Windows/);
+});
+
+test('codex interactive worker script uses codex TUI command and windows is unsupported', () => {
+  const linuxCmd = __test__.buildCodexInteractiveWorkerScript({
+    taskId: 'W10',
+    workDir: '/tmp/work',
+    resultFile: '/tmp/result.txt',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    model: 'gpt-5',
+    promptFile: '/tmp/prompt.txt',
+    platformName: 'linux',
+  });
+  assert.match(linuxCmd, /codex "\$WORKER_PROMPT" --full-auto -C/);
+  assert.match(linuxCmd, / -m 'gpt-5'/);
+
+  const winCmd = __test__.buildCodexInteractiveWorkerScript({
+    taskId: 'W10',
+    workDir: 'C:\\\\work',
+    resultFile: 'C:\\\\result.txt',
+    pidFile: 'C:\\\\pid.txt',
+    metaFile: 'C:\\\\meta.json',
+    model: 'sonnet',
+    promptFile: 'C:\\\\prompt.txt',
+    platformName: 'win32',
+  });
+  assert.match(winCmd, /not supported on Windows/);
+});

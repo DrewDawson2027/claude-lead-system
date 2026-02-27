@@ -8,7 +8,7 @@ Release bundles are signed and attested via GitHub Actions OIDC keyless signing 
 - `.github/workflows/supply-chain.yml` generates SBOM, signs the release bundle, verifies the signature, and attests provenance.
 
 ## Artifacts
-- `claude-lead-system-<tag>.tar.gz`
+- `claude-lead-system.tar.gz`
 - `SHA256SUMS.txt`
 - `*.sig` (Cosign signature)
 - `*.pem` (certificate)

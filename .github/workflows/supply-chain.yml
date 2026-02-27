@@ -10,6 +10,9 @@ permissions:
   id-token: write
   attestations: write
 
+env:
+  COSIGN_IDENTITY_REGEX: "^https://github.com/${{ github.repository }}/.github/workflows/supply-chain\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+([-.][A-Za-z0-9._-]+)?$"
+
 jobs:
   sbom-and-provenance:
     runs-on: ubuntu-latest
@@ -20,11 +23,19 @@ jobs:
       - name: Build release bundle
         run: |
           OUTDIR="$(mktemp -d)"
-          tar --exclude .git -czf "$OUTDIR/claude-lead-system.tar.gz" .
+          tar \
+            --sort=name \
+            --mtime='UTC 1970-01-01' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            --exclude .git \
+            --exclude node_modules \
+            -czf "$OUTDIR/claude-lead-system.tar.gz" .
           mv "$OUTDIR/claude-lead-system.tar.gz" .
 
       - name: Generate SBOM
-        uses: anchore/sbom-action@28d71544de8eaf1b958d335707167c5f783590ad # v0
+        uses: anchore/sbom-action@17ae1740179002c89186b61233e0f892c3118b11 # v0
         with:
           path: .
           format: spdx-json
@@ -53,7 +64,7 @@ jobs:
           cosign verify-blob \
             --certificate claude-lead-system.tar.gz.pem \
             --signature claude-lead-system.tar.gz.sig \
-            --certificate-identity-regexp "https://github.com/.+/.+/.github/workflows/.+" \
+            --certificate-identity-regexp "$COSIGN_IDENTITY_REGEX" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             claude-lead-system.tar.gz
 

@@ -1,12 +1,11 @@
 export function registerUiRoutes(registry: any): void {
   registry.add('ui:bootstrap', (ctx: any) => {
-    const { req, res, url, csrfToken, apiToken } = ctx;
+    const { req, res, url, csrfToken } = ctx;
     if (!(req.method === 'GET' && url.pathname === '/ui/bootstrap.json')) return false;
     ctx.sendJson(res, 200, {
       ok: true,
       csrf_token: csrfToken,
       token_required: process.env.LEAD_SIDECAR_REQUIRE_TOKEN === '1',
-      api_token: process.env.LEAD_SIDECAR_REQUIRE_TOKEN === '1' ? apiToken : null,
       generated_at: new Date().toISOString(),
     }, req);
     return true;
@@ -24,7 +23,8 @@ export function registerUiRoutes(registry: any): void {
     const { req, res, url, paths } = ctx;
     if (!(req.method === 'PUT' && url.pathname === '/ui/preferences')) return false;
     const body = await ctx.readBody(req);
-    if (body.__parse_error) { ctx.sendJson(res, 400, { error: body.__parse_error }, req); return true; }
+    const v = ctx.validateBody(url.pathname, body);
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     ctx.writeJSON(paths.uiPrefsFile, body);
     ctx.sendJson(res, 200, { ok: true, saved: true }, req);
     return true;
@@ -49,14 +49,15 @@ export function registerUiRoutes(registry: any): void {
     if (!(req.method === 'POST' && url.pathname === '/open-dashboard')) return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     try {
       const port = ctx.readJSON(paths.portFile)?.port;
-      const target = `http://127.0.0.1:${port || server.address().port}/`;
+      const scheme = req.socket?.encrypted ? 'https' : 'http';
+      const target = `${scheme}://127.0.0.1:${port || server.address().port}/`;
       if (process.platform === 'darwin') ctx.spawn('open', [target], { detached: true, stdio: 'ignore' }).unref();
       ctx.sendJson(res, 200, { ok: true, target }, req);
     } catch (err: any) {
-      ctx.sendJson(res, 500, { ok: false, error: err.message }, req);
+      ctx.sendError(res, 500, 'INTERNAL_ERROR', err.message, req);
     }
     return true;
   });
