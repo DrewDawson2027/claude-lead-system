@@ -216,11 +216,15 @@ fi
 
 # Symlinks in ~/.local/bin
 TOTAL=$((TOTAL + 1))
-if [ -L "$FAKE_HOME/.local/bin/claudex" ]; then
+CLAUDEX_LINK="$FAKE_HOME/.local/bin/claudex"
+if [ -L "$CLAUDEX_LINK" ]; then
   PASS=$((PASS + 1))
   log "OK: claudex symlink in ~/.local/bin"
+elif [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && [ -e "$CLAUDEX_LINK" ]; then
+  PASS=$((PASS + 1))
+  log "OK: claudex launcher exists in ~/.local/bin (Windows mode)"
 else
-  log "MISSING: claudex symlink in ~/.local/bin"
+  log "MISSING: claudex launcher in ~/.local/bin"
 fi
 
 log ""
