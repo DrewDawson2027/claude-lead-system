@@ -457,11 +457,34 @@ check_dep() {
   echo "  ✓  $1 found"
 }
 
+resolve_npm_bin() {
+  if command -v npm >/dev/null 2>&1; then
+    echo "npm"
+    return 0
+  fi
+  if command -v npm.cmd >/dev/null 2>&1; then
+    echo "npm.cmd"
+    return 0
+  fi
+  if command -v npm.exe >/dev/null 2>&1; then
+    echo "npm.exe"
+    return 0
+  fi
+  return 1
+}
+
 echo "Checking dependencies..."
 check_dep git   "https://git-scm.com"
 check_dep jq    "brew install jq  /  apt install jq  /  choco install jq"
 check_dep node  "https://nodejs.org (v18+)"
 check_dep bash  "(should be pre-installed)"
+NPM_BIN="$(resolve_npm_bin || true)"
+if [ -z "$NPM_BIN" ]; then
+  echo "  ✗  Missing dependency: npm (or npm.cmd on Windows)"
+  echo "     Install with: https://nodejs.org (includes npm)"
+  exit 1
+fi
+echo "  ✓  npm found ($NPM_BIN)"
 echo ""
 
 # ── Source acquisition (verified tarball or git clone) ───────────────
@@ -505,16 +528,16 @@ mkdir -p "$CLAUDE_DIR/master-agents/architect/refs" "$CLAUDE_DIR/master-agents/w
 mkdir -p "$CLAUDE_DIR/lead-sidecar"
 
 if [ "$MODE" != "lite" ]; then
-  cp -r "$SRC/hooks/"           "$CLAUDE_DIR/hooks/"
+  cp -r "$SRC/hooks/."          "$CLAUDE_DIR/hooks/"
   chmod +x "$CLAUDE_DIR/hooks/"*.sh
   echo "  ✓  Hooks installed"
 else
   echo "  ✓  Lite mode: skipping hook install"
 fi
-cp -r "$SRC/commands/"        "$CLAUDE_DIR/commands/"
-cp -r "$SRC/mcp-coordinator/" "$CLAUDE_DIR/mcp-coordinator/"
+cp -r "$SRC/commands/."       "$CLAUDE_DIR/commands/"
+cp -r "$SRC/mcp-coordinator/." "$CLAUDE_DIR/mcp-coordinator/"
 rm -rf "$CLAUDE_DIR/lead-sidecar"
-cp -r "$SRC/sidecar/"         "$CLAUDE_DIR/lead-sidecar/"
+cp -r "$SRC/sidecar/."        "$CLAUDE_DIR/lead-sidecar/"
 chmod +x "$CLAUDE_DIR/lead-sidecar/bin/"* 2>/dev/null || true
 echo "  ✓  Commands, MCP coordinator, and Sidecar installed"
 
@@ -544,13 +567,17 @@ echo "  ✓  Lead tools installed"
 # ── Install MCP deps ─────────────────────────────────────────────────
 echo ""
 echo "Installing MCP coordinator dependencies..."
-(cd "$CLAUDE_DIR/mcp-coordinator" && npm install --silent)
+if [ ! -f "$CLAUDE_DIR/mcp-coordinator/package.json" ]; then
+  echo "  ✗  Missing mcp-coordinator/package.json after install copy" >&2
+  exit 1
+fi
+(cd "$CLAUDE_DIR/mcp-coordinator" && "$NPM_BIN" install --silent)
 echo "  ✓  npm packages installed"
 
 # ── Sidecar deps (dependency-free today, keep hook for future additions) ──────
 echo "Preparing sidecar..."
 if [ -f "$CLAUDE_DIR/lead-sidecar/package.json" ]; then
-  (cd "$CLAUDE_DIR/lead-sidecar" && npm install --silent --omit=dev >/dev/null 2>&1 || true)
+  (cd "$CLAUDE_DIR/lead-sidecar" && "$NPM_BIN" install --silent --omit=dev >/dev/null 2>&1 || true)
 fi
 mkdir -p "$HOME/.local/bin"
 ln -sf "$CLAUDE_DIR/lead-sidecar/bin/claudex" "$HOME/.local/bin/claudex"
