@@ -11,7 +11,8 @@ import {
 import { handleSendMessage, handleSendDirective } from '../../mcp-coordinator/lib/messaging.js';
 import { handleApprovePlan, handleRejectPlan } from '../../mcp-coordinator/lib/approval.js';
 import { handleWakeSession } from '../../mcp-coordinator/lib/platform/wake.js';
-import { handleGetTeam } from '../../mcp-coordinator/lib/teams.js';
+import { handleCheckQualityGates, handleReassignTask } from '../../mcp-coordinator/lib/tasks.js';
+import { handleGetTeam, handleUpdateTeamPolicy } from '../../mcp-coordinator/lib/teams.js';
 
 function toText(res) {
   return res?.content?.[0]?.text || '';
@@ -49,6 +50,9 @@ export class CoordinatorAdapter {
       case 'directive': return { text: toText(handleSendDirective(payload)) };
       case 'approve-plan': return { text: toText(handleApprovePlan(payload)) };
       case 'reject-plan': return { text: toText(handleRejectPlan(payload)) };
+      case 'reassign-task': return { text: toText(handleReassignTask(payload)) };
+      case 'gate-check': return { text: toText(handleCheckQualityGates(payload)) };
+      case 'update-team-policy': return { text: toText(handleUpdateTeamPolicy(payload)) };
       case 'wake': return { text: toText(handleWakeSession(payload)) };
       case 'spawn-worker-raw': return { text: toText(handleSpawnWorker(payload)) };
       default: throw new Error(`Unsupported coordinator action: ${action}`);

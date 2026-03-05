@@ -7,7 +7,12 @@ import { existsSync, readdirSync } from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
 import { readJSON, readJSONL, text } from "./helpers.js";
-import { sanitizeId, sanitizeName, writeFileSecure } from "./security.js";
+import {
+  sanitizeId,
+  sanitizeName,
+  writeFileSecure,
+  acquireExclusiveFileLock,
+} from "./security.js";
 import { getAllSessions, getSessionStatus } from "./sessions.js";
 import { readTeamConfig, handleCreateTeam } from "./teams.js";
 import { handleCreateTask, handleUpdateTask } from "./tasks.js";
@@ -20,6 +25,16 @@ function contentText(res) {
 
 function tasksDir() {
   return join(cfg().TERMINALS_DIR, "tasks");
+}
+
+function withTaskBoardLock(fn) {
+  const lockPath = join(tasksDir(), ".tasks.lock");
+  const releaseLock = acquireExclusiveFileLock(lockPath, 5000, 15000, 25);
+  try {
+    return fn();
+  } finally {
+    releaseLock();
+  }
 }
 
 function readAllTasks() {
@@ -457,13 +472,15 @@ export function buildTeamRebalanceExplainData(args) {
 }
 
 function patchTaskMetadata(taskId, mutateFn) {
-  const path = join(tasksDir(), `${taskId}.json`);
-  const task = readJSON(path);
-  if (!task) return false;
-  mutateFn(task);
-  task.updated = new Date().toISOString();
-  writeFileSecure(path, JSON.stringify(task, null, 2));
-  return true;
+  return withTaskBoardLock(() => {
+    const path = join(tasksDir(), `${taskId}.json`);
+    const task = readJSON(path);
+    if (!task) return false;
+    mutateFn(task);
+    task.updated = new Date().toISOString();
+    writeFileSecure(path, JSON.stringify(task, null, 2));
+    return true;
+  });
 }
 
 function dispatchExistingQueuedTask(task, snap, assignee, args = {}) {
@@ -510,8 +527,13 @@ function dispatchExistingQueuedTask(task, snap, assignee, args = {}) {
 export function handleTeamAssignNext(args) {
   const team_name = sanitizeName(args.team_name, "team_name");
   const snap = buildTeamOperationalSnapshot(team_name);
+  const teamTasks = getTeamTasks(team_name);
+  const unresolvedBlockersByTaskId = new Map(
+    teamTasks.map(t => [t.task_id, taskBlocked(t, teamTasks)])
+  );
   const queued = snap.task_queue
     .filter(t => t.dispatch_status === "queued")
+    .filter(t => (unresolvedBlockersByTaskId.get(t.task_id) || []).length === 0)
     .sort((a, b) => {
       const pri = { high: 0, normal: 1, low: 2 };
       const ap = pri[a.priority] ?? 1;
@@ -519,9 +541,18 @@ export function handleTeamAssignNext(args) {
       if (ap !== bp) return ap - bp;
       return String(a.created || "").localeCompare(String(b.created || ""));
     });
-  if (queued.length === 0) return text(`No queued tasks for team ${team_name}.`);
+  if (queued.length === 0) {
+    const blockedQueuedCount = snap.task_queue
+      .filter(t => t.dispatch_status === "queued")
+      .filter(t => (unresolvedBlockersByTaskId.get(t.task_id) || []).length > 0)
+      .length;
+    if (blockedQueuedCount > 0) {
+      return text(`No dispatchable queued tasks for team ${team_name}. ${blockedQueuedCount} queued task(s) are dependency-blocked.`);
+    }
+    return text(`No queued tasks for team ${team_name}.`);
+  }
 
-  const all = getTeamTasks(team_name);
+  const all = teamTasks;
   const task = all.find(t => t.task_id === queued[0].task_id);
   if (!task) return text(`Queued task ${queued[0].task_id} not found.`);
   const explicitAssignee = args.assignee ? sanitizeName(args.assignee, "assignee") : null;

@@ -29,12 +29,13 @@ export function getAllSessions() {
  * @returns {string} "active" | "idle" | "stale" | "closed" | "unknown"
  */
 export function getSessionStatus(session) {
+  const { SESSION_ACTIVE_SECONDS, SESSION_IDLE_SECONDS } = cfg();
   if (session.status === "closed") return "closed";
   if (session.status === "stale") return "stale";
   if (!session.last_active) return "unknown";
   const age = (Date.now() - new Date(session.last_active).getTime()) / 1000;
-  if (age < 180) return "active";
-  if (age < 600) return "idle";
+  if (age < SESSION_ACTIVE_SECONDS) return "active";
+  if (age < SESSION_IDLE_SECONDS) return "idle";
   return "stale";
 }
 
@@ -50,7 +51,10 @@ export function handleListSessions(args = {}) {
 
   let filtered = sessions;
   if (!includeClosed) filtered = filtered.filter(s => s.status !== "closed");
-  if (projectFilter) filtered = filtered.filter(s => s.project?.toLowerCase().includes(projectFilter.toLowerCase()));
+  if (projectFilter) {
+    const lowered = String(projectFilter).toLowerCase();
+    filtered = filtered.filter(s => String(s.project || "").toLowerCase().includes(lowered));
+  }
 
   if (filtered.length === 0) return text("No active sessions found.");
 

@@ -11,7 +11,7 @@ function findBridgeSession(paths, workerName = 'sidecar-native-bridge') {
       const s = readJSON(join(paths.terminalsDir, f));
       if (s?.worker_name === workerName && s?.session) return s;
     }
-  } catch {}
+  } catch { }
   return null;
 }
 
@@ -45,14 +45,25 @@ export class BridgeController {
 
   _statusPatch(patch) {
     const prev = readJSON(this.paths.nativeBridgeStatusFile) || {};
-    const next = { ...prev, ...patch, updated_at: new Date().toISOString() };
+    const next = {
+      ...prev,
+      ...patch,
+      pid: patch?.pid ?? prev?.pid ?? process.pid,
+      updated_at: new Date().toISOString(),
+    };
     writeJSON(this.paths.nativeBridgeStatusFile, next);
     this.store?.emitBridgeStatus?.(next);
     return next;
   }
 
   heartbeat(session_id, extras = {}) {
-    const hb = { ts: new Date().toISOString(), session_id, ...extras };
+    const status = readJSON(this.paths.nativeBridgeStatusFile) || {};
+    const hb = {
+      ts: new Date().toISOString(),
+      session_id,
+      pid: extras?.pid ?? status?.pid ?? process.pid,
+      ...extras,
+    };
     writeJSON(this.paths.nativeBridgeHeartbeatFile, hb);
     this.store?.emitBridgeStatus?.({ bridge_status: 'healthy', ...hb });
     return hb;
@@ -61,7 +72,7 @@ export class BridgeController {
   async ensureBridge({ autostart = false, directory = process.cwd() } = {}) {
     const session = findBridgeSession(this.paths);
     if (session?.session) {
-      this._statusPatch({ session_id: session.session, worker_name: session.worker_name || 'sidecar-native-bridge', note: 'bridge session discovered' });
+      this._statusPatch({ session_id: session.session, worker_name: session.worker_name || 'sidecar-native-bridge', pid: session.pid || process.pid, note: 'bridge session discovered' });
       this.heartbeat(session.session, { capabilities: ['TeamCreate', 'TeamStatus', 'SendMessage', 'Task'] });
       return { ok: true, status: 'healthy', session_id: session.session, discovered: true };
     }
@@ -83,7 +94,7 @@ export class BridgeController {
       'Write a strict JSON response to ~/.claude/lead-sidecar/runtime/native/bridge.response-queue/<request_id>.json.',
       'Do not edit project files. Only read/write sidecar runtime queue files and use native team tools.',
       'After each action, continue watching for more requests.',
-      'Also periodically write heartbeat JSON to ~/.claude/lead-sidecar/runtime/native/bridge.heartbeat.json with ts and session_id.',
+      'Also periodically write heartbeat JSON to ~/.claude/lead-sidecar/runtime/native/bridge.heartbeat.json with ts, session_id, and pid.',
     ].join(' ');
 
     const res = await this.coordinator.execute('spawn-worker-raw', {
@@ -102,7 +113,7 @@ export class BridgeController {
     const task_id = parseSpawnedTaskId(res?.text || '');
     const session2 = findBridgeSession(this.paths);
     if (task_id || session2?.session) {
-      this._statusPatch({ starting: false, task_id: task_id || null, session_id: session2?.session || null, note: 'bridge spawned' });
+      this._statusPatch({ starting: false, task_id: task_id || null, session_id: session2?.session || null, pid: session2?.pid || process.pid, note: 'bridge spawned' });
       return { ok: true, status: 'starting', task_id: task_id || null, session_id: session2?.session || null };
     }
 
@@ -138,7 +149,7 @@ export class BridgeController {
           content: `Process native bridge request ${request_id}. Read ~/.claude/lead-sidecar/runtime/native/bridge.request-queue/${request_id}.json and write response JSON to the response-queue.`,
           priority: 'urgent',
         });
-      } catch {}
+      } catch { }
     }
 
     const res = await waitForBridgeResponse(this.paths, request_id, timeoutMs);
@@ -164,10 +175,10 @@ export class BridgeController {
             action: req.action,
             native_tool:
               req.action === 'team-status' ? 'TeamStatus'
-              : req.action === 'team-create' ? 'TeamCreate'
-              : req.action === 'send-message' ? 'SendMessage'
-              : req.action === 'task' ? 'Task'
-              : 'Unknown',
+                : req.action === 'team-create' ? 'TeamCreate'
+                  : req.action === 'send-message' ? 'SendMessage'
+                    : req.action === 'task' ? 'Task'
+                      : 'Unknown',
             result: {
               simulated_bridge: true,
               echo: req.payload || {},
@@ -268,8 +279,8 @@ export class BridgeController {
     } finally {
       report.finished_at = new Date().toISOString();
       report.latency_ms = Date.now() - started;
-      try { writeJSON(this.paths.nativeBridgeValidationFile, report); } catch {}
-      try { appendJSONL(this.paths.nativeBridgeValidationLogFile, report); } catch {}
+      try { writeJSON(this.paths.nativeBridgeValidationFile, report); } catch { }
+      try { appendJSONL(this.paths.nativeBridgeValidationLogFile, report); } catch { }
       this.store?.emitBridgeStatus?.({
         bridge_status: this.getHealth().bridge_status,
         validation: { ok: report.ok, finished_at: report.finished_at, latency_ms: report.latency_ms, error: report.error || null },

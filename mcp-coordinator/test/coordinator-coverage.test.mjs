@@ -772,6 +772,41 @@ test('handleCreateTeam normalizes invalid policy fields to defaults', async () =
   }
 });
 
+test('coord_update_team_policy merges interrupt_weights via dedicated action', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    api.handleCreateTeam({
+      team_name: 'policy-merge-team',
+      policy: {
+        default_mode: 'pipe',
+        interrupt_weights: { approval: 100, bridge: 90 },
+      },
+    });
+
+    const result = api.handleToolCall('coord_update_team_policy', {
+      team_name: 'policy-merge-team',
+      interrupt_weights: {
+        bridge: 123,
+        stale: 77,
+      },
+    });
+    assert.match(textOf(result), /Team policy updated/i);
+
+    const teamFile = join(home, '.claude', 'terminals', 'teams', 'policy-merge-team.json');
+    const team = readJson(teamFile);
+    assert.equal(team.policy.default_mode, 'pipe');
+    assert.deepEqual(team.policy.interrupt_weights, {
+      approval: 100,
+      bridge: 123,
+      stale: 77,
+    });
+  } finally {
+    restore();
+  }
+});
+
 test('handleCreateTeam updates existing team with member merge', async () => {
   const { home } = setupHome();
   const { api, restore } = await loadForTest(home);

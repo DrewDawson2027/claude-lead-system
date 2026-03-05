@@ -7,7 +7,11 @@ import { existsSync, readdirSync, renameSync, unlinkSync } from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
 import {
-  sanitizeShortSessionId, writeFileSecure, appendJSONLineSecure, assertMessageBudget,
+  sanitizeShortSessionId,
+  writeFileSecure,
+  appendJSONLineSecure,
+  assertMessageBudget,
+  enforceMessageRateLimit,
 } from "./security.js";
 import { readJSON, readJSONLLimited, text } from "./helpers.js";
 import { getAllSessions, getSessionStatus } from "./sessions.js";
@@ -38,16 +42,16 @@ export function handleCheckInbox(args) {
     truncated = read.truncated;
   }
   if (messages.length === 0) {
-    try { if (existsSync(drainFile)) unlinkSync(drainFile); } catch {}
+    try { if (existsSync(drainFile)) unlinkSync(drainFile); } catch { }
     if (!existsSync(inboxFile)) writeFileSecure(inboxFile, "");
     return text("No pending messages.");
   }
 
-  try { if (existsSync(drainFile)) unlinkSync(drainFile); } catch {}
+  try { if (existsSync(drainFile)) unlinkSync(drainFile); } catch { }
   if (!existsSync(inboxFile)) writeFileSecure(inboxFile, "");
   const sessionFile = join(TERMINALS_DIR, `session-${sid}.json`);
   if (existsSync(sessionFile)) {
-    try { const s = readJSON(sessionFile); if (s) { s.has_messages = false; writeFileSecure(sessionFile, JSON.stringify(s, null, 2)); } } catch {}
+    try { const s = readJSON(sessionFile); if (s) { s.has_messages = false; writeFileSecure(sessionFile, JSON.stringify(s, null, 2)); } } catch { }
   }
 
   let output = `## ${messages.length} Message(s)\n\n`;
@@ -87,7 +91,7 @@ function resolveWorkerName(targetName) {
         if (workerSessions.length > 0) return workerSessions[0].session;
       }
     }
-  } catch {}
+  } catch { }
   return null;
 }
 
@@ -120,6 +124,7 @@ export function handleSendMessage(args) {
   }
 
   const inboxFile = join(INBOX_DIR, `${to}.jsonl`);
+  enforceMessageRateLimit(to);
   appendJSONLineSecure(inboxFile, {
     ts: new Date().toISOString(),
     from,
@@ -133,7 +138,7 @@ export function handleSendMessage(args) {
     try {
       const s = readJSON(sessionFile);
       if (s) { s.has_messages = true; writeFileSecure(sessionFile, JSON.stringify(s, null, 2)); }
-    } catch {}
+    } catch { }
   }
 
   return text(`Message sent to ${to}\n- From: ${from}\n- Priority: ${priority}\n- Content: "${content.slice(0, 200)}"\n- 0 API tokens used.`);
@@ -164,17 +169,28 @@ export function handleBroadcast(args) {
   };
 
   let sent = 0;
+  let skippedRateLimit = 0;
   for (const s of sessions) {
     const sid = s.session;
     if (!sid) continue;
     const inboxFile = join(INBOX_DIR, `${sid}.jsonl`);
     try {
+      enforceMessageRateLimit(sid);
       appendJSONLineSecure(inboxFile, msg);
       sent++;
-    } catch {}
+    } catch (err) {
+      if (/Rate limit exceeded/i.test(String(err?.message || ""))) {
+        skippedRateLimit++;
+      }
+    }
   }
 
-  return text(`Broadcast sent to ${sent} session(s)\n- From: ${from}\n- Priority: ${priority}\n- Content: "${content.slice(0, 200)}"\n- 0 API tokens used.`);
+  let response = `Broadcast sent to ${sent} session(s)\n- From: ${from}\n- Priority: ${priority}\n- Content: "${content.slice(0, 200)}"`;
+  if (skippedRateLimit > 0) {
+    response += `\n- Skipped (rate-limited): ${skippedRateLimit}`;
+  }
+  response += "\n- 0 API tokens used.";
+  return text(response);
 }
 
 /**
@@ -195,6 +211,7 @@ export function handleSendDirective(args) {
 
   // Write to inbox
   const inboxFile = join(INBOX_DIR, `${to}.jsonl`);
+  enforceMessageRateLimit(to);
   appendJSONLineSecure(inboxFile, {
     ts: new Date().toISOString(),
     from,
@@ -218,7 +235,7 @@ export function handleSendDirective(args) {
       sessionStatus = s.status || "unknown";
       lastActive = s.last_active || null;
     }
-  } catch {}
+  } catch { }
 
   // Determine if session needs waking
   const lastActiveMs = lastActive ? Date.now() - new Date(lastActive).getTime() : Infinity;

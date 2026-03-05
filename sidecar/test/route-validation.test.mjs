@@ -109,6 +109,27 @@ test('validateBody: rejects unexpected keys for /teams/{name}/rebalance', async 
   assert.match(result.error, /bad_key/);
 });
 
+test('validateBody: rejects unexpected keys for /teams/{name}/tasks/{id}/reassign', async () => {
+  const mod = await import(`../server/http/validation.ts?t=${Date.now()}`);
+  const result = mod.validateBody('/teams/myteam/tasks/t1/reassign', { new_assignee: 'alice', bad_key: true });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /bad_key/);
+});
+
+test('validateBody: accepts valid keys for /teams/{name}/tasks/{id}/reassign', async () => {
+  const mod = await import(`../server/http/validation.ts?t=${Date.now()}`);
+  assert.deepEqual(
+    mod.validateBody('/teams/myteam/tasks/t1/reassign', { new_assignee: 'alice', reason: 'handoff', progress_context: 'ready' }),
+    { ok: true },
+  );
+});
+
+test('validateBody: rejects unexpected keys for /teams/{name}/tasks/{id}/gate-check (empty allowlist)', async () => {
+  const mod = await import(`../server/http/validation.ts?t=${Date.now()}`);
+  const result = mod.validateBody('/teams/myteam/tasks/t1/gate-check', { anything: true });
+  assert.equal(result.ok, false);
+});
+
 test('validateBody: rejects unexpected keys for /teams/{name}/batch-triage', async () => {
   const mod = await import(`../server/http/validation.ts?t=${Date.now()}`);
   const result = mod.validateBody('/teams/myteam/batch-triage', { op: 'resolve', inject: true });

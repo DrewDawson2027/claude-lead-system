@@ -6,7 +6,7 @@
 import {
   writeFileSync, readFileSync, appendFileSync, existsSync,
   mkdirSync, unlinkSync, lstatSync, chmodSync, statSync,
-  openSync, closeSync, realpathSync,
+  openSync, closeSync, realpathSync, renameSync, fsyncSync,
 } from "fs";
 import { join, basename, resolve, isAbsolute } from "path";
 import { execFileSync } from "child_process";
@@ -43,9 +43,23 @@ export function ensureSecureDirectory(pathValue) {
  */
 export function writeFileSecure(pathValue, data) {
   const { PLATFORM } = cfg();
-  writeFileSync(pathValue, data, { mode: 0o600 });
+  const tempPath = `${pathValue}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}`;
+  let renamed = false;
+  try {
+    writeFileSync(tempPath, data, { mode: 0o600 });
+    try {
+      const fd = openSync(tempPath, "r");
+      try { fsyncSync(fd); } finally { closeSync(fd); }
+    } catch { }
+    renameSync(tempPath, pathValue);
+    renamed = true;
+  } finally {
+    if (!renamed) {
+      try { unlinkSync(tempPath); } catch { }
+    }
+  }
   if (PLATFORM !== "win32") {
-    try { chmodSync(pathValue, 0o600); } catch {}
+    try { chmodSync(pathValue, 0o600); } catch { }
   } else {
     enforceWindowsAcl(pathValue, false);
   }
@@ -60,7 +74,7 @@ export function appendJSONLineSecure(pathValue, value) {
   const { PLATFORM } = cfg();
   appendFileSync(pathValue, `${JSON.stringify(value)}\n`, { mode: 0o600 });
   if (PLATFORM !== "win32") {
-    try { chmodSync(pathValue, 0o600); } catch {}
+    try { chmodSync(pathValue, 0o600); } catch { }
   } else {
     enforceWindowsAcl(pathValue, false);
   }
@@ -146,8 +160,8 @@ export function acquireExclusiveFileLock(lockPath, timeoutMs = 2000, staleMs = 1
   }
 
   return () => {
-    try { if (lockFd !== undefined) closeSync(lockFd); } catch {}
-    try { unlinkSync(lockPath); } catch {}
+    try { if (lockFd !== undefined) closeSync(lockFd); } catch { }
+    try { unlinkSync(lockPath); } catch { }
   };
 }
 
@@ -277,7 +291,7 @@ export function normalizeFilePath(filePath, cwd = "") {
     if (existsSync(candidate)) {
       candidate = realpathSync(candidate);
     }
-  } catch {}
+  } catch { }
   let normalized = candidate.replace(/\\/g, "/");
   if (PLATFORM === "win32") normalized = normalized.toLowerCase();
   return normalized;

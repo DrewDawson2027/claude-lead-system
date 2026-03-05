@@ -7,6 +7,8 @@ const BODY_ALLOWLISTS = [
   { rx: /^\/actions\/[^/]+\/fallback$/, keys: ['force_path'] },
   { rx: /^\/teams\/[^/]+\/rebalance$/, keys: ['apply', 'force_path', 'limit', 'dispatch_next', 'include_in_progress'] },
   { rx: /^\/teams\/[^/]+\/rebalance-explain$/, keys: ['limit', 'assignee'] },
+  { rx: /^\/teams\/[^/]+\/tasks\/[^/]+\/reassign$/, keys: ['new_assignee', 'reason', 'progress_context'] },
+  { rx: /^\/teams\/[^/]+\/tasks\/[^/]+\/gate-check$/, keys: [] },
   { rx: /^\/teams\/[^/]+\/actions\/[^/]+$/, keys: ['team_name', 'subject', 'prompt', 'priority', 'role_hint', 'role', 'directory', 'force_path', 'to', 'content', 'message', 'task_id', 'feedback', 'session_id', 'target_name', 'from', 'files', 'blocked_by', 'acceptance_criteria', 'metadata', 'agent'] },
   { rx: /^\/teams\/[^/]+\/batch-triage$/, keys: ['op', 'confirm', 'message', 'limit'] },
   { rx: /^\/dispatch$/, keys: ['team_name', 'subject', 'prompt', 'directory', 'priority', 'role', 'files', 'blocked_by', 'metadata', 'force_path'] },

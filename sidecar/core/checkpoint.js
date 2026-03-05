@@ -71,6 +71,8 @@ export function listCheckpoints(paths) {
 
 /**
  * Restore state from a checkpoint file.
+ * Additive semantics: files present in the checkpoint are restored/overwritten,
+ * but files not present in the checkpoint are left untouched.
  * @param {object} paths
  * @param {string} checkpointFile - full path to checkpoint file
  * @returns {{ restored: boolean, teams_count: number, tasks_count: number, error?: string }}
@@ -111,7 +113,7 @@ export function restoreCheckpoint(paths, checkpointFile) {
     } catch { /* skip */ }
   }
 
-  return { restored: true, teams_count: teamsRestored, tasks_count: tasksRestored };
+  return { restored: true, restore_mode: 'additive', teams_count: teamsRestored, tasks_count: tasksRestored };
 }
 
 /**

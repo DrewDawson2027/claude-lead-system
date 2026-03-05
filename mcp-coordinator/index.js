@@ -36,7 +36,7 @@ import { handleCreateTask, handleUpdateTask, handleListTasks, handleGetTask, han
 import { handleApprovePlan, handleRejectPlan } from "./lib/approval.js";
 import { handleShutdownRequest, handleShutdownResponse } from "./lib/shutdown.js";
 import { handleWriteContext, handleReadContext, handleExportContext } from "./lib/context-store.js";
-import { handleCreateTeam, handleGetTeam, handleListTeams, handleDeleteTeam } from "./lib/teams.js";
+import { handleCreateTeam, handleGetTeam, handleListTeams, handleDeleteTeam, handleUpdateTeamPolicy } from "./lib/teams.js";
 import { handleTeamDispatch } from "./lib/team-dispatch.js";
 import {
   handleTeamStatusCompact,
@@ -83,7 +83,7 @@ function applyLegacyDeprecationToOutput(toolName, data) {
       parsed.canonical_command = LEGACY_COST_DEPRECATIONS[toolName].canonical_command;
       return JSON.stringify(parsed, null, 2);
     }
-  } catch {}
+  } catch { }
   return `${raw}\n\n[DEPRECATED]\ncanonical_tool=${LEGACY_COST_DEPRECATIONS[toolName].canonical_tool}\ncanonical_command=${LEGACY_COST_DEPRECATIONS[toolName].canonical_command}\n`;
 }
 
@@ -511,6 +511,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "coord_update_team_policy",
+      description: "Update team policy fields (including interrupt priority weights) for an existing team.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          team_name: { type: "string", description: "Team name to update" },
+          policy: { type: "object", description: "Policy patch object (validated and merged into existing policy)" },
+          interrupt_weights: {
+            type: "object",
+            description: "Optional partial interrupt weight update. Allowed keys: approval, bridge, stale, conflict, budget, error, warn, default.",
+          },
+        },
+        required: ["team_name"],
+      },
+    },
+    {
       name: "coord_team_dispatch",
       description: "Create a team-scoped task and dispatch a worker using team policy defaults in one call.",
       inputSchema: {
@@ -825,49 +841,50 @@ function handleToolCall(name, args = {}) {
   try {
     let result;
     switch (name) {
-    case "coord_list_sessions":    result = handleListSessions(args); break;
-    case "coord_get_session":      result = handleGetSession(args); break;
-    case "coord_check_inbox":      result = handleCheckInbox(args); break;
-    case "coord_detect_conflicts": result = handleDetectConflicts(args); break;
-    case "coord_spawn_terminal":   result = handleSpawnTerminal(args); break;
-    case "coord_spawn_worker":     result = handleSpawnWorker(args); break;
-    case "coord_spawn_workers":    result = handleSpawnWorkers(args); break;
-    case "coord_get_result":       result = handleGetResult(args); break;
-    case "coord_wake_session":     result = handleWakeSession(args); break;
-    case "coord_kill_worker":      result = handleKillWorker(args); break;
-    case "coord_resume_worker":    result = handleResumeWorker(args); break;
-    case "coord_upgrade_worker":   result = handleUpgradeWorker(args); break;
-    case "coord_run_pipeline":     result = handleRunPipeline(args); break;
-    case "coord_get_pipeline":     result = handleGetPipeline(args); break;
-    case "coord_create_task":      result = handleCreateTask(args); break;
-    case "coord_update_task":      result = handleUpdateTask(args); break;
-    case "coord_list_tasks":       result = handleListTasks(args); break;
-    case "coord_get_task":         result = handleGetTask(args); break;
-    case "coord_reassign_task":    result = handleReassignTask(args); break;
-    case "coord_get_task_audit":   result = handleGetTaskAudit(args); break;
-    case "coord_check_quality_gates": result = handleCheckQualityGates(args); break;
-    case "coord_create_team":      result = handleCreateTeam(args); break;
-    case "coord_get_team":         result = handleGetTeam(args); break;
-    case "coord_list_teams":       result = handleListTeams(args); break;
-    case "coord_delete_team":      result = handleDeleteTeam(args); break;
-    case "coord_team_dispatch":    result = handleTeamDispatch(args); break;
-    case "coord_team_status_compact": result = handleTeamStatusCompact(args); break;
-    case "coord_team_queue_task":  result = handleTeamQueueTask(args); break;
-    case "coord_team_assign_next": result = handleTeamAssignNext(args); break;
-    case "coord_team_rebalance":   result = handleTeamRebalance(args); break;
-    case "coord_sidecar_status":   result = handleSidecarStatus(args); break;
-    case "coord_cost_comparison":  result = handleCostComparison(args); break;
-    case "coord_approve_plan":     result = handleApprovePlan(args); break;
-    case "coord_reject_plan":      result = handleRejectPlan(args); break;
-    case "coord_shutdown_request": result = handleShutdownRequest(args); break;
-    case "coord_shutdown_response":result = handleShutdownResponse(args); break;
-    case "coord_write_context":    result = handleWriteContext(args); break;
-    case "coord_read_context":     result = handleReadContext(args); break;
-    case "coord_export_context":   result = handleExportContext(args); break;
-    case "coord_broadcast":        result = handleBroadcast(args); break;
-    case "coord_send_message":     result = handleSendMessage(args); break;
-    case "coord_send_directive":   result = handleSendDirective(args); break;
-    default:                       result = text(`Unknown tool: ${name}`); break;
+      case "coord_list_sessions": result = handleListSessions(args); break;
+      case "coord_get_session": result = handleGetSession(args); break;
+      case "coord_check_inbox": result = handleCheckInbox(args); break;
+      case "coord_detect_conflicts": result = handleDetectConflicts(args); break;
+      case "coord_spawn_terminal": result = handleSpawnTerminal(args); break;
+      case "coord_spawn_worker": result = handleSpawnWorker(args); break;
+      case "coord_spawn_workers": result = handleSpawnWorkers(args); break;
+      case "coord_get_result": result = handleGetResult(args); break;
+      case "coord_wake_session": result = handleWakeSession(args); break;
+      case "coord_kill_worker": result = handleKillWorker(args); break;
+      case "coord_resume_worker": result = handleResumeWorker(args); break;
+      case "coord_upgrade_worker": result = handleUpgradeWorker(args); break;
+      case "coord_run_pipeline": result = handleRunPipeline(args); break;
+      case "coord_get_pipeline": result = handleGetPipeline(args); break;
+      case "coord_create_task": result = handleCreateTask(args); break;
+      case "coord_update_task": result = handleUpdateTask(args); break;
+      case "coord_list_tasks": result = handleListTasks(args); break;
+      case "coord_get_task": result = handleGetTask(args); break;
+      case "coord_reassign_task": result = handleReassignTask(args); break;
+      case "coord_get_task_audit": result = handleGetTaskAudit(args); break;
+      case "coord_check_quality_gates": result = handleCheckQualityGates(args); break;
+      case "coord_create_team": result = handleCreateTeam(args); break;
+      case "coord_get_team": result = handleGetTeam(args); break;
+      case "coord_list_teams": result = handleListTeams(args); break;
+      case "coord_delete_team": result = handleDeleteTeam(args); break;
+      case "coord_update_team_policy": result = handleUpdateTeamPolicy(args); break;
+      case "coord_team_dispatch": result = handleTeamDispatch(args); break;
+      case "coord_team_status_compact": result = handleTeamStatusCompact(args); break;
+      case "coord_team_queue_task": result = handleTeamQueueTask(args); break;
+      case "coord_team_assign_next": result = handleTeamAssignNext(args); break;
+      case "coord_team_rebalance": result = handleTeamRebalance(args); break;
+      case "coord_sidecar_status": result = handleSidecarStatus(args); break;
+      case "coord_cost_comparison": result = handleCostComparison(args); break;
+      case "coord_approve_plan": result = handleApprovePlan(args); break;
+      case "coord_reject_plan": result = handleRejectPlan(args); break;
+      case "coord_shutdown_request": result = handleShutdownRequest(args); break;
+      case "coord_shutdown_response": result = handleShutdownResponse(args); break;
+      case "coord_write_context": result = handleWriteContext(args); break;
+      case "coord_read_context": result = handleReadContext(args); break;
+      case "coord_export_context": result = handleExportContext(args); break;
+      case "coord_broadcast": result = handleBroadcast(args); break;
+      case "coord_send_message": result = handleSendMessage(args); break;
+      case "coord_send_directive": result = handleSendDirective(args); break;
+      default: result = text(`Unknown tool: ${name}`); break;
     }
     if (metricsEnabled && result?.content?.[0]?.text) {
       const elapsed = performance.now() - callStart;
@@ -941,6 +958,7 @@ export const __test__ = {
   handleGetTaskAudit,
   handleCheckQualityGates,
   handleCreateTeam,
+  handleUpdateTeamPolicy,
   handleGetTeam,
   handleListTeams,
   handleTeamDispatch,

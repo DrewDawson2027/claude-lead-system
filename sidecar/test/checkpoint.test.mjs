@@ -53,10 +53,13 @@ test('restore checkpoint recovers state', () => {
   // Modify state
   writeJSON(paths.snapshotFile, { teams: [{ team_name: 'beta' }] });
   writeJSON(join(paths.teamsDir, 'alpha.json'), { team_name: 'alpha', members: ['x'] });
+  writeJSON(join(paths.teamsDir, 'beta.json'), { team_name: 'beta', members: ['extra'] });
+  writeJSON(join(paths.tasksDir, 'task-2.json'), { id: 'task-2', subject: 'Extra task not in checkpoint' });
 
   // Restore
   const result = restoreCheckpoint(paths, cp.file);
   assert.ok(result.restored);
+  assert.equal(result.restore_mode, 'additive');
   assert.equal(result.teams_count, 1);
   assert.equal(result.tasks_count, 1);
 
@@ -65,6 +68,10 @@ test('restore checkpoint recovers state', () => {
   assert.equal(snapshot.teams[0].team_name, 'alpha');
   const teamData = readJSON(join(paths.teamsDir, 'alpha.json'));
   assert.deepEqual(teamData.members, ['a', 'b']);
+  const extraTeam = readJSON(join(paths.teamsDir, 'beta.json'));
+  assert.equal(extraTeam.team_name, 'beta', 'additive restore should preserve team files not present in checkpoint');
+  const extraTask = readJSON(join(paths.tasksDir, 'task-2.json'));
+  assert.equal(extraTask.id, 'task-2', 'additive restore should preserve task files not present in checkpoint');
   rmSync(paths.root, { recursive: true, force: true });
 });
 

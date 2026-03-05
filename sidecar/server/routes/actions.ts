@@ -42,7 +42,14 @@ export function registerActionRoutes(registry: any): void {
     if (!record) { ctx.sendError(res, 404, 'NOT_FOUND', 'Action not found', req); return true; }
     ctx.actionQueue.retry(actionId, { retry_requested_at: new Date().toISOString() });
     const team = record.team_name ? ctx.findTeam(snapshot, record.team_name) : { team_name: null, execution_path: 'hybrid', policy: {} };
-    const result = await ctx.runTrackedAction({ team, action: record.action, payload: record.payload_preview || {}, routeMode: record.route_mode === 'native-direct' ? 'native-direct' : 'router', nativeHttpAction: record.action });
+    const result = await ctx.runTrackedAction({
+      team,
+      action: record.action,
+      payload: record.payload_preview || {},
+      routeMode: record.route_mode === 'native-direct' ? 'native-direct' : 'router',
+      nativeHttpAction: record.action,
+      trackedActionId: actionId,
+    });
     await ctx.rebuild('action-retry');
     ctx.sendJson(res, result.ok ? 200 : 400, result, req);
     return true;
@@ -60,7 +67,13 @@ export function registerActionRoutes(registry: any): void {
     const force_path = body.force_path === 'native' ? 'native' : 'coordinator';
     ctx.actionQueue.retry(actionId, { forced_fallback_at: new Date().toISOString(), force_path });
     const team = record.team_name ? ctx.findTeam(snapshot, record.team_name) : { team_name: null, execution_path: 'hybrid', policy: {} };
-    const result = await ctx.runTrackedAction({ team, action: record.action, payload: { ...(record.payload_preview || {}), force_path }, routeMode: 'router' });
+    const result = await ctx.runTrackedAction({
+      team,
+      action: record.action,
+      payload: { ...(record.payload_preview || {}), force_path },
+      routeMode: 'router',
+      trackedActionId: actionId,
+    });
     await ctx.rebuild('action-fallback');
     ctx.sendJson(res, result.ok ? 200 : 400, result, req);
     return true;

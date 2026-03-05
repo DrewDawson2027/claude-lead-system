@@ -94,6 +94,8 @@ export function listBackups(paths, operation = null) {
 
 /**
  * Restore state from a pre-op backup.
+ * Additive semantics: files present in the backup are restored/overwritten,
+ * but files not present in the backup are left untouched.
  * @param {object} paths
  * @param {string} backupFile - full path to backup file
  * @returns {{ restored: boolean, teams_count: number, tasks_count: number, error?: string }}
@@ -120,5 +122,5 @@ export function restoreFromBackup(paths, backupFile) {
     try { writeJSON(join(paths.tasksDir, task.file), task.data); tasksRestored++; } catch { /* skip */ }
   }
 
-  return { restored: true, teams_count: teamsRestored, tasks_count: tasksRestored };
+  return { restored: true, restore_mode: 'additive', teams_count: teamsRestored, tasks_count: tasksRestored };
 }

@@ -18,7 +18,7 @@ function teamsDir() {
   const dir = join(cfg().TERMINALS_DIR, "teams");
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
-    try { ensureSecureDirectory(dir); } catch {}
+    try { ensureSecureDirectory(dir); } catch { }
   }
   return dir;
 }
@@ -81,6 +81,29 @@ function teamPreset(preset) {
   }
 }
 
+const INTERRUPT_WEIGHT_KEYS = ["approval", "bridge", "stale", "conflict", "budget", "error", "warn", "default"];
+
+function normalizeInterruptWeights(weights = {}) {
+  if (!weights || typeof weights !== "object" || Array.isArray(weights)) return null;
+  const out = {};
+  for (const key of INTERRUPT_WEIGHT_KEYS) {
+    const n = Number(weights[key]);
+    if (Number.isFinite(n) && n >= 0 && n <= 200) out[key] = Math.round(n);
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+function mergeTeamPolicy(currentPolicy = {}, patchPolicy = {}) {
+  const merged = { ...(currentPolicy || {}), ...(patchPolicy || {}) };
+  if (patchPolicy?.interrupt_weights && typeof patchPolicy.interrupt_weights === "object" && !Array.isArray(patchPolicy.interrupt_weights)) {
+    const prevWeights = (currentPolicy?.interrupt_weights && typeof currentPolicy.interrupt_weights === "object" && !Array.isArray(currentPolicy.interrupt_weights))
+      ? currentPolicy.interrupt_weights
+      : {};
+    merged.interrupt_weights = { ...prevWeights, ...patchPolicy.interrupt_weights };
+  }
+  return merged;
+}
+
 function normalizeTeamPolicy(policy = {}) {
   if (!policy || typeof policy !== "object" || Array.isArray(policy)) return {};
   const out = {};
@@ -101,6 +124,8 @@ function normalizeTeamPolicy(policy = {}) {
   posInt("global_budget_tokens");
   posInt("max_active_workers");
   bool("default_isolate");
+  const interruptWeights = normalizeInterruptWeights(policy.interrupt_weights);
+  if (interruptWeights) out.interrupt_weights = interruptWeights;
   return out;
 }
 
@@ -144,7 +169,7 @@ export function handleCreateTeam(args) {
     const preset = teamPreset(presetName);
     team.preset = presetName;
     team.execution_path = preset.execution_path;
-    team.policy = { ...(team.policy || {}), ...(preset.policy || {}) };
+    team.policy = mergeTeamPolicy(team.policy || {}, preset.policy || {});
   }
 
   if (args.project) team.project = String(args.project).trim();
@@ -156,7 +181,7 @@ export function handleCreateTeam(args) {
     team.low_overhead_mode = args.low_overhead_mode;
   }
   if (args.policy !== undefined) {
-    team.policy = { ...(team.policy || {}), ...normalizeTeamPolicy(args.policy) };
+    team.policy = mergeTeamPolicy(team.policy || {}, normalizeTeamPolicy(args.policy));
   }
   if (!team.execution_path) team.execution_path = "hybrid";
   if (!team.low_overhead_mode) team.low_overhead_mode = "advanced";
@@ -199,6 +224,42 @@ export function handleCreateTeam(args) {
     `- Team Plan Mode: ${team.policy?.require_plan === true ? "required" : team.policy?.require_plan === false ? "optional" : "unset"}\n` +
     `- Members: ${team.members.length}\n` +
     team.members.map(m => `  - ${m.name} (${m.role})${m.task_id ? ` → ${m.task_id}` : ""}`).join("\n")
+  );
+}
+
+/**
+ * Handle coord_update_team_policy tool call.
+ * Updates policy fields for an existing team without mutating members.
+ * @param {object} args - { team_name, policy?, interrupt_weights? }
+ * @returns {object} MCP text response
+ */
+export function handleUpdateTeamPolicy(args) {
+  const teamName = sanitizeName(args.team_name, "team_name");
+  const teamFile = join(teamsDir(), `${teamName}.json`);
+  const team = readJSON(teamFile);
+  if (!team) return text(`Team ${teamName} not found.`);
+
+  const incomingPolicy = (args.policy && typeof args.policy === "object" && !Array.isArray(args.policy))
+    ? { ...args.policy }
+    : {};
+  if (args.interrupt_weights && typeof args.interrupt_weights === "object" && !Array.isArray(args.interrupt_weights)) {
+    incomingPolicy.interrupt_weights = args.interrupt_weights;
+  }
+
+  const normalized = normalizeTeamPolicy(incomingPolicy);
+  if (Object.keys(normalized).length === 0) {
+    return text(`No valid policy updates provided for team ${teamName}.`);
+  }
+
+  team.policy = mergeTeamPolicy(team.policy || {}, normalized);
+  team.updated = new Date().toISOString();
+  writeFileSecure(teamFile, JSON.stringify(team, null, 2));
+
+  const updatedKeys = Object.keys(normalized).sort();
+  return text(
+    `Team policy updated: **${teamName}**\n` +
+    `- Updated keys: ${updatedKeys.join(", ")}\n` +
+    (team.policy?.interrupt_weights ? `- Interrupt weights: ${JSON.stringify(team.policy.interrupt_weights)}\n` : "")
   );
 }
 
@@ -298,10 +359,10 @@ export function handleDeleteTeam(args) {
       for (const f of files) {
         const task = readJSON(join(tasksDir, f));
         if (task && (task.team_name === teamName || task.metadata?.team_name === teamName)) {
-          try { unlinkSync(join(tasksDir, f)); tasksRemoved++; } catch {}
+          try { unlinkSync(join(tasksDir, f)); tasksRemoved++; } catch { }
         }
       }
-    } catch {}
+    } catch { }
   }
 
   return text(

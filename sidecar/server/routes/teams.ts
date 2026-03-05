@@ -59,10 +59,22 @@ export function registerTeamRoutes(registry: any): void {
     for (const [k, v] of Object.entries(body)) {
       if (typeof v === 'number' && v >= 0 && v <= 200) weights[k] = v;
     }
+
+    if (Object.keys(weights).length === 0) {
+      ctx.sendError(res, 400, 'VALIDATION_ERROR', 'At least one interrupt priority weight is required', req);
+      return true;
+    }
+
+    let resultText: string | null = null;
     try {
-      await ctx.coordinatorAdapter.execute('update-team-policy', { team_name: teamName, interrupt_weights: weights });
-    } catch {}
-    ctx.sendJson(res, 200, { ok: true, team_name: teamName, interrupt_weights: weights }, req);
+      const result = await ctx.coordinatorAdapter.execute('update-team-policy', { team_name: teamName, interrupt_weights: weights });
+      resultText = result?.text || null;
+      await ctx.rebuild('interrupt-priorities');
+    } catch (err: any) {
+      ctx.sendError(res, 400, 'ACTION_FAILED', err?.message || 'Interrupt priority update failed', req);
+      return true;
+    }
+    ctx.sendJson(res, 200, { ok: true, team_name: teamName, interrupt_weights: weights, result: resultText }, req);
     return true;
   });
 
@@ -117,13 +129,25 @@ export function registerTeamRoutes(registry: any): void {
     const teamName = decodeURIComponent(parts[2] || '');
     const taskId = decodeURIComponent(parts[4] || '');
     const body = await ctx.readBody(req);
-    const result = await ctx.router.execute(teamName, 'reassign-task', {
-      task_id: taskId,
-      new_assignee: body.new_assignee,
-      reason: body.reason || 'manual reassignment via dashboard',
-      progress_context: body.progress_context || null,
-    });
-    ctx.sendJson(res, 200, { ok: true, result }, req);
+    const v = ctx.validateBody(url.pathname, body);
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
+    if (!body.new_assignee) {
+      ctx.sendError(res, 400, 'VALIDATION_ERROR', 'new_assignee is required', req);
+      return true;
+    }
+    try {
+      const result = await ctx.coordinatorAdapter.execute('reassign-task', {
+        team_name: teamName,
+        task_id: taskId,
+        new_assignee: body.new_assignee,
+        reason: body.reason || 'manual reassignment via dashboard',
+        progress_context: body.progress_context || null,
+      });
+      await ctx.rebuild('task-reassign');
+      ctx.sendJson(res, 200, { ok: true, result: result?.text || null }, req);
+    } catch (err: any) {
+      ctx.sendError(res, 400, 'ACTION_FAILED', err?.message || 'Task reassignment failed', req);
+    }
     return true;
   });
 
@@ -132,8 +156,15 @@ export function registerTeamRoutes(registry: any): void {
     if (!(req.method === 'POST' && /^\/teams\/[^/]+\/tasks\/[^/]+\/gate-check$/.test(url.pathname))) return false;
     const parts = pathParts(url.pathname);
     const taskId = decodeURIComponent(parts[4] || '');
-    const result = await ctx.router.execute(parts[2], 'gate-check', { task_id: taskId });
-    ctx.sendJson(res, 200, { ok: true, result }, req);
+    const body = await ctx.readBody(req);
+    const v = ctx.validateBody(url.pathname, body);
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
+    try {
+      const result = await ctx.coordinatorAdapter.execute('gate-check', { task_id: taskId });
+      ctx.sendJson(res, 200, { ok: true, result: result?.text || null }, req);
+    } catch (err: any) {
+      ctx.sendError(res, 400, 'ACTION_FAILED', err?.message || 'Gate check failed', req);
+    }
     return true;
   });
 
