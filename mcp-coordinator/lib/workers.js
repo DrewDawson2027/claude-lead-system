@@ -195,8 +195,8 @@ export function handleSpawnWorker(args) {
   const teamName = requestedTeamName;
   const workerName = args.worker_name
     ? String(args.worker_name)
-        .trim()
-        .replace(/[^A-Za-z0-9._-]/g, "")
+      .trim()
+      .replace(/[^A-Za-z0-9._-]/g, "")
     : null;
   const maxTurns = args.max_turns
     ? Math.max(1, Math.min(10000, parseInt(args.max_turns, 10) || 0))
@@ -220,8 +220,8 @@ export function handleSpawnWorker(args) {
     : validModes.includes(args.permission_mode)
       ? args.permission_mode
       : rolePreset?.permissionMode || "acceptEdits";
-  // Map planOnly → plan (planOnly kept as alias for backward compat)
-  const permissionMode = rawPermMode === "planOnly" ? "plan" : rawPermMode;
+  // Map planOnly → plan for CLI execution (keep original in metadata)
+  const cliPermissionMode = rawPermMode === "planOnly" ? "plan" : rawPermMode;
   const budgetPolicy = ["off", "warn", "enforce"].includes(
     teamPolicy.budget_policy,
   )
@@ -257,12 +257,12 @@ export function handleSpawnWorker(args) {
   );
   const requirePlanRequested =
     typeof teamPolicy.require_plan === "boolean"
-      ? teamPolicy.require_plan || permissionMode === "plan"
+      ? teamPolicy.require_plan || cliPermissionMode === "plan"
       : Boolean(
-          args.require_plan ||
-          rolePreset?.requirePlan ||
-          permissionMode === "plan",
-        );
+        args.require_plan ||
+        rolePreset?.requirePlan ||
+        cliPermissionMode === "plan",
+      );
   if (!prompt) return text("Prompt is required.");
   if (!existsSync(directory)) return text(`Directory not found: ${directory}`);
   const estimatedTokens = estimateWorkerTokens({
@@ -274,10 +274,10 @@ export function handleSpawnWorker(args) {
   if (budgetPolicy === "enforce" && estimatedTokens > budgetTokens) {
     return text(
       `Budget policy blocked spawn.\n` +
-        `- Estimated tokens: ${estimatedTokens}\n` +
-        `- Budget tokens: ${budgetTokens}\n` +
-        `- Policy: enforce\n` +
-        `Reduce context_level, disable plan mode, or increase budget_tokens.`,
+      `- Estimated tokens: ${estimatedTokens}\n` +
+      `- Budget tokens: ${budgetTokens}\n` +
+      `- Policy: enforce\n` +
+      `Reduce context_level, disable plan mode, or increase budget_tokens.`,
     );
   }
   const { activeWorkers, activeEstimatedTokens } =
@@ -289,10 +289,10 @@ export function handleSpawnWorker(args) {
       if (globalBudgetPolicy === "enforce") {
         return text(
           `Global concurrency policy blocked spawn.\n` +
-            `- Active workers: ${activeWorkers}\n` +
-            `- Max active workers: ${maxActiveWorkers}\n` +
-            `- Policy: enforce\n` +
-            `Wait for workers to finish or increase max_active_workers.`,
+          `- Active workers: ${activeWorkers}\n` +
+          `- Max active workers: ${maxActiveWorkers}\n` +
+          `- Policy: enforce\n` +
+          `Wait for workers to finish or increase max_active_workers.`,
         );
       }
       globalWarnings.push(
@@ -303,12 +303,12 @@ export function handleSpawnWorker(args) {
       if (globalBudgetPolicy === "enforce") {
         return text(
           `Global budget policy blocked spawn.\n` +
-            `- Active estimated tokens: ${activeEstimatedTokens}\n` +
-            `- New worker estimate: ${estimatedTokens}\n` +
-            `- Projected total: ${projectedGlobalTokens}\n` +
-            `- Global budget tokens: ${globalBudgetTokens}\n` +
-            `- Policy: enforce\n` +
-            `Wait for active workers to complete or increase global_budget_tokens.`,
+          `- Active estimated tokens: ${activeEstimatedTokens}\n` +
+          `- New worker estimate: ${estimatedTokens}\n` +
+          `- Projected total: ${projectedGlobalTokens}\n` +
+          `- Global budget tokens: ${globalBudgetTokens}\n` +
+          `- Policy: enforce\n` +
+          `Wait for active workers to complete or increase global_budget_tokens.`,
         );
       }
       globalWarnings.push(
@@ -413,8 +413,8 @@ export function handleSpawnWorker(args) {
     team_low_overhead_mode: teamConfig?.low_overhead_mode || null,
     worker_name: workerName,
     max_turns: maxTurns,
-    permission_mode: permissionMode,
-    require_plan: requirePlan || permissionMode === "plan",
+    permission_mode: rawPermMode,
+    require_plan: requirePlan || cliPermissionMode === "plan",
     claude_session_id: claudeSessionId,
     backend_type: layout === "tmux" ? "tmux" : layout,
     budget_policy: budgetPolicy,
@@ -529,9 +529,9 @@ export function handleSpawnWorker(args) {
       const instructionLines = [
         `## Worker Instructions (from lead)`,
         `You are an autonomous worker spawned by the project lead. Your task ID is ${taskId}.` +
-          (workerName
-            ? ` Your name is "${workerName}" — others can message you by name.`
-            : ``),
+        (workerName
+          ? ` Your name is "${workerName}" — others can message you by name.`
+          : ``),
         ``,
         `### Communication`,
         `- Your plain text output is NOT visible to the team lead or other teammates.`,
@@ -653,11 +653,11 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       }
       return text(
         `Worker resumed (native agent): **${taskId}**\n` +
-          `- Resumed agentId: ${resumeAgentId}\n` +
-          `- Full conversation history preserved via --resume\n` +
-          `- Layout: ${usedApp}\n` +
-          `- Notify Session: ${notify_session_id || "none"}\n\n` +
-          `Send new task via \`coord_send_message\` to deliver work without re-spawning.`,
+        `- Resumed agentId: ${resumeAgentId}\n` +
+        `- Full conversation history preserved via --resume\n` +
+        `- Layout: ${usedApp}\n` +
+        `- Notify Session: ${notify_session_id || "none"}\n\n` +
+        `Send new task via \`coord_send_message\` to deliver work without re-spawning.`,
       );
     }
 
@@ -678,7 +678,7 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       platformName: PLATFORM,
       workerName,
       maxTurns,
-      permissionMode,
+      permissionMode: cliPermissionMode,
       sessionId: claudeSessionId,
       leadSessionId: notify_session_id,
       leadPaneId,
@@ -714,30 +714,30 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
 
     return text(
       `Worker spawned: **${taskId}**\n` +
-        `- Directory: ${workerDir}\n- Model: ${model}\n- Agent: ${agent || "default"}\n` +
-        `- Notify Session: ${notify_session_id || "none"}\n` +
-        `- Runtime: ${runtime}\n` +
-        `- Mode: ${mode}${mode === "interactive" ? " (lead can message mid-execution)" : " (fire-and-forget)"}\n` +
-        `- Role: ${role || "custom"}\n` +
-        `- Team: ${teamName || "none"}${teamName ? ` (path=${teamConfig?.execution_path || "hybrid"}, overhead=${teamConfig?.low_overhead_mode || "advanced"})` : ""}\n` +
-        `- Layout: ${layout} via ${usedApp}\n- Platform: ${PLATFORM}\n` +
-        `- Isolated: ${isolate ? `yes (branch: ${worktreeBranch})` : "no"}\n` +
-        `- Permission Mode: ${permissionMode}\n` +
-        `- Plan Mode: ${requirePlan ? "enabled" : "disabled"}\n` +
-        `- Files: ${files.join(", ") || "none"}\n- Results: ${resultFile}\n\n` +
-        `- Budget: ${budgetPolicy} (${estimatedTokens}/${budgetTokens} est tokens)\n` +
-        `- Global Budget: ${globalBudgetPolicy} (${activeEstimatedTokens}+${estimatedTokens}=${projectedGlobalTokens}/${globalBudgetTokens} est tokens)\n` +
-        `- Active Workers: ${activeWorkers}/${maxActiveWorkers}\n` +
-        (teamPolicy && Object.keys(teamPolicy).length > 0
-          ? `- Team Policy Applied: yes\n`
-          : "") +
-        (budgetPolicy === "warn" && estimatedTokens > budgetTokens
-          ? `- WARNING: Estimated token budget exceeded. Consider mode=pipe, context_level=minimal, or higher budget_tokens.\n\n`
-          : "") +
-        (globalWarnings.length
-          ? `${globalWarnings.map((w) => `- WARNING: ${w}`).join("\n")}\n\n`
-          : "\n") +
-        `Check: \`coord_get_result task_id="${taskId}"\``,
+      `- Directory: ${workerDir}\n- Model: ${model}\n- Agent: ${agent || "default"}\n` +
+      `- Notify Session: ${notify_session_id || "none"}\n` +
+      `- Runtime: ${runtime}\n` +
+      `- Mode: ${mode}${mode === "interactive" ? " (lead can message mid-execution)" : " (fire-and-forget)"}\n` +
+      `- Role: ${role || "custom"}\n` +
+      `- Team: ${teamName || "none"}${teamName ? ` (path=${teamConfig?.execution_path || "hybrid"}, overhead=${teamConfig?.low_overhead_mode || "advanced"})` : ""}\n` +
+      `- Layout: ${layout} via ${usedApp}\n- Platform: ${PLATFORM}\n` +
+      `- Isolated: ${isolate ? `yes (branch: ${worktreeBranch})` : "no"}\n` +
+      `- Permission Mode: ${rawPermMode}${rawPermMode !== cliPermissionMode ? ` (CLI: ${cliPermissionMode})` : ""}\n` +
+      `- Plan Mode: ${requirePlan ? "enabled" : "disabled"}\n` +
+      `- Files: ${files.join(", ") || "none"}\n- Results: ${resultFile}\n\n` +
+      `- Budget: ${budgetPolicy} (${estimatedTokens}/${budgetTokens} est tokens)\n` +
+      `- Global Budget: ${globalBudgetPolicy} (${activeEstimatedTokens}+${estimatedTokens}=${projectedGlobalTokens}/${globalBudgetTokens} est tokens)\n` +
+      `- Active Workers: ${activeWorkers}/${maxActiveWorkers}\n` +
+      (teamPolicy && Object.keys(teamPolicy).length > 0
+        ? `- Team Policy Applied: yes\n`
+        : "") +
+      (budgetPolicy === "warn" && estimatedTokens > budgetTokens
+        ? `- WARNING: Estimated token budget exceeded. Consider mode=pipe, context_level=minimal, or higher budget_tokens.\n\n`
+        : "") +
+      (globalWarnings.length
+        ? `${globalWarnings.map((w) => `- WARNING: ${w}`).join("\n")}\n\n`
+        : "\n") +
+      `Check: \`coord_get_result task_id="${taskId}"\``,
     );
   } catch (err) {
     meta.status = "failed";
@@ -782,7 +782,7 @@ export function handleGetResult(args) {
     output =
       lines.length > limit
         ? `[...truncated ${lines.length - limit} lines...]\n` +
-          lines.slice(-limit).join("\n")
+        lines.slice(-limit).join("\n")
         : full;
   }
 
@@ -963,11 +963,11 @@ export function handleResumeWorker(args) {
 
     return text(
       `Worker resumed (true resume): **${newTaskId}**\n` +
-        `- Resumed session: ${meta.claude_session_id}\n` +
-        `- Full conversation history preserved\n` +
-        `- Layout: ${usedApp}\n` +
-        `- Original task: ${task_id}\n\n` +
-        `Check: \`coord_get_result task_id="${newTaskId}"\``,
+      `- Resumed session: ${meta.claude_session_id}\n` +
+      `- Full conversation history preserved\n` +
+      `- Layout: ${usedApp}\n` +
+      `- Original task: ${task_id}\n\n` +
+      `Check: \`coord_get_result task_id="${newTaskId}"\``,
     );
   }
 
@@ -1018,9 +1018,9 @@ export function handleUpgradeWorker(args) {
 
   return text(
     `## Worker Upgraded: ${task_id}\n\n` +
-      `**Kill:** ${killResult.content[0]?.text || "done"}\n` +
-      `**Resume:** ${resumeResult.content[0]?.text || "spawned"}\n\n` +
-      `Worker is now interactive — you can send directives via \`coord_send_directive\`.`,
+    `**Kill:** ${killResult.content[0]?.text || "done"}\n` +
+    `**Resume:** ${resumeResult.content[0]?.text || "spawned"}\n\n` +
+    `Worker is now interactive — you can send directives via \`coord_send_directive\`.`,
   );
 }
 
@@ -1053,7 +1053,7 @@ export function handleSpawnWorkers(args) {
 
   return text(
     `## Multi-Spawn: ${workers.length} workers\n\n` +
-      results.map((r, i) => `### Worker ${i + 1}\n${r}`).join("\n\n"),
+    results.map((r, i) => `### Worker ${i + 1}\n${r}`).join("\n\n"),
   );
 }
 
