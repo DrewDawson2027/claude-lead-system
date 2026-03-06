@@ -15,6 +15,7 @@ import {
 } from "fs";
 import { join, basename } from "path";
 import { execFileSync } from "child_process";
+import { randomUUID } from "crypto";
 import { cfg } from "./constants.js";
 import {
   sanitizeId,
@@ -33,16 +34,20 @@ import {
   killProcess,
   buildWorkerScript,
   buildInteractiveWorkerScript,
+  buildResumeWorkerScript,
   buildCodexWorkerScript,
   buildCodexInteractiveWorkerScript,
   openTerminalWithCommand,
   spawnBackgroundWorker,
+  isInsideTmux,
+  getCurrentTmuxPane,
+  spawnTmuxPaneWorker,
 } from "./platform/common.js";
 
 const ROLE_PRESETS = {
   researcher: {
-    model: "sonnet",
-    agent: "master-researcher",
+    model: "haiku",
+    agent: "scout",
     permissionMode: "readOnly",
     contextLevel: "standard",
     isolate: false,
@@ -50,15 +55,15 @@ const ROLE_PRESETS = {
   },
   implementer: {
     model: "sonnet",
-    agent: "master-coder",
+    agent: null,
     permissionMode: "acceptEdits",
     contextLevel: "standard",
     isolate: true,
     requirePlan: false,
   },
   reviewer: {
-    model: "sonnet",
-    agent: "master-coder",
+    model: "opus",
+    agent: "reviewer",
     permissionMode: "readOnly",
     contextLevel: "full",
     isolate: true,
@@ -66,7 +71,7 @@ const ROLE_PRESETS = {
   },
   planner: {
     model: "sonnet",
-    agent: "master-workflow",
+    agent: "code-architect",
     permissionMode: "planOnly",
     contextLevel: "standard",
     isolate: false,
@@ -161,9 +166,13 @@ export function handleSpawnWorker(args) {
     ? sanitizeShortSessionId(notifySessionRaw)
     : null;
   const files = (args.files || []).map((f) => String(f).trim()).filter(Boolean);
-  const layout = ["split", "background", "tab"].includes(args.layout)
+  let layout = ["split", "background", "tab", "tmux"].includes(args.layout)
     ? args.layout
     : "background";
+  // Auto-tmux: when in a team and inside tmux, default to tmux pane (Gap 6)
+  if (requestedTeamName && layout === "background" && isInsideTmux()) {
+    layout = "tmux";
+  }
   const mode =
     args.mode === "interactive"
       ? "interactive"
@@ -195,12 +204,24 @@ export function handleSpawnWorker(args) {
   const contextSummary = args.context_summary
     ? String(args.context_summary).trim()
     : null;
-  const validModes = ["acceptEdits", "planOnly", "readOnly", "editOnly"];
-  const permissionMode = validModes.includes(teamPolicy.permission_mode)
+  // All 5 native modes + 2 coordinator extras. planOnly maps to plan for CLI.
+  const validModes = [
+    "acceptEdits",
+    "bypassPermissions",
+    "default",
+    "dontAsk",
+    "plan",
+    "planOnly",
+    "readOnly",
+    "editOnly",
+  ];
+  const rawPermMode = validModes.includes(teamPolicy.permission_mode)
     ? teamPolicy.permission_mode
     : validModes.includes(args.permission_mode)
       ? args.permission_mode
       : rolePreset?.permissionMode || "acceptEdits";
+  // Map planOnly → plan (planOnly kept as alias for backward compat)
+  const permissionMode = rawPermMode === "planOnly" ? "plan" : rawPermMode;
   const budgetPolicy = ["off", "warn", "enforce"].includes(
     teamPolicy.budget_policy,
   )
@@ -236,11 +257,11 @@ export function handleSpawnWorker(args) {
   );
   const requirePlanRequested =
     typeof teamPolicy.require_plan === "boolean"
-      ? teamPolicy.require_plan || permissionMode === "planOnly"
+      ? teamPolicy.require_plan || permissionMode === "plan"
       : Boolean(
           args.require_plan ||
           rolePreset?.requirePlan ||
-          permissionMode === "planOnly",
+          permissionMode === "plan",
         );
   if (!prompt) return text("Prompt is required.");
   if (!existsSync(directory)) return text(`Directory not found: ${directory}`);
@@ -367,6 +388,11 @@ export function handleSpawnWorker(args) {
     }
   }
 
+  // Generate session ID for --session-id + --resume support (Gap 2)
+  const claudeSessionId = mode === "interactive" ? randomUUID() : null;
+  // Get lead's tmux pane for bidirectional communication (Gap 4)
+  const leadPaneId = isInsideTmux() ? getCurrentTmuxPane() : null;
+
   const meta = {
     task_id: taskId,
     directory: workerDir,
@@ -388,7 +414,9 @@ export function handleSpawnWorker(args) {
     worker_name: workerName,
     max_turns: maxTurns,
     permission_mode: permissionMode,
-    require_plan: requirePlan || permissionMode === "planOnly",
+    require_plan: requirePlan || permissionMode === "plan",
+    claude_session_id: claudeSessionId,
+    backend_type: layout === "tmux" ? "tmux" : layout,
     budget_policy: budgetPolicy,
     budget_tokens: budgetTokens,
     estimated_tokens: estimatedTokens,
@@ -505,11 +533,15 @@ export function handleSpawnWorker(args) {
             ? ` Your name is "${workerName}" — others can message you by name.`
             : ``),
         ``,
-        `### Lead Communication`,
-        `- Messages appear as "--- INCOMING MESSAGES FROM COORDINATOR ---" before your tool calls`,
+        `### Communication`,
+        `- Your plain text output is NOT visible to the team lead or other teammates.`,
+        `- To communicate with anyone on your team, you MUST use messaging tools.`,
+        notify_session_id
+          ? `- Message the lead: \`coord_send_message from="${workerName || taskId}" to="${notify_session_id}" content="..." summary="<5-10 word preview>"\``
+          : `- No lead session — write findings to ~/.claude/session-cache/coder-context.md`,
+        `- Messages from the lead appear as "--- INCOMING MESSAGES FROM COORDINATOR ---" before your tool calls`,
         `- If you receive instructions from the lead, prioritize them immediately`,
         `- If told to stop, pivot, or change direction — do so without question`,
-        `- The lead can redirect you at any time. Follow their instructions.`,
         ``,
         `### Task Board Self-Service`,
         `After completing your assigned task:`,
@@ -527,14 +559,16 @@ export function handleSpawnWorker(args) {
         ``,
       ];
 
-      // Team context for peer messaging
+      // Team context for peer messaging (Gap 3 + Gap 4)
       if (teamName) {
         instructionLines.push(
           `### Team: ${teamName}`,
-          `You are part of a team. Discover teammates: \`coord_get_team team_name=${teamName}\``,
-          `Message peers by name: \`coord_send_message from="${workerName || taskId}" target_name="<peer_name>" content="..."\``,
-          `Or by session ID: \`coord_send_message from="${workerName || taskId}" to="<peer_session_id>" content="..."\``,
-          `Peer messages appear with [PEER] prefix in their inbox.`,
+          `You are part of a team. Your output is NOT visible to teammates — use these tools:`,
+          `- Discover teammates: \`coord_discover_peers team_name=${teamName}\``,
+          `- Message a peer by name: \`coord_send_message from="${workerName || taskId}" target_name="<name>" content="..." summary="<5-10 word preview>"\``,
+          `- Message by session ID: \`coord_send_message from="${workerName || taskId}" to="<session_id>" content="..."\``,
+          `- Broadcast to all: \`coord_broadcast from="${workerName || taskId}" content="..."\``,
+          `- Shutdown request: \`coord_send_protocol type="shutdown_request" recipient="<name>"\``,
           ``,
         );
       }
@@ -589,6 +623,10 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       writeFileSecure(workerPs1File, ps1);
     }
 
+    // Pass team info for native P2P: workers join the native team if available
+    const useNativeTeam =
+      teamConfig?.execution_path === "native" ||
+      teamConfig?.execution_path === "hybrid";
     const scriptOpts = {
       taskId,
       workDir: workerDir,
@@ -603,6 +641,10 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       workerName,
       maxTurns,
       permissionMode,
+      sessionId: claudeSessionId,
+      leadSessionId: notify_session_id,
+      leadPaneId,
+      teamName: useNativeTeam ? teamName : null,
     };
     let workerScript;
     if (runtime === "codex") {
@@ -617,8 +659,15 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
           : buildWorkerScript(scriptOpts);
     }
     let usedApp;
-    if (layout === "background") {
-      // Background spawn: no terminal, fastest possible. Uses child_process.spawn detached.
+    if (layout === "tmux") {
+      // Tmux pane spawn: visible split pane with tracked ID (Gap 6)
+      const tmuxResult = spawnTmuxPaneWorker(workerScript);
+      usedApp = tmuxResult.app;
+      meta.tmux_pane_id = tmuxResult.paneId;
+      meta.backend_type = "tmux";
+      writeFileSecure(metaFile, JSON.stringify(meta, null, 2));
+    } else if (layout === "background") {
+      // Background spawn: no terminal, fastest possible.
       spawnBackgroundWorker(workerScript, resultFile, pidFile);
       usedApp = "background";
     } else {
@@ -827,7 +876,64 @@ export function handleResumeWorker(args) {
     .filter(Boolean)
     .join("\n");
 
-  // Spawn the new worker
+  // True resume: if we have a claude_session_id, use --resume for full conversation reload (Gap 2)
+  if (meta.claude_session_id && newMode === "interactive") {
+    const { RESULTS_DIR: rDir, TERMINALS_DIR } = cfg();
+    const newTaskId = `${task_id}-r${resumeCount}`;
+    const newMetaFile = join(rDir, `${newTaskId}.meta.json`);
+    const newPidFile = join(rDir, `${newTaskId}.pid`);
+    const leadPaneId = isInsideTmux() ? getCurrentTmuxPane() : null;
+
+    const resumeMeta = {
+      ...meta,
+      task_id: newTaskId,
+      original_task_id: task_id,
+      resume_count: resumeCount,
+      resumed_from_session: meta.claude_session_id,
+      status: "running",
+      spawned: new Date().toISOString(),
+    };
+    writeFileSecure(newMetaFile, JSON.stringify(resumeMeta, null, 2));
+
+    const resumeScript = buildResumeWorkerScript({
+      sessionId: meta.claude_session_id,
+      workDir: meta.original_directory || meta.directory,
+      pidFile: newPidFile,
+      metaFile: newMetaFile,
+      taskId: newTaskId,
+      workerName: meta.worker_name || newTaskId,
+      leadSessionId: meta.notify_session_id,
+      leadPaneId,
+    });
+
+    // Spawn in same layout as original
+    let usedApp;
+    if (meta.backend_type === "tmux" && isInsideTmux()) {
+      const tmuxResult = spawnTmuxPaneWorker(resumeScript);
+      usedApp = tmuxResult.app;
+      resumeMeta.tmux_pane_id = tmuxResult.paneId;
+      resumeMeta.backend_type = "tmux";
+      writeFileSecure(newMetaFile, JSON.stringify(resumeMeta, null, 2));
+    } else {
+      spawnBackgroundWorker(
+        resumeScript,
+        join(rDir, `${newTaskId}.txt`),
+        newPidFile,
+      );
+      usedApp = "background";
+    }
+
+    return text(
+      `Worker resumed (true resume): **${newTaskId}**\n` +
+        `- Resumed session: ${meta.claude_session_id}\n` +
+        `- Full conversation history preserved\n` +
+        `- Layout: ${usedApp}\n` +
+        `- Original task: ${task_id}\n\n` +
+        `Check: \`coord_get_result task_id="${newTaskId}"\``,
+    );
+  }
+
+  // Fallback: spawn new worker with continuation context (no session ID available)
   return handleSpawnWorker({
     directory: meta.original_directory || meta.directory,
     prompt: continuationPrompt,

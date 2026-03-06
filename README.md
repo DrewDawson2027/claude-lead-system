@@ -133,6 +133,49 @@ Lead System (2 workers, 1 lead):
 
 ---
 
+## Native Hybrid Mode
+
+The Lead System integrates with Claude Code's native Agent Teams (experimental) via three execution paths:
+
+```
+coordinator (default)  ─── Workers are MCP-spawned `claude -p` processes
+                           Messaging via inbox files (poll-based)
+                           Resume via summary re-injection
+
+hybrid                 ─── Workers join native teams for P2P communication
+                           Messaging via push + inbox (dual delivery)
+                           Resume via agentId when available
+
+native                 ─── Full native Agent Teams mode
+                           Push-based message delivery
+                           Full context resume via agentId
+```
+
+### What hybrid mode adds
+
+| Capability                 | Coordinator-only             | Hybrid mode                         |
+| -------------------------- | ---------------------------- | ----------------------------------- |
+| Worker-to-worker messaging | Lead relays only             | Direct P2P via `--team` flag        |
+| Message delivery           | Minutes (poll)               | Seconds (push queue + inbox)        |
+| Agent resume               | Summary re-injection (lossy) | Full context via agentId (lossless) |
+| Conflict detection         | Yes                          | Yes (lead exclusive)                |
+| Token budget enforcement   | Yes                          | Yes (lead exclusive)                |
+| Pipeline orchestration     | Yes                          | Yes (lead exclusive)                |
+
+Enable hybrid mode:
+
+```bash
+# Via team preset
+coord_create_team { team_name: "my-team", preset: "native-first" }
+
+# Or explicitly
+coord_create_team { team_name: "my-team", execution_path: "hybrid" }
+```
+
+Hooks (`teammate-idle.py`, `task-completed.py`) accept both coordinator and native event schemas automatically.
+
+---
+
 ## Tool Parity
 
 Everything Agent Teams can do, the Lead System can do too — often better.
@@ -502,7 +545,7 @@ Hard rules: configurable agent cap per session (default 5), no parallel same-typ
 | Worker lifecycle   | CI: e2e tests                                              |
 | Pipeline lifecycle | CI: e2e tests                                              |
 | Platform matrix    | CI: ubuntu + macos + windows                               |
-| Hook behavior      | CI: smoke tests + unit tests (57 tests)                    |
+| Hook behavior      | CI: smoke tests + unit tests (59 tests)                    |
 | Sidecar core       | CI: 67 tests (recovery, repair, health, metrics)           |
 | Line coverage      | CI enforces 80%+ line coverage (currently ~87.8%) via `c8` |
 
@@ -562,7 +605,7 @@ Full details: [docs/SECURITY.md](docs/SECURITY.md)
 - [API Contract](docs/API_CONTRACT.md) — coordinator tool schemas
 - [MCP Tool Reference](docs/MCP_TOOL_REFERENCE.md) — all 40+ tools documented
 - [Operator Runbook](docs/OPERATOR_RUNBOOK.md) — ops procedures
-- [Agent Teams Integration](docs/AGENT_TEAMS_INTEGRATION.md) — using both together
+- [Agent Teams Integration](docs/AGENT_TEAMS_INTEGRATION.md) — hybrid mode, dual-schema hooks, push delivery
 - [Troubleshooting](docs/TROUBLESHOOTING.md) — common issues and fixes
 - [Claim Provenance](docs/CLAIM_PROVENANCE.md) — every README claim mapped to its proof artifact
 - [Comparison Methodology](docs/COMPARISON_METHODOLOGY.md) — how cost numbers were calculated

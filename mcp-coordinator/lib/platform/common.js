@@ -3,10 +3,126 @@
  * @module platform/common
  */
 
-import { existsSync, openSync, writeFileSync, closeSync } from "fs";
+import {
+  existsSync,
+  openSync,
+  writeFileSync,
+  closeSync,
+  readFileSync,
+} from "fs";
 import { spawn, spawnSync, execFileSync } from "child_process";
 import { cfg } from "../constants.js";
 import { shellQuote } from "../helpers.js";
+
+/**
+ * Detect if we're running inside a tmux session.
+ * @returns {boolean}
+ */
+export function isInsideTmux() {
+  return Boolean(process.env.TMUX);
+}
+
+/**
+ * Get the current tmux pane ID.
+ * @returns {string|null} e.g. "%5"
+ */
+export function getCurrentTmuxPane() {
+  if (!isInsideTmux()) return null;
+  return process.env.TMUX_PANE || null;
+}
+
+/**
+ * Spawn a worker in a new tmux pane (split from current window).
+ * Returns the new pane's ID for message injection via send-keys.
+ * @param {string} script - Shell command to run in the pane
+ * @param {object} [opts] - Options
+ * @param {string} [opts.direction] - "h" (horizontal/right) or "v" (vertical/below). Default "h"
+ * @param {number} [opts.percentage] - Pane size percentage. Default 50
+ * @returns {{ paneId: string, app: string }} Pane ID and app name
+ */
+export function spawnTmuxPaneWorker(script, opts = {}) {
+  const direction = opts.direction === "v" ? "-v" : "-h";
+  const percentage = opts.percentage || 50;
+
+  // split-window returns the new pane's ID via -PF
+  const result = spawnSync(
+    "tmux",
+    [
+      "split-window",
+      direction,
+      "-l",
+      `${percentage}%`,
+      "-d", // don't switch focus to new pane
+      "-PF",
+      "#{pane_id}", // print new pane ID
+      "bash",
+      "-lc",
+      script,
+    ],
+    { encoding: "utf-8", timeout: 10000 },
+  );
+
+  if (result.status !== 0) {
+    throw new Error(
+      `tmux split-window failed: ${(result.stderr || "").trim()}`,
+    );
+  }
+
+  const paneId = (result.stdout || "").trim();
+  if (!paneId.startsWith("%")) {
+    throw new Error(`tmux split-window returned unexpected pane ID: ${paneId}`);
+  }
+
+  // Auto-tile after creating pane for balanced layout
+  spawnSync("tmux", ["select-layout", "tiled"], {
+    stdio: "ignore",
+    timeout: 3000,
+  });
+
+  return { paneId, app: "tmux" };
+}
+
+/**
+ * Send keys to a tmux pane — push-delivers a message as user input.
+ * This is how native Agent Teams delivers messages: injecting text into the
+ * teammate's terminal so Claude sees it as a new conversation turn.
+ * @param {string} paneId - tmux pane ID (e.g. "%5")
+ * @param {string} text - Text to inject
+ * @returns {boolean} Whether send succeeded
+ */
+export function tmuxSendKeys(paneId, text) {
+  if (!paneId || !isInsideTmux()) return false;
+  try {
+    // Escape special tmux characters in the text
+    const escaped = text.replace(/;/g, "\\;").replace(/"/g, '\\"');
+    const result = spawnSync(
+      "tmux",
+      ["send-keys", "-t", paneId, escaped, "Enter"],
+      { stdio: "ignore", timeout: 5000 },
+    );
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a tmux pane still exists.
+ * @param {string} paneId - tmux pane ID
+ * @returns {boolean}
+ */
+export function isTmuxPaneAlive(paneId) {
+  if (!paneId || !isInsideTmux()) return false;
+  try {
+    const result = spawnSync("tmux", ["list-panes", "-F", "#{pane_id}"], {
+      encoding: "utf-8",
+      timeout: 3000,
+    });
+    return (result.stdout || "").includes(paneId);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Detect which terminal emulator is running.
@@ -306,6 +422,9 @@ export function buildInteractiveWorkerScript(opts) {
   const maxTurns = opts.maxTurns || "";
   const permissionMode = opts.permissionMode || "acceptEdits";
   const platformName = opts.platformName ?? PLATFORM;
+  const sessionId = opts.sessionId || "";
+  const leadSessionId = opts.leadSessionId || "";
+  const leadPaneId = opts.leadPaneId || "";
 
   // Windows: fall back to pipe mode (interactive not yet supported)
   if (platformName === "win32") {
@@ -334,6 +453,10 @@ export function buildInteractiveWorkerScript(opts) {
     permissionMode && permissionMode !== "acceptEdits"
       ? `export CLAUDE_WORKER_PERMISSION_MODE=${shellQuote(permissionMode)}`
       : "",
+    leadSessionId
+      ? `export CLAUDE_LEAD_SESSION_ID=${shellQuote(leadSessionId)}`
+      : "",
+    leadPaneId ? `export CLAUDE_LEAD_PANE_ID=${shellQuote(leadPaneId)}` : "",
   ]
     .filter(Boolean)
     .join(" && ");
@@ -347,23 +470,140 @@ export function buildInteractiveWorkerScript(opts) {
   // Linux: script -q file -c "command..."
   const isLinux = platformName === "linux";
   const qPermMode = shellQuote(permissionMode);
-  const claudeCmd = `${qClaudeBin} --prompt "$WORKER_PROMPT" --permission-mode ${qPermMode} --model ${qModel} ${agentArgs} ${settingsArgs}`;
+  const sessionIdArg = sessionId ? `--session-id ${shellQuote(sessionId)}` : "";
+  // Native team membership: --team flag enables P2P messaging between workers
+  const teamArgs = opts.teamName ? `--team ${shellQuote(opts.teamName)}${opts.workerName ? ` --name ${shellQuote(opts.workerName)}` : ""}` : "";
+  const claudeCmd = `${qClaudeBin} --prompt "$WORKER_PROMPT" --permission-mode ${qPermMode} --model ${qModel} ${sessionIdArg} ${agentArgs} ${settingsArgs} ${teamArgs}`;
   const scriptWrapped = isLinux
     ? `script -q ${qTranscript} -c "${claudeCmd.replace(/"/g, '\\"')}"`
     : `script -q ${qTranscript} ${claudeCmd}`;
 
+  // Worker display name for notifications
+  const workerDisplay = workerName || taskId;
+
+  // Exit trap: instant completion notification to lead (Gap 5, Layer 1)
+  // Uses env vars set in envExports — expanded at trap-fire time via single quotes
+  const trapParts = [
+    `printf '{"status":"completed","finished":"%s","task_id":"${taskId}"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ${qMetaDone}`,
+    `rm -f ${qPid}`,
+  ];
+  if (leadPaneId) {
+    trapParts.push(
+      `tmux send-keys -t "$CLAUDE_LEAD_PANE_ID" "[COMPLETED] ${workerDisplay}" Enter 2>/dev/null || true`,
+    );
+  }
+  if (leadSessionId) {
+    trapParts.push(
+      `printf '{"ts":"%s","from":"coordinator","priority":"normal","content":"[COMPLETED] ${workerDisplay}"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
+    );
+  }
+  trapParts.push(
+    '[ -n "${_IDLE_PID:-}" ] && kill "$_IDLE_PID" 2>/dev/null || true',
+  );
+  const exitTrapCmd = `trap '${trapParts.join("; ")}' EXIT`;
+
+  // Background idle detector (Gap 5, Layer 2) — only when tmux + lead pane known
+  let idleDetectorCmd = null;
+  if (leadPaneId && sessionId) {
+    const sid8 = sessionId.slice(0, 8);
+    idleDetectorCmd = [
+      `(IDLE_SENT=false`,
+      `while kill -0 $$ 2>/dev/null`,
+      `do sleep 3`,
+      `SF="$HOME/.claude/terminals/session-${sid8}.json"`,
+      `[ ! -f "$SF" ] && continue`,
+      `AGE=$(( $(date +%s) - $(stat -f %m "$SF" 2>/dev/null || stat -c %Y "$SF" 2>/dev/null || echo $(date +%s)) ))`,
+      `if [ "$AGE" -gt 5 ] && [ "$IDLE_SENT" = false ]`,
+      `then tmux send-keys -t "$CLAUDE_LEAD_PANE_ID" "[IDLE] ${workerDisplay} — no activity for \${AGE}s" Enter 2>/dev/null || true`,
+      `IDLE_SENT=true`,
+      `elif [ "$AGE" -le 5 ]`,
+      `then IDLE_SENT=false`,
+      `fi`,
+      `done) & _IDLE_PID=$!`,
+    ].join("; ");
+  }
+
   // Interactive mode: claude runs with --prompt and full hook infrastructure
-  // Uses ; instead of && after claude so done file is written even on non-zero exit
+  // Exit trap handles done file, PID cleanup, and lead notification
   return [
     `cd ${qDir}`,
     `echo $$ > ${qPid}`,
     envExports,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
+    exitTrapCmd,
+    idleDetectorCmd,
     // unset CLAUDECODE prevents child inheriting parent session env
-    `unset CLAUDECODE && ${scriptWrapped}` +
-      `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-      `; rm -f ${qPid}`,
-  ].join(" && ");
+    `unset CLAUDECODE && ${scriptWrapped}`,
+  ]
+    .filter(Boolean)
+    .join(" && ");
+}
+
+/**
+ * Build a resume script that continues a prior session using --resume.
+ * @param {object} opts - Resume options
+ * @param {string} opts.sessionId - Claude session ID to resume
+ * @param {string} opts.workDir - Working directory
+ * @param {string} opts.pidFile - PID file path
+ * @param {string} opts.metaFile - Meta file path
+ * @param {string} opts.taskId - Task ID
+ * @param {string} [opts.leadSessionId] - Lead session ID for notifications
+ * @param {string} [opts.leadPaneId] - Lead tmux pane ID for push notifications
+ * @returns {string} Shell script string
+ */
+export function buildResumeWorkerScript(opts) {
+  const { CLAUDE_BIN, SETTINGS_FILE } = cfg();
+  const { sessionId, workDir, pidFile, metaFile, taskId } = opts;
+  const leadSessionId = opts.leadSessionId || "";
+  const leadPaneId = opts.leadPaneId || "";
+  const workerName = opts.workerName || taskId;
+
+  const qDir = shellQuote(workDir);
+  const qPid = shellQuote(pidFile);
+  const qMetaDone = shellQuote(`${metaFile}.done`);
+  const qClaudeBin = shellQuote(CLAUDE_BIN);
+  const qSessionId = shellQuote(sessionId);
+  const settingsArgs = existsSync(SETTINGS_FILE)
+    ? `--settings ${shellQuote(SETTINGS_FILE)}`
+    : "";
+
+  const envExports = [
+    `export CLAUDE_WORKER_TASK_ID=${shellQuote(taskId)}`,
+    workerName ? `export CLAUDE_WORKER_NAME=${shellQuote(workerName)}` : "",
+    leadSessionId
+      ? `export CLAUDE_LEAD_SESSION_ID=${shellQuote(leadSessionId)}`
+      : "",
+    leadPaneId ? `export CLAUDE_LEAD_PANE_ID=${shellQuote(leadPaneId)}` : "",
+  ]
+    .filter(Boolean)
+    .join(" && ");
+
+  // Exit trap for completion notification
+  const trapParts = [
+    `printf '{"status":"completed","finished":"%s","task_id":"${taskId}"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ${qMetaDone}`,
+    `rm -f ${qPid}`,
+  ];
+  if (leadPaneId) {
+    trapParts.push(
+      `tmux send-keys -t "$CLAUDE_LEAD_PANE_ID" "[COMPLETED] ${workerName} (resumed)" Enter 2>/dev/null || true`,
+    );
+  }
+  if (leadSessionId) {
+    trapParts.push(
+      `printf '{"ts":"%s","from":"coordinator","priority":"normal","content":"[COMPLETED] ${workerName} (resumed)"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
+    );
+  }
+  const exitTrapCmd = `trap '${trapParts.join("; ")}' EXIT`;
+
+  return [
+    `cd ${qDir}`,
+    `echo $$ > ${qPid}`,
+    envExports,
+    exitTrapCmd,
+    `unset CLAUDECODE && ${qClaudeBin} --resume ${qSessionId} ${settingsArgs}`,
+  ]
+    .filter(Boolean)
+    .join(" && ");
 }
 
 /**

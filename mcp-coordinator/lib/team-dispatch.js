@@ -19,7 +19,9 @@ function pickAssignee(team, args) {
   if (members.length === 0) return null;
   const role = args.role ? String(args.role) : null;
   if (role) {
-    const byRole = members.find(m => String(m.role || "").toLowerCase() === role.toLowerCase());
+    const byRole = members.find(
+      (m) => String(m.role || "").toLowerCase() === role.toLowerCase(),
+    );
     if (byRole?.name) return byRole.name;
   }
   return members[0]?.name ? sanitizeName(members[0].name, "assignee") : null;
@@ -32,7 +34,10 @@ function pickAssignee(team, args) {
 export function handleTeamDispatch(args) {
   const team_name = sanitizeName(args.team_name, "team_name");
   const team = readTeamConfig(team_name);
-  if (!team) return text(`Team ${team_name} not found. Create it first with coord_create_team.`);
+  if (!team)
+    return text(
+      `Team ${team_name} not found. Create it first with coord_create_team.`,
+    );
 
   const subject = String(args.subject || "").trim();
   const prompt = String(args.prompt || "").trim();
@@ -42,7 +47,9 @@ export function handleTeamDispatch(args) {
 
   const createTask = args.create_task !== false;
   const assignee = pickAssignee(team, args);
-  const workerName = args.worker_name ? String(args.worker_name).trim() : (assignee || null);
+  const workerName = args.worker_name
+    ? String(args.worker_name).trim()
+    : assignee || null;
 
   const taskId = args.task_id
     ? sanitizeId(args.task_id, "task_id")
@@ -63,7 +70,11 @@ export function handleTeamDispatch(args) {
       files: args.files || [],
       blocked_by: args.blocked_by || [],
       metadata: {
-        ...(args.metadata && typeof args.metadata === "object" && !Array.isArray(args.metadata) ? args.metadata : {}),
+        ...(args.metadata &&
+        typeof args.metadata === "object" &&
+        !Array.isArray(args.metadata)
+          ? args.metadata
+          : {}),
         dispatch: {
           via: "coord_team_dispatch",
           worker_task_id: workerTaskId,
@@ -75,6 +86,12 @@ export function handleTeamDispatch(args) {
       return text(`Team dispatch failed during task creation.\n\n${createTxt}`);
     }
   }
+
+  // Check if we can resume an existing member via native agentId
+  const existingMember = team.members?.find((m) => m.name === workerName);
+  const canNativeResume =
+    existingMember?.agentId &&
+    (team.execution_path === "native" || team.execution_path === "hybrid");
 
   const spawnRes = handleSpawnWorker({
     directory: args.directory,
@@ -101,6 +118,8 @@ export function handleTeamDispatch(args) {
     worker_name: workerName,
     max_turns: args.max_turns,
     context_summary: args.context_summary,
+    // Pass resume hint for native agent resume (Step 6)
+    ...(canNativeResume && { resume_agent_id: existingMember.agentId }),
   });
   const spawnTxt = contentText(spawnRes);
   const spawned = /Worker spawned:/i.test(spawnTxt);
@@ -139,14 +158,13 @@ export function handleTeamDispatch(args) {
 
   return text(
     `## Team Dispatch (${team_name})\n\n` +
-    `- Subject: ${subject}\n` +
-    `- Team Task: ${createTask ? taskId : "skipped"}\n` +
-    `- Worker Task: ${workerTaskId}\n` +
-    `- Assignee: ${assignee || "auto:none"}\n` +
-    `- Worker Name: ${workerName || "none"}\n` +
-    `- Status: ${spawned ? "dispatched" : "worker spawn failed"}\n\n` +
-    (createTaskRes ? `### Task\n${contentText(createTaskRes)}\n\n` : "") +
-    `### Worker\n${spawnTxt}`
+      `- Subject: ${subject}\n` +
+      `- Team Task: ${createTask ? taskId : "skipped"}\n` +
+      `- Worker Task: ${workerTaskId}\n` +
+      `- Assignee: ${assignee || "auto:none"}\n` +
+      `- Worker Name: ${workerName || "none"}\n` +
+      `- Status: ${spawned ? "dispatched" : "worker spawn failed"}\n\n` +
+      (createTaskRes ? `### Task\n${contentText(createTaskRes)}\n\n` : "") +
+      `### Worker\n${spawnTxt}`,
   );
 }
-
