@@ -9,6 +9,7 @@
     "node": ">=18"
   },
   "scripts": {
+    "test": "npm run test:all",
     "test:coordinator": "npm --workspace mcp-coordinator test",
     "test:sidecar": "npm --workspace sidecar test",
     "test:all": "npm run test:coordinator && npm run test:sidecar && npm run verify:hooks",
