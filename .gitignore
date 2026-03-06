@@ -24,3 +24,6 @@ Thumbs.db
 # Temporary
 *.tmp
 .temp/
+
+# Generated test output
+mcp-coordinator/coverage/
