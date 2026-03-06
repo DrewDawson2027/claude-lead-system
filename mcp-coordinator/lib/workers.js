@@ -623,6 +623,44 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       writeFileSecure(workerPs1File, ps1);
     }
 
+    // Native agent resume: resume full conversation via --resume instead of fresh spawn
+    const resumeAgentId = args.resume_agent_id
+      ? String(args.resume_agent_id).trim()
+      : null;
+    if (resumeAgentId) {
+      meta.resumed_from_agent = resumeAgentId;
+      writeFileSecure(metaFile, JSON.stringify(meta, null, 2));
+      const resumeScript = buildResumeWorkerScript({
+        sessionId: resumeAgentId,
+        workDir: workerDir,
+        pidFile,
+        metaFile,
+        taskId,
+        workerName,
+        leadSessionId: notify_session_id,
+        leadPaneId,
+      });
+      let usedApp;
+      if (layout === "tmux" && isInsideTmux()) {
+        const tmuxResult = spawnTmuxPaneWorker(resumeScript);
+        usedApp = tmuxResult.app;
+        meta.tmux_pane_id = tmuxResult.paneId;
+        meta.backend_type = "tmux";
+        writeFileSecure(metaFile, JSON.stringify(meta, null, 2));
+      } else {
+        spawnBackgroundWorker(resumeScript, resultFile, pidFile);
+        usedApp = "background";
+      }
+      return text(
+        `Worker resumed (native agent): **${taskId}**\n` +
+          `- Resumed agentId: ${resumeAgentId}\n` +
+          `- Full conversation history preserved via --resume\n` +
+          `- Layout: ${usedApp}\n` +
+          `- Notify Session: ${notify_session_id || "none"}\n\n` +
+          `Send new task via \`coord_send_message\` to deliver work without re-spawning.`,
+      );
+    }
+
     // Pass team info for native P2P: workers join the native team if available
     const useNativeTeam =
       teamConfig?.execution_path === "native" ||

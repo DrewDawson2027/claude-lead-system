@@ -195,3 +195,102 @@ test('native bridge: drops action when queue depth reaches 50', async () => {
     restore();
   }
 });
+
+// ─── Queue Drain Tests ────────────────────────────────────────────────────────
+
+test('coord_drain_native_queue: delivers pending action via coordinator inbox', async () => {
+  const { home, terminals } = setupHome();
+  writeFileSync(join(terminals, 'inbox', 'abcd1234.jsonl'), '');
+
+  // Pre-populate pending/ with a native_send_message action
+  const pending = pendingDir(home);
+  mkdirSync(pending, { recursive: true });
+  writeFileSync(join(pending, 'msg-test.json'), JSON.stringify({
+    action: 'native_send_message',
+    recipient: 'abcd1234',
+    content: 'hello via drain',
+    priority: 'normal',
+  }));
+
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_drain_native_queue', {});
+    const text = result?.content?.[0]?.text || '';
+    assert.match(text, /1 processed/);
+
+    // Inbox should now contain the delivered message
+    const inbox = readFileSync(join(terminals, 'inbox', 'abcd1234.jsonl'), 'utf8');
+    assert.ok(inbox.includes('hello via drain'), 'message should be in inbox after drain');
+
+    // Action file should be moved to done/
+    const doneDir = join(pending, '..', 'done');
+    const doneFiles = readdirSync(doneDir);
+    assert.equal(doneFiles.length, 1, 'processed file should be in done/ dir');
+    assert.ok(doneFiles[0].endsWith('.json'));
+  } finally {
+    restore();
+  }
+});
+
+test('coord_drain_native_queue: skips unknown action types', async () => {
+  const { home } = setupHome();
+  const pending = pendingDir(home);
+  mkdirSync(pending, { recursive: true });
+  writeFileSync(join(pending, 'msg-unknown.json'), JSON.stringify({
+    action: 'unknown_future_action',
+    recipient: 'abcd1234',
+    content: 'test',
+  }));
+
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_drain_native_queue', {});
+    const text = result?.content?.[0]?.text || '';
+    assert.match(text, /0 processed.*1 skipped/);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_drain_native_queue: empty queue returns clean message', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_drain_native_queue', {});
+    const text = result?.content?.[0]?.text || '';
+    assert.ok(text.includes('empty'), 'should say queue is empty');
+  } finally {
+    restore();
+  }
+});
+
+// ─── Resume Agent Tests ───────────────────────────────────────────────────────
+
+test('coord_spawn_worker: uses --resume when resume_agent_id is provided', async () => {
+  const { home, terminals } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_spawn_worker', {
+      directory: home,
+      prompt: 'continue your work',
+      resume_agent_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    });
+    const text = result?.content?.[0]?.text || '';
+    assert.match(text, /Worker resumed \(native agent\)/i);
+    assert.match(text, /a1b2c3d4-e5f6-7890-abcd-ef1234567890/);
+    assert.match(text, /Full conversation history preserved/i);
+
+    // Meta file should record the resumed agentId
+    const results = join(home, '.claude', 'terminals', 'results');
+    const metaFiles = readdirSync(results).filter((f) => f.endsWith('.meta.json'));
+    assert.ok(metaFiles.length >= 1, 'meta file should be created');
+    const meta = JSON.parse(readFileSync(join(results, metaFiles[0]), 'utf8'));
+    assert.equal(meta.resumed_from_agent, 'a1b2c3d4-e5f6-7890-abcd-ef1234567890');
+  } finally {
+    restore();
+  }
+});

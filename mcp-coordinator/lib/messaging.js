@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 import {
   existsSync,
   readdirSync,
+  readFileSync,
   renameSync,
   unlinkSync,
   mkdirSync,
@@ -555,5 +556,83 @@ export function handleSendProtocol(args) {
       `- Content: "${protocolContent.slice(0, 200)}"` +
       (tmuxPushed ? `\n- Tmux push: delivered to pane.` : "") +
       `\n- 0 API tokens used.`,
+  );
+}
+
+/**
+ * Handle coord_drain_native_queue tool call.
+ * Processes pending native actions from the action queue, delivering each via
+ * the coordinator inbox path. Moves processed files to done/ subdirectory.
+ * Call this from the lead session to flush the native bridge outbox.
+ * @param {object} _args - (no arguments)
+ * @returns {object} MCP text response
+ */
+export function handleDrainNativeQueue(_args) {
+  const actionsDir = join(
+    cfg().CLAUDE_DIR,
+    "lead-sidecar",
+    "runtime",
+    "actions",
+    "pending",
+  );
+  const doneDir = join(actionsDir, "..", "done");
+  mkdirSync(doneDir, { recursive: true });
+
+  let files = [];
+  try {
+    files = readdirSync(actionsDir).filter((f) => f.endsWith(".json"));
+  } catch {
+    return text("Native action queue is empty or not initialized.");
+  }
+  if (files.length === 0) return text("Native action queue is empty.");
+
+  const TTL_MS = 5 * 60 * 1000;
+  const now = Date.now();
+  let processed = 0;
+  let skipped = 0;
+  let expired = 0;
+  const results = [];
+
+  for (const f of files) {
+    const filePath = join(actionsDir, f);
+    try {
+      const mtime = statSync(filePath).mtimeMs;
+      if (now - mtime > TTL_MS) {
+        unlinkSync(filePath);
+        expired++;
+        continue;
+      }
+      const action = JSON.parse(readFileSync(filePath, "utf8"));
+      if (
+        action.action === "native_send_message" &&
+        action.recipient &&
+        action.content
+      ) {
+        // Route: 8-char hex = session ID (use `to`), otherwise worker name (use target_name)
+        const isSessionId = /^[0-9a-f]{8}$/i.test(action.recipient);
+        handleSendMessage({
+          from: "native-bridge",
+          ...(isSessionId
+            ? { to: action.recipient }
+            : { target_name: action.recipient }),
+          content: action.content,
+          priority: action.priority || "normal",
+        });
+        results.push(`✓ ${action.action} → ${action.recipient}`);
+        processed++;
+      } else {
+        results.push(`? unknown action type: ${action.action}`);
+        skipped++;
+      }
+      // Move to done/
+      renameSync(filePath, join(doneDir, f));
+    } catch {
+      skipped++;
+    }
+  }
+
+  return text(
+    `Native queue drained: ${processed} processed, ${skipped} skipped, ${expired} expired\n` +
+      (results.length ? results.map((r) => `- ${r}`).join("\n") : ""),
   );
 }

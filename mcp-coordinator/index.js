@@ -45,6 +45,7 @@ import {
   handleBroadcast,
   handleSendDirective,
   handleSendProtocol,
+  handleDrainNativeQueue,
 } from "./lib/messaging.js";
 import { handleDetectConflicts } from "./lib/conflicts.js";
 import {
@@ -233,6 +234,7 @@ const CORE_TOOLS = new Set([
   "coord_send_message",
   "coord_send_directive",
   "coord_send_protocol",
+  "coord_drain_native_queue",
   "coord_discover_peers",
   "coord_boot_snapshot",
 ]);
@@ -1462,6 +1464,13 @@ const ALL_TOOLS = [
       required: ["type"],
     },
   },
+  // ── Drain Native Queue (flush outbox to coordinator inbox path) ──
+  {
+    name: "coord_drain_native_queue",
+    description:
+      "Process pending native actions from the action queue. Delivers each action via coordinator inbox path and moves processed files to done/. Call this from the lead session to flush the native bridge outbox.",
+    inputSchema: { type: "object", properties: {} },
+  },
   // ── Discover Peers (teammate discovery) ──
   {
     name: "coord_discover_peers",
@@ -1725,6 +1734,9 @@ function handleToolCall(name, args = {}) {
         break;
       case "coord_send_protocol":
         result = handleSendProtocol(args);
+        break;
+      case "coord_drain_native_queue":
+        result = handleDrainNativeQueue(args);
         break;
       case "coord_discover_peers":
         result = handleDiscoverPeers(args);
