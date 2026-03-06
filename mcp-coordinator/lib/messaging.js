@@ -3,7 +3,14 @@
  * @module messaging
  */
 
-import { existsSync, readdirSync, renameSync, unlinkSync, mkdirSync } from "fs";
+import {
+  existsSync,
+  readdirSync,
+  renameSync,
+  unlinkSync,
+  mkdirSync,
+  statSync,
+} from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
 import {
@@ -33,6 +40,7 @@ function isNativeDeliveryAvailable(teamName) {
 /**
  * Queue an action for the native bridge to pick up.
  * The lead session translates these into native SendMessage calls on its next tool call.
+ * Enforces 5-minute TTL and max queue depth of 50 to prevent stale action buildup.
  * @param {object} action - Action descriptor to queue
  */
 function queueNativeAction(action) {
@@ -44,6 +52,29 @@ function queueNativeAction(action) {
     "pending",
   );
   mkdirSync(actionsDir, { recursive: true });
+
+  const TTL_MS = 5 * 60 * 1000; // 5 minutes
+  const MAX_QUEUE_DEPTH = 50;
+  let files = [];
+  try {
+    files = readdirSync(actionsDir).filter((f) => f.endsWith(".json"));
+    const now = Date.now();
+    for (const f of files) {
+      try {
+        const mtime = statSync(join(actionsDir, f)).mtimeMs;
+        if (now - mtime > TTL_MS) unlinkSync(join(actionsDir, f));
+      } catch {}
+    }
+    files = readdirSync(actionsDir).filter((f) => f.endsWith(".json"));
+  } catch {}
+
+  if (files.length >= MAX_QUEUE_DEPTH) {
+    process.stderr.write(
+      `coord: native action queue full (${files.length}/${MAX_QUEUE_DEPTH}), dropping: ${action.action}\n`,
+    );
+    return;
+  }
+
   writeFileSecure(
     join(actionsDir, `msg-${Date.now()}.json`),
     JSON.stringify(action, null, 2),

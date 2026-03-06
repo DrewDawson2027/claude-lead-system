@@ -471,9 +471,8 @@ export function buildInteractiveWorkerScript(opts) {
   const isLinux = platformName === "linux";
   const qPermMode = shellQuote(permissionMode);
   const sessionIdArg = sessionId ? `--session-id ${shellQuote(sessionId)}` : "";
-  // Native team membership: --team flag enables P2P messaging between workers
-  const teamArgs = opts.teamName ? `--team ${shellQuote(opts.teamName)}${opts.workerName ? ` --name ${shellQuote(opts.workerName)}` : ""}` : "";
-  const claudeCmd = `${qClaudeBin} --prompt "$WORKER_PROMPT" --permission-mode ${qPermMode} --model ${qModel} ${sessionIdArg} ${agentArgs} ${settingsArgs} ${teamArgs}`;
+  // TODO: --team flag pending Claude Code native Agent Teams API stabilization
+  const claudeCmd = `${qClaudeBin} --prompt "$WORKER_PROMPT" --permission-mode ${qPermMode} --model ${qModel} ${sessionIdArg} ${agentArgs} ${settingsArgs}`;
   const scriptWrapped = isLinux
     ? `script -q ${qTranscript} -c "${claudeCmd.replace(/"/g, '\\"')}"`
     : `script -q ${qTranscript} ${claudeCmd}`;
