@@ -21,10 +21,12 @@ export function getBridgeHealth(paths, staleMs = 30000) {
   }
   const last = heartbeat.ts || status.updated_at || status.started_at || null;
   const ageMs = last ? (Date.now() - new Date(last).getTime()) : Infinity;
+  const hasFreshnessSignal = Number.isFinite(ageMs) && ageMs >= 0;
   let bridge_status = 'down';
   if (status.starting) bridge_status = 'starting';
-  else if (process_alive && ageMs <= staleMs) bridge_status = 'healthy';
-  else if (process_alive && ageMs <= staleMs * 3) bridge_status = 'stale';
+  else if (hasFreshnessSignal && ageMs <= staleMs) bridge_status = 'healthy';
+  else if (hasFreshnessSignal && ageMs <= staleMs * 3) bridge_status = 'stale';
+  else if (hasFreshnessSignal) bridge_status = 'degraded';
   else if (process_alive) bridge_status = 'degraded';
 
   return {

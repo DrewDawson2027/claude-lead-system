@@ -20,7 +20,7 @@ export function registerTeamRoutes(registry: any): void {
     const timeline = (snapshot.timeline || []).filter((t: any) => t.team_name === teamName).slice(-50);
     const alerts = (snapshot.alerts || []).filter((a: any) => !a.team_name || a.team_name === teamName).slice(0, 30);
     if (!team) {
-      ctx.sendJson(res, 404, { error: `Team ${teamName} not found` }, req);
+      ctx.sendError(res, 404, 'NOT_FOUND', `Team ${teamName} not found`, req);
       return true;
     }
     ctx.sendJson(res, 200, { team, teammates, tasks, timeline, alerts, native: snapshot.native || null, actions: snapshot.actions || { recent: [] }, generated_at: snapshot.generated_at }, req);
@@ -53,14 +53,28 @@ export function registerTeamRoutes(registry: any): void {
     if (!(req.method === 'PATCH' && /^\/teams\/[^/]+\/interrupt-priorities$/.test(url.pathname))) return false;
     const teamName = teamNameFromPath(url.pathname);
     const body = await ctx.readBody(req);
+    const v = ctx.validateBody(url.pathname, body);
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const weights: Record<string, number> = {};
     for (const [k, v] of Object.entries(body)) {
       if (typeof v === 'number' && v >= 0 && v <= 200) weights[k] = v;
     }
+
+    if (Object.keys(weights).length === 0) {
+      ctx.sendError(res, 400, 'VALIDATION_ERROR', 'At least one interrupt priority weight is required', req);
+      return true;
+    }
+
+    let resultText: string | null = null;
     try {
-      await ctx.coordinatorAdapter.execute('update-team-policy', { team_name: teamName, interrupt_weights: weights });
-    } catch {}
-    ctx.sendJson(res, 200, { ok: true, team_name: teamName, interrupt_weights: weights }, req);
+      const result = await ctx.coordinatorAdapter.execute('update-team-policy', { team_name: teamName, interrupt_weights: weights });
+      resultText = result?.text || null;
+      await ctx.rebuild('interrupt-priorities');
+    } catch (err: any) {
+      ctx.sendError(res, 400, 'ACTION_FAILED', err?.message || 'Interrupt priority update failed', req);
+      return true;
+    }
+    ctx.sendJson(res, 200, { ok: true, team_name: teamName, interrupt_weights: weights, result: resultText }, req);
     return true;
   });
 
@@ -77,7 +91,7 @@ export function registerTeamRoutes(registry: any): void {
     if (!(req.method === 'POST' && url.pathname === '/task-templates')) return false;
     const body = await ctx.readBody(req);
     if (body.__parse_error) {
-      ctx.sendJson(res, 400, { error: body.__parse_error }, req);
+      ctx.sendError(res, 400, body.__parse_error === 'payload_too_large' ? 'PAYLOAD_TOO_LARGE' : 'INVALID_JSON', body.__parse_error, req);
       return true;
     }
     const templates = ctx.readJSON(paths.taskTemplatesFile) || [];
@@ -115,13 +129,25 @@ export function registerTeamRoutes(registry: any): void {
     const teamName = decodeURIComponent(parts[2] || '');
     const taskId = decodeURIComponent(parts[4] || '');
     const body = await ctx.readBody(req);
-    const result = await ctx.router.execute(teamName, 'reassign-task', {
-      task_id: taskId,
-      new_assignee: body.new_assignee,
-      reason: body.reason || 'manual reassignment via dashboard',
-      progress_context: body.progress_context || null,
-    });
-    ctx.sendJson(res, 200, { ok: true, result }, req);
+    const v = ctx.validateBody(url.pathname, body);
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
+    if (!body.new_assignee) {
+      ctx.sendError(res, 400, 'VALIDATION_ERROR', 'new_assignee is required', req);
+      return true;
+    }
+    try {
+      const result = await ctx.coordinatorAdapter.execute('reassign-task', {
+        team_name: teamName,
+        task_id: taskId,
+        new_assignee: body.new_assignee,
+        reason: body.reason || 'manual reassignment via dashboard',
+        progress_context: body.progress_context || null,
+      });
+      await ctx.rebuild('task-reassign');
+      ctx.sendJson(res, 200, { ok: true, result: result?.text || null }, req);
+    } catch (err: any) {
+      ctx.sendError(res, 400, 'ACTION_FAILED', err?.message || 'Task reassignment failed', req);
+    }
     return true;
   });
 
@@ -130,8 +156,15 @@ export function registerTeamRoutes(registry: any): void {
     if (!(req.method === 'POST' && /^\/teams\/[^/]+\/tasks\/[^/]+\/gate-check$/.test(url.pathname))) return false;
     const parts = pathParts(url.pathname);
     const taskId = decodeURIComponent(parts[4] || '');
-    const result = await ctx.router.execute(parts[2], 'gate-check', { task_id: taskId });
-    ctx.sendJson(res, 200, { ok: true, result }, req);
+    const body = await ctx.readBody(req);
+    const v = ctx.validateBody(url.pathname, body);
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
+    try {
+      const result = await ctx.coordinatorAdapter.execute('gate-check', { task_id: taskId });
+      ctx.sendJson(res, 200, { ok: true, result: result?.text || null }, req);
+    } catch (err: any) {
+      ctx.sendError(res, 400, 'ACTION_FAILED', err?.message || 'Gate check failed', req);
+    }
     return true;
   });
 
@@ -141,10 +174,10 @@ export function registerTeamRoutes(registry: any): void {
     const teamName = teamNameFromPath(url.pathname);
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const team = ctx.findTeam(snapshot, teamName);
     const routed = await ctx.runTrackedAction({ team, action: 'rebalance', payload: { team_name: teamName, ...body }, routeMode: 'router' });
-    if (!routed.ok) { ctx.sendJson(res, 400, routed, req); return true; }
+    if (!routed.ok) { ctx.sendError(res, 400, 'ACTION_FAILED', routed.error || 'Rebalance failed', req, routed.details); return true; }
     await ctx.rebuild('rebalance');
     ctx.sendJson(res, 200, routed, req);
     return true;
@@ -166,7 +199,7 @@ export function registerTeamRoutes(registry: any): void {
     const teamName = teamNameFromPath(url.pathname);
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const out = await ctx.coordinatorAdapter.execute('rebalance-explain', { team_name: teamName, ...body });
     ctx.sendJson(res, 200, out, req);
     return true;
@@ -180,11 +213,11 @@ export function registerTeamRoutes(registry: any): void {
     const action = decodeURIComponent(rawAction || '');
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const payload = ctx.buildActionPayload(teamName, action, body);
     const team = ctx.findTeam(snapshot, teamName);
     const routed = await ctx.runTrackedAction({ team, action, payload, routeMode: 'router' });
-    if (!routed.ok) { ctx.sendJson(res, 400, routed, req); return true; }
+    if (!routed.ok) { ctx.sendError(res, 400, 'ACTION_FAILED', routed.error || 'Action failed', req, routed.details); return true; }
     await ctx.rebuild(`action:${action}`);
     ctx.sendJson(res, 200, routed, req);
     return true;
@@ -196,7 +229,7 @@ export function registerTeamRoutes(registry: any): void {
     const teamName = teamNameFromPath(url.pathname);
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const out = await ctx.runBatchTriage({ teamName, op: String(body.op || ''), confirm: body.confirm === true, message: String(body.message || ''), limit: body.limit });
     await ctx.rebuild('batch-triage');
     ctx.sendJson(res, out.ok ? 200 : 400, out, req);

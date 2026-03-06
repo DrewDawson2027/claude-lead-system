@@ -167,8 +167,123 @@ PY
         echo "Usage: sidecarctl autostart [install|remove]" >&2; exit 1 ;;
     esac
     ;;
+  self-check)
+    echo "== Lead Sidecar Self-Check =="
+    PASS=0; FAIL=0; WARN=0
+    sc_ok()   { echo "  PASS: $*"; PASS=$((PASS + 1)); }
+    sc_fail() { echo "  FAIL: $*" >&2; FAIL=$((FAIL + 1)); }
+    sc_warn() { echo "  WARN: $*"; WARN=$((WARN + 1)); }
+
+    # Token file permissions
+    if [[ -f "$API_TOKEN_FILE" ]]; then
+      perms=$(stat -f '%Lp' "$API_TOKEN_FILE" 2>/dev/null || stat -c '%a' "$API_TOKEN_FILE" 2>/dev/null || echo "unknown")
+      if [[ "$perms" = "600" ]]; then sc_ok "api.token permissions: 0600"; else sc_fail "api.token permissions: $perms (expected 0600)"; fi
+    else sc_warn "api.token: not found (sidecar may not be initialized)"; fi
+
+    # State dir permissions
+    if [[ -d "$SIDECAR_DIR" ]]; then
+      perms=$(stat -f '%Lp' "$SIDECAR_DIR" 2>/dev/null || stat -c '%a' "$SIDECAR_DIR" 2>/dev/null || echo "unknown")
+      if [[ "$perms" = "700" ]]; then sc_ok "sidecar dir permissions: 0700"; else sc_warn "sidecar dir permissions: $perms (expected 0700)"; fi
+    else sc_fail "sidecar dir: not found"; fi
+
+    # Hook validation
+    if [[ -f "$PORT_FILE" ]]; then
+      hooks_json=$(api GET /health/hooks 2>/dev/null || echo '{}')
+      all_valid=$(echo "$hooks_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('all_valid','unknown'))" 2>/dev/null || echo "unknown")
+      if [[ "$all_valid" = "True" || "$all_valid" = "true" ]]; then sc_ok "hooks: all valid"; else sc_warn "hooks: validation issues detected"; fi
+    else sc_warn "hooks: sidecar not running, skipping"; fi
+
+    # Coordinator connectivity
+    if command -v node >/dev/null 2>&1; then
+      if [[ -d "$CLAUDE_DIR/mcp-coordinator" ]]; then
+        node --check "$CLAUDE_DIR/mcp-coordinator/index.js" 2>/dev/null && sc_ok "coordinator: syntax valid" || sc_fail "coordinator: syntax error"
+      else sc_fail "coordinator: directory not found"; fi
+    else sc_fail "node: not installed"; fi
+
+    # Sidecar health
+    if [[ -f "$PORT_FILE" ]]; then
+      health_json=$(api GET /health 2>/dev/null || echo '{}')
+      health_status=$(echo "$health_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
+      if [[ "$health_status" = "healthy" ]]; then sc_ok "sidecar health: $health_status"; else sc_warn "sidecar health: $health_status"; fi
+    else sc_warn "sidecar: not running"; fi
+
+    # Dependencies
+    command -v jq >/dev/null 2>&1 && sc_ok "jq: installed" || sc_fail "jq: missing"
+    command -v python3 >/dev/null 2>&1 && sc_ok "python3: installed" || sc_fail "python3: missing"
+    command -v claude >/dev/null 2>&1 && sc_ok "claude: installed" || sc_warn "claude: not found in PATH"
+
+    echo ""
+    echo "Results: $PASS pass, $FAIL fail, $WARN warn"
+    [[ "$FAIL" -gt 0 ]] && exit 1 || exit 0
+    ;;
+
+  support-bundle)
+    echo "== Generating Support Bundle =="
+    TS=$(date +%s)
+    OUT_FILE="support-bundle-${TS}.json"
+    SECTIONS="{}"
+
+    if [[ -f "$PORT_FILE" ]]; then
+      health=$(api GET /health 2>/dev/null || echo '{"error":"unreachable"}')
+      hooks=$(api GET /health/hooks 2>/dev/null || echo '{"error":"unreachable"}')
+      security=$(api GET /health/security-audit 2>/dev/null || echo '{"error":"unreachable"}')
+      request_audit=$(api GET /health/request-audit 2>/dev/null || echo '{"error":"unreachable"}')
+      diag=$(api POST /diagnostics/export '{"label":"support-bundle"}' 2>/dev/null || echo '{"error":"unreachable"}')
+    else
+      health='{"error":"sidecar not running"}'
+      hooks='{"error":"sidecar not running"}'
+      security='{"error":"sidecar not running"}'
+      request_audit='{"error":"sidecar not running"}'
+      diag='{"error":"sidecar not running"}'
+    fi
+
+    # Redact sensitive data
+    redact() {
+      python3 - <<PY 2>/dev/null || cat
+import sys, re, json
+data = sys.stdin.read()
+data = re.sub(r'"token"\s*:\s*"[^"]{4,}"', '"token":"[REDACTED]"', data)
+data = re.sub(r'"secret"\s*:\s*"[^"]{4,}"', '"secret":"[REDACTED]"', data)
+data = re.sub(r'"password"\s*:\s*"[^"]{4,}"', '"password":"[REDACTED]"', data)
+data = re.sub(r'Bearer\s+\S{8,}', 'Bearer [REDACTED]', data)
+data = re.sub(r'\b(?:(?:25[0-5]|2[0-4]\d|1?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|1?\d\d?)\b(?<!127\.0\.0\.1)', '[IP]', data)
+data = re.sub(r'/Users/[^/"]+', '/Users/[USER]', data)
+data = re.sub(r'/home/[^/"]+', '/home/[USER]', data)
+print(data)
+PY
+    }
+
+    bundle=$(python3 - <<PY 2>/dev/null
+import json, sys
+bundle = {
+    "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "health": json.loads('''$health'''),
+    "hooks": json.loads('''$hooks'''),
+    "security_audit": json.loads('''$security'''),
+    "request_audit": json.loads('''$request_audit'''),
+    "diagnostics": json.loads('''$diag'''),
+}
+print(json.dumps(bundle, indent=2))
+PY
+    )
+
+    echo "$bundle" | redact > "$OUT_FILE"
+
+    # Add SHA256
+    CHECKSUM=$(shasum -a 256 "$OUT_FILE" | cut -d' ' -f1)
+    python3 -c "
+import json
+with open('$OUT_FILE') as f: d=json.load(f)
+d['checksum_sha256']='$CHECKSUM'
+with open('$OUT_FILE','w') as f: json.dump(d,f,indent=2)
+" 2>/dev/null || true
+
+    echo "Bundle written to: $OUT_FILE"
+    echo "SHA256: $CHECKSUM"
+    ;;
+
   *)
-    echo "Usage: sidecarctl [start|status|open|tui|doctor|native-status|native-probe|bridge ...|maintenance ...|diagnostics ...|autostart ...]" >&2
+    echo "Usage: sidecarctl [start|status|open|tui|doctor|self-check|support-bundle|native-status|native-probe|bridge ...|maintenance ...|diagnostics ...|autostart ...]" >&2
     exit 1
     ;;
 esac

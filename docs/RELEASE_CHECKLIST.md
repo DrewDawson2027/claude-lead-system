@@ -7,7 +7,9 @@ Use this for every public release to keep quality and attribution verifiable.
 1. Enable branch protection on `main`:
 - Require PR reviews
 - Require status checks to pass
+- Require `CI` and `supply-chain-policy` status checks (plus repository security checks)
 - Restrict force-pushes
+- Enforce for admins
 
 2. Enable signed commits in local git:
 
@@ -34,6 +36,12 @@ git status --short
 bash scripts/release/preflight.sh
 ```
 
+Optional explicit gate bundle (same local bar used for launch confidence):
+
+```bash
+npm run release:gate
+```
+
 3. Choose release version:
 - Stable: `vX.Y.Z`
 - Pre-release: `vX.Y.Z-rc.1`
@@ -57,6 +65,7 @@ gh release create "$VERSION" \
 
 6. Wait for workflow completion:
 - `.github/workflows/ci.yml`
+- `.github/workflows/supply-chain-policy.yml`
 - `.github/workflows/supply-chain.yml`
 
 7. Verify release artifacts publicly:
@@ -65,11 +74,21 @@ gh release create "$VERSION" \
 bash scripts/release/verify-release.sh "$VERSION" DrewDawson2027/claude-lead-system
 ```
 
+## Tag Signature Verification
+
+See `docs/TAG_VERIFICATION.md` for detailed instructions on verifying signed tags and cosign release signatures.
+
 ## Artifacts That Must Exist
 
 - `claude-lead-system.tar.gz`
 - `claude-lead-system.tar.gz.sig`
 - `claude-lead-system.tar.gz.pem`
+- `checksums.txt`
+- `checksums.txt.sig`
+- `checksums.txt.pem`
+- `release.json`
+- `release.json.sig`
+- `release.json.pem`
 - `sbom.spdx.json`
 - GitHub build attestation from `actions/attest-build-provenance`
 

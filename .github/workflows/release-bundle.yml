@@ -7,32 +7,94 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   bundle:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
       - name: Build release bundle
         run: |
-          TAG="${GITHUB_REF_NAME:-manual}"
-          OUTDIR="$(mktemp -d)"
-          BUNDLE="$OUTDIR/claude-lead-system-${TAG}.tar.gz"
-          tar --exclude .git -czf "$BUNDLE" .
-          sha256sum "$BUNDLE" > "$OUTDIR/SHA256SUMS.txt"
-          mv "$BUNDLE" .
-          mv "$OUTDIR/SHA256SUMS.txt" .
+          mkdir -p dist/release-assets
+          BUNDLE="dist/release-assets/claude-lead-system.tar.gz"
+          TMP_BUNDLE="$(mktemp)"
+          tar \
+            --sort=name \
+            --mtime='UTC 1970-01-01' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            --exclude .git \
+            --exclude node_modules \
+            --exclude dist \
+            -czf "$TMP_BUNDLE" .
+          mv "$TMP_BUNDLE" "$BUNDLE"
+      - name: Attest release bundle provenance
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with:
+          subject-path: dist/release-assets/claude-lead-system.tar.gz
+      - name: Install cosign
+        uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9 # v3
+      - name: Build installer assets
+        run: bash scripts/release/build-installer-assets.sh
+      - name: Generate release manifest
+        run: bash scripts/release/generate-manifest.sh --outdir dist/release-assets --version "${GITHUB_REF_NAME:-manual}"
+      - name: Sign release metadata
+        run: bash scripts/release/sign-release-metadata.sh dist/release-assets
+      - name: Generate SHA256SUMS
+        working-directory: dist/release-assets
+        run: sha256sum claude-lead-system.tar.gz install.sh checksums.txt checksums.txt.sig checksums.txt.pem release.json release.json.sig release.json.pem > SHA256SUMS.txt 2>/dev/null || true
       - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-bundle
-          path: |
-            claude-lead-system-*.tar.gz
-            SHA256SUMS.txt
+          path: dist/release-assets/
       - name: Attach bundle to GitHub Release
         if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           files: |
-            claude-lead-system-*.tar.gz
-            SHA256SUMS.txt
+            dist/release-assets/claude-lead-system.tar.gz
+            dist/release-assets/SHA256SUMS.txt
+            dist/release-assets/checksums.txt
+            dist/release-assets/checksums.txt.sig
+            dist/release-assets/checksums.txt.pem
+            dist/release-assets/release.json
+            dist/release-assets/release.json.sig
+            dist/release-assets/release.json.pem
+
+  verify-installer:
+    needs: bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+      - name: Install cosign
+        uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9 # v3
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-bundle
+          path: dist/release-assets
+      - name: Verify installer flow
+        run: |
+          VERSION_TAG="v0.0.0-verify"
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION_TAG="${{ github.event.release.tag_name }}"
+          fi
+          bash tests/smoke-install.sh \
+            --version "$VERSION_TAG" \
+            --source-tarball dist/release-assets/claude-lead-system.tar.gz \
+            --checksum-file dist/release-assets/checksums.txt \
+            --checksum-signature dist/release-assets/checksums.txt.sig \
+            --checksum-cert dist/release-assets/checksums.txt.pem \
+            --release-manifest dist/release-assets/release.json \
+            --release-manifest-signature dist/release-assets/release.json.sig \
+            --release-manifest-cert dist/release-assets/release.json.pem \
+            --mode lite

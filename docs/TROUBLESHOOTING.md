@@ -78,6 +78,79 @@ Common issues and solutions for the claude-lead-system.
 - Supported: gnome-terminal, konsole, kitty, alacritty, xterm.
 - If none detected, workers fall back to `nohup` background execution.
 
+## Installer Issues
+
+### Installer Fails: "Missing dependency: jq"
+
+**Cause:** `jq` is not installed. Required for all JSON manipulation in hooks.
+
+**Fix:**
+- macOS: `brew install jq`
+- Ubuntu/Debian: `sudo apt install jq`
+- Windows: `choco install jq`
+
+### Installer Fails: "checksum mismatch"
+
+**Cause:** Downloaded installer or tarball doesn't match the checksums.txt file.
+
+**Fix:**
+1. Re-download `checksums.txt` from the GitHub release page
+2. Verify you downloaded the correct version's checksums
+3. Re-download the tarball/installer
+4. If using `--source-tarball`, ensure the tarball and checksums.txt are from the same release
+
+### Installer Fails: npm install error
+
+**Cause:** Node.js version too old or npm cache corrupt.
+
+**Fix:**
+1. Check Node.js version: `node --version` (must be 18+)
+2. Clear npm cache: `npm cache clean --force`
+3. Try again: `bash install.sh --mode lite`
+
+## Sidecar Auth Issues
+
+### Sidecar: 403 Origin Rejected
+
+**Symptom:** Browser requests to the dashboard return `403` with `error_code: "ORIGIN_REJECTED"`.
+
+**Cause:** The browser URL doesn't match the sidecar's expected origin. Common mismatch: using `localhost` instead of `127.0.0.1`.
+
+**Fix:** Access the dashboard at `http://127.0.0.1:{port}` exactly (not `http://localhost:{port}`). The same-origin check is strict about hostname matching.
+
+### Sidecar: 401 Auth Required
+
+**Symptom:** API requests return `401` with `error_code: "AUTH_REQUIRED"`.
+
+**Cause:** Token auth is enabled but no bearer token was provided.
+
+**Fix:**
+- For development: Set `LEAD_SIDECAR_REQUIRE_TOKEN=0` to disable token requirement
+- For production: Read the token from `~/.claude/lead-sidecar/runtime/api.token` and send as `Authorization: Bearer <token>` header
+
+### Sidecar: 403 CSRF Required
+
+**Symptom:** POST requests from the browser return `403` with `error_code: "CSRF_REQUIRED"`.
+
+**Cause:** Browser-origin mutation requests require a CSRF token.
+
+**Fix:**
+1. Fetch the CSRF token: `curl http://127.0.0.1:{port}/ui/bootstrap.json`
+2. Send the token as `X-Sidecar-CSRF: <token>` header on all browser-origin POST/PUT/PATCH/DELETE requests
+3. If `LEAD_SIDECAR_REQUIRE_TOKEN=1`, also send `Authorization: Bearer <token>` on mutating requests
+4. The dashboard JavaScript handles this automatically — this only affects custom browser-based API calls
+
+### Sidecar: 429 Rate Limited
+
+**Symptom:** Requests return `429` with `error_code: "RATE_LIMITED"`.
+
+**Cause:** Too many requests from the same IP to the same endpoint.
+
+**Fix:**
+1. Check the `Retry-After` header for when to retry
+2. Check `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers to understand limits
+3. Adjust the limit: `LEAD_SIDECAR_RATE_LIMIT=300` (default: 180 requests per window)
+
 ## Health Check
 
 Run the built-in health check to validate everything:

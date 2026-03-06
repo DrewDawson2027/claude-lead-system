@@ -1,9 +1,13 @@
 // @ts-nocheck
 export function createTrackedActionRunner({ actionQueue, store, metrics, nativeAdapter, router }) {
-  return async function runTrackedAction({ team, action, payload, routeMode = 'router', nativeHttpAction = null }) {
-    const record = actionQueue.create({ team_name: team?.team_name || payload?.team_name || null, action, route_mode: routeMode, payload_preview: payload });
+  return async function runTrackedAction({ team, action, payload, routeMode = 'router', nativeHttpAction = null, trackedActionId = null }) {
+    const teamName = team?.team_name || payload?.team_name || null;
+    const record = trackedActionId
+      ? { ...(actionQueue.get(trackedActionId) || {}), action_id: trackedActionId, team_name: teamName, action, route_mode: routeMode, payload_preview: payload }
+      : actionQueue.create({ team_name: teamName, action, route_mode: routeMode, payload_preview: payload });
+    if (trackedActionId && !record?.action_id) throw new Error(`Action ${trackedActionId} not found`);
     store.emitActionQueued({ action_id: record.action_id, action, team_name: record.team_name, route_mode: routeMode });
-    actionQueue.markStarted(record.action_id, {});
+    actionQueue.markStarted(record.action_id, { team_name: record.team_name, action, route_mode: routeMode, payload_preview: payload });
     store.emitActionStarted({ action_id: record.action_id, action, team_name: record.team_name, route_mode: routeMode });
     const start = Date.now();
     try {
@@ -13,16 +17,16 @@ export function createTrackedActionRunner({ actionQueue, store, metrics, nativeA
       const latency_ms = Date.now() - start;
       const wrapper = routeMode === 'native-direct'
         ? {
-            ok: routed?.ok !== false,
-            adapter: 'native',
-            path_mode: routed.path_mode || 'ephemeral',
-            reason: 'native direct action endpoint',
-            fallback_plan: ['native-bridge', 'native-ephemeral', 'coordinator'],
-            fallback_used: false,
-            cost_estimate_class: routed.path_mode === 'bridge' ? 'medium' : 'high',
-            latency_ms,
-            result: routed,
-          }
+          ok: routed?.ok !== false,
+          adapter: 'native',
+          path_mode: routed.path_mode || 'ephemeral',
+          reason: 'native direct action endpoint',
+          fallback_plan: ['native-bridge', 'native-ephemeral', 'coordinator'],
+          fallback_used: false,
+          cost_estimate_class: routed.path_mode === 'bridge' ? 'medium' : 'high',
+          latency_ms,
+          result: routed,
+        }
         : { ...routed, latency_ms: routed.latency_ms ?? latency_ms };
 
       const ok = wrapper.ok !== false;

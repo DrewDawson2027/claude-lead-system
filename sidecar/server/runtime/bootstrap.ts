@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { randomBytes } from 'crypto';
+import { statSync, chmodSync } from 'fs';
 
 export function readFileSafe(readFileSync, url) {
   try { return readFileSync(url, 'utf-8'); } catch { return ''; }
@@ -12,6 +13,12 @@ export function parseArgs(argv) {
     if (a === '--port' && argv[i + 1]) out.port = Number(argv[++i]) || 0;
     else if (a === '--open') out.open = true;
     else if (a === '--safe-mode') out.safeMode = true;
+    else if (a === '--rotate-csrf-on-startup') out.rotateCsrf = true;
+    else if (a === '--unix-socket' && argv[i + 1]) out.unixSocket = String(argv[++i]);
+    else if (a === '--tls-cert' && argv[i + 1]) out.tlsCertFile = String(argv[++i]);
+    else if (a === '--tls-key' && argv[i + 1]) out.tlsKeyFile = String(argv[++i]);
+    else if (a === '--tls-ca' && argv[i + 1]) out.tlsCaFile = String(argv[++i]);
+    else if (a === '--mtls') out.mtls = true;
   }
   return out;
 }
@@ -22,22 +29,84 @@ export function ensureApiToken(paths, fileExists, readJSON, writeJsonFile) {
   }
   const token = randomBytes(24).toString('hex');
   writeJsonFile(paths.apiTokenFile, { token, created_at: new Date().toISOString() });
+  tightenPermissions(paths.apiTokenFile);
   return token;
 }
 
-export function ensureCsrfToken(paths, fileExists, readJSON, writeJsonFile) {
-  if (fileExists(paths.csrfTokenFile)) {
-    return String(readJSON(paths.csrfTokenFile)?.token || '').trim() || null;
+export function rotateApiToken(paths, writeJsonFile) {
+  const token = randomBytes(24).toString('hex');
+  writeJsonFile(paths.apiTokenFile, { token, created_at: new Date().toISOString(), rotated_at: new Date().toISOString() });
+  tightenPermissions(paths.apiTokenFile);
+  return { new_token: token, rotated_at: new Date().toISOString() };
+}
+
+export function ensureCsrfToken(paths, fileExists, readJSON, writeJsonFile, { rotateCsrf = false } = {}) {
+  if (fileExists(paths.csrfTokenFile) && !rotateCsrf) {
+    const existing = readJSON(paths.csrfTokenFile);
+    const existingToken = String(existing?.token || '').trim();
+    if (existingToken) {
+      const ttlHours = Number(process.env.LEAD_SIDECAR_CSRF_TTL_HOURS || 0);
+      if (ttlHours > 0 && existing?.created_at) {
+        const ageMs = Date.now() - new Date(existing.created_at).getTime();
+        if (ageMs > ttlHours * 3600_000) {
+          const token = randomBytes(24).toString('hex');
+          writeJsonFile(paths.csrfTokenFile, { token, created_at: new Date().toISOString(), previous_rotated_at: existing.created_at });
+          tightenPermissions(paths.csrfTokenFile);
+          return token;
+        }
+      }
+      return existingToken;
+    }
   }
   const token = randomBytes(24).toString('hex');
   writeJsonFile(paths.csrfTokenFile, { token, created_at: new Date().toISOString() });
+  tightenPermissions(paths.csrfTokenFile);
   return token;
+}
+
+function tightenPermissions(filePath) {
+  try { chmodSync(filePath, 0o600); } catch {}
+}
+
+export function checkFilePermissions(paths, fileExists) {
+  const sensitiveFiles = [
+    { path: paths.apiTokenFile, name: 'api.token' },
+    { path: paths.csrfTokenFile, name: 'csrf.token' },
+    { path: paths.lockFile, name: 'sidecar.lock' },
+    { path: paths.portFile, name: 'sidecar.port' },
+  ];
+  const issues = [];
+  const uid = typeof process.getuid === 'function' ? process.getuid() : null;
+  for (const { path, name } of sensitiveFiles) {
+    if (!fileExists(path)) continue;
+    try {
+      const st = statSync(path);
+      const mode = st.mode & 0o777;
+      if (mode & 0o077) {
+        try { chmodSync(path, 0o600); } catch {}
+        issues.push({ file: name, expected: '0600', actual: `0${mode.toString(8)}`, action: 'auto-fixed' });
+      }
+      if (uid !== null && st.uid !== uid) {
+        issues.push({ file: name, expected_uid: uid, actual_uid: st.uid, action: 'warning' });
+      }
+    } catch {}
+  }
+  return { ok: issues.length === 0, issues };
 }
 
 export function writeRuntimeFiles(paths, server, writeJSON) {
   const addr = server.address();
+  const isSocket = typeof addr === 'string';
   const port = typeof addr === 'object' && addr ? addr.port : null;
   writeJSON(paths.lockFile, { pid: process.pid, started_at: new Date().toISOString() });
-  writeJSON(paths.portFile, { port, pid: process.pid, updated_at: new Date().toISOString() });
+  writeJSON(paths.portFile, {
+    port,
+    socket: isSocket ? addr : null,
+    transport: isSocket ? 'unix' : 'tcp',
+    pid: process.pid,
+    updated_at: new Date().toISOString(),
+  });
+  tightenPermissions(paths.lockFile);
+  tightenPermissions(paths.portFile);
   return port;
 }

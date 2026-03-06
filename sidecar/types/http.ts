@@ -10,9 +10,10 @@ export interface RequestContext {
 }
 
 export interface HttpErrorPayload {
-  error: string;
-  code?: string;
+  error_code: string;
+  message: string;
   details?: unknown;
+  request_id?: string;
 }
 
 export interface JsonResponse<T = unknown> {

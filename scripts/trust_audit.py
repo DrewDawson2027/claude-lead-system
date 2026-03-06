@@ -1,0 +1,1 @@
+/Users/drewdawson/.claude/scripts/trust_audit.py

@@ -15,7 +15,6 @@ const state = {
   rebalanceExplain: null,
   bridgeValidation: null,
   csrfToken: null,
-  apiToken: null,
   routeSimulation: null,
   uiPrefs: {
     focusMode: 'all',
@@ -140,12 +139,9 @@ async function api(path, opts = {}) {
   if ((opts.method || 'GET') !== 'GET' && state.csrfToken && !headers['X-Sidecar-CSRF']) {
     headers['X-Sidecar-CSRF'] = state.csrfToken;
   }
-  if ((opts.method || 'GET') !== 'GET' && state.apiToken && !headers.Authorization) {
-    headers.Authorization = `Bearer ${state.apiToken}`;
-  }
   const res = await fetch(apiPath, { ...opts, headers });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error || json.reason || res.statusText);
+  if (!res.ok) throw new Error(json.message || json.error || json.reason || res.statusText);
   return json;
 }
 
@@ -153,7 +149,6 @@ async function loadUiBootstrap() {
   try {
     const data = await api('/ui/bootstrap.json');
     state.csrfToken = data.csrf_token || null;
-    state.apiToken = data.api_token || null;
   } catch {}
 }
 

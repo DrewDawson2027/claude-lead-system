@@ -28,7 +28,12 @@ import sys
 import time
 from typing import Dict, List
 
-from guard_normalize import normalize_file_path, normalize_session_key, short_hash
+from guard_normalize import (
+    is_invalid_session_key,
+    normalize_file_path,
+    normalize_session_key,
+    short_hash,
+)
 
 # Shared infrastructure — locking, state, atomic writes
 from hook_utils import lock, unlock, load_json_state, save_json_state
@@ -80,6 +85,9 @@ def main():
     file_path = tool_input.get("file_path", "")
     if not file_path:
         sys.exit(0)
+    if is_invalid_session_key(session_id):
+        print("Invalid session_id", file=sys.stderr)
+        sys.exit(2)
     normalized_file_path = normalize_file_path(file_path)
     session_key = normalize_session_key(session_id)
 

@@ -7,7 +7,11 @@
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
-import { sanitizeId, writeFileSecure, appendJSONLineSecure } from "./security.js";
+import {
+  sanitizeId,
+  writeFileSecure,
+  appendJSONLineSecure,
+} from "./security.js";
 import { readJSON, text } from "./helpers.js";
 
 /**
@@ -18,14 +22,20 @@ import { readJSON, text } from "./helpers.js";
 function findWorkerSessionId(taskId) {
   const { TERMINALS_DIR } = cfg();
   try {
-    const files = readdirSync(TERMINALS_DIR).filter(f => f.startsWith("session-") && f.endsWith(".json"));
+    const files = readdirSync(TERMINALS_DIR).filter(
+      (f) => f.startsWith("session-") && f.endsWith(".json"),
+    );
     for (const f of files) {
       const session = readJSON(join(TERMINALS_DIR, f));
       if (!session) continue;
       // Check if session's current_task matches or if its prompt references this task
       if (session.current_task === taskId) return session.session;
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(
+      `[approval] findSessionForTask error: ${e?.message ?? e}\n`,
+    );
+  }
   return null;
 }
 
@@ -37,7 +47,9 @@ function findWorkerSessionId(taskId) {
 export function handleApprovePlan(args) {
   const { INBOX_DIR, RESULTS_DIR } = cfg();
   const taskId = sanitizeId(args.task_id, "task_id");
-  const message = String(args.message || "Plan approved. Proceed with implementation.").trim();
+  const message = String(
+    args.message || "Plan approved. Proceed with implementation.",
+  ).trim();
 
   const metaFile = join(RESULTS_DIR, `${taskId}.meta.json`);
   const meta = readJSON(metaFile);
@@ -45,11 +57,18 @@ export function handleApprovePlan(args) {
 
   // Write approval status file
   const approvalFile = join(RESULTS_DIR, `${taskId}.approval`);
-  writeFileSecure(approvalFile, JSON.stringify({
-    status: "approved",
-    ts: new Date().toISOString(),
-    message,
-  }, null, 2));
+  writeFileSecure(
+    approvalFile,
+    JSON.stringify(
+      {
+        status: "approved",
+        ts: new Date().toISOString(),
+        message,
+      },
+      null,
+      2,
+    ),
+  );
 
   // Try to deliver via worker's inbox directly
   const workerSid = findWorkerSessionId(taskId);
@@ -64,9 +83,11 @@ export function handleApprovePlan(args) {
 
   return text(
     `Plan approved: **${taskId}**\n` +
-    `- Approval file: results/${taskId}.approval\n` +
-    (workerSid ? `- Inbox message sent to session ${workerSid}\n` : `- Worker session not found — approval file will be checked by worker\n`) +
-    `- Note: ${message}`
+      `- Approval file: results/${taskId}.approval\n` +
+      (workerSid
+        ? `- Inbox message sent to session ${workerSid}\n`
+        : `- Worker session not found — approval file will be checked by worker\n`) +
+      `- Note: ${message}`,
   );
 }
 
@@ -86,11 +107,18 @@ export function handleRejectPlan(args) {
   if (!meta) return text(`Task ${taskId} not found.`);
 
   const approvalFile = join(RESULTS_DIR, `${taskId}.approval`);
-  writeFileSecure(approvalFile, JSON.stringify({
-    status: "revision_requested",
-    ts: new Date().toISOString(),
-    feedback,
-  }, null, 2));
+  writeFileSecure(
+    approvalFile,
+    JSON.stringify(
+      {
+        status: "revision_requested",
+        ts: new Date().toISOString(),
+        feedback,
+      },
+      null,
+      2,
+    ),
+  );
 
   const workerSid = findWorkerSessionId(taskId);
   if (workerSid) {
@@ -104,8 +132,10 @@ export function handleRejectPlan(args) {
 
   return text(
     `Plan revision requested: **${taskId}**\n` +
-    `- Feedback: ${feedback}\n` +
-    (workerSid ? `- Revision request sent to session ${workerSid}\n` : `- Worker session not found — revision file will be checked by worker\n`) +
-    `Worker will revise plan and re-submit.`
+      `- Feedback: ${feedback}\n` +
+      (workerSid
+        ? `- Revision request sent to session ${workerSid}\n`
+        : `- Worker session not found — revision file will be checked by worker\n`) +
+      `Worker will revise plan and re-submit.`,
   );
 }

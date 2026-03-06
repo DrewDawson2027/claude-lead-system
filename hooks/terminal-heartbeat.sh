@@ -221,8 +221,8 @@ if $DO_STALE; then
 
     AGE=$(( NOW_EPOCH - SF_EPOCH ))
 
-    # Mark stale after 5min (responsive idle detection — matches Claude's agent system)
-    if [ "$AGE" -gt 300 ]; then
+    # Mark stale after 30s (matches native Agent Teams idle detection)
+    if [ "$AGE" -gt 30 ]; then
       TMP=$(mktemp)
       jq '.status = "stale"' "$sf" > "$TMP" 2>/dev/null && mv "$TMP" "$sf"
 

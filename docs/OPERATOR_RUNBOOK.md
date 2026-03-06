@@ -9,8 +9,12 @@ node sidecar/server/index.js --port 9900
 ```
 
 Environment variables:
-- `LEAD_SIDECAR_REQUIRE_TOKEN=1` — enable API token auth
-- `LEAD_SIDECAR_CORS_ORIGIN` — restrict CORS origin
+- `LEAD_SIDECAR_REQUIRE_TOKEN=1` — require `Authorization: Bearer <token>` for all mutating requests (`POST`/`PUT`/`PATCH`/`DELETE`); browser requests also require same-origin + `X-Sidecar-CSRF`
+
+Browser security defaults:
+- Sidecar browser API access is same-origin only (`http://127.0.0.1:<sidecar-port>`)
+- Cross-port localhost origins (for example `http://127.0.0.1:3000`) are rejected
+- `GET /ui/bootstrap.json` returns `csrf_token` + `token_required` and does not return `api_token`
 
 ### MCP Coordinator
 The coordinator runs as an MCP server, typically started by Claude Code automatically via `~/.claude/mcp.json`.

@@ -7,7 +7,12 @@
 import { existsSync, mkdirSync, readdirSync } from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
-import { sanitizeName, sanitizeShortSessionId, writeFileSecure, ensureSecureDirectory } from "./security.js";
+import {
+  sanitizeName,
+  sanitizeShortSessionId,
+  writeFileSecure,
+  ensureSecureDirectory,
+} from "./security.js";
 import { readJSON, text } from "./helpers.js";
 
 /**
@@ -18,7 +23,9 @@ function contextDir() {
   const dir = join(cfg().TERMINALS_DIR, "context");
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
-    try { ensureSecureDirectory(dir); } catch {}
+    try {
+      ensureSecureDirectory(dir);
+    } catch {}
   }
   return dir;
 }
@@ -38,10 +45,14 @@ export function handleWriteContext(args) {
 
   const dir = contextDir();
   const file = join(dir, `${teamName}.json`);
-  const existing = readJSON(file) || { team_name: teamName, entries: [], created: new Date().toISOString() };
+  const existing = readJSON(file) || {
+    team_name: teamName,
+    entries: [],
+    created: new Date().toISOString(),
+  };
 
   // Update or add entry
-  const idx = existing.entries.findIndex(e => e.key === key);
+  const idx = existing.entries.findIndex((e) => e.key === key);
   if (idx >= 0) {
     if (args.append) {
       existing.entries[idx].value += "\n" + value;
@@ -66,15 +77,17 @@ export function handleWriteContext(args) {
   }
   const totalSize = JSON.stringify(existing).length;
   if (totalSize > 102400) {
-    return text(`Context store for ${teamName} would exceed 100KB limit. Remove old entries first.`);
+    return text(
+      `Context store for ${teamName} would exceed 100KB limit. Remove old entries first.`,
+    );
   }
 
   writeFileSecure(file, JSON.stringify(existing, null, 2));
   return text(
     `Context stored: **${key}** in team **${teamName}**\n` +
-    `- ${idx >= 0 ? (args.append ? "Appended to" : "Updated") : "Created"} entry\n` +
-    `- Total entries: ${existing.entries.length}\n` +
-    `- Workers with team_name=${teamName} will receive this context automatically.`
+      `- ${idx >= 0 ? (args.append ? "Appended to" : "Updated") : "Created"} entry\n` +
+      `- Total entries: ${existing.entries.length}\n` +
+      `- Workers with team_name=${teamName} will receive this context automatically.`,
   );
 }
 
@@ -85,15 +98,24 @@ export function handleWriteContext(args) {
  * @returns {object} MCP text response
  */
 export function handleExportContext(args) {
-  const sessionId = args.session_id ? sanitizeShortSessionId(args.session_id) : null;
+  const sessionId = args.session_id
+    ? sanitizeShortSessionId(args.session_id)
+    : null;
   const summary = String(args.summary || "").trim();
-  if (!summary) return text("Summary is required. Describe your current conversation context: decisions made, files analyzed, user requirements, current state.");
-  if (!sessionId) return text("session_id is required (your 8-char session ID).");
+  if (!summary)
+    return text(
+      "Summary is required. Describe your current conversation context: decisions made, files analyzed, user requirements, current state.",
+    );
+  if (!sessionId)
+    return text("session_id is required (your 8-char session ID).");
 
   const dir = contextDir();
   const file = join(dir, `lead-context-${sessionId}.json`);
 
-  const existing = readJSON(file) || { session_id: sessionId, created: new Date().toISOString() };
+  const existing = readJSON(file) || {
+    session_id: sessionId,
+    created: new Date().toISOString(),
+  };
   existing.summary = summary;
   existing.updated = new Date().toISOString();
 
@@ -105,9 +127,9 @@ export function handleExportContext(args) {
   writeFileSecure(file, JSON.stringify(existing, null, 2));
   return text(
     `Lead context exported for session **${sessionId}**\n` +
-    `- Summary: ${summary.slice(0, 200)}...\n` +
-    `- All workers spawned with notify_session_id=${sessionId} will automatically inherit this context.\n` +
-    `- Workers can refresh via: \`coord_read_context include_lead=true\``
+      `- Summary: ${summary.slice(0, 200)}...\n` +
+      `- All workers spawned with notify_session_id=${sessionId} will automatically inherit this context.\n` +
+      `- Workers can refresh via: \`coord_read_context include_lead=true\``,
   );
 }
 
@@ -130,7 +152,7 @@ export function handleReadContext(args) {
   if (data?.entries?.length) {
     const filterKey = args.key ? String(args.key).trim() : null;
     const entries = filterKey
-      ? data.entries.filter(e => e.key === filterKey)
+      ? data.entries.filter((e) => e.key === filterKey)
       : data.entries;
 
     if (entries.length > 0) {
@@ -145,7 +167,9 @@ export function handleReadContext(args) {
   // Lead context (from coord_export_context)
   if (includeLead) {
     try {
-      const leadFiles = readdirSync(dir).filter(f => f.startsWith("lead-context-") && f.endsWith(".json"));
+      const leadFiles = readdirSync(dir).filter(
+        (f) => f.startsWith("lead-context-") && f.endsWith(".json"),
+      );
       for (const lf of leadFiles) {
         const leadCtx = readJSON(join(dir, lf));
         if (leadCtx?.summary) {
@@ -154,11 +178,17 @@ export function handleReadContext(args) {
           output += `${leadCtx.summary}\n\n`;
         }
       }
-    } catch {}
+    } catch (e) {
+      process.stderr.write(
+        `[context-store] lead context build error: ${e?.message ?? e}\n`,
+      );
+    }
   }
 
   if (!output) {
-    return text(`No context found${includeLead ? " (including lead context)" : ""} for team ${teamName}.`);
+    return text(
+      `No context found${includeLead ? " (including lead context)" : ""} for team ${teamName}.`,
+    );
   }
 
   return text(output);

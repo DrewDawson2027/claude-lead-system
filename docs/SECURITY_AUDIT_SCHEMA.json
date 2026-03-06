@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DrewDawson2027/claude-lead-system/docs/SECURITY_AUDIT_SCHEMA.json",
+  "title": "Sidecar Security Audit Export",
+  "type": "object",
+  "required": ["ok", "schema_version", "generated_at", "events", "summary"],
+  "properties": {
+    "ok": { "type": "boolean", "const": true },
+    "schema_version": { "type": "string", "const": "sidecar-security-audit/v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "ip", "path", "ts"],
+        "properties": {
+          "type": { "type": "string", "enum": ["auth_failure", "origin_reject", "csrf_failure", "rate_limit"] },
+          "ip": { "type": "string" },
+          "path": { "type": "string" },
+          "origin": { "type": "string" },
+          "request_id": { "type": "string" },
+          "ts": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total", "recent", "by_type"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "recent": { "type": "array" },
+        "by_type": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

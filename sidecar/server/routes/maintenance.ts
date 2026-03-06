@@ -1,10 +1,12 @@
+import { isPathWithin } from './shared.js';
+
 export function registerMaintenanceRoutes(registry: any): void {
   registry.add('maintenance:run', async (ctx: any) => {
     const { req, res, url } = ctx;
     if (!(req.method === 'POST' && url.pathname === '/maintenance/run')) return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const out = ctx.maintenanceSweep({ source: body?.source || 'manual' });
     await ctx.rebuild('maintenance');
     ctx.sendJson(res, 200, { ok: true, maintenance: out }, req);
@@ -16,12 +18,12 @@ export function registerMaintenanceRoutes(registry: any): void {
     if (!(req.method === 'POST' && url.pathname === '/checkpoints/create')) return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     try {
       const result = ctx.createCheckpoint(paths, String(body.label || 'manual'));
       ctx.sendJson(res, 200, { ok: true, ...result }, req);
     } catch (err: any) {
-      ctx.sendJson(res, 500, { ok: false, error: err.message }, req);
+      ctx.sendError(res, 500, 'CHECKPOINT_ERROR', err.message, req);
     }
     return true;
   });
@@ -36,14 +38,14 @@ export function registerMaintenanceRoutes(registry: any): void {
   registry.add('maintenance:checkpoints-restore', async (ctx: any) => {
     const { req, res, url, paths, SAFE_MODE } = ctx;
     if (!(req.method === 'POST' && url.pathname === '/checkpoints/restore')) return false;
-    if (SAFE_MODE) { ctx.sendJson(res, 503, { error: 'Safe mode: mutation disabled' }, req); return true; }
+    if (SAFE_MODE) { ctx.sendError(res, 503, 'SAFE_MODE_ACTIVE', 'Safe mode: mutation disabled', req); return true; }
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
-    if (!body.file) { ctx.sendJson(res, 400, { error: 'file is required' }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
+    if (!body.file) { ctx.sendError(res, 400, 'VALIDATION_ERROR', 'file is required', req); return true; }
     const resolved = ctx.pathResolve(String(body.file));
-    if (!resolved.startsWith(ctx.pathResolve(paths.checkpointsDir))) {
-      ctx.sendJson(res, 400, { error: 'file must be within checkpoints directory' }, req);
+    if (!isPathWithin(paths.checkpointsDir, resolved, ctx.pathResolve)) {
+      ctx.sendError(res, 400, 'VALIDATION_ERROR', 'file must be within checkpoints directory', req);
       return true;
     }
     try {
@@ -51,7 +53,7 @@ export function registerMaintenanceRoutes(registry: any): void {
       await ctx.rebuild('checkpoint-restore');
       ctx.sendJson(res, 200, { ok: true, ...result }, req);
     } catch (err: any) {
-      ctx.sendJson(res, 500, { ok: false, error: err.message }, req);
+      ctx.sendError(res, 500, 'RESTORE_ERROR', err.message, req);
     }
     return true;
   });
@@ -61,7 +63,7 @@ export function registerMaintenanceRoutes(registry: any): void {
     if (!(req.method === 'POST' && url.pathname === '/events/rebuild-check')) return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const fromTs = body.from_ts ? new Date(body.from_ts).getTime() : null;
     const derived = ctx.rebuildFromTimeline(paths.logFile, fromTs);
     const actual = ctx.store.getSnapshot();
@@ -85,7 +87,7 @@ export function registerMaintenanceRoutes(registry: any): void {
     if (!(req.method === 'POST' && url.pathname === '/repair/scan')) return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const results = ctx.scanForCorruption(paths);
     ctx.sendJson(res, 200, { ok: true, ...results }, req);
     return true;
@@ -96,11 +98,11 @@ export function registerMaintenanceRoutes(registry: any): void {
     if (!(req.method === 'POST' && url.pathname === '/repair/fix')) return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
-    if (!body.path) { ctx.sendJson(res, 400, { error: 'path is required' }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
+    if (!body.path) { ctx.sendError(res, 400, 'VALIDATION_ERROR', 'path is required', req); return true; }
     const resolved = ctx.pathResolve(String(body.path));
-    if (!resolved.startsWith(ctx.pathResolve(paths.root)) && !resolved.startsWith(ctx.pathResolve(paths.terminalsDir))) {
-      ctx.sendJson(res, 400, { error: 'path must be within sidecar or terminals directory' }, req);
+    if (!isPathWithin(paths.root, resolved, ctx.pathResolve) && !isPathWithin(paths.terminalsDir, resolved, ctx.pathResolve)) {
+      ctx.sendError(res, 400, 'VALIDATION_ERROR', 'path must be within sidecar or terminals directory', req);
       return true;
     }
     if (body.dry_run) {
@@ -155,7 +157,7 @@ export function registerMaintenanceRoutes(registry: any): void {
     if (!(req.method === 'POST' && url.pathname === '/health/hooks/selftest')) return false;
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
     const results = ctx.runHookSelftest(paths.hooksDir);
     ctx.sendJson(res, 200, { ok: true, results }, req);
     return true;
@@ -172,19 +174,47 @@ export function registerMaintenanceRoutes(registry: any): void {
   registry.add('maintenance:backups-restore', async (ctx: any) => {
     const { req, res, url, paths, SAFE_MODE } = ctx;
     if (!(req.method === 'POST' && url.pathname === '/backups/restore')) return false;
-    if (SAFE_MODE) { ctx.sendJson(res, 503, { error: 'Safe mode: mutation disabled' }, req); return true; }
+    if (SAFE_MODE) { ctx.sendError(res, 503, 'SAFE_MODE_ACTIVE', 'Safe mode: mutation disabled', req); return true; }
     const body = await ctx.readBody(req);
     const v = ctx.validateBody(url.pathname, body);
-    if (!v.ok) { ctx.sendJson(res, v.status, { error: v.error }, req); return true; }
-    if (!body.file) { ctx.sendJson(res, 400, { error: 'file is required' }, req); return true; }
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
+    if (!body.file) { ctx.sendError(res, 400, 'VALIDATION_ERROR', 'file is required', req); return true; }
     const resolved = ctx.pathResolve(String(body.file));
-    if (!resolved.startsWith(ctx.pathResolve(paths.backupsDir))) {
-      ctx.sendJson(res, 400, { error: 'file must be within backups directory' }, req);
+    if (!isPathWithin(paths.backupsDir, resolved, ctx.pathResolve)) {
+      ctx.sendError(res, 400, 'VALIDATION_ERROR', 'file must be within backups directory', req);
       return true;
     }
     const result = ctx.restoreFromBackup(paths, resolved);
     if (result.restored) await ctx.rebuild('backup-restore');
     ctx.sendJson(res, result.restored ? 200 : 400, { ok: result.restored, ...result }, req);
+    return true;
+  });
+
+  registry.add('maintenance:request-audit', (ctx: any) => {
+    const { req, res, url } = ctx;
+    if (!(req.method === 'GET' && url.pathname === '/health/request-audit')) return false;
+    const snapshot = ctx.requestAuditLog?.snapshot() || { total: 0, recent: [], by_method: {}, by_status: {} };
+    ctx.sendJson(res, 200, { ok: true, ...snapshot }, req);
+    return true;
+  });
+
+  registry.add('maintenance:security-audit', (ctx: any) => {
+    const { req, res, url } = ctx;
+    if (!(req.method === 'GET' && url.pathname === '/health/security-audit')) return false;
+    const snapshot = ctx.securityAuditLog?.snapshot() || { total: 0, recent: [], by_type: {} };
+    ctx.sendJson(res, 200, { ok: true, ...snapshot }, req);
+    return true;
+  });
+
+  registry.add('maintenance:rotate-api-token', async (ctx: any) => {
+    const { req, res, url, SAFE_MODE } = ctx;
+    if (!(req.method === 'POST' && url.pathname === '/maintenance/rotate-api-token')) return false;
+    if (SAFE_MODE) { ctx.sendError(res, 503, 'SAFE_MODE_ACTIVE', 'Safe mode: mutation disabled', req); return true; }
+    const body = await ctx.readBody(req);
+    const v = ctx.validateBody(url.pathname, body);
+    if (!v.ok) { ctx.sendError(res, v.status, v.error_code || 'VALIDATION_ERROR', v.error, req); return true; }
+    const result = ctx.rotateApiToken();
+    ctx.sendJson(res, 200, { ok: true, new_token: result.new_token, rotated_at: result.rotated_at }, req);
     return true;
   });
 }

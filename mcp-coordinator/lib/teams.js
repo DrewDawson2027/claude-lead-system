@@ -7,7 +7,11 @@
 import { existsSync, readdirSync, mkdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
-import { sanitizeName, writeFileSecure, ensureSecureDirectory } from "./security.js";
+import {
+  sanitizeName,
+  writeFileSecure,
+  ensureSecureDirectory,
+} from "./security.js";
 import { readJSON, text } from "./helpers.js";
 
 /**
@@ -18,7 +22,9 @@ function teamsDir() {
   const dir = join(cfg().TERMINALS_DIR, "teams");
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
-    try { ensureSecureDirectory(dir); } catch {}
+    try {
+      ensureSecureDirectory(dir);
+    } catch {}
   }
   return dir;
 }
@@ -81,16 +87,68 @@ function teamPreset(preset) {
   }
 }
 
+const INTERRUPT_WEIGHT_KEYS = [
+  "approval",
+  "bridge",
+  "stale",
+  "conflict",
+  "budget",
+  "error",
+  "warn",
+  "default",
+];
+
+function normalizeInterruptWeights(weights = {}) {
+  if (!weights || typeof weights !== "object" || Array.isArray(weights))
+    return null;
+  const out = {};
+  for (const key of INTERRUPT_WEIGHT_KEYS) {
+    const n = Number(weights[key]);
+    if (Number.isFinite(n) && n >= 0 && n <= 200) out[key] = Math.round(n);
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+function mergeTeamPolicy(currentPolicy = {}, patchPolicy = {}) {
+  const merged = { ...(currentPolicy || {}), ...(patchPolicy || {}) };
+  if (
+    patchPolicy?.interrupt_weights &&
+    typeof patchPolicy.interrupt_weights === "object" &&
+    !Array.isArray(patchPolicy.interrupt_weights)
+  ) {
+    const prevWeights =
+      currentPolicy?.interrupt_weights &&
+      typeof currentPolicy.interrupt_weights === "object" &&
+      !Array.isArray(currentPolicy.interrupt_weights)
+        ? currentPolicy.interrupt_weights
+        : {};
+    merged.interrupt_weights = {
+      ...prevWeights,
+      ...patchPolicy.interrupt_weights,
+    };
+  }
+  return merged;
+}
+
 function normalizeTeamPolicy(policy = {}) {
   if (!policy || typeof policy !== "object" || Array.isArray(policy)) return {};
   const out = {};
-  const strEnum = (k, vals) => { if (vals.includes(policy[k])) out[k] = policy[k]; };
+  const strEnum = (k, vals) => {
+    if (vals.includes(policy[k])) out[k] = policy[k];
+  };
   const posInt = (k) => {
     const n = Number(policy[k]);
     if (Number.isFinite(n) && n > 0) out[k] = Math.floor(n);
   };
-  const bool = (k) => { if (typeof policy[k] === "boolean") out[k] = policy[k]; };
-  strEnum("permission_mode", ["acceptEdits", "planOnly", "readOnly", "editOnly"]);
+  const bool = (k) => {
+    if (typeof policy[k] === "boolean") out[k] = policy[k];
+  };
+  strEnum("permission_mode", [
+    "acceptEdits",
+    "planOnly",
+    "readOnly",
+    "editOnly",
+  ]);
   bool("require_plan");
   strEnum("default_mode", ["pipe", "interactive"]);
   strEnum("default_runtime", ["claude", "codex"]);
@@ -101,19 +159,28 @@ function normalizeTeamPolicy(policy = {}) {
   posInt("global_budget_tokens");
   posInt("max_active_workers");
   bool("default_isolate");
+  const interruptWeights = normalizeInterruptWeights(policy.interrupt_weights);
+  if (interruptWeights) out.interrupt_weights = interruptWeights;
   return out;
 }
 
 function readAllTasks() {
   const dir = join(cfg().TERMINALS_DIR, "tasks");
   try {
-    return readdirSync(dir).filter(f => f.endsWith(".json")).map(f => readJSON(join(dir, f))).filter(Boolean);
-  } catch { return []; }
+    return readdirSync(dir)
+      .filter((f) => f.endsWith(".json"))
+      .map((f) => readJSON(join(dir, f)))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 function readSessionById(sessionId) {
   if (!sessionId) return null;
-  return readJSON(join(cfg().TERMINALS_DIR, `session-${String(sessionId).slice(0, 8)}.json`));
+  return readJSON(
+    join(cfg().TERMINALS_DIR, `session-${String(sessionId).slice(0, 8)}.json`),
+  );
 }
 
 export function readTeamConfig(teamNameRaw) {
@@ -144,19 +211,28 @@ export function handleCreateTeam(args) {
     const preset = teamPreset(presetName);
     team.preset = presetName;
     team.execution_path = preset.execution_path;
-    team.policy = { ...(team.policy || {}), ...(preset.policy || {}) };
+    team.policy = mergeTeamPolicy(team.policy || {}, preset.policy || {});
   }
 
   if (args.project) team.project = String(args.project).trim();
   if (args.description) team.description = String(args.description).trim();
-  if (args.execution_path && ["native", "coordinator", "hybrid"].includes(args.execution_path)) {
+  if (
+    args.execution_path &&
+    ["native", "coordinator", "hybrid"].includes(args.execution_path)
+  ) {
     team.execution_path = args.execution_path;
   }
-  if (args.low_overhead_mode && ["simple", "advanced"].includes(args.low_overhead_mode)) {
+  if (
+    args.low_overhead_mode &&
+    ["simple", "advanced"].includes(args.low_overhead_mode)
+  ) {
     team.low_overhead_mode = args.low_overhead_mode;
   }
   if (args.policy !== undefined) {
-    team.policy = { ...(team.policy || {}), ...normalizeTeamPolicy(args.policy) };
+    team.policy = mergeTeamPolicy(
+      team.policy || {},
+      normalizeTeamPolicy(args.policy),
+    );
   }
   if (!team.execution_path) team.execution_path = "hybrid";
   if (!team.low_overhead_mode) team.low_overhead_mode = "advanced";
@@ -170,16 +246,23 @@ export function handleCreateTeam(args) {
       const session_id = m.session_id ? String(m.session_id).slice(0, 8) : null;
       const task_id = m.task_id || null;
 
-      const idx = team.members.findIndex(x => x.name === name);
+      const agentId = m.agentId || null;
+
+      const idx = team.members.findIndex((x) => x.name === name);
       if (idx >= 0) {
         // Update existing member
         if (role) team.members[idx].role = role;
         if (session_id) team.members[idx].session_id = session_id;
         if (task_id) team.members[idx].task_id = task_id;
+        if (agentId) team.members[idx].agentId = agentId;
         team.members[idx].updated = new Date().toISOString();
       } else {
         team.members.push({
-          name, role, session_id, task_id,
+          name,
+          role,
+          session_id,
+          task_id,
+          agentId,
           joined: new Date().toISOString(),
           updated: new Date().toISOString(),
         });
@@ -192,13 +275,63 @@ export function handleCreateTeam(args) {
 
   return text(
     `Team ${existing ? "updated" : "created"}: **${teamName}**\n` +
-    `- Project: ${team.project || "unset"}\n` +
-    `- Execution Path: ${team.execution_path}\n` +
-    `- Overhead Mode: ${team.low_overhead_mode}\n` +
-    `- Team Permission Mode: ${team.policy?.permission_mode || "unset"}\n` +
-    `- Team Plan Mode: ${team.policy?.require_plan === true ? "required" : team.policy?.require_plan === false ? "optional" : "unset"}\n` +
-    `- Members: ${team.members.length}\n` +
-    team.members.map(m => `  - ${m.name} (${m.role})${m.task_id ? ` → ${m.task_id}` : ""}`).join("\n")
+      `- Project: ${team.project || "unset"}\n` +
+      `- Execution Path: ${team.execution_path}\n` +
+      `- Overhead Mode: ${team.low_overhead_mode}\n` +
+      `- Team Permission Mode: ${team.policy?.permission_mode || "unset"}\n` +
+      `- Team Plan Mode: ${team.policy?.require_plan === true ? "required" : team.policy?.require_plan === false ? "optional" : "unset"}\n` +
+      `- Members: ${team.members.length}\n` +
+      team.members
+        .map(
+          (m) =>
+            `  - ${m.name} (${m.role})${m.task_id ? ` → ${m.task_id}` : ""}`,
+        )
+        .join("\n"),
+  );
+}
+
+/**
+ * Handle coord_update_team_policy tool call.
+ * Updates policy fields for an existing team without mutating members.
+ * @param {object} args - { team_name, policy?, interrupt_weights? }
+ * @returns {object} MCP text response
+ */
+export function handleUpdateTeamPolicy(args) {
+  const teamName = sanitizeName(args.team_name, "team_name");
+  const teamFile = join(teamsDir(), `${teamName}.json`);
+  const team = readJSON(teamFile);
+  if (!team) return text(`Team ${teamName} not found.`);
+
+  const incomingPolicy =
+    args.policy &&
+    typeof args.policy === "object" &&
+    !Array.isArray(args.policy)
+      ? { ...args.policy }
+      : {};
+  if (
+    args.interrupt_weights &&
+    typeof args.interrupt_weights === "object" &&
+    !Array.isArray(args.interrupt_weights)
+  ) {
+    incomingPolicy.interrupt_weights = args.interrupt_weights;
+  }
+
+  const normalized = normalizeTeamPolicy(incomingPolicy);
+  if (Object.keys(normalized).length === 0) {
+    return text(`No valid policy updates provided for team ${teamName}.`);
+  }
+
+  team.policy = mergeTeamPolicy(team.policy || {}, normalized);
+  team.updated = new Date().toISOString();
+  writeFileSecure(teamFile, JSON.stringify(team, null, 2));
+
+  const updatedKeys = Object.keys(normalized).sort();
+  return text(
+    `Team policy updated: **${teamName}**\n` +
+      `- Updated keys: ${updatedKeys.join(", ")}\n` +
+      (team.policy?.interrupt_weights
+        ? `- Interrupt weights: ${JSON.stringify(team.policy.interrupt_weights)}\n`
+        : ""),
   );
 }
 
@@ -211,7 +344,9 @@ export function handleGetTeam(args) {
   const teamName = sanitizeName(args.team_name, "team_name");
   const team = readJSON(join(teamsDir(), `${teamName}.json`));
   if (!team) return text(`Team ${teamName} not found.`);
-  const tasks = readAllTasks().filter(t => t.team_name === teamName || t.metadata?.team_name === teamName);
+  const tasks = readAllTasks().filter(
+    (t) => t.team_name === teamName || t.metadata?.team_name === teamName,
+  );
 
   let output = `## Team: ${teamName}\n\n`;
   output += `- **Project:** ${team.project || "unset"}\n`;
@@ -223,7 +358,8 @@ export function handleGetTeam(args) {
   output += `- **Updated:** ${team.updated}\n`;
   if (team.policy && Object.keys(team.policy).length > 0) {
     output += `\n### Team Policy\n`;
-    for (const [k, v] of Object.entries(team.policy)) output += `- **${k}:** ${JSON.stringify(v)}\n`;
+    for (const [k, v] of Object.entries(team.policy))
+      output += `- **${k}:** ${JSON.stringify(v)}\n`;
   }
   output += `\n### Members (${team.members.length})\n`;
   for (const m of team.members) {
@@ -234,7 +370,8 @@ export function handleGetTeam(args) {
     if (session) {
       output += ` | status: ${session.status || "unknown"}`;
       if (session.current_task) output += ` | current: ${session.current_task}`;
-      if (session.last_active) output += ` | last_active: ${session.last_active}`;
+      if (session.last_active)
+        output += ` | last_active: ${session.last_active}`;
     }
     output += `\n`;
   }
@@ -245,7 +382,9 @@ export function handleGetTeam(args) {
   output += `- In Progress: ${byStatus.in_progress || 0}\n`;
   output += `- Completed: ${byStatus.completed || 0}\n`;
   output += `- Cancelled: ${byStatus.cancelled || 0}\n`;
-  for (const t of tasks.filter(t => t.status !== "completed" && t.status !== "cancelled").slice(0, 12)) {
+  for (const t of tasks
+    .filter((t) => t.status !== "completed" && t.status !== "cancelled")
+    .slice(0, 12)) {
     output += `- ${t.task_id} | ${t.status} | ${t.assignee || "unassigned"} | ${t.subject}\n`;
   }
   return text(output);
@@ -258,16 +397,22 @@ export function handleGetTeam(args) {
 export function handleListTeams() {
   const dir = teamsDir();
   try {
-    const files = readdirSync(dir).filter(f => f.endsWith(".json"));
+    const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
     if (files.length === 0) return text("No teams found.");
 
-    const teams = files.map(f => readJSON(join(dir, f))).filter(Boolean);
-    const rows = teams.map(t =>
-      `| ${t.team_name} | ${t.project || "-"} | ${t.execution_path || "hybrid"} | ${t.members?.length || 0} | ${t.updated || "-"} |`
+    const teams = files.map((f) => readJSON(join(dir, f))).filter(Boolean);
+    const rows = teams.map(
+      (t) =>
+        `| ${t.team_name} | ${t.project || "-"} | ${t.execution_path || "hybrid"} | ${t.members?.length || 0} | ${t.updated || "-"} |`,
     );
-    const table = `| Team | Project | Path | Members | Updated |\n|------|---------|------|---------|---------|` + "\n" + rows.join("\n");
+    const table =
+      `| Team | Project | Path | Members | Updated |\n|------|---------|------|---------|---------|` +
+      "\n" +
+      rows.join("\n");
     return text(`## Teams (${teams.length})\n\n${table}`);
-  } catch { return text("No teams found."); }
+  } catch {
+    return text("No teams found.");
+  }
 }
 
 /**
@@ -286,7 +431,9 @@ export function handleDeleteTeam(args) {
   const team = readJSON(teamFile);
   const memberCount = team?.members?.length || 0;
 
-  try { unlinkSync(teamFile); } catch (e) {
+  try {
+    unlinkSync(teamFile);
+  } catch (e) {
     return text(`Failed to delete team ${teamName}: ${e.message}`);
   }
 
@@ -294,11 +441,17 @@ export function handleDeleteTeam(args) {
   if (args.clean_tasks) {
     const tasksDir = join(cfg().TERMINALS_DIR, "tasks");
     try {
-      const files = readdirSync(tasksDir).filter(f => f.endsWith(".json"));
+      const files = readdirSync(tasksDir).filter((f) => f.endsWith(".json"));
       for (const f of files) {
         const task = readJSON(join(tasksDir, f));
-        if (task && (task.team_name === teamName || task.metadata?.team_name === teamName)) {
-          try { unlinkSync(join(tasksDir, f)); tasksRemoved++; } catch {}
+        if (
+          task &&
+          (task.team_name === teamName || task.metadata?.team_name === teamName)
+        ) {
+          try {
+            unlinkSync(join(tasksDir, f));
+            tasksRemoved++;
+          } catch {}
         }
       }
     } catch {}
@@ -306,7 +459,9 @@ export function handleDeleteTeam(args) {
 
   return text(
     `Team **${teamName}** deleted.\n` +
-    `- Members removed: ${memberCount}\n` +
-    (args.clean_tasks ? `- Tasks cleaned: ${tasksRemoved}\n` : "- Tasks preserved (use clean_tasks: true to remove)\n")
+      `- Members removed: ${memberCount}\n` +
+      (args.clean_tasks
+        ? `- Tasks cleaned: ${tasksRemoved}\n`
+        : "- Tasks preserved (use clean_tasks: true to remove)\n"),
   );
 }

@@ -310,10 +310,11 @@ test('getSessionStatus returns correct states', async () => {
     assert.equal(api.getSessionStatus({ status: 'stale' }), 'stale');
     assert.equal(api.getSessionStatus({}), 'unknown');
     assert.equal(api.getSessionStatus({ last_active: new Date().toISOString() }), 'active');
-    const tenMinAgo = new Date(Date.now() - 400 * 1000).toISOString();
-    assert.equal(api.getSessionStatus({ last_active: tenMinAgo }), 'idle');
-    const longAgo = new Date(Date.now() - 700 * 1000).toISOString();
-    assert.equal(api.getSessionStatus({ last_active: longAgo }), 'stale');
+    // Thresholds: active < 30s, idle < 60s, stale >= 60s
+    const fortySecAgo = new Date(Date.now() - 40 * 1000).toISOString();
+    assert.equal(api.getSessionStatus({ last_active: fortySecAgo }), 'idle');
+    const twoMinAgo = new Date(Date.now() - 120 * 1000).toISOString();
+    assert.equal(api.getSessionStatus({ last_active: twoMinAgo }), 'stale');
   } finally {
     restore();
   }

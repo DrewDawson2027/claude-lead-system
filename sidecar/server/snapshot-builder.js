@@ -1,16 +1,20 @@
-import { readdirSync } from 'fs';
-import { join } from 'path';
-import { sidecarPaths } from '../core/paths.js';
-import { readJSONL } from '../core/fs-utils.js';
-import { buildTeamOperationalSnapshot } from '../../mcp-coordinator/lib/team-tasking.js';
-import { deriveLoadScore, deriveInterruptibility, deriveDispatchReadiness } from '../core/presence-engine.js';
-import { normalizeTeamTask } from '../core/tasking-engine.js';
+import { readdirSync } from "fs";
+import { join } from "path";
+import { sidecarPaths } from "../core/paths.js";
+import { readJSONL } from "../core/fs-utils.js";
+import { buildTeamOperationalSnapshot } from "../../mcp-coordinator/lib/team-tasking.js";
+import {
+  deriveLoadScore,
+  deriveInterruptibility,
+  deriveDispatchReadiness,
+} from "../core/presence-engine.js";
+import { normalizeTeamTask } from "../core/tasking-engine.js";
 
 function listTeamNames(paths) {
   try {
     return readdirSync(paths.teamsDir)
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => f.replace(/\.json$/, ''))
+      .filter((f) => f.endsWith(".json"))
+      .map((f) => f.replace(/\.json$/, ""))
       .sort();
   } catch {
     return [];
@@ -20,14 +24,14 @@ function listTeamNames(paths) {
 function normalizeTeammates(teamSnap) {
   return (teamSnap.members || []).map((m) => ({
     id: `${teamSnap.team_name}:${m.name}`,
-    source: teamSnap.execution_path === 'native' ? 'hybrid' : 'coordinator',
+    source: teamSnap.execution_path === "native" ? "hybrid" : "coordinator",
     display_name: m.name,
     team_name: teamSnap.team_name,
     session_id: m.session_id || null,
     worker_task_id: m.task_id || null,
     native_agent_id: null,
-    role: m.role || 'worker',
-    presence: m.presence || m.session_status || 'offline',
+    role: m.role || "worker",
+    presence: m.presence || m.session_status || "offline",
     last_active: m.last_active || null,
     current_task_ref: m.current_task_ref || null,
     policy_state: m.policy_state || {},
@@ -42,7 +46,9 @@ function normalizeTeammates(teamSnap) {
 }
 
 function normalizeTasks(teamSnap) {
-  return (teamSnap.task_queue || []).map((t) => normalizeTeamTask({ ...t, team_name: teamSnap.team_name }));
+  return (teamSnap.task_board || teamSnap.task_queue || []).map((t) =>
+    normalizeTeamTask({ ...t, team_name: teamSnap.team_name }),
+  );
 }
 
 export function buildSidecarSnapshot() {
@@ -70,12 +76,17 @@ export function buildSidecarSnapshot() {
       });
       teammates.push(...normalizeTeammates(snap));
       tasks.push(...normalizeTasks(snap));
-      timeline.push(...(snap.timeline || []).map((e) => ({ ...e, team_name: snap.team_name })));
+      timeline.push(
+        ...(snap.timeline || []).map((e) => ({
+          ...e,
+          team_name: snap.team_name,
+        })),
+      );
     } catch (err) {
       teams.push({
         team_name: name,
-        execution_path: 'unknown',
-        low_overhead_mode: 'unknown',
+        execution_path: "unknown",
+        low_overhead_mode: "unknown",
         policy: {},
         members: [],
         task_queue: [],
@@ -84,9 +95,13 @@ export function buildSidecarSnapshot() {
     }
   }
 
-  const activity = readJSONL(paths.activityFile).slice(-200).map((e) => ({ ...e, source: 'hooks' }));
+  const activity = readJSONL(paths.activityFile)
+    .slice(-200)
+    .map((e) => ({ ...e, source: "hooks" }));
   timeline.push(...activity);
-  timeline.sort((a, b) => String(a.ts || a.t || '').localeCompare(String(b.ts || b.t || '')));
+  timeline.sort((a, b) =>
+    String(a.ts || a.t || "").localeCompare(String(b.ts || b.t || "")),
+  );
 
   return {
     generated_at: new Date().toISOString(),
@@ -95,7 +110,7 @@ export function buildSidecarSnapshot() {
     tasks,
     timeline: timeline.slice(-200),
     adapters: {
-      native: { ok: process.env.LEAD_SIDECAR_NATIVE_ENABLE === '1' },
+      native: { ok: process.env.LEAD_SIDECAR_NATIVE_ENABLE === "1" },
       coordinator: { ok: true },
     },
   };

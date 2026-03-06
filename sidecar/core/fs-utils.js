@@ -1,4 +1,14 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, readdirSync, unlinkSync, renameSync } from 'fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  appendFileSync,
+  readdirSync,
+  unlinkSync,
+  renameSync,
+} from "fs";
+import { resolve as pathResolve, sep as pathSep } from "path";
 
 export function ensureDir(dir) {
   mkdirSync(dir, { recursive: true });
@@ -9,20 +19,32 @@ export function ensureDirs(dirs) {
 }
 
 export function readJSON(path) {
-  try { return JSON.parse(readFileSync(path, 'utf-8')); } catch { return null; }
+  try {
+    return JSON.parse(readFileSync(path, "utf-8"));
+  } catch {
+    return null;
+  }
 }
 
-export function writeJSON(path, value) {
-  writeFileSync(path, JSON.stringify(value, null, 2));
+export function writeJSON(filePath, value) {
+  const tmp = `${filePath}.tmp.${process.pid}`;
+  writeFileSync(tmp, JSON.stringify(value, null, 2));
+  renameSync(tmp, filePath);
 }
 
 export function readJSONL(path) {
   try {
     if (!existsSync(path)) return [];
-    return readFileSync(path, 'utf-8')
-      .split('\n')
+    return readFileSync(path, "utf-8")
+      .split("\n")
       .filter(Boolean)
-      .map((line) => { try { return JSON.parse(line); } catch { return null; } })
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
       .filter(Boolean);
   } catch {
     return [];
@@ -34,7 +56,11 @@ export function appendJSONL(path, obj) {
 }
 
 export function readText(path) {
-  try { return readFileSync(path, 'utf-8'); } catch { return null; }
+  try {
+    return readFileSync(path, "utf-8");
+  } catch {
+    return null;
+  }
 }
 
 export function fileExists(path) {
@@ -42,13 +68,28 @@ export function fileExists(path) {
 }
 
 export function listDir(dir) {
-  try { return readdirSync(dir); } catch { return []; }
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
 }
 
 export function removeFile(path) {
-  try { unlinkSync(path); return true; } catch { return false; }
+  try {
+    unlinkSync(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function moveFile(from, to) {
   renameSync(from, to);
+}
+
+export function isPathWithin(baseDir, candidate) {
+  const resolved = pathResolve(baseDir, candidate);
+  const base = pathResolve(baseDir) + pathSep;
+  return resolved.startsWith(base);
 }

@@ -860,6 +860,260 @@ test('spawn_terminal with initial_prompt includes prompt in command', async () =
   }
 });
 
+// ─── Issue 3: Codex runtime — coord_spawn_worker with runtime:'codex' ────────
+
+test('spawn_worker with runtime codex uses codex exec in generated script', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const taskId = 'W_CODEX_PIPE';
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'analyse the codebase',
+      model: 'sonnet',
+      runtime: 'codex',
+      task_id: taskId,
+      layout: 'background',
+    });
+    const txt = contentText(res);
+    // Response must confirm codex runtime was selected
+    assert.match(txt, /Runtime: codex/i);
+    // Verify via __test__ that buildCodexWorkerScript produces codex exec command
+    const codexScript = api.buildCodexWorkerScript({
+      taskId,
+      workDir: projectDir,
+      resultFile: join(home, '.claude', 'terminals', 'results', taskId, 'result.txt'),
+      pidFile: join(home, '.claude', 'terminals', 'results', taskId, 'worker.pid'),
+      metaFile: join(home, '.claude', 'terminals', 'results', taskId, 'meta.json'),
+      promptFile: join(home, '.claude', 'terminals', 'results', taskId, 'prompt.txt'),
+      model: 'sonnet',
+      platformName: 'linux',
+    });
+    assert.ok(
+      codexScript.includes('codex exec') || codexScript.includes('codex "$WORKER_PROMPT"'),
+      `codex worker script should contain codex exec; got: ${codexScript.slice(0, 200)}`
+    );
+    assert.ok(!codexScript.includes('claude -p'), 'codex script must not fall back to claude -p');
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_worker with runtime codex interactive uses codex TUI command', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'build the feature',
+      model: 'sonnet',
+      runtime: 'codex',
+      mode: 'interactive',
+      layout: 'background',
+    });
+    const txt = contentText(res);
+    assert.match(txt, /Runtime: codex/i);
+    assert.match(txt, /Mode: interactive/i);
+    // Verify interactive codex script uses TUI mode (no `exec` subcommand)
+    const taskId = txt.match(/Worker spawned: \*\*([^*]+)\*\*/)?.[1] || 'W_CODEX_INT';
+    const interactiveScript = api.buildCodexInteractiveWorkerScript({
+      taskId,
+      workDir: projectDir,
+      resultFile: '/tmp/r.txt',
+      pidFile: '/tmp/p.pid',
+      metaFile: '/tmp/m.json',
+      promptFile: '/tmp/prompt.txt',
+      model: 'sonnet',
+      platformName: 'linux',
+    });
+    assert.match(interactiveScript, /codex "\$WORKER_PROMPT" --full-auto/);
+    assert.ok(!interactiveScript.includes('codex exec'), 'interactive codex must not use exec subcommand');
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_worker defaults to claude runtime when runtime param is absent', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'do something',
+      model: 'sonnet',
+      layout: 'background',
+    });
+    const txt = contentText(res);
+    assert.match(txt, /Runtime: claude/i);
+    assert.doesNotMatch(txt, /Runtime: codex/i);
+  } finally {
+    restore();
+  }
+});
+
+// ─── Issue 4: max_turns — coord_spawn_worker passes it into worker script ─────
+
+test('spawn_worker with max_turns emits CLAUDE_WORKER_MAX_TURNS in script', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    // max_turns is threaded through buildInteractiveWorkerScript (mode=interactive)
+    const taskId = 'W_MAX_TURNS_7';
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'fix the bug',
+      model: 'sonnet',
+      max_turns: 7,
+      mode: 'interactive',
+      task_id: taskId,
+      layout: 'background',
+    });
+    assert.match(contentText(res), /Worker spawned/i);
+    // buildInteractiveWorkerScript is the canonical path that injects CLAUDE_WORKER_MAX_TURNS
+    const script = api.buildInteractiveWorkerScript({
+      taskId,
+      workDir: projectDir,
+      resultFile: '/tmp/r.txt',
+      pidFile: '/tmp/p.pid',
+      metaFile: '/tmp/m.json',
+      promptFile: '/tmp/prompt.txt',
+      model: 'sonnet',
+      agent: '',
+      maxTurns: 7,
+      permissionMode: 'acceptEdits',
+      platformName: 'linux',
+      workerName: '',
+    });
+    assert.ok(
+      script.includes('CLAUDE_WORKER_MAX_TURNS') && script.includes("'7'"),
+      `interactive worker script must export CLAUDE_WORKER_MAX_TURNS='7'; got: ${script.slice(0, 400)}`
+    );
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_worker with max_turns clamps to valid range', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const taskId = 'W_MAX_TURNS_CAP';
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'long running task',
+      model: 'sonnet',
+      max_turns: 99999,
+      mode: 'interactive',
+      task_id: taskId,
+      layout: 'background',
+    });
+    assert.match(contentText(res), /Worker spawned/i);
+    // workers.js clamps: Math.max(1, Math.min(10000, parseInt(99999))) = 10000
+    const script = api.buildInteractiveWorkerScript({
+      taskId,
+      workDir: projectDir,
+      resultFile: '/tmp/r.txt',
+      pidFile: '/tmp/p.pid',
+      metaFile: '/tmp/m.json',
+      promptFile: '/tmp/prompt.txt',
+      model: 'sonnet',
+      agent: '',
+      maxTurns: 10000,
+      permissionMode: 'acceptEdits',
+      platformName: 'linux',
+      workerName: '',
+    });
+    assert.ok(
+      script.includes('CLAUDE_WORKER_MAX_TURNS') && script.includes("'10000'") && !script.includes('99999'),
+      'max_turns should be capped at 10000 in interactive worker script'
+    );
+  } finally {
+    restore();
+  }
+});
+
+test('spawn_worker without max_turns does not emit CLAUDE_WORKER_MAX_TURNS', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+  });
+  try {
+    api.ensureDirsOnce();
+    const taskId = 'W_NO_MAX_TURNS';
+    const res = await api.handleToolCall('coord_spawn_worker', {
+      directory: projectDir,
+      prompt: 'do something',
+      model: 'sonnet',
+      mode: 'interactive',
+      task_id: taskId,
+      layout: 'background',
+    });
+    assert.match(contentText(res), /Worker spawned/i);
+    // When maxTurns is null/falsy, buildInteractiveWorkerScript omits the export
+    const script = api.buildInteractiveWorkerScript({
+      taskId,
+      workDir: projectDir,
+      resultFile: '/tmp/r.txt',
+      pidFile: '/tmp/p.pid',
+      metaFile: '/tmp/m.json',
+      promptFile: '/tmp/prompt.txt',
+      model: 'sonnet',
+      agent: '',
+      maxTurns: null,
+      permissionMode: 'acceptEdits',
+      platformName: 'linux',
+      workerName: '',
+    });
+    assert.ok(
+      !script.includes('CLAUDE_WORKER_MAX_TURNS'),
+      'script must NOT export CLAUDE_WORKER_MAX_TURNS when max_turns not set'
+    );
+  } finally {
+    restore();
+  }
+});
+
+// ─── Pipeline E2E ─────────────────────────────────────────────────────────────
+
 runE2E('run pipeline -> completion -> get pipeline status', async () => {
   const { home, binDir, projectDir } = setupTestHome();
   const { api, restore } = await loadCoordinatorForTest({
