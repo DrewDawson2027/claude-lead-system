@@ -19,22 +19,33 @@ export function bodyLimitForRoute(pathname: string): number {
   return 256 * 1024;
 }
 
-export async function readBody(req: any, { limitBytes = 256 * 1024 } = {}): Promise<Record<string, any>> {
+export async function readBody(
+  req: any,
+  { limitBytes = 256 * 1024 } = {},
+): Promise<Record<string, any>> {
   return new Promise((resolve) => {
-    let raw = '';
+    let raw = "";
+    let byteLen = 0;
     let tooLarge = false;
-    req.on('data', (chunk: any) => {
+    req.on("data", (chunk: any) => {
       raw += chunk;
-      if (raw.length > limitBytes) {
+      byteLen += Buffer.byteLength(chunk, "utf8");
+      if (byteLen > limitBytes) {
         tooLarge = true;
         req.destroy();
       }
     });
-    req.on('end', () => {
-      if (tooLarge) return resolve({ __parse_error: 'payload_too_large' });
+    req.on("end", () => {
+      if (tooLarge) return resolve({ __parse_error: "payload_too_large" });
       if (!raw) return resolve({});
-      try { resolve(JSON.parse(raw)); } catch { resolve({ __parse_error: 'invalid_json' }); }
+      try {
+        resolve(JSON.parse(raw));
+      } catch {
+        resolve({ __parse_error: "invalid_json" });
+      }
     });
-    req.on('error', () => resolve(tooLarge ? { __parse_error: 'payload_too_large' } : {}));
+    req.on("error", () =>
+      resolve(tooLarge ? { __parse_error: "payload_too_large" } : {}),
+    );
   });
 }

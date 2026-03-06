@@ -15,22 +15,42 @@ import { shellQuote } from "../helpers.js";
 export function getTerminalApp() {
   const { PLATFORM } = cfg();
   if (PLATFORM === "darwin") {
-    if (spawnSync("pgrep", ["-x", "iTerm2"], { stdio: "ignore" }).status === 0) return "iTerm2";
-    if (spawnSync("pgrep", ["-x", "Terminal"], { stdio: "ignore" }).status === 0) return "Terminal";
+    if (spawnSync("pgrep", ["-x", "iTerm2"], { stdio: "ignore" }).status === 0)
+      return "iTerm2";
+    if (
+      spawnSync("pgrep", ["-x", "Terminal"], { stdio: "ignore" }).status === 0
+    )
+      return "Terminal";
     return "none";
   } else if (PLATFORM === "win32") {
     try {
-      const wt = execFileSync("tasklist", ["/FI", "IMAGENAME eq WindowsTerminal.exe", "/NH"], { encoding: "utf-8" });
-      if (wt.toLowerCase().includes("windowsterminal")) return "WindowsTerminal";
+      const wt = execFileSync(
+        "tasklist",
+        ["/FI", "IMAGENAME eq WindowsTerminal.exe", "/NH"],
+        { encoding: "utf-8" },
+      );
+      if (wt.toLowerCase().includes("windowsterminal"))
+        return "WindowsTerminal";
     } catch {}
     try {
-      const ps = execFileSync("tasklist", ["/FI", "IMAGENAME eq powershell.exe", "/NH"], { encoding: "utf-8" });
+      const ps = execFileSync(
+        "tasklist",
+        ["/FI", "IMAGENAME eq powershell.exe", "/NH"],
+        { encoding: "utf-8" },
+      );
       if (ps.toLowerCase().includes("powershell")) return "PowerShell";
     } catch {}
     return "cmd";
   } else {
-    for (const app of ["gnome-terminal", "konsole", "alacritty", "kitty", "xterm"]) {
-      if (spawnSync("pgrep", ["-x", app], { stdio: "ignore" }).status === 0) return app;
+    for (const app of [
+      "gnome-terminal",
+      "konsole",
+      "alacritty",
+      "kitty",
+      "xterm",
+    ]) {
+      if (spawnSync("pgrep", ["-x", app], { stdio: "ignore" }).status === 0)
+        return app;
     }
     return "none";
   }
@@ -44,50 +64,96 @@ export function getTerminalApp() {
  * @param {string} layout - "tab" or "split"
  * @returns {{ command: string, args: string[], app: string, detached?: boolean }}
  */
-export function buildPlatformLaunchCommand(platformName, termApp, command, layout = "tab") {
+export function buildPlatformLaunchCommand(
+  platformName,
+  termApp,
+  command,
+  layout = "tab",
+) {
   if (platformName === "darwin") {
     if (termApp === "iTerm2") {
-      const splitScript = 'tell application "iTerm2" to tell current session of current window to split vertically with default profile';
-      const tabScript = 'tell application "iTerm2" to tell current window to create tab with default profile';
+      const splitScript =
+        'tell application "iTerm2" to tell current session of current window to split vertically with default profile';
+      const tabScript =
+        'tell application "iTerm2" to tell current window to create tab with default profile';
       const writeScript = `tell application "iTerm2" to tell current session of current window to write text ${JSON.stringify(command)}`;
       return {
         command: "osascript",
-        args: layout === "split" ? ["-e", splitScript, "-e", writeScript] : ["-e", tabScript, "-e", writeScript],
+        args:
+          layout === "split"
+            ? ["-e", splitScript, "-e", writeScript]
+            : ["-e", tabScript, "-e", writeScript],
         app: "iTerm2",
       };
     }
     if (termApp === "Terminal") {
       return {
         command: "osascript",
-        args: ["-e", `tell application "Terminal" to do script ${JSON.stringify(command)}`],
+        args: [
+          "-e",
+          `tell application "Terminal" to do script ${JSON.stringify(command)}`,
+        ],
         app: "Terminal",
       };
     }
-    return { command: "bash", args: ["-lc", command], detached: true, app: "background" };
+    return {
+      command: "bash",
+      args: ["-lc", command],
+      detached: true,
+      app: "background",
+    };
   }
 
   if (platformName === "win32") {
     if (termApp === "WindowsTerminal") {
-      const base = layout === "split" ? ["-w", "0", "sp", "-V", "cmd", "/c", command] : ["-w", "0", "nt", "cmd", "/c", command];
+      const base =
+        layout === "split"
+          ? ["-w", "0", "sp", "-V", "cmd", "/c", command]
+          : ["-w", "0", "nt", "cmd", "/c", command];
       return { command: "wt", args: base, app: "WindowsTerminal" };
     }
-    return { command: "cmd", args: ["/c", "start", "", "cmd", "/c", command], app: "cmd" };
+    return {
+      command: "cmd",
+      args: ["/c", "start", "", "cmd", "/c", command],
+      app: "cmd",
+    };
   }
 
   // Linux
-  if (termApp === "gnome-terminal") return { command: "gnome-terminal", args: ["--", "bash", "-c", command], app: "gnome-terminal" };
-  if (termApp === "konsole") return { command: "konsole", args: ["-e", "bash", "-c", command], app: "konsole" };
-  if (termApp === "alacritty") return { command: "alacritty", args: ["-e", "bash", "-c", command], app: "alacritty" };
+  if (termApp === "gnome-terminal")
+    return {
+      command: "gnome-terminal",
+      args: ["--", "bash", "-c", command],
+      app: "gnome-terminal",
+    };
+  if (termApp === "konsole")
+    return {
+      command: "konsole",
+      args: ["-e", "bash", "-c", command],
+      app: "konsole",
+    };
+  if (termApp === "alacritty")
+    return {
+      command: "alacritty",
+      args: ["-e", "bash", "-c", command],
+      app: "alacritty",
+    };
   if (termApp === "kitty") {
     return {
       command: "kitty",
-      args: layout === "split"
-        ? ["@", "launch", "--type=window", "bash", "-c", command]
-        : ["@", "launch", "--type=tab", "bash", "-c", command],
+      args:
+        layout === "split"
+          ? ["@", "launch", "--type=window", "bash", "-c", command]
+          : ["@", "launch", "--type=tab", "bash", "-c", command],
       app: "kitty",
     };
   }
-  return { command: "bash", args: ["-lc", command], detached: true, app: "background" };
+  return {
+    command: "bash",
+    args: ["-lc", command],
+    detached: true,
+    app: "background",
+  };
 }
 
 /**
@@ -101,7 +167,10 @@ export function openTerminalWithCommand(command, layout = "tab") {
   const { TEST_MODE, PLATFORM } = cfg();
   if (TEST_MODE) {
     if (PLATFORM === "win32") return "test-background-win32";
-    const child = spawn("bash", ["-lc", command], { detached: true, stdio: "ignore" });
+    const child = spawn("bash", ["-lc", command], {
+      detached: true,
+      stdio: "ignore",
+    });
     child.unref();
     return "test-background";
   }
@@ -109,13 +178,22 @@ export function openTerminalWithCommand(command, layout = "tab") {
   const termApp = getTerminalApp();
   const launch = buildPlatformLaunchCommand(PLATFORM, termApp, command, layout);
   if (launch.detached) {
-    const child = spawn(launch.command, launch.args || [], { detached: true, stdio: "ignore" });
+    const child = spawn(launch.command, launch.args || [], {
+      detached: true,
+      stdio: "ignore",
+    });
     child.unref();
   } else {
-    const res = spawnSync(launch.command, launch.args || [], { stdio: "ignore", timeout: 5000 });
+    const res = spawnSync(launch.command, launch.args || [], {
+      stdio: "ignore",
+      timeout: 5000,
+    });
     if (res.status !== 0) {
       // Headless fallback: if terminal launch fails, run as background process
-      const child = spawn("bash", ["-lc", command], { detached: true, stdio: "ignore" });
+      const child = spawn("bash", ["-lc", command], {
+        detached: true,
+        stdio: "ignore",
+      });
       child.unref();
       return "headless-background";
     }
@@ -131,11 +209,18 @@ export function openTerminalWithCommand(command, layout = "tab") {
  * @param {string} pidFile - Path to write child PID
  */
 export function spawnBackgroundWorker(script, resultFile, pidFile) {
+  const { PLATFORM } = cfg();
   const out = openSync(resultFile, "a");
-  const child = spawn("sh", ["-c", script], {
-    detached: true,
-    stdio: ["ignore", out, out],
-  });
+  const child =
+    PLATFORM === "win32"
+      ? spawn("cmd", ["/c", script], {
+          detached: true,
+          stdio: ["ignore", out, out],
+        })
+      : spawn("sh", ["-c", script], {
+          detached: true,
+          stdio: ["ignore", out, out],
+        });
   writeFileSync(pidFile, String(child.pid));
   child.unref();
   closeSync(out);
@@ -152,7 +237,11 @@ export function isProcessAlive(pid) {
   if (!Number.isInteger(pidNum) || pidNum <= 0) return false;
   try {
     if (PLATFORM === "win32") {
-      const output = execFileSync("tasklist", ["/FI", `PID eq ${pidNum}`, "/NH"], { encoding: "utf-8" });
+      const output = execFileSync(
+        "tasklist",
+        ["/FI", `PID eq ${pidNum}`, "/NH"],
+        { encoding: "utf-8" },
+      );
       if (!output.includes(String(pidNum))) return false;
     } else {
       process.kill(pidNum, 0);
@@ -172,9 +261,13 @@ export function killProcess(pid) {
   const pidNum = Number(pid);
   if (!Number.isInteger(pidNum) || pidNum <= 0) throw new Error("Invalid PID.");
   if (PLATFORM === "win32") {
-    execFileSync("taskkill", ["/PID", String(pidNum), "/T", "/F"], { stdio: "ignore" });
+    execFileSync("taskkill", ["/PID", String(pidNum), "/T", "/F"], {
+      stdio: "ignore",
+    });
   } else {
-    try { process.kill(-pidNum, "SIGTERM"); } catch {
+    try {
+      process.kill(-pidNum, "SIGTERM");
+    } catch {
       process.kill(pidNum, "SIGTERM");
     }
   }
@@ -200,8 +293,14 @@ export function isSafeTTYPath(pathValue) {
 export function buildInteractiveWorkerScript(opts) {
   const { PLATFORM, SETTINGS_FILE, CLAUDE_BIN } = cfg();
   const {
-    taskId, workDir, resultFile, pidFile, metaFile,
-    model, agent, promptFile,
+    taskId,
+    workDir,
+    resultFile,
+    pidFile,
+    metaFile,
+    model,
+    agent,
+    promptFile,
   } = opts;
   const workerName = opts.workerName || "";
   const maxTurns = opts.maxTurns || "";
@@ -221,15 +320,23 @@ export function buildInteractiveWorkerScript(opts) {
   const qModel = shellQuote(model);
   const qClaudeBin = shellQuote(CLAUDE_BIN);
   const agentArgs = agent ? `--agent ${shellQuote(agent)}` : "";
-  const settingsArgs = existsSync(SETTINGS_FILE) ? `--settings ${shellQuote(SETTINGS_FILE)}` : "";
+  const settingsArgs = existsSync(SETTINGS_FILE)
+    ? `--settings ${shellQuote(SETTINGS_FILE)}`
+    : "";
 
   // Worker identity env vars — inherited by Claude process and all hooks
   const envExports = [
     `export CLAUDE_WORKER_TASK_ID=${shellQuote(taskId)}`,
     workerName ? `export CLAUDE_WORKER_NAME=${shellQuote(workerName)}` : "",
-    maxTurns ? `export CLAUDE_WORKER_MAX_TURNS=${shellQuote(String(maxTurns))}` : "",
-    permissionMode && permissionMode !== "acceptEdits" ? `export CLAUDE_WORKER_PERMISSION_MODE=${shellQuote(permissionMode)}` : "",
-  ].filter(Boolean).join(" && ");
+    maxTurns
+      ? `export CLAUDE_WORKER_MAX_TURNS=${shellQuote(String(maxTurns))}`
+      : "",
+    permissionMode && permissionMode !== "acceptEdits"
+      ? `export CLAUDE_WORKER_PERMISSION_MODE=${shellQuote(permissionMode)}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" && ");
 
   // Transcript file for true resume capability
   const transcriptFile = resultFile.replace(/\.txt$/, ".transcript");
@@ -254,8 +361,8 @@ export function buildInteractiveWorkerScript(opts) {
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     // unset CLAUDECODE prevents child inheriting parent session env
     `unset CLAUDECODE && ${scriptWrapped}` +
-    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-    `; rm -f ${qPid}`,
+      `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
+      `; rm -f ${qPid}`,
   ].join(" && ");
 }
 
@@ -266,10 +373,8 @@ export function buildInteractiveWorkerScript(opts) {
  * @returns {string} Shell script string
  */
 export function buildCodexWorkerScript(opts) {
-  const {
-    taskId, workDir, resultFile, pidFile, metaFile,
-    model, promptFile,
-  } = opts;
+  const { taskId, workDir, resultFile, pidFile, metaFile, model, promptFile } =
+    opts;
   const platformName = opts.platformName ?? cfg().PLATFORM;
 
   // Windows not yet supported for Codex workers
@@ -284,7 +389,8 @@ export function buildCodexWorkerScript(opts) {
   const qMetaDone = shellQuote(`${metaFile}.done`);
   const qTaskId = shellQuote(taskId);
   // Codex uses -m for model; default is fine if not specified
-  const modelArgs = model && model !== "sonnet" ? `-m ${shellQuote(model)}` : "";
+  const modelArgs =
+    model && model !== "sonnet" ? `-m ${shellQuote(model)}` : "";
 
   return [
     `cd ${qDir}`,
@@ -292,8 +398,8 @@ export function buildCodexWorkerScript(opts) {
     `echo $$ > ${qPid}`,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     `codex exec "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs} >> ${qResult} 2>&1` +
-    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-    `; rm -f ${qPid}`,
+      `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
+      `; rm -f ${qPid}`,
   ].join(" && ");
 }
 
@@ -304,10 +410,8 @@ export function buildCodexWorkerScript(opts) {
  * @returns {string} Shell script string
  */
 export function buildCodexInteractiveWorkerScript(opts) {
-  const {
-    taskId, workDir, resultFile, pidFile, metaFile,
-    model, promptFile,
-  } = opts;
+  const { taskId, workDir, resultFile, pidFile, metaFile, model, promptFile } =
+    opts;
   const platformName = opts.platformName ?? cfg().PLATFORM;
 
   if (platformName === "win32") {
@@ -319,15 +423,16 @@ export function buildCodexInteractiveWorkerScript(opts) {
   const qPrompt = shellQuote(promptFile);
   const qMetaDone = shellQuote(`${metaFile}.done`);
   const qTaskId = shellQuote(taskId);
-  const modelArgs = model && model !== "sonnet" ? `-m ${shellQuote(model)}` : "";
+  const modelArgs =
+    model && model !== "sonnet" ? `-m ${shellQuote(model)}` : "";
 
   return [
     `cd ${qDir}`,
     `echo $$ > ${qPid}`,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     `codex "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs}` +
-    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-    `; rm -f ${qPid}`,
+      `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
+      `; rm -f ${qPid}`,
   ].join(" && ");
 }
 
@@ -350,8 +455,15 @@ export function buildCodexInteractiveWorkerScript(opts) {
 export function buildWorkerScript(opts) {
   const { PLATFORM, SETTINGS_FILE, CLAUDE_BIN } = cfg();
   const {
-    taskId, workDir, resultFile, pidFile, metaFile,
-    model, agent, promptFile, workerPs1File = "",
+    taskId,
+    workDir,
+    resultFile,
+    pidFile,
+    metaFile,
+    model,
+    agent,
+    promptFile,
+    workerPs1File = "",
   } = opts;
   const platformName = opts.platformName ?? PLATFORM;
 
@@ -371,7 +483,9 @@ export function buildWorkerScript(opts) {
     const qModel = shellQuote(model);
     const qClaudeBin = shellQuote(CLAUDE_BIN);
     const agentArgs = agent ? `--agent ${shellQuote(agent)}` : "";
-    const settingsArgs = existsSync(SETTINGS_FILE) ? `--settings ${shellQuote(SETTINGS_FILE)}` : "";
+    const settingsArgs = existsSync(SETTINGS_FILE)
+      ? `--settings ${shellQuote(SETTINGS_FILE)}`
+      : "";
     const qTaskId = shellQuote(taskId);
     return [
       `cd ${qDir}`,

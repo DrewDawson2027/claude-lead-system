@@ -742,7 +742,11 @@ export function handleKillWorker(args) {
     writeFileSecure(metaFile, JSON.stringify(existingMeta, null, 2));
     try {
       unlinkSync(pidFile);
-    } catch {}
+    } catch (e) {
+      process.stderr.write(
+        `[workers] pid file cleanup failed: ${e?.message ?? e}\n`,
+      );
+    }
     return text(`Worker ${task_id} (PID ${pid}) killed.`);
   } catch (err) {
     return text(`Could not kill ${task_id} (PID ${pid}): ${err.message}`);
