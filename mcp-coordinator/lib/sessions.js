@@ -146,6 +146,61 @@ export function handleGetSession(args) {
 }
 
 /**
+ * Handle coord_discover_peers — returns list of teammates for a team.
+ * Matches native Agent Teams' peer discovery. (Gap 3)
+ * @param {object} args - { team_name }
+ * @returns {object} MCP text response
+ */
+export function handleDiscoverPeers(args) {
+  const { RESULTS_DIR } = cfg();
+  const teamName = args.team_name ? String(args.team_name).trim() : null;
+  if (!teamName) return text("team_name is required.");
+
+  const sessions = getAllSessions();
+  const peers = [];
+
+  // Scan meta files for workers in this team
+  try {
+    const files = readdirSync(RESULTS_DIR).filter(
+      (f) => f.endsWith(".meta.json") && !f.includes(".done"),
+    );
+    for (const f of files) {
+      const meta = readJSON(join(RESULTS_DIR, f));
+      if (!meta || meta.team_name !== teamName) continue;
+      // Find matching session for this worker
+      const workerSession = sessions.find(
+        (s) => s.current_task === meta.task_id,
+      );
+      const status = workerSession
+        ? getSessionStatus(workerSession)
+        : "unknown";
+      peers.push({
+        name: meta.worker_name || meta.task_id,
+        task_id: meta.task_id,
+        session_id: workerSession?.session || null,
+        tmux_pane_id: meta.tmux_pane_id || null,
+        role: meta.role || "custom",
+        model: meta.model,
+        status,
+        permission_mode: meta.permission_mode,
+      });
+    }
+  } catch {}
+
+  if (peers.length === 0) {
+    return text(`No peers found in team "${teamName}".`);
+  }
+
+  let output = `## Team: ${teamName} — ${peers.length} peer(s)\n\n`;
+  output += `| Name | Task ID | Session | Pane | Role | Status |\n`;
+  output += `|------|---------|---------|------|------|--------|\n`;
+  for (const p of peers) {
+    output += `| ${p.name} | ${p.task_id} | ${p.session_id || "—"} | ${p.tmux_pane_id || "—"} | ${p.role} | ${p.status} |\n`;
+  }
+  return text(output);
+}
+
+/**
  * Handle coord_boot_snapshot — pre-formatted dashboard replacing raw JSON boot loop.
  * Returns: session table, conflict report, per-project git summary, recommendations.
  * @param {object} args - { include_git?: boolean }

@@ -37,12 +37,14 @@ import {
   handleGetSession,
   getSessionStatus,
   handleBootSnapshot,
+  handleDiscoverPeers,
 } from "./lib/sessions.js";
 import {
   handleCheckInbox,
   handleSendMessage,
   handleBroadcast,
   handleSendDirective,
+  handleSendProtocol,
 } from "./lib/messaging.js";
 import { handleDetectConflicts } from "./lib/conflicts.js";
 import {
@@ -230,6 +232,8 @@ const CORE_TOOLS = new Set([
   "coord_broadcast",
   "coord_send_message",
   "coord_send_directive",
+  "coord_send_protocol",
+  "coord_discover_peers",
   "coord_boot_snapshot",
 ]);
 
@@ -433,7 +437,16 @@ const ALL_TOOLS = [
         },
         permission_mode: {
           type: "string",
-          enum: ["acceptEdits", "planOnly", "readOnly", "editOnly"],
+          enum: [
+            "acceptEdits",
+            "bypassPermissions",
+            "default",
+            "dontAsk",
+            "plan",
+            "planOnly",
+            "readOnly",
+            "editOnly",
+          ],
           description:
             "Worker permission mode. acceptEdits (default, full access), planOnly (plan approval required before edits), readOnly (Read/Grep/Glob only — for research workers), editOnly (Read/Edit/Write only, no Bash — safe editing). ENFORCED by hook.",
         },
@@ -998,7 +1011,16 @@ const ALL_TOOLS = [
         require_plan: { type: "boolean" },
         permission_mode: {
           type: "string",
-          enum: ["acceptEdits", "planOnly", "readOnly", "editOnly"],
+          enum: [
+            "acceptEdits",
+            "bypassPermissions",
+            "default",
+            "dontAsk",
+            "plan",
+            "planOnly",
+            "readOnly",
+            "editOnly",
+          ],
         },
         context_level: {
           type: "string",
@@ -1382,6 +1404,11 @@ const ALL_TOOLS = [
             "Worker name to message (resolves to session ID). Use this OR to.",
         },
         content: { type: "string", description: "Message content" },
+        summary: {
+          type: "string",
+          description:
+            "5-10 word preview of message content (matches native SendMessage UI preview)",
+        },
         priority: {
           type: "string",
           enum: ["normal", "urgent"],
@@ -1389,6 +1416,66 @@ const ALL_TOOLS = [
         },
       },
       required: ["from", "content"],
+    },
+  },
+  // ── Send Protocol (structured handshake messages) ──
+  {
+    name: "coord_send_protocol",
+    description:
+      "Send structured protocol messages matching native SendMessage types. Supports shutdown_request, shutdown_response, and plan_approval_response.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        type: {
+          type: "string",
+          enum: [
+            "shutdown_request",
+            "shutdown_response",
+            "plan_approval_response",
+          ],
+          description: "Protocol message type",
+        },
+        recipient: {
+          type: "string",
+          description: "Worker name to send to (resolves to session ID)",
+        },
+        to: {
+          type: "string",
+          description: "Target session ID (alternative to recipient)",
+        },
+        from: { type: "string", description: "Sender identifier" },
+        request_id: {
+          type: "string",
+          description:
+            "Request ID for matching request/response pairs (auto-generated if omitted)",
+        },
+        approve: {
+          type: "boolean",
+          description:
+            "For shutdown_response and plan_approval_response: whether to approve",
+        },
+        content: {
+          type: "string",
+          description: "For plan_approval_response: feedback or revision notes",
+        },
+      },
+      required: ["type"],
+    },
+  },
+  // ── Discover Peers (teammate discovery) ──
+  {
+    name: "coord_discover_peers",
+    description:
+      "Returns list of teammates in a team with names, session IDs, pane IDs, roles, and status. Matches native Agent Teams peer discovery.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        team_name: {
+          type: "string",
+          description: "Team name to discover peers for",
+        },
+      },
+      required: ["team_name"],
     },
   },
   // ── Boot Snapshot (pre-formatted dashboard) ──
@@ -1635,6 +1722,12 @@ function handleToolCall(name, args = {}) {
         break;
       case "coord_send_directive":
         result = handleSendDirective(args);
+        break;
+      case "coord_send_protocol":
+        result = handleSendProtocol(args);
+        break;
+      case "coord_discover_peers":
+        result = handleDiscoverPeers(args);
         break;
       case "coord_boot_snapshot":
         result = handleBootSnapshot(args);

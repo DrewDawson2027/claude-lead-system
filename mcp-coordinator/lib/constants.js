@@ -40,12 +40,24 @@ export function cfg() {
     PLATFORM: process.env.COORDINATOR_PLATFORM || platform(),
     TEST_MODE: process.env.COORDINATOR_TEST_MODE === "1",
     CLAUDE_BIN: process.env.COORDINATOR_CLAUDE_BIN || "claude",
-    MAX_MESSAGE_BYTES: Number(process.env.COORDINATOR_MAX_MESSAGE_BYTES || 8192),
+    MAX_MESSAGE_BYTES: Number(
+      process.env.COORDINATOR_MAX_MESSAGE_BYTES || 8192,
+    ),
     MAX_INBOX_LINES: Number(process.env.COORDINATOR_MAX_INBOX_LINES || 500),
-    MAX_INBOX_BYTES: Number(process.env.COORDINATOR_MAX_INBOX_BYTES || 256 * 1024),
-    MAX_MESSAGES_PER_MINUTE: Number(process.env.COORDINATOR_MAX_MESSAGES_PER_MINUTE || 120),
-    SESSION_ACTIVE_SECONDS: Number(process.env.COORDINATOR_SESSION_ACTIVE_SECONDS || 180),
-    SESSION_IDLE_SECONDS: Number(process.env.COORDINATOR_SESSION_IDLE_SECONDS || 600),
-    GC_MAX_AGE_MS: Number(process.env.COORDINATOR_GC_MAX_AGE_MS || 24 * 60 * 60 * 1000), // 24h default
+    MAX_INBOX_BYTES: Number(
+      process.env.COORDINATOR_MAX_INBOX_BYTES || 256 * 1024,
+    ),
+    MAX_MESSAGES_PER_MINUTE: Number(
+      process.env.COORDINATOR_MAX_MESSAGES_PER_MINUTE || 120,
+    ),
+    SESSION_ACTIVE_SECONDS: Number(
+      process.env.COORDINATOR_SESSION_ACTIVE_SECONDS || 30,
+    ),
+    SESSION_IDLE_SECONDS: Number(
+      process.env.COORDINATOR_SESSION_IDLE_SECONDS || 60,
+    ),
+    GC_MAX_AGE_MS: Number(
+      process.env.COORDINATOR_GC_MAX_AGE_MS || 24 * 60 * 60 * 1000,
+    ), // 24h default
   };
 }
