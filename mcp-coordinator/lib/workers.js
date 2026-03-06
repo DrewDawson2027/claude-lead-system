@@ -6,6 +6,8 @@
 import {
   existsSync,
   readFileSync,
+  writeFileSync,
+  appendFileSync,
   readdirSync,
   mkdirSync,
   chmodSync,
@@ -935,4 +937,57 @@ export function handleSpawnTerminal(args) {
   } catch (err) {
     return text(`Failed to spawn terminal: ${err.message}`);
   }
+}
+
+/**
+ * Handle coord_worker_report — workers write progress; lead reads on demand.
+ * Reports stored at ~/.claude/terminals/reports/{task_id}.jsonl
+ * @param {object} args - { task_id, action, status, summary, files_changed, blockers }
+ * @returns {object} MCP text response
+ */
+export function handleWorkerReport(args) {
+  const taskId = sanitizeId(args.task_id);
+  const { TERMINALS_DIR } = cfg();
+  const reportsDir = join(TERMINALS_DIR, "reports");
+  mkdirSync(reportsDir, { recursive: true });
+  const reportFile = join(reportsDir, `${taskId}.jsonl`);
+
+  const action = args.action || "read";
+
+  if (action === "write") {
+    if (!args.status || !args.summary) {
+      return text("Error: status and summary are required for write action.");
+    }
+    const entry = {
+      timestamp: new Date().toISOString(),
+      status: args.status,
+      summary: args.summary,
+      files_changed: args.files_changed || [],
+      blockers: args.blockers || null,
+    };
+    appendFileSync(reportFile, JSON.stringify(entry) + "\n");
+    return text(`Report recorded for ${taskId}: ${args.status}`);
+  }
+
+  // action === "read"
+  if (!existsSync(reportFile)) {
+    return text(`No reports found for task ${taskId}.`);
+  }
+  const lines = readFileSync(reportFile, "utf-8")
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+  if (lines.length === 0) return text(`No reports found for task ${taskId}.`);
+
+  const latest = JSON.parse(lines[lines.length - 1]);
+  let out = `## Worker Report: ${taskId}\n\n`;
+  out += `**Status:** ${latest.status}\n`;
+  out += `**Last Update:** ${latest.timestamp}\n`;
+  out += `**Summary:** ${latest.summary}\n`;
+  if (latest.blockers) out += `**Blockers:** ${latest.blockers}\n`;
+  if (latest.files_changed?.length) {
+    out += `**Files Changed:** ${latest.files_changed.map((f) => basename(f)).join(", ")}\n`;
+  }
+  out += `\n_${lines.length} total report(s)_\n`;
+  return text(out);
 }
