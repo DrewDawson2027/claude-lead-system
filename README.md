@@ -4,7 +4,7 @@
 
 ### Zero-token multi-agent orchestration for Claude Code
 
-**Agent Teams costs 2-3x more tokens. This does the same thing — plus 13 features it can't do — for free.**
+**Agent Teams costs 3-4x more tokens. This does the same thing — plus 13 features it can't do — for free.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml/badge.svg)](https://github.com/DrewDawson2027/claude-lead-system/actions/workflows/ci.yml)
@@ -21,7 +21,7 @@ Agent Teams gives you multi-agent coordination — but every teammate maintains 
 
 **The Lead System replaces all coordination with filesystem operations.** Shell hooks write JSON state files on every tool call. The lead session reads a few KB of JSON instead of parsing megabytes of transcripts. Workers get a task, execute it, return a result, and exit — no idle cost, no context growth from coordination.
 
-Same capabilities as Agent Teams. Plus 13 features it can't do. 50-60% lower cost.
+Same capabilities as Agent Teams. Plus 13 features it can't do. 75-90% lower cost.
 
 ---
 
@@ -69,7 +69,7 @@ Release channels: [docs/RELEASE_CHANNELS.md](docs/RELEASE_CHANNELS.md)
 
 ![Lead orchestrating 2 workers — conflict detection, messaging, cost comparison](assets/demo/demo-hero.gif)
 
-> **Demo:** Workers A and B running autonomously → Lead boots `/lead` dashboard → Detects file conflict on `src/auth.ts` → Sends new instructions to both workers → Workers pivot → Cost comparison: **$3.51 vs $8.10**. [[Download full video (45s)]](assets/demo/demo-final.mp4)
+> **Demo:** Workers A and B running autonomously → Lead boots `/lead` dashboard → Detects file conflict on `src/auth.ts` → Sends new instructions to both workers → Workers pivot → Cost comparison: **$0.61 vs $6.30**. [[Download full video (45s)]](assets/demo/demo-final.mp4)
 
 ---
 
@@ -93,23 +93,23 @@ The Lead System replaces all of that with filesystem coordination.
 
 ```
 Agent Teams (2 teammates, 1 lead):
-  Lead session:     ~150K tokens (Opus)    = $2.25
+  Lead session:     ~150K tokens (Sonnet)  = $0.45
   Teammate A:       ~300K tokens (Sonnet)  = $2.70  ← context grows with every tool call
   Teammate B:       ~250K tokens (Sonnet)  = $2.25  ← sitting idle still costs tokens
   Coordination:     ~100K tokens           = $0.90  ← messaging costs tokens
-  TOTAL                                     $8.10
+  TOTAL                                     $6.30
 
 Lead System (2 workers, 1 lead):
-  Lead session:     ~150K tokens (Opus)    = $2.25
-  Worker 1:         ~80K tokens (Sonnet)   = $0.72  ← does job, exits
-  Worker 2:         ~60K tokens (Sonnet)   = $0.54  ← does job, exits
+  Lead session:     ~150K tokens (Sonnet)  = $0.45
+  Worker 1:         ~40K tokens (Haiku)    = $0.09  ← does job, exits
+  Worker 2:         ~30K tokens (Haiku)    = $0.07  ← does job, exits
   Coordination:     0 tokens (filesystem)  = $0.00  ← hooks + JSON files
-  TOTAL                                     $3.51
+  TOTAL                                     $0.61
 
-  SAVINGS: 57% ($4.59 per task)
+  SAVINGS: 90% ($5.69 per task)
 ```
 
-**Why?** Agent Teams teammates maintain full context windows that grow with every tool call. Lead System workers are stateless — they get a task, execute it, return a result, and exit. Coordination happens through shell hooks and JSON files on disk, not through the API.
+**Why?** Agent Teams teammates maintain full context windows that grow with every tool call. Lead System workers are Haiku-class and stateless — they get a task, execute it, return a result, and exit. Coordination happens through shell hooks and JSON files on disk, not through the API.
 
 ---
 

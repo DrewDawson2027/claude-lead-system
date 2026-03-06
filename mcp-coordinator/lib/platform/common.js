@@ -28,35 +28,36 @@ export function isInsideTmux() {
  */
 export function getCurrentTmuxPane() {
   if (!isInsideTmux()) return null;
-  return process.env.TMUX_PANE || null;
+  try {
+    const result = spawnSync("tmux", ["display-message", "-p", "#{pane_id}"], {
+      encoding: "utf-8",
+      timeout: 3000,
+    });
+    const paneId = (result.stdout || "").trim();
+    if (result.status === 0 && paneId.startsWith("%")) return paneId;
+  } catch {
+    // Fall back to env var if tmux command is unavailable.
+  }
+  const envPane = String(process.env.TMUX_PANE || "").trim();
+  return envPane.startsWith("%") ? envPane : null;
 }
 
 /**
  * Spawn a worker in a new tmux pane (split from current window).
  * Returns the new pane's ID for message injection via send-keys.
  * @param {string} script - Shell command to run in the pane
- * @param {object} [opts] - Options
- * @param {string} [opts.direction] - "h" (horizontal/right) or "v" (vertical/below). Default "h"
- * @param {number} [opts.percentage] - Pane size percentage. Default 50
  * @returns {{ paneId: string, app: string }} Pane ID and app name
  */
-export function spawnTmuxPaneWorker(script, opts = {}) {
-  const direction = opts.direction === "v" ? "-v" : "-h";
-  const percentage = opts.percentage || 50;
-
-  // split-window returns the new pane's ID via -PF
+export function spawnTmuxPaneWorker(script) {
+  // split-window prints the new pane's ID via -P/-F
   const result = spawnSync(
     "tmux",
     [
       "split-window",
-      direction,
-      "-l",
-      `${percentage}%`,
       "-d", // don't switch focus to new pane
-      "-PF",
+      "-P",
+      "-F",
       "#{pane_id}", // print new pane ID
-      "bash",
-      "-lc",
       script,
     ],
     { encoding: "utf-8", timeout: 10000 },
@@ -93,11 +94,11 @@ export function spawnTmuxPaneWorker(script, opts = {}) {
 export function tmuxSendKeys(paneId, text) {
   if (!paneId || !isInsideTmux()) return false;
   try {
-    // Escape special tmux characters in the text
-    const escaped = text.replace(/;/g, "\\;").replace(/"/g, '\\"');
+    const payload = String(text || "").replace(/[\r\n]+/g, " ").trim();
+    if (!payload) return false;
     const result = spawnSync(
       "tmux",
-      ["send-keys", "-t", paneId, escaped, "Enter"],
+      ["send-keys", "-t", paneId, payload, "Enter"],
       { stdio: "ignore", timeout: 5000 },
     );
     return result.status === 0;
@@ -147,7 +148,7 @@ export function getTerminalApp() {
       );
       if (wt.toLowerCase().includes("windowsterminal"))
         return "WindowsTerminal";
-    } catch {}
+    } catch { }
     try {
       const ps = execFileSync(
         "tasklist",
@@ -155,7 +156,7 @@ export function getTerminalApp() {
         { encoding: "utf-8" },
       );
       if (ps.toLowerCase().includes("powershell")) return "PowerShell";
-    } catch {}
+    } catch { }
     return "cmd";
   } else {
     for (const app of [
@@ -330,13 +331,13 @@ export function spawnBackgroundWorker(script, resultFile, pidFile) {
   const child =
     PLATFORM === "win32"
       ? spawn("cmd", ["/c", script], {
-          detached: true,
-          stdio: ["ignore", out, out],
-        })
+        detached: true,
+        stdio: ["ignore", out, out],
+      })
       : spawn("sh", ["-c", script], {
-          detached: true,
-          stdio: ["ignore", out, out],
-        });
+        detached: true,
+        stdio: ["ignore", out, out],
+      });
   writeFileSync(pidFile, String(child.pid));
   child.unref();
   closeSync(out);
@@ -512,10 +513,10 @@ export function buildInteractiveWorkerScript(opts) {
       `SF="$HOME/.claude/terminals/session-${sid8}.json"`,
       `[ ! -f "$SF" ] && continue`,
       `AGE=$(( $(date +%s) - $(stat -f %m "$SF" 2>/dev/null || stat -c %Y "$SF" 2>/dev/null || echo $(date +%s)) ))`,
-      `if [ "$AGE" -gt 5 ] && [ "$IDLE_SENT" = false ]`,
+      `if [ "$AGE" -gt 30 ] && [ "$IDLE_SENT" = false ]`,
       `then tmux send-keys -t "$CLAUDE_LEAD_PANE_ID" "[IDLE] ${workerDisplay} — no activity for \${AGE}s" Enter 2>/dev/null || true`,
       `IDLE_SENT=true`,
-      `elif [ "$AGE" -le 5 ]`,
+      `elif [ "$AGE" -le 30 ]`,
       `then IDLE_SENT=false`,
       `fi`,
       `done) & _IDLE_PID=$!`,
@@ -637,8 +638,8 @@ export function buildCodexWorkerScript(opts) {
     `echo $$ > ${qPid}`,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     `codex exec "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs} >> ${qResult} 2>&1` +
-      `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-      `; rm -f ${qPid}`,
+    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
+    `; rm -f ${qPid}`,
   ].join(" && ");
 }
 
@@ -670,8 +671,8 @@ export function buildCodexInteractiveWorkerScript(opts) {
     `echo $$ > ${qPid}`,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     `codex "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs}` +
-      `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-      `; rm -f ${qPid}`,
+    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
+    `; rm -f ${qPid}`,
   ].join(" && ");
 }
 

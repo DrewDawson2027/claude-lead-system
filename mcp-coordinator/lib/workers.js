@@ -390,8 +390,23 @@ export function handleSpawnWorker(args) {
 
   // Generate session ID for --session-id + --resume support (Gap 2)
   const claudeSessionId = mode === "interactive" ? randomUUID() : null;
-  // Get lead's tmux pane for bidirectional communication (Gap 4)
-  const leadPaneId = isInsideTmux() ? getCurrentTmuxPane() : null;
+  // Resolve lead's tmux pane for bidirectional communication (Gap 4)
+  let leadPaneId = null;
+  if (notify_session_id) {
+    const leadSessionFile = join(TERMINALS_DIR, `session-${notify_session_id}.json`);
+    if (existsSync(leadSessionFile)) {
+      try {
+        const leadSession = JSON.parse(readFileSync(leadSessionFile, "utf-8"));
+        const pane = String(leadSession?.tmux_pane_id || "").trim();
+        if (pane.startsWith("%")) leadPaneId = pane;
+      } catch {
+        // Ignore malformed session files and continue to local tmux fallback.
+      }
+    }
+  }
+  if (!leadPaneId && isInsideTmux()) {
+    leadPaneId = getCurrentTmuxPane();
+  }
 
   const meta = {
     task_id: taskId,
@@ -539,6 +554,9 @@ export function handleSpawnWorker(args) {
         notify_session_id
           ? `- Message the lead: \`coord_send_message from="${workerName || taskId}" to="${notify_session_id}" content="..." summary="<5-10 word preview>"\``
           : `- No lead session — write findings to ~/.claude/session-cache/coder-context.md`,
+        notify_session_id
+          ? `  Example: \`coord_send_message from="${workerName || taskId}" to="${notify_session_id}" content="Need guidance on API contract" summary="Blocked on API contract"\``
+          : ``,
         `- Messages from the lead appear as "--- INCOMING MESSAGES FROM COORDINATOR ---" before your tool calls`,
         `- If you receive instructions from the lead, prioritize them immediately`,
         `- If told to stop, pivot, or change direction — do so without question`,
@@ -566,6 +584,7 @@ export function handleSpawnWorker(args) {
           `You are part of a team. Your output is NOT visible to teammates — use these tools:`,
           `- Discover teammates: \`coord_discover_peers team_name=${teamName}\``,
           `- Message a peer by name: \`coord_send_message from="${workerName || taskId}" target_name="<name>" content="..." summary="<5-10 word preview>"\``,
+          `  Example: \`coord_send_message from="${workerName || taskId}" target_name="reviewer" content="Please validate migration edge cases" summary="Need edge-case review"\``,
           `- Message by session ID: \`coord_send_message from="${workerName || taskId}" to="<session_id>" content="..."\``,
           `- Broadcast to all: \`coord_broadcast from="${workerName || taskId}" content="..."\``,
           `- Shutdown request: \`coord_send_protocol type="shutdown_request" recipient="<name>"\``,
