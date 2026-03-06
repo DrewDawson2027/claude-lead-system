@@ -92,8 +92,8 @@ test('Gap 7: all 8 permission modes are accepted by coord_spawn_worker', async (
       });
       assert.match(textOf(result), /Worker spawned/, `mode "${mode}" should be accepted`);
 
-      // planOnly is an alias that maps to 'plan' in stored meta
-      const expectedInMeta = mode === 'planOnly' ? 'plan' : mode;
+      // Store original mode in meta; planOnly is only mapped to plan for CLI execution.
+      const expectedInMeta = mode;
       const meta = readJson(join(results, `${taskId}.meta.json`));
       assert.equal(
         meta.permission_mode,
