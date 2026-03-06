@@ -3,6 +3,7 @@
  * @module messaging
  */
 
+import { randomUUID } from "crypto";
 import {
   existsSync,
   readdirSync,
