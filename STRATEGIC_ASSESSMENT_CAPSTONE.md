@@ -14,7 +14,7 @@
 
 The Lead System is a custom orchestration layer built on top of Claude Code's native Agent Teams. The `claude-lead-system/` repository contains ~28,400 lines of code (JS/TS/Python/Shell, excluding `node_modules`), with an additional ~19,700 lines in `~/.claude/hooks/` and ~22,800 lines in `~/.claude/scripts/` — totaling ~71,000 lines across the full system surface (measured via `wc -l`). It provides genuine, verified value in security and governance (credential scanning, risky-command taxonomy, trust auditing), operational resilience (conflict detection, checkpoint/restore, self-heal), cost governance (budget gates, spawn governance, read-efficiency enforcement), and observability (HTTP dashboards, agent metrics, SLO checking). These capabilities do not exist in native Claude Code and represent real operational advantages.
 
-However, the system also carries significant architectural debt. Chain integrity — the automated commit-to-review and build-to-simplify-to-verify workflows — remains heuristic rather than mechanistic. Custom task, approval, and shutdown abstractions duplicate native equivalents with less rigor. The hook surface area (55 .py/.sh files in `~/.claude/hooks/`, 27 registered in settings.json across 11 event types) creates latency overhead and maintenance burden that partially erodes the throughput gains the system provides. An extended audit (Revision, Issues #10-20) identified 10 additional quality issues including a supply chain risk in `format-on-edit.py`, overly permissive spawn governance, missing file locking, deprecated agent validation, and token waste from redundant reference doc reads.
+However, the system also carries significant architectural debt. Chain integrity — the automated commit-to-review and build-to-simplify-to-verify workflows — remains heuristic rather than mechanistic. Custom task, approval, and shutdown abstractions duplicate native equivalents with less rigor. The hook surface area (55 .py/.sh files in `~/.claude/hooks/`, 27 registered in settings.json across 11 event types) creates latency overhead and maintenance burden that partially erodes the throughput gains the system provides. Extended audits (Revision 2: Issues #10-20, Revision 3: Issues #21-33) identified 23 additional quality issues across two revision passes, including a supply chain risk in `format-on-edit.py`, overly permissive spawn governance, missing file locking, deprecated agent validation, token waste from redundant reference doc reads, hook latency worst-cases of 66 seconds per Write/Edit and 25 seconds per Task spawn, duplicate warning behavior, overly broad hook matchers, and agent persona redundancy.
 
 **Bottom line:** The correct path is **(c) Thin hybrid layer** — preserve the 16 genuinely differentiated files (across hooks, coordinator, and sidecar), migrate 8 duplicative components to native, and rework the 3 chain dispatchers into proper state machines.
 
@@ -124,6 +124,7 @@ _Usage caveat:_ This grade assumes the HTTP dashboard and metrics endpoints are 
 | Lead   | **B** | `budget-guard.py` enforces rate-limit headroom, `token-guard.py` gates spawn decisions, `cost-tagger.py` tracks attribution — but budget policy is split across multiple files and not unified (Agent 2 finding #4). |
 
 _Change from prior review:_ Lead downgraded from B+ to B. Agent 2 proved budget alignment (#15) was not fully implemented. Revision finding #12 adds that `token-guard-config.json` is extremely permissive (max_agents: 30, max_per_subagent_type: 10, one_per_session: []) — contradicting the "underfund things" principle that justifies the cost governance layer.
+_Revision 3 note:_ `budget-guard.py` fires on ALL tools including cheap Grep/Glob/Read via `.*` matcher (#23) — adding overhead to operations that don't consume external API tokens.
 
 ### Dimension 5: Security & Governance
 
@@ -151,6 +152,7 @@ _Change from prior review:_ No change. Recovery capabilities are verified and un
 | Lead   | **C** | 55 hook files, complex `settings.json`, separate MCP coordinator, sidecar server, multiple config files (`budgets.json`, `token-guard-config.json`, `cost/config.json`) — steep learning curve, high maintenance surface. |
 
 _Change from prior review:_ Lead downgraded from B to C. The 55-hook count and multi-config sprawl represent significant DX debt. Revision findings reinforce this: `read-efficiency-guard.py` actively blocks legitimate code review work (#10), `self-heal.py` generates spurious warnings about deprecated master-agents on every session start (#11), and `auto-lint-installer.py` wastes time running outside git repos (#19).
+_Revision 3 reinforcement:_ Duplicate warning behavior from `result-compressor.py` and `read-efficiency-guard.py` (#22), `tsc --noEmit` blocking up to 15 seconds after every Write/Edit (#24), and overlapping `reviewer`/`quick-reviewer` checklists (#31) further erode developer experience.
 
 ### Dimension 8: Chain / Workflow Automation
 
@@ -160,6 +162,7 @@ _Change from prior review:_ Lead downgraded from B to C. The 55-hook count and m
 | Lead   | **C-** | Chains exist (`auto-review-dispatch.py`, `build-chain-dispatcher.py`) but are heuristic, keyword-based, lossy (6 replay attempts max), and use file-marker completion — both agents flagged this as the #1 architectural weakness. |
 
 _Change from prior review:_ Lead downgraded from B- to C-. Agent 2's chain integrity analysis is devastating: these are not state machines, they are text-pattern matchers with manual done files.
+_Revision 3 note:_ CLAUDE.md claims chains are "hook-enforced — deterministic, not advisory" but this is misleading — chains are instruction-based with delivery limits (#25). Documentation accuracy gap reinforces C- grade.
 
 ### Dimension 9: Scalability
 
@@ -169,6 +172,7 @@ _Change from prior review:_ Lead downgraded from B- to C-. Agent 2's chain integ
 | Lead   | **B-** | Adds queue management and rebalance, but 55 hooks firing per operation create O(hooks × operations) overhead that worsens with team size. |
 
 _Change from prior review:_ Lead downgraded from B to B-. Hook latency accumulates with scale.
+_Revision 3 quantification:_ Worst-case hook latency for a Write/Edit operation is 66 seconds (#32); worst-case Task spawn latency is 25 seconds (#33). These numbers make the scaling problem concrete — O(hooks × operations) is not theoretical, it has measurable upper bounds that approach unusable levels under system load.
 
 ### Dimension 10: Ecosystem Integration
 
@@ -250,6 +254,12 @@ Five representative hooks were benchmarked with realistic JSON input (March 2026
 
 _Note: The original assessment estimated 100-200ms per hook and 400-800ms per tool call. Actual benchmarks show ~3-6x lower latency. The latency overhead is real but less severe than previously claimed._
 
+**Worst-case latency analysis (Revision 3, Issues #32-33):**
+
+- **Write/Edit operation worst-case: 66 seconds.** Sum of all hook timeouts that fire on a Write/Edit: PreToolUse `.*` (11s) + PreToolUse `Write|Edit` (10s) + PostToolUse `.*` (5s) + PostToolUse `Write|Edit` (12s) + PostToolUse `Bash|Read|Edit|Write...` (8s) + tsc inline hook (15s) + format-on-edit timeout (5s) = 66s. While typical execution is 50-200ms, under system load these timeouts become reachable.
+- **Task spawn worst-case: 25 seconds.** PreToolUse `.*` (11s) + PreToolUse `Task` (14s) = 25s for 6 hooks. Agent spawning is already a heavy operation; 25s of hook overhead compounds it.
+- **Implication:** A global hook execution budget (skip advisory hooks if total pre-tool time > 5s) would cap worst-case while preserving hard-block hooks.
+
 ### Throughput Analysis
 
 **Where Lead SAVES throughput:**
@@ -315,6 +325,10 @@ The self-imposed budget policy (`budgets.json`) sets $10/day, $50/week, $200/mon
 5. **3 agents read `elite-engineer-reference.md` (~340 lines, ~1k tokens each)** on every spawn — in the build chain (code-simplifier + verify-app), that's ~2-3k tokens per chain just for reference doc reads. The Opus reviewer reading it is especially expensive.
 6. **`auto-lint-installer.py` runs every SessionStart** even when not in a git repo — wasted execution on every session boot outside of GitHub projects
 7. **`token-guard-config.json` allows 30 agents / 10 per type** with `one_per_session: []` disabled — contradicts "underfund things" philosophy in CLAUDE.md and permits unbounded agent spawn
+8. **`session-slo-check.py` contributes 8 seconds** to startup latency via its timeout — a single SLO check hook that adds more latency than the entire benchmarked per-operation overhead (#21)
+9. **`budget-guard.py` fires on every Grep/Glob/Read** via `.*` matcher — these are cheap local operations that don't consume API tokens and don't need budget checking (#23)
+10. **`tsc --noEmit` inline hook can block 15 seconds** after every Write/Edit operation on large TypeScript projects — type checking overhead that exceeds all other hook latency combined (#24)
+11. **`routing-reminder.py` injects full routing preamble on every message** with full refresh every 25 messages — context overhead on every single user prompt regardless of relevance (#29)
 
 ### Cost of Inaction
 
@@ -345,11 +359,13 @@ These files can be deleted and replaced by native equivalents with zero capabili
 | `mcp-coordinator/lib/shutdown.js` | Native structured shutdown approve/reject is tighter                                                    | 4-8 hours |
 | `hooks/hookify.py`                | Zero active rules, dormant — delete entirely                                                            | 0.5 hours |
 | `hooks/session-busy.sh`           | Minimal value, can be replaced by native presence detection                                             | 1-2 hours |
+| `hooks/routing-reminder.py`       | Full routing preamble injected on every message — context overhead with minimal value. Routing rules already in CLAUDE.md (#29) | 1 hour    |
+| `hooks/result-compressor.py`      | Duplicates `read-efficiency-guard.py` warning behavior (#22). Read-efficiency-guard is the authority since it can block. | 1-2 hours |
 
-**Total effort:** ~18-33 hours (includes integration testing + settings.json cleanup + regression verification per deletion)
+**Total effort:** ~20-37 hours (includes integration testing + settings.json cleanup + regression verification per deletion)
 
 _Note: Original estimates of ~15 hours assumed zero integration testing overhead. Removing a hook that fires on every edit (format-on-edit) or every tool call (session-busy) requires verifying no downstream behavior depends on its side effects._
-**Files deleted:** 8
+**Files deleted:** 10
 **Capability loss:** None
 
 ### Tier 2: Keep Custom (Native Can't Replace)
@@ -386,6 +402,8 @@ These files provide genuinely unique capabilities with no native equivalent.
 | `conflict-guard.sh` | Only checks file paths for collision, not content overlap. Two sessions editing different parts of same file get false-positive warnings. | #15 |
 | `risky-command-guard.py` | "Risky" tier prints a warning but exits 0 — Claude decides whether to proceed. A guard that doesn't guard. | #17 |
 | `session-memory-inject.py` | 32k character cap could truncate important cross-session context as memory database grows. No truncation notice. | #20 |
+| `budget-guard.py` | Matcher is `.*` — fires on ALL tools including cheap Grep/Glob/Read. Should narrow to expensive operations only (`Task\|Bash\|Write\|Edit\|MultiEdit`). | #23 |
+| `credential-guard.py` | Raw env var pattern `^\s*[A-Z_]{4,}=.{8,}$` can false-positive on non-secret vars like `PATH_PREFIX=/usr/local/bin`. Needs allowlist of common non-secret env vars. | #27 |
 
 ### Tier 3: Rework (Keep Intent, Change Architecture)
 
@@ -404,6 +422,8 @@ These files implement the right idea but with the wrong architecture. They need 
 | `hooks/self-heal.py` | EXPECTED_MODE_FILES dict references archived master-agents (master-coder, master-architect, etc.), generating spurious warnings every session. | Remove deprecated validation; validate current agent set (quick-reviewer, fp-checker, code-simplifier, verify-app, reviewer, code-architect, scout, practice-creator). | 2-4 hours |
 | `hooks/token-guard-config.json` | max_agents: 30, max_per_subagent_type: 10 is extremely permissive vs. CLAUDE.md "underfund" philosophy. one_per_session: [] disables a key feature. | Tighten to max_agents: 12, max_per_subagent_type: 4. Populate one_per_session: ["Explore", "Plan"]. Add max_agents_per_chain: 3. | 1-2 hours |
 | `hooks/read-cache.py` | save_index() and load_index() read/write index.json without file locking. Concurrent sessions can corrupt the cache index. | Add fcntl.flock() file locking or atomic write pattern (write to temp file, then os.rename()). | 2-4 hours |
+| `agents/verify-app.md` | Complex STASH_REF tracking with trap-based cleanup. `git stash apply --index` can fail on conflicts; fallback message goes to stdout which agent may not surface (#30). | Simplify: use `git stash push -m "verify-app-$(date)"` with unique ID, explicit conflict detection, emit errors to stderr. | 2-4 hours |
+| `agents/reviewer.md` + `quick-reviewer.md` | Both check for naming issues and dead code at different depth levels. Opus reviewer re-examines things quick-reviewer already caught (#31). | Pass quick-reviewer findings into reviewer prompt, or scope reviewer to security/performance/architecture only. Remove "naming" and "dead code" from reviewer checklist. | 2-4 hours |
 
 **Total effort breakdown with confidence:**
 
@@ -494,6 +514,7 @@ Preserve the genuinely unique Lead capabilities, migrate overlapping orchestrati
 **Days 1-14: Quick wins (Tier 1 migration)**
 
 - **Revision quick fixes (< 1 hour total):** Remove `--yes` from format-on-edit.py's npx call (supply chain risk, Issue #3/18). Gate auto-lint-installer behind `.git` check (Issue #22). Remove deprecated master-agent validation from self-heal.py (Issue #17). Tighten token-guard-config.json limits to max_agents:12 (Issue #18).
+- **Revision 3 quick fixes (< 1 hour total):** Reduce `session-slo-check.py` timeout from 8s to 3s (#21). Narrow `budget-guard.py` matcher from `.*` to `Task|Bash|Write|Edit|MultiEdit` (#23). Fix CLAUDE.md accuracy: change "deterministic, not advisory" to "instruction-based with delivery limits" (#25).
 - Delete 8 files that have native equivalents (hookify.py, format-on-edit.py, teammate-idle.py, task-completed.py, worktree-router.py, session-busy.sh, approval.js, shutdown.js)
 - Update settings.json to remove deleted hook registrations
 - Verify all existing tests still pass
@@ -541,6 +562,7 @@ Preserve the genuinely unique Lead capabilities, migrate overlapping orchestrati
 **Days 61-90: Optimization and documentation**
 
 - **Revision hardening fixes:** Add file locking to read-cache.py (Issue #19). Add content-level diffing to conflict-guard.sh (Issue #20). Add REVIEW_MODE bypass to read-efficiency-guard.py (Issue #16). Inline elite-engineer-reference.md into agent prompts to save ~3k tokens/chain (Issue #21). Add risky-tier blocking or PermissionRequest integration to risky-command-guard.py (Issue #11). Add truncation notice to session-memory-inject.py (Issue #23).
+- **Revision 3 optimization fixes:** Remove duplicate warning behavior from `result-compressor.py` (#22). Add `tsc` skip flag file (`.claude-skip-tsc`) or project-size detection for the 15s inline hook (#24). Add `credential-guard.py` env var allowlist for common non-secret vars like PATH, HOME, NODE_ENV (#27). Deduplicate `reviewer`/`quick-reviewer` checklists — scope reviewer to security/performance/architecture only (#31). Implement global hook execution budget: if total pre-tool hooks exceed 5s, skip advisory-only hooks — keep only hard-block hooks (#32, #33).
 - Remove remaining low-value hooks (routing-reminder.py, cache-warm.py, cost-tagger.py — evaluate each)
 - Target hook count: ≤30 (down from 55)
 - Write ARCHITECTURE.md documenting what's Lead vs Native and why
@@ -552,9 +574,9 @@ Preserve the genuinely unique Lead capabilities, migrate overlapping orchestrati
 
 ---
 
-## 7. Consolidated Issue List (Top 25)
+## 7. Consolidated Issue List (Top 37)
 
-### Code Issues (15 items)
+### Code Issues (17 items)
 
 | Priority | Issue | Source | File | Severity | Fix Recommendation |
 | -------- | ----- | ------ | ---- | -------- | ------------------ |
@@ -573,8 +595,10 @@ Preserve the genuinely unique Lead capabilities, migrate overlapping orchestrati
 | 13 | `hookify.py` is dormant — no active rules (`hookify-rules.json`={}) | Agent 2 | `hookify.py`, `hookify-rules.json` | ⚠️ Medium | Delete entirely |
 | 14 | `check-inbox.sh` runs on EVERY tool call via `.*` matcher | Agent 3 | `settings.json` | ⚠️ Medium | Change matcher to coordinator-active-only condition |
 | 15 | `read-cache.py` save_index() has no file locking | Revision | `read-cache.py` | ⚠️ Medium | Add fcntl.flock() or atomic write (write to temp, then os.rename) |
+| 16 | Hook latency worst-case: 66 seconds for Write/Edit operations | Revision 3 | aggregate (all hooks) | ⚠️ High | Global hook execution budget: skip advisory hooks if total pre-tool time >5s. Reduce individual timeouts. Circuit breaker at hook runner level. |
+| 17 | Task spawn latency worst-case: 25 seconds (6 hooks per spawn) | Revision 3 | aggregate (all hooks) | ⚠️ High | Same global budget approach. Make `worktree-router.py` lazy — only run when task prompt contains branch keywords. |
 
-### Hook Quality Issues (6 items, from Revision)
+### Hook Quality Issues (14 items)
 
 | Priority | Issue | Source | File | Severity | Fix Recommendation |
 | -------- | ----- | ------ | ---- | -------- | ------------------ |
@@ -584,8 +608,16 @@ Preserve the genuinely unique Lead capabilities, migrate overlapping orchestrati
 | H4 | `conflict-guard.sh` only checks paths, not content overlap | Revision | `conflict-guard.sh` | ⚠️ Medium | Add content-level diffing or line-range tracking to reduce false positives |
 | H5 | 3 agents read `elite-engineer-reference.md` every spawn (~3k tokens) | Revision | `code-simplifier.md`, `reviewer.md`, `code-architect.md` | ⚠️ Medium | Inline top 5-10 principles into each prompt, or create 50-line condensed version |
 | H6 | `session-memory-inject.py` 32k char cap may truncate important context | Revision | `session-memory-inject.py` | ⚠️ Low | Prioritize by recency/relevance; add "truncated: X entries omitted" notice |
+| H7 | `session-slo-check.py` 8-second timeout adds to startup latency | Revision 3 | `session-slo-check.py` | ⚠️ Medium | Reduce timeout to 3s or make async — deliver SLO warnings via inbox on next tool call |
+| H8 | `result-compressor.py` duplicates `read-efficiency-guard.py` warnings | Revision 3 | `result-compressor.py`, `read-efficiency-guard.py` | ⚠️ Medium | Designate one authority for large-result warnings; remove duplicate detection from the other |
+| H9 | `budget-guard.py` fires on ALL tools via `.*` matcher | Revision 3 | `budget-guard.py` | ⚠️ Medium | Narrow matcher to `Task\|Bash\|Write\|Edit\|MultiEdit` (expensive operations only) |
+| H10 | `tsc --noEmit` inline hook has 15-second timeout | Revision 3 | `settings.json` (inline hook) | ⚠️ Medium | Add project-size detection, skip flag file, or reduce timeout to 8s |
+| H11 | `credential-guard.py` env var pattern false-positives | Revision 3 | `credential-guard.py` | ⚠️ Low | Add allowlist of common non-secret env vars (PATH, HOME, NODE_ENV, etc.) |
+| H12 | `routing-reminder.py` injects full preamble on every message | Revision 3 | `routing-reminder.py` | ⚠️ Low | Reduce to first message + every 50th, or only on agent-dispatch messages |
+| H13 | `verify-app` agent stash handling complexity | Revision 3 | `verify-app.md` | ⚠️ Low | Simplify stash management; use unique identifiers; emit errors to stderr |
+| H14 | `reviewer` agent overlaps with `quick-reviewer` | Revision 3 | `reviewer.md`, `quick-reviewer.md` | ⚠️ Low | Pass quick-reviewer findings into reviewer; scope reviewer to security/performance/architecture |
 
-### Governance Gaps (4 items)
+### Governance Gaps (6 items)
 
 These are policy/documentation issues, not code bugs. They represent gaps between what the system claims and what is mechanically enforced.
 
@@ -595,6 +627,8 @@ These are policy/documentation issues, not code bugs. They represent gaps betwee
 | G2 | `auto-lint-installer.py` runs every SessionStart even outside repos | Revision | `auto-lint-installer.py` | ⚠️ Low | Gate behind `os.path.isdir(".git")` check; add "already installed" cache |
 | G3 | README over-claims parity and cost delta | Agent 1 | `README.md` | ⚠️ Low | Rewrite claims to match verified parity matrix and corrected cost analysis |
 | G4 | Custom approval/shutdown weaker than native structured protocol | Agent 1 | `approval.js`, `shutdown.js` | ⚠️ Low | Migrate to native plan approval and shutdown protocol (Tier 1) |
+| G5 | CLAUDE.md claims chains are "deterministic, not advisory" — misleading | Revision 3 | `CLAUDE.md` | ⚠️ Medium | Update to "instruction-based with delivery limits" or implement state machine so claim becomes true |
+| G6 | `check-inbox.sh` hook ordering dependency is implicit | Revision 3 | `check-inbox.sh`, `settings.json` | ⚠️ Low | Document ordering in settings.json or add self-heal validation for hook array order |
 
 ---
 
@@ -605,7 +639,8 @@ These are policy/documentation issues, not code bugs. They represent gaps betwee
 - **Agent 1:** `claude-lead-system/LEAD_SYSTEM_REVIEW_PART1_APPLICATION_CODE.md` — Application code review covering mcp-coordinator and sidecar
 - **Agent 2:** `control-plane-review-part2.md` — Control plane review covering ~/.claude/ hooks, agents, scripts, and config
 - **Agent 3 (this document):** Strategic synthesis, competitive analysis, migration framework
-- **Revision:** `Revision work 2.rtf` — 11 additional TIER 3 issues (#10-20) from extended control plane audit, adding supply chain risk, config permissiveness, file locking, and token waste findings
+- **Revision 2:** `Revision work 2.rtf` — 11 additional TIER 3 issues (#10-20) from extended control plane audit, adding supply chain risk, config permissiveness, file locking, and token waste findings
+- **Revision 3:** `Revision 3.rtf` — 13 additional TIER 3/4 issues (#21-33) from extended control plane audit, adding hook latency worst-cases (66s Write/Edit, 25s Task spawn), duplicate warning behavior, overly broad matchers, documentation accuracy gaps, and agent persona redundancy findings
 
 ### Evidence Verification
 

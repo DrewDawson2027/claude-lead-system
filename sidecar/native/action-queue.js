@@ -1,26 +1,45 @@
-import { randomUUID } from 'crypto';
-import { join } from 'path';
-import { ensureDirs, writeJSON, readJSON, listDir, removeFile } from '../core/fs-utils.js';
+import { randomUUID } from "crypto";
+import { join } from "path";
+import {
+  ensureDirs,
+  writeJSON,
+  readJSON,
+  listDir,
+  removeFile,
+} from "../core/fs-utils.js";
 
-const STATES = ['pending', 'inflight', 'done', 'failed'];
+const STATES = ["pending", "inflight", "done", "failed"];
 
 export class ActionQueue {
   constructor(paths) {
     this.paths = paths;
-    ensureDirs([paths.actionsRootDir, paths.actionsPendingDir, paths.actionsInflightDir, paths.actionsDoneDir, paths.actionsFailedDir]);
+    ensureDirs([
+      paths.actionsRootDir,
+      paths.actionsPendingDir,
+      paths.actionsInflightDir,
+      paths.actionsDoneDir,
+      paths.actionsFailedDir,
+    ]);
   }
 
   _dirFor(state) {
     switch (state) {
-      case 'pending': return this.paths.actionsPendingDir;
-      case 'inflight': return this.paths.actionsInflightDir;
-      case 'done': return this.paths.actionsDoneDir;
-      case 'failed': return this.paths.actionsFailedDir;
-      default: throw new Error(`Unknown action queue state: ${state}`);
+      case "pending":
+        return this.paths.actionsPendingDir;
+      case "inflight":
+        return this.paths.actionsInflightDir;
+      case "done":
+        return this.paths.actionsDoneDir;
+      case "failed":
+        return this.paths.actionsFailedDir;
+      default:
+        throw new Error(`Unknown action queue state: ${state}`);
     }
   }
 
   _path(state, action_id) {
+    if (!/^[A-Za-z0-9_.-]{1,128}$/.test(action_id))
+      throw new Error("Invalid action_id");
     return join(this._dirFor(state), `${action_id}.json`);
   }
 
@@ -29,15 +48,15 @@ export class ActionQueue {
     const now = new Date().toISOString();
     const full = {
       action_id,
-      state: 'pending',
+      state: "pending",
       created_at: now,
       updated_at: now,
       retry_count: 0,
       fallback_history: [],
-      audit: [{ ts: now, type: 'queued' }],
+      audit: [{ ts: now, type: "queued" }],
       ...record,
     };
-    writeJSON(this._path('pending', action_id), full);
+    writeJSON(this._path("pending", action_id), full);
     return full;
   }
 
@@ -57,21 +76,33 @@ export class ActionQueue {
   list(limit = 200) {
     const out = [];
     for (const s of STATES) {
-      for (const f of listDir(this._dirFor(s)).filter((x) => x.endsWith('.json')).sort()) {
+      for (const f of listDir(this._dirFor(s))
+        .filter((x) => x.endsWith(".json"))
+        .sort()) {
         const v = readJSON(join(this._dirFor(s), f));
         if (v) out.push(v);
       }
     }
-    out.sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+    out.sort((a, b) =>
+      String(b.updated_at || "").localeCompare(String(a.updated_at || "")),
+    );
     return out.slice(0, limit);
   }
 
   counts() {
     return {
-      pending: listDir(this.paths.actionsPendingDir).filter((x) => x.endsWith('.json')).length,
-      inflight: listDir(this.paths.actionsInflightDir).filter((x) => x.endsWith('.json')).length,
-      done: listDir(this.paths.actionsDoneDir).filter((x) => x.endsWith('.json')).length,
-      failed: listDir(this.paths.actionsFailedDir).filter((x) => x.endsWith('.json')).length,
+      pending: listDir(this.paths.actionsPendingDir).filter((x) =>
+        x.endsWith(".json"),
+      ).length,
+      inflight: listDir(this.paths.actionsInflightDir).filter((x) =>
+        x.endsWith(".json"),
+      ).length,
+      done: listDir(this.paths.actionsDoneDir).filter((x) =>
+        x.endsWith(".json"),
+      ).length,
+      failed: listDir(this.paths.actionsFailedDir).filter((x) =>
+        x.endsWith(".json"),
+      ).length,
     };
   }
 
@@ -84,7 +115,10 @@ export class ActionQueue {
       ...patch,
       state: nextState,
       updated_at: now,
-      audit: [...(found.value.audit || []), { ts: now, type: `state:${nextState}`, patch }],
+      audit: [
+        ...(found.value.audit || []),
+        { ts: now, type: `state:${nextState}`, patch },
+      ],
     };
     const nextPath = this._path(nextState, action_id);
     writeJSON(nextPath, next);
@@ -95,15 +129,24 @@ export class ActionQueue {
   }
 
   markStarted(action_id, patch = {}) {
-    return this._transition(action_id, 'inflight', { started_at: new Date().toISOString(), ...patch });
+    return this._transition(action_id, "inflight", {
+      started_at: new Date().toISOString(),
+      ...patch,
+    });
   }
 
   markCompleted(action_id, patch = {}) {
-    return this._transition(action_id, 'done', { completed_at: new Date().toISOString(), ...patch });
+    return this._transition(action_id, "done", {
+      completed_at: new Date().toISOString(),
+      ...patch,
+    });
   }
 
   markFailed(action_id, patch = {}) {
-    return this._transition(action_id, 'failed', { failed_at: new Date().toISOString(), ...patch });
+    return this._transition(action_id, "failed", {
+      failed_at: new Date().toISOString(),
+      ...patch,
+    });
   }
 
   retry(action_id, patch = {}) {
@@ -116,46 +159,59 @@ export class ActionQueue {
       retry_count: (rec.retry_count || 0) + 1,
       error: null,
     };
-    return this._transition(action_id, 'pending', next);
+    return this._transition(action_id, "pending", next);
   }
 
   recoverStaleInflight(maxAgeMs = 5 * 60_000) {
     const now = Date.now();
     const recovered = [];
-    for (const f of listDir(this.paths.actionsInflightDir).filter((x) => x.endsWith('.json'))) {
+    for (const f of listDir(this.paths.actionsInflightDir).filter((x) =>
+      x.endsWith(".json"),
+    )) {
       const rec = readJSON(join(this.paths.actionsInflightDir, f));
       if (!rec?.action_id) continue;
       const started = rec.started_at || rec.updated_at || rec.created_at;
-      const ageMs = started ? (now - new Date(started).getTime()) : Infinity;
+      const ageMs = started ? now - new Date(started).getTime() : Infinity;
       if (!Number.isFinite(ageMs) || ageMs < maxAgeMs) continue;
       const next = this.markFailed(rec.action_id, {
-        error: { code: 'recovered_after_restart', message: 'Inflight action recovered after sidecar restart/timeout sweep' },
+        error: {
+          code: "recovered_after_restart",
+          message:
+            "Inflight action recovered after sidecar restart/timeout sweep",
+        },
         recovered_at: new Date().toISOString(),
-        recovery_reason: 'stale_inflight',
+        recovery_reason: "stale_inflight",
       });
       recovered.push({ action_id: next.action_id, age_ms: ageMs });
     }
     return recovered;
   }
 
-  sweep({ doneMaxAgeMs = 24 * 60 * 60_000, failedMaxAgeMs = 7 * 24 * 60 * 60_000, pendingMaxAgeMs = 24 * 60 * 60_000 } = {}) {
+  sweep({
+    doneMaxAgeMs = 24 * 60 * 60_000,
+    failedMaxAgeMs = 7 * 24 * 60 * 60_000,
+    pendingMaxAgeMs = 24 * 60 * 60_000,
+  } = {}) {
     const now = Date.now();
     const removed = { pending: 0, done: 0, failed: 0 };
     const sweepState = (state, maxAgeMs) => {
-      for (const f of listDir(this._dirFor(state)).filter((x) => x.endsWith('.json'))) {
+      for (const f of listDir(this._dirFor(state)).filter((x) =>
+        x.endsWith(".json"),
+      )) {
         const p = join(this._dirFor(state), f);
         const rec = readJSON(p);
         if (!rec) continue;
-        const t = rec.updated_at || rec.completed_at || rec.failed_at || rec.created_at;
-        const ageMs = t ? (now - new Date(t).getTime()) : 0;
+        const t =
+          rec.updated_at || rec.completed_at || rec.failed_at || rec.created_at;
+        const ageMs = t ? now - new Date(t).getTime() : 0;
         if (Number.isFinite(ageMs) && ageMs > maxAgeMs) {
           if (removeFile(p)) removed[state] += 1;
         }
       }
     };
-    sweepState('pending', pendingMaxAgeMs);
-    sweepState('done', doneMaxAgeMs);
-    sweepState('failed', failedMaxAgeMs);
+    sweepState("pending", pendingMaxAgeMs);
+    sweepState("done", doneMaxAgeMs);
+    sweepState("failed", failedMaxAgeMs);
     return removed;
   }
 }

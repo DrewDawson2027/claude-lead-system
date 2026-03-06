@@ -2,9 +2,15 @@
  * Pre-destructive-operation backups — snapshot state before teardown/archive/gc/replace.
  */
 
-import { join } from 'path';
-import { readJSON, writeJSON, ensureDir, listDir } from './fs-utils.js';
-import { statSync } from 'fs';
+import { join } from "path";
+import {
+  readJSON,
+  writeJSON,
+  ensureDir,
+  listDir,
+  isPathWithin,
+} from "./fs-utils.js";
+import { statSync } from "fs";
 
 /**
  * Create a backup before a destructive operation.
@@ -27,7 +33,9 @@ export function createPreOpBackup(paths, operation, targets = {}) {
     if (teamData) teamConfigs.push({ file: teamFile, data: teamData });
   } else {
     // Backup all team configs
-    for (const f of listDir(paths.teamsDir).filter(x => x.endsWith('.json'))) {
+    for (const f of listDir(paths.teamsDir).filter((x) =>
+      x.endsWith(".json"),
+    )) {
       const data = readJSON(join(paths.teamsDir, f));
       if (data) teamConfigs.push({ file: f, data });
     }
@@ -41,7 +49,9 @@ export function createPreOpBackup(paths, operation, targets = {}) {
       if (data) taskFiles.push({ file: f, data });
     }
   } else {
-    for (const f of listDir(paths.tasksDir).filter(x => x.endsWith('.json'))) {
+    for (const f of listDir(paths.tasksDir).filter((x) =>
+      x.endsWith(".json"),
+    )) {
       const data = readJSON(join(paths.tasksDir, f));
       if (data) taskFiles.push({ file: f, data });
     }
@@ -56,7 +66,7 @@ export function createPreOpBackup(paths, operation, targets = {}) {
     tasks: taskFiles,
   };
 
-  const safe = operation.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safe = operation.replace(/[^a-zA-Z0-9_-]/g, "_");
   const file = join(paths.backupsDir, `pre-${safe}-${Date.now()}.json`);
   writeJSON(file, backup);
   return { file, operation, targets };
@@ -70,26 +80,30 @@ export function createPreOpBackup(paths, operation, targets = {}) {
  */
 export function listBackups(paths, operation = null) {
   const files = listDir(paths.backupsDir)
-    .filter(f => f.startsWith('pre-') && f.endsWith('.json'))
+    .filter((f) => f.startsWith("pre-") && f.endsWith(".json"))
     .sort();
 
-  return files.map(f => {
-    const fp = join(paths.backupsDir, f);
-    try {
-      const st = statSync(fp);
-      const data = readJSON(fp);
-      if (operation && data?.operation !== operation) return null;
-      return {
-        file: f,
-        path: fp,
-        operation: data?.operation || 'unknown',
-        created_at: data?.created_at || null,
-        teams_count: data?.teams?.length || 0,
-        tasks_count: data?.tasks?.length || 0,
-        size_bytes: st.size,
-      };
-    } catch { return null; }
-  }).filter(Boolean);
+  return files
+    .map((f) => {
+      const fp = join(paths.backupsDir, f);
+      try {
+        const st = statSync(fp);
+        const data = readJSON(fp);
+        if (operation && data?.operation !== operation) return null;
+        return {
+          file: f,
+          path: fp,
+          operation: data?.operation || "unknown",
+          created_at: data?.created_at || null,
+          teams_count: data?.teams?.length || 0,
+          tasks_count: data?.tasks?.length || 0,
+          size_bytes: st.size,
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
 }
 
 /**
@@ -102,25 +116,52 @@ export function listBackups(paths, operation = null) {
  */
 export function restoreFromBackup(paths, backupFile) {
   const backup = readJSON(backupFile);
-  if (!backup) return { restored: false, teams_count: 0, tasks_count: 0, error: 'backup file unreadable' };
+  if (!backup)
+    return {
+      restored: false,
+      teams_count: 0,
+      tasks_count: 0,
+      error: "backup file unreadable",
+    };
 
   if (backup.snapshot) {
-    try { writeJSON(paths.snapshotFile, backup.snapshot); } catch { /* continue */ }
+    try {
+      writeJSON(paths.snapshotFile, backup.snapshot);
+    } catch {
+      /* continue */
+    }
   }
 
   let teamsRestored = 0;
   ensureDir(paths.teamsDir);
-  for (const team of (backup.teams || [])) {
+  for (const team of backup.teams || []) {
     if (!team.file || !team.data) continue;
-    try { writeJSON(join(paths.teamsDir, team.file), team.data); teamsRestored++; } catch { /* skip */ }
+    if (!isPathWithin(paths.teamsDir, team.file)) continue;
+    try {
+      writeJSON(join(paths.teamsDir, team.file), team.data);
+      teamsRestored++;
+    } catch {
+      /* skip */
+    }
   }
 
   let tasksRestored = 0;
   ensureDir(paths.tasksDir);
-  for (const task of (backup.tasks || [])) {
+  for (const task of backup.tasks || []) {
     if (!task.file || !task.data) continue;
-    try { writeJSON(join(paths.tasksDir, task.file), task.data); tasksRestored++; } catch { /* skip */ }
+    if (!isPathWithin(paths.tasksDir, task.file)) continue;
+    try {
+      writeJSON(join(paths.tasksDir, task.file), task.data);
+      tasksRestored++;
+    } catch {
+      /* skip */
+    }
   }
 
-  return { restored: true, restore_mode: 'additive', teams_count: teamsRestored, tasks_count: tasksRestored };
+  return {
+    restored: true,
+    restore_mode: "additive",
+    teams_count: teamsRestored,
+    tasks_count: tasksRestored,
+  };
 }

@@ -1,25 +1,39 @@
-import { realpathSync } from 'fs';
-import { basename, dirname, isAbsolute, relative, resolve as resolvePath } from 'path';
+import { realpathSync } from "fs";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  relative,
+  resolve as resolvePath,
+} from "path";
+
+const SAFE_ID_RE = /^[A-Za-z0-9_.-]{1,128}$/;
+
+function validateId(raw: string): string {
+  if (!raw) return raw;
+  if (!SAFE_ID_RE.test(raw)) throw new Error(`Invalid path segment: ${raw}`);
+  return raw;
+}
 
 export function pathParts(pathname: string): string[] {
-  return String(pathname || '/').split('/');
+  return String(pathname || "/").split("/");
 }
 
 export function teamNameFromPath(pathname: string): string {
-  return decodeURIComponent(pathParts(pathname)[2] || '');
+  return validateId(decodeURIComponent(pathParts(pathname)[2] || ""));
 }
 
 export function taskIdFromTeamTaskPath(pathname: string): string {
-  return decodeURIComponent(pathParts(pathname)[4] || '');
+  return validateId(decodeURIComponent(pathParts(pathname)[4] || ""));
 }
 
 export function actionIdFromPath(pathname: string): string {
-  return decodeURIComponent(pathParts(pathname)[2] || '');
+  return validateId(decodeURIComponent(pathParts(pathname)[2] || ""));
 }
 
 export function lastPathSegment(pathname: string): string {
   const parts = pathParts(pathname);
-  return decodeURIComponent(parts[parts.length - 1] || '');
+  return decodeURIComponent(parts[parts.length - 1] || "");
 }
 
 function resolvePathForContainment(
@@ -31,7 +45,7 @@ function resolvePathForContainment(
   try {
     return pathRealpath(resolved);
   } catch (err: any) {
-    if (err?.code !== 'ENOENT') throw err;
+    if (err?.code !== "ENOENT") throw err;
     let probe = resolved;
     const missingSegments: string[] = [];
     while (true) {
@@ -43,7 +57,7 @@ function resolvePathForContainment(
         const realParent = pathRealpath(probe);
         return resolvePath(realParent, ...missingSegments);
       } catch (parentErr: any) {
-        if (parentErr?.code !== 'ENOENT') throw parentErr;
+        if (parentErr?.code !== "ENOENT") throw parentErr;
       }
     }
   }
@@ -57,9 +71,13 @@ export function isPathWithin(
 ): boolean {
   try {
     const baseReal = pathRealpath(pathResolve(basePath));
-    const candidateReal = resolvePathForContainment(candidatePath, pathResolve, pathRealpath);
+    const candidateReal = resolvePathForContainment(
+      candidatePath,
+      pathResolve,
+      pathRealpath,
+    );
     const rel = relative(baseReal, candidateReal);
-    return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
   } catch {
     return false;
   }

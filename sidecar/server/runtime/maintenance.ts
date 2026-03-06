@@ -1,44 +1,111 @@
 // @ts-nocheck
-import { createHash } from 'crypto';
+import { createHash } from "crypto";
 
-export function createMaintenanceSweep({ actionQueue, paths, findStuckBridgeRequests, sweepBridgeQueues, store, rateLimiter, getAllTasksSnapshot, applyPriorityAging, getTeamsSnapshot, shouldAutoRebalance, coordinatorAdapter, metrics, createCheckpoint, rotateCheckpoints, checkTerminalHealth, suggestRecovery, validateHooks }) {
+export function createMaintenanceSweep({
+  actionQueue,
+  paths,
+  findStuckBridgeRequests,
+  sweepBridgeQueues,
+  store,
+  rateLimiter,
+  getAllTasksSnapshot,
+  applyPriorityAging,
+  getTeamsSnapshot,
+  shouldAutoRebalance,
+  coordinatorAdapter,
+  metrics,
+  createCheckpoint,
+  rotateCheckpoints,
+  checkTerminalHealth,
+  suggestRecovery,
+  validateHooks,
+}) {
   const seenBridgeStuck = new Set();
   let lastCheckpointTime = 0;
   let sweepCount = 0;
   const autoRebalanceTimes = new Map();
 
-  return function maintenanceSweep({ source = 'periodic' } = {}) {
-    const recovered = actionQueue.recoverStaleInflight(Number(process.env.LEAD_SIDECAR_INFLIGHT_STALE_MS || 5 * 60_000));
+  return function maintenanceSweep({ source = "periodic" } = {}) {
+    const recovered = actionQueue.recoverStaleInflight(
+      Number(process.env.LEAD_SIDECAR_INFLIGHT_STALE_MS || 5 * 60_000),
+    );
     const actionGc = actionQueue.sweep({
-      pendingMaxAgeMs: Number(process.env.LEAD_SIDECAR_PENDING_RETENTION_MS || 24 * 60 * 60_000),
-      doneMaxAgeMs: Number(process.env.LEAD_SIDECAR_DONE_RETENTION_MS || 24 * 60 * 60_000),
-      failedMaxAgeMs: Number(process.env.LEAD_SIDECAR_FAILED_RETENTION_MS || 7 * 24 * 60 * 60_000),
+      pendingMaxAgeMs: Number(
+        process.env.LEAD_SIDECAR_PENDING_RETENTION_MS || 24 * 60 * 60_000,
+      ),
+      doneMaxAgeMs: Number(
+        process.env.LEAD_SIDECAR_DONE_RETENTION_MS || 24 * 60 * 60_000,
+      ),
+      failedMaxAgeMs: Number(
+        process.env.LEAD_SIDECAR_FAILED_RETENTION_MS || 7 * 24 * 60 * 60_000,
+      ),
     });
     const bridgeGc = sweepBridgeQueues(paths, {
-      requestMaxAgeMs: Number(process.env.LEAD_SIDECAR_BRIDGE_REQ_RETENTION_MS || 30 * 60_000),
-      responseMaxAgeMs: Number(process.env.LEAD_SIDECAR_BRIDGE_RESP_RETENTION_MS || 30 * 60_000),
+      requestMaxAgeMs: Number(
+        process.env.LEAD_SIDECAR_BRIDGE_REQ_RETENTION_MS || 30 * 60_000,
+      ),
+      responseMaxAgeMs: Number(
+        process.env.LEAD_SIDECAR_BRIDGE_RESP_RETENTION_MS || 30 * 60_000,
+      ),
     });
-    const stuck = findStuckBridgeRequests(paths, Number(process.env.LEAD_SIDECAR_BRIDGE_STUCK_MS || 30_000));
+    const stuck = findStuckBridgeRequests(
+      paths,
+      Number(process.env.LEAD_SIDECAR_BRIDGE_STUCK_MS || 30_000),
+    );
     for (const s of stuck) {
       if (seenBridgeStuck.has(s.request_id)) continue;
       seenBridgeStuck.add(s.request_id);
-      store.raiseAlert({ level: 'warn', code: 'bridge_stuck_request', message: `Bridge request ${s.request_id} stuck for ${s.age_ms}ms`, request_id: s.request_id, team_name: s.team_name || undefined });
+      store.raiseAlert({
+        level: "warn",
+        code: "bridge_stuck_request",
+        message: `Bridge request ${s.request_id} stuck for ${s.age_ms}ms`,
+        request_id: s.request_id,
+        team_name: s.team_name || undefined,
+      });
     }
     rateLimiter.gc();
-    const report = { source, recovered_inflight: recovered.length, action_gc: actionGc, bridge_gc: bridgeGc, stuck_bridge_requests: stuck.length };
-    if (recovered.length || actionGc.pending || actionGc.done || actionGc.failed || bridgeGc.requests || bridgeGc.responses || stuck.length) {
-      store.emitTimeline({ type: 'maintenance.sweep', ...report });
+    const report = {
+      source,
+      recovered_inflight: recovered.length,
+      action_gc: actionGc,
+      bridge_gc: bridgeGc,
+      stuck_bridge_requests: stuck.length,
+    };
+    if (
+      recovered.length ||
+      actionGc.pending ||
+      actionGc.done ||
+      actionGc.failed ||
+      bridgeGc.requests ||
+      bridgeGc.responses ||
+      stuck.length
+    ) {
+      store.emitTimeline({ type: "maintenance.sweep", ...report });
     }
 
     const allTasks = getAllTasksSnapshot();
-    const aged = applyPriorityAging(allTasks, {});
+    const agingResult = applyPriorityAging(allTasks, {});
+    if (agingResult.aged.length > 0) {
+      for (const task of agingResult.tasks) {
+        coordinatorAdapter
+          .execute("update_task", {
+            task_id: task.task_id,
+            priority: task.priority,
+            metadata: task.metadata,
+          })
+          .catch(() => {});
+      }
+      store.emitTimeline({ type: "priority.aged", task_ids: agingResult.aged });
+    }
 
     let autoRebalanced = false;
     for (const teamEntry of getTeamsSnapshot()) {
       const autoConfig = teamEntry.policy?.auto_rebalance;
       if (!autoConfig?.enabled) continue;
       try {
-        const teamSnap = getTeamsSnapshot(true)?.find((t) => t.team_name === teamEntry.team_name);
+        const teamSnap = getTeamsSnapshot(true)?.find(
+          (t) => t.team_name === teamEntry.team_name,
+        );
         if (!teamSnap) continue;
         const check = shouldAutoRebalance(teamSnap, autoConfig);
         if (check.trigger) {
@@ -46,8 +113,18 @@ export function createMaintenanceSweep({ actionQueue, paths, findStuckBridgeRequ
           const lastTime = autoRebalanceTimes.get(teamEntry.team_name) || 0;
           if (Date.now() - lastTime > cooldownMs) {
             autoRebalanceTimes.set(teamEntry.team_name, Date.now());
-            coordinatorAdapter.execute('rebalance', { team_name: teamEntry.team_name, apply: true }).catch(() => {});
-            store.emitTimeline({ type: 'auto_rebalance.triggered', team_name: teamEntry.team_name, reason: check.reason, conditions: check.conditions_met });
+            coordinatorAdapter
+              .execute("rebalance", {
+                team_name: teamEntry.team_name,
+                apply: true,
+              })
+              .catch(() => {});
+            store.emitTimeline({
+              type: "auto_rebalance.triggered",
+              team_name: teamEntry.team_name,
+              reason: check.reason,
+              conditions: check.conditions_met,
+            });
             autoRebalanced = true;
           }
         }
@@ -59,7 +136,7 @@ export function createMaintenanceSweep({ actionQueue, paths, findStuckBridgeRequ
     let checkpointed = false;
     if (Date.now() - lastCheckpointTime > 5 * 60_000) {
       try {
-        createCheckpoint(paths, 'periodic');
+        createCheckpoint(paths, "periodic");
         rotateCheckpoints(paths);
         lastCheckpointTime = Date.now();
         checkpointed = true;
@@ -72,8 +149,14 @@ export function createMaintenanceSweep({ actionQueue, paths, findStuckBridgeRequ
       if (terminalHealth.zombies.length || terminalHealth.dead_shells.length) {
         const suggestions = suggestRecovery(terminalHealth);
         store.raiseAlert({
-          level: 'warn', code: 'terminal_health_issue', message: `Terminal health: ${terminalHealth.summary}`,
-          findings: { zombies: terminalHealth.zombies.length, stale: terminalHealth.stale.length, dead_shells: terminalHealth.dead_shells.length },
+          level: "warn",
+          code: "terminal_health_issue",
+          message: `Terminal health: ${terminalHealth.summary}`,
+          findings: {
+            zombies: terminalHealth.zombies.length,
+            stale: terminalHealth.stale.length,
+            dead_shells: terminalHealth.dead_shells.length,
+          },
           suggestions: suggestions.slice(0, 5),
         });
       }
@@ -85,35 +168,55 @@ export function createMaintenanceSweep({ actionQueue, paths, findStuckBridgeRequ
         const hookReport = validateHooks(paths.hooksDir);
         if (!hookReport.all_valid) {
           store.raiseAlert({
-            level: 'warn', code: 'hook_validation_failure',
-            message: `Hook validation: ${hookReport.hooks.filter(h => h.issues.length).map(h => h.name).join(', ')} have issues`,
-            findings: hookReport.hooks.filter(h => h.issues.length),
+            level: "warn",
+            code: "hook_validation_failure",
+            message: `Hook validation: ${hookReport.hooks
+              .filter((h) => h.issues.length)
+              .map((h) => h.name)
+              .join(", ")} have issues`,
+            findings: hookReport.hooks.filter((h) => h.issues.length),
           });
         }
       } catch {}
     }
 
-    return { ...report, recovered, aged_tasks: aged.length, auto_rebalanced: autoRebalanced, checkpointed, terminal_health: terminalHealth?.summary || null };
+    return {
+      ...report,
+      recovered,
+      aged_tasks: agingResult.aged.length,
+      auto_rebalanced: autoRebalanced,
+      checkpointed,
+      terminal_health: terminalHealth?.summary || null,
+    };
   };
 }
 
 const REDACT_KEY_PATTERNS = /token|secret|password|key|auth|credential/i;
-const REDACT_SAFE_KEYS = new Set(['csrf_token_present', 'api_token_present', 'token_required', 'action_counts']);
+const REDACT_SAFE_KEYS = new Set([
+  "csrf_token_present",
+  "api_token_present",
+  "token_required",
+  "action_counts",
+]);
 
 function redactSecrets(obj, depth = 0) {
-  if (depth > 20 || !obj || typeof obj !== 'object') return obj;
+  if (depth > 20 || !obj || typeof obj !== "object") return obj;
   if (Array.isArray(obj)) return obj.map((v) => redactSecrets(v, depth + 1));
   const out = {};
   for (const [k, v] of Object.entries(obj)) {
     if (REDACT_SAFE_KEYS.has(k)) {
       out[k] = v;
-    } else if (typeof v === 'string' && REDACT_KEY_PATTERNS.test(k) && v.length > 4) {
+    } else if (
+      typeof v === "string" &&
+      REDACT_KEY_PATTERNS.test(k) &&
+      v.length > 4
+    ) {
       out[k] = `[REDACTED:${v.slice(0, 4)}...]`;
-    } else if (typeof v === 'string' && /^[0-9a-f]{20,}$/i.test(v)) {
+    } else if (typeof v === "string" && /^[0-9a-f]{20,}$/i.test(v)) {
       out[k] = `[REDACTED:${v.slice(0, 4)}...]`;
-    } else if (typeof v === 'string' && /^Bearer\s+\S{8,}/.test(v)) {
+    } else if (typeof v === "string" && /^Bearer\s+\S{8,}/.test(v)) {
       out[k] = `[REDACTED:Bearer...]`;
-    } else if (v && typeof v === 'object') {
+    } else if (v && typeof v === "object") {
       out[k] = redactSecrets(v, depth + 1);
     } else {
       out[k] = v;
@@ -122,8 +225,21 @@ function redactSecrets(obj, depth = 0) {
   return out;
 }
 
-export function createDiagnosticsBundle({ store, paths, readJSON, fileExists, actionQueue, metrics, lockMetrics, checkTerminalHealth, CURRENT_SCHEMA_VERSION, writeJSON, trimLongStrings, appendJSONL }) {
-  return function diagnosticsBundle(label = 'manual') {
+export function createDiagnosticsBundle({
+  store,
+  paths,
+  readJSON,
+  fileExists,
+  actionQueue,
+  metrics,
+  lockMetrics,
+  checkTerminalHealth,
+  CURRENT_SCHEMA_VERSION,
+  writeJSON,
+  trimLongStrings,
+  appendJSONL,
+}) {
+  return function diagnosticsBundle(label = "manual") {
     const snapshot = store.getSnapshot();
     const nativeBridgeStatus = readJSON(paths.nativeBridgeStatusFile);
     const nativeBridgeHeartbeat = readJSON(paths.nativeBridgeHeartbeatFile);
@@ -161,12 +277,25 @@ export function createDiagnosticsBundle({ store, paths, readJSON, fileExists, ac
     (redacted as any).manifest = manifest;
 
     const withoutChecksum = JSON.stringify(redacted);
-    const checksum = createHash('sha256').update(withoutChecksum).digest('hex');
+    const checksum = createHash("sha256").update(withoutChecksum).digest("hex");
     (redacted as any).checksum = checksum;
 
     const file = `${paths.diagnosticsDir}/diag-${Date.now()}.json`;
     writeJSON(file, redacted);
-    try { appendJSONL(paths.logFile, { ts: new Date().toISOString(), type: 'diagnostics.export', file, label }); } catch {}
-    return { ok: true, file, generated_at: bundle.generated_at, counts: bundle.runtime.action_counts, checksum };
+    try {
+      appendJSONL(paths.logFile, {
+        ts: new Date().toISOString(),
+        type: "diagnostics.export",
+        file,
+        label,
+      });
+    } catch {}
+    return {
+      ok: true,
+      file,
+      generated_at: bundle.generated_at,
+      counts: bundle.runtime.action_counts,
+      checksum,
+    };
   };
 }

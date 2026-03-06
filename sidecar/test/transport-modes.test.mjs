@@ -56,6 +56,7 @@ test('tls mode returns https dashboard target', async () => {
   const home = setupHome();
   process.env.HOME = home;
   delete process.env.LEAD_SIDECAR_REQUIRE_TOKEN;
+  process.env.LEAD_SIDECAR_NO_BROWSER = '1'; // prevent Safari from opening during tests
   const tlsDir = mkdtempSync(join(tmpdir(), 'sidecar-tls-'));
   const tlsKey = join(tlsDir, 'server.key');
   const tlsCert = join(tlsDir, 'server.crt');
