@@ -545,7 +545,7 @@ Hard rules: configurable agent cap per session (default 5), no parallel same-typ
 | Worker lifecycle   | CI: e2e tests                                              |
 | Pipeline lifecycle | CI: e2e tests                                              |
 | Platform matrix    | CI: ubuntu + macos + windows                               |
-| Hook behavior      | CI: smoke tests + unit tests (59 tests)                    |
+| Hook behavior      | CI: smoke tests + unit tests (65 tests)                    |
 | Sidecar core       | CI: 67 tests (recovery, repair, health, metrics)           |
 | Line coverage      | CI enforces 80%+ line coverage (currently ~87.8%) via `c8` |
 
