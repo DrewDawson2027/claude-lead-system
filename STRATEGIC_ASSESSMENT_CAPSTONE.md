@@ -16,11 +16,11 @@ The Lead System is a custom orchestration layer built on top of Claude Code's na
 
 However, the system also carries significant architectural debt. Chain integrity — the automated commit-to-review and build-to-simplify-to-verify workflows — remains heuristic rather than mechanistic. Custom task, approval, and shutdown abstractions duplicate native equivalents with less rigor. The hook surface area (55 .py/.sh files in `~/.claude/hooks/`, 27 registered in settings.json across 11 event types) creates latency overhead and maintenance burden that partially erodes the throughput gains the system provides. An extended audit (Revision, Issues #10-20) identified 10 additional quality issues including a supply chain risk in `format-on-edit.py`, overly permissive spawn governance, missing file locking, deprecated agent validation, and token waste from redundant reference doc reads.
 
-**Bottom line:** The correct path is **(c) Thin hybrid layer** — preserve the 17 genuinely differentiated files (across hooks, coordinator, and sidecar), migrate 8 duplicative components to native, and rework the 3 chain dispatchers into proper state machines.
+**Bottom line:** The correct path is **(c) Thin hybrid layer** — preserve the 16 genuinely differentiated files (across hooks, coordinator, and sidecar), migrate 8 duplicative components to native, and rework the 3 chain dispatchers into proper state machines.
 
 ---
 
-## 1. Corrected 40-Row Parity Matrix
+## 1. Corrected 41-Row Parity Matrix
 
 **Scoring key:**
 
