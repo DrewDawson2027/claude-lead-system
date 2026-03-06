@@ -94,6 +94,21 @@ jobs:
       - name: Enforce benchmark thresholds
         run: node tests/perf-gate.mjs
 
+  native-bridge:
+    name: Native Bridge Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mcp-coordinator/package-lock.json
+      - name: Install deps
+        run: cd mcp-coordinator && npm ci
+      - name: Run native bridge tests (queue, TTL, depth, drain, resume)
+        run: cd mcp-coordinator && node --test test/native-bridge.test.mjs
+
   coordinator-e2e:
     name: Coordinator E2E (worker + pipeline)
     runs-on: ubuntu-latest

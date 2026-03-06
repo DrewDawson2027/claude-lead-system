@@ -1775,6 +1775,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  // Drain the native action queue every 30 s automatically.
+  // .unref() prevents this timer from keeping the process alive after
+  // Claude Code disconnects the stdio transport.
+  setInterval(() => {
+    try {
+      handleDrainNativeQueue({});
+    } catch {
+      /* swallow — non-critical */
+    }
+  }, 30_000).unref();
 }
 
 const isDirectRun =
