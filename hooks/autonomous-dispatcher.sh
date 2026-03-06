@@ -20,7 +20,6 @@
 set -uo pipefail
 
 TASK="${1:-autonomous task}"
-REPO_PATH="${2:-$PWD}"
 PICK="$HOME/.claude/hooks/worktree-pick.sh"
 
 # ── 1. Claim a slot ──────────────────────────────────────────────────────────
@@ -53,7 +52,7 @@ BRANCH="auto/${DATE}-${SLUG}"
 # ── 4. Check out / create the branch in the slot ────────────────────────────
 cd "$SLOT" || { echo "STATUS=no_slot"; exit 0; }
 
-CHECKOUT_OUT=$(git checkout -b "$BRANCH" 2>&1 || git checkout "$BRANCH" 2>&1)
+git checkout -b "$BRANCH" >/dev/null 2>&1 || git checkout "$BRANCH" >/dev/null 2>&1
 CHECKOUT_EXIT=$?
 
 if [ $CHECKOUT_EXIT -ne 0 ]; then

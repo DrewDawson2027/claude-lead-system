@@ -31,7 +31,7 @@ done
 # 2. Feature comparison table has exactly 13 rows
 echo ""
 echo "Checking feature table row count..."
-feature_rows=$(sed -n '/^| Feature | Agent Teams | Lead System |$/,/^$/p' "$README" | grep -c '^|' || echo 0)
+feature_rows=$(sed -n '/^| Feature | Agent Teams | Lead System |$/,/^$/p' "$README" | (grep -c '^|' || true))
 # Subtract 2 for header + separator rows
 feature_count=$((feature_rows - 2))
 if [ "$feature_count" -eq 13 ]; then
