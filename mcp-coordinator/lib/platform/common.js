@@ -556,11 +556,10 @@ export function buildInteractiveWorkerScript(opts) {
     `printf '{"status":"completed","finished":"%s","task_id":"${taskId}"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ${qMetaDone}`,
     `rm -f ${qPid}`,
   ];
-  if (leadPaneId) {
-    trapParts.push(
-      `tmux send-keys -t "$CLAUDE_LEAD_PANE_ID" "[COMPLETED] ${workerDisplay}" Enter 2>/dev/null || true`,
-    );
-  }
+  // NOTE: tmux send-keys "[COMPLETED]" removed — it injects raw text as user input
+  // into the lead's terminal, causing Claude to treat it as a user message and respond.
+  // Inbox-only delivery (below) is the correct mechanism: controlled, session-scoped,
+  // and surfaced by check-inbox.sh on the next tool call.
   if (leadSessionId) {
     trapParts.push(
       `printf '{"ts":"%s","from":"coordinator","priority":"normal","content":"[COMPLETED] ${workerDisplay}"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
@@ -583,7 +582,7 @@ export function buildInteractiveWorkerScript(opts) {
       `[ ! -f "$SF" ] && continue`,
       `AGE=$(( $(date +%s) - $(stat -f %m "$SF" 2>/dev/null || stat -c %Y "$SF" 2>/dev/null || echo $(date +%s)) ))`,
       `if [ "$AGE" -gt 5 ] && [ "$IDLE_SENT" = false ]`,
-      `then tmux send-keys -t "$CLAUDE_LEAD_PANE_ID" "[IDLE] ${workerDisplay} — no activity for \${AGE}s" Enter 2>/dev/null || true`,
+      `then printf '{"ts":"%s","from":"idle-detector","priority":"normal","content":"[IDLE] ${workerDisplay} — no activity for '\\''\${AGE}'\\'s"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
       `IDLE_SENT=true`,
       `elif [ "$AGE" -le 5 ]`,
       `then IDLE_SENT=false`,
