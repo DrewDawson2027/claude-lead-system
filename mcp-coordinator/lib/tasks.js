@@ -268,6 +268,7 @@ export function handleCreateTask(args) {
     }
 
     const task = {
+      id: taskId,
       task_id: taskId,
       subject,
       description: String(args.description || "").trim(),
@@ -276,6 +277,10 @@ export function handleCreateTask(args) {
         ? sanitizeName(args.team_name, "team_name")
         : null,
       assignee: args.assignee ? sanitizeName(args.assignee, "assignee") : null,
+      assigned_to: args.assignee
+        ? sanitizeName(args.assignee, "assignee")
+        : null,
+      claimed_by: null,
       priority:
         args.priority === "high"
           ? "high"
@@ -351,7 +356,14 @@ export function handleUpdateTask(args) {
       task.assignee = args.assignee
         ? sanitizeName(args.assignee, "assignee")
         : null;
+      task.assigned_to = task.assignee;
       changes.push(`assignee → ${task.assignee || "unassigned"}`);
+    }
+    if (args.claimed_by !== undefined) {
+      task.claimed_by = args.claimed_by
+        ? sanitizeName(args.claimed_by, "claimed_by")
+        : null;
+      changes.push(`claimed_by → ${task.claimed_by || "none"}`);
     }
     if (args.team_name !== undefined) {
       task.team_name = args.team_name
