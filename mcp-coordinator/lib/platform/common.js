@@ -552,7 +552,8 @@ export function buildInteractiveWorkerScript(opts) {
     : `script -q ${qTranscript} ${claudeCmd}`;
 
   const workerDisplay = workerName || taskId;
-  const trapParts = [
+  // Completion commands run inside the loop body after each claude invocation exits.
+  const completionCmds = [
     `printf '{"status":"completed","finished":"%s","task_id":"${taskId}"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ${qMetaDone}`,
     `rm -f ${qPid}`,
   ];
@@ -561,15 +562,37 @@ export function buildInteractiveWorkerScript(opts) {
   // Inbox-only delivery (below) is the correct mechanism: controlled, session-scoped,
   // and surfaced by check-inbox.sh on the next tool call.
   if (leadSessionId) {
-    trapParts.push(
+    completionCmds.push(
       `printf '{"ts":"%s","from":"coordinator","priority":"normal","content":"[COMPLETED] ${workerDisplay}"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
     );
   }
-  trapParts.push(autoClaimShellCommand());
-  trapParts.push(
-    '[ -n "${_IDLE_PID:-}" ] && kill "$_IDLE_PID" 2>/dev/null || true',
-  );
-  const exitTrapCmd = `trap '${trapParts.join("; ")}' EXIT`;
+
+  // Claim-next block: runs at end of each loop iteration.
+  // Uses --claim-only to get JSON task data without spawning a new process.
+  // Empty output signals no more tasks -- breaks the loop.
+  const claimNextCmds = [
+    '[ -n "${CLAUDE_AUTOCLAIM_ARGS_B64:-}" ] || break',
+    '_CLAIM=$("$CLAUDE_AUTOCLAIM_NODE" "$CLAUDE_AUTOCLAIM_SCRIPT" --claim-only 2>/dev/null) || true',
+    '[ -z "$_CLAIM" ] && break',
+    `_TID=$("$CLAUDE_AUTOCLAIM_NODE" --input-type=commonjs -e "try{process.stdout.write(JSON.parse(process.argv[1]).task_id||'')}catch{}" "$_CLAIM" 2>/dev/null)`,
+    '[ -z "$_TID" ] && break',
+    `_NP=$("$CLAUDE_AUTOCLAIM_NODE" --input-type=commonjs -e "try{process.stdout.write(JSON.parse(process.argv[1]).prompt||'')}catch{}" "$_CLAIM" 2>/dev/null)`,
+    `printf '%s' "$_NP" > ${qPrompt}`,
+    'CLAUDE_WORKER_TASK_ID="$_TID" && export CLAUDE_WORKER_TASK_ID',
+    `echo $$ > ${qPid}`,
+  ].join('; ');
+
+  const loopBody = [
+    `WORKER_PROMPT=$(cat ${qPrompt})`,
+    `unset CLAUDECODE && ${scriptWrapped}`,
+    ...completionCmds,
+    claimNextCmds,
+  ].join('; ');
+
+  const persistentLoop = `while true; do ${loopBody}; done`;
+
+  // EXIT trap is now cleanup-only -- completion and claim-next run inside the loop body
+  const exitTrapCmd = `trap '[ -n "\${_IDLE_PID:-}" ] && kill "$_IDLE_PID" 2>/dev/null || true' EXIT`;
 
   let idleDetectorCmd = null;
   if (leadPaneId && sessionId) {
@@ -595,10 +618,9 @@ export function buildInteractiveWorkerScript(opts) {
     `cd ${qDir}`,
     `echo $$ > ${qPid}`,
     envExports,
-    `WORKER_PROMPT=$(cat ${qPrompt})`,
     exitTrapCmd,
     idleDetectorCmd,
-    `unset CLAUDECODE && ${scriptWrapped}`,
+    persistentLoop,
   ]
     .filter(Boolean)
     .join(" && ");

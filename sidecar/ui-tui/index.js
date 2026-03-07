@@ -48,6 +48,7 @@ const state = {
   selectedMemberIdx: 0,
   autoRefreshInterval: 5000,
   autoRefreshTimer: null,
+  teammateRefreshTimer: null,
 };
 
 // ── HTTP Client ──
@@ -435,21 +436,47 @@ function renderTeammateView() {
   );
   hr();
 
-  // Primary: tmux capture-pane (live terminal content of worker pane)
+  // Primary: tmux capture-pane with FULL scrollback history (-S -)
+  // Native Claude Code buffers all output in-memory; we replicate this by
+  // capturing the entire tmux scrollback buffer, not just the visible viewport.
   let output = null;
   if (m.tmux_pane_id) {
     try {
       output = execFileSync(
         "tmux",
-        ["capture-pane", "-t", m.tmux_pane_id, "-p", "-e"],
-        { encoding: "utf8", timeout: 1000 },
+        ["capture-pane", "-t", m.tmux_pane_id, "-p", "-S", "-", "-e"],
+        { encoding: "utf8", timeout: 2000 },
       );
     } catch {
       output = null;
     }
   }
 
-  // Fallback: tail the results JSON file for last written output
+  // Fallback 1: tail the `script` transcript file (created at interactive spawn)
+  // This works even in non-tmux environments because buildInteractiveWorkerScript
+  // wraps claude in `script -q <transcript>`, capturing all terminal output.
+  if (!output) {
+    const taskId = m.current_task_ref || m.worker_task_id;
+    if (taskId) {
+      try {
+        const transcriptPath = join(
+          homedir(),
+          ".claude",
+          "terminals",
+          "results",
+          `${taskId}.transcript`,
+        );
+        if (existsSync(transcriptPath)) {
+          const raw = readFileSync(transcriptPath, "utf-8");
+          output = raw.slice(-4000);
+        }
+      } catch {
+        output = null;
+      }
+    }
+  }
+
+  // Fallback 2: results JSON file for pipe-mode workers
   if (!output) {
     const taskId = m.current_task_ref || m.worker_task_id;
     if (taskId) {
@@ -474,8 +501,12 @@ function renderTeammateView() {
     }
   }
 
+  // Show output, fitting to terminal height for readability
   if (output) {
-    w(output.slice(-2000));
+    const maxLines = Math.max(10, (process.stdout.rows || 40) - 8);
+    const lines = output.split("\n");
+    const visible = lines.slice(-maxLines).join("\n");
+    w(visible);
   } else {
     line(
       `${C.dim}[No live output -- teammate may be offline or not yet assigned a task]${C.reset}`,
@@ -696,6 +727,21 @@ async function batchTriage(op) {
 
 // ── Auto-refresh ──
 
+// Live streaming emulation: re-render the teammate view every 500ms so output
+// appears to stream in real-time (native Claude Code renders in-process from
+// an in-memory buffer; we poll tmux scrollback or transcript files instead).
+function startTeammateAutoRefresh() {
+  if (state.teammateRefreshTimer) clearInterval(state.teammateRefreshTimer);
+  state.teammateRefreshTimer = setInterval(() => {
+    if (state.viewMode === "teammate") {
+      render();
+    } else {
+      clearInterval(state.teammateRefreshTimer);
+      state.teammateRefreshTimer = null;
+    }
+  }, 500);
+}
+
 function startAutoRefresh() {
   if (state.autoRefreshTimer) clearInterval(state.autoRefreshTimer);
   state.autoRefreshTimer = setInterval(() => {
@@ -774,6 +820,10 @@ async function main() {
     // Escape -- exit teammate view back to main
     if (key.name === "escape" && state.viewMode === "teammate") {
       state.viewMode = "main";
+      if (state.teammateRefreshTimer) {
+        clearInterval(state.teammateRefreshTimer);
+        state.teammateRefreshTimer = null;
+      }
       return render();
     }
 
@@ -784,6 +834,7 @@ async function main() {
       state.selectedMemberIdx =
         (state.selectedMemberIdx - 1 + teammates.length) % teammates.length;
       state.viewMode = "teammate";
+      startTeammateAutoRefresh();
       return render();
     }
 
@@ -794,6 +845,7 @@ async function main() {
       state.selectedMemberIdx =
         (state.selectedMemberIdx + 1) % teammates.length;
       state.viewMode = "teammate";
+      startTeammateAutoRefresh();
       return render();
     }
 

@@ -237,19 +237,34 @@ function autoUnblockDependents(completedTaskId, dir) {
     appendAuditEntry(t.task_id, "unblocked", null, null, {
       cleared_dependency: completedTaskId,
     });
-    // Active notification: if task is now fully unblocked and has an assignee,
-    // push an inbox message so the worker knows it can proceed without polling.
-    if (t.blocked_by.length === 0 && t.assignee) {
+    // Active notification: push inbox messages when a task becomes fully unblocked.
+    // Native parity: "blocked tasks unblock without manual intervention."
+    if (t.blocked_by.length === 0 && t.status === "pending") {
       const { INBOX_DIR } = cfg();
-      const sid = resolveWorkerName(t.assignee);
-      if (sid) {
-        appendJSONLineSecure(join(INBOX_DIR, `${sid}.jsonl`), {
-          ts: new Date().toISOString(),
-          from: "coordinator",
-          priority: "normal",
-          content: `[UNBLOCKED] Task ${t.task_id} "${t.subject}" is now ready — dependency ${completedTaskId} completed.`,
-        });
+      const msg = {
+        ts: new Date().toISOString(),
+        from: "auto-unblock",
+        priority: "normal",
+        content: `[UNBLOCKED] Task ${t.task_id} "${t.subject}" is now ready — dependency ${completedTaskId} completed.`,
+      };
+      // Notify the assignee's worker if known
+      if (t.assignee) {
+        const sid = resolveWorkerName(t.assignee);
+        if (sid) {
+          appendJSONLineSecure(join(INBOX_DIR, `${sid}.jsonl`), msg);
+        }
       }
+      // Also broadcast to any lead sessions so they can auto-dispatch
+      try {
+        const files = readdirSync(INBOX_DIR).filter((f) =>
+          f.endsWith(".jsonl"),
+        );
+        for (const f of files) {
+          try {
+            appendJSONLineSecure(join(INBOX_DIR, f), msg);
+          } catch {}
+        }
+      } catch {}
     }
   }
 }
