@@ -759,6 +759,88 @@ export function handleClaimNextTask(args) {
   return text(out);
 }
 
+
+/**
+ * Claim-only mode: find next task for a worker and return its data without
+ * dispatching a new process. Used by claim-next-task.mjs --claim-only so the
+ * existing worker shell can loop inline and re-invoke claude with the new prompt.
+ * @param {object} args - Same shape as handleClaimNextTask args
+ * @returns {{ found: boolean, task_id?: string, subject?: string, prompt?: string }}
+ */
+export function handleClaimNextTaskData(args) {
+  const team_name = sanitizeName(args.team_name, "team_name");
+  const completedWorkerTaskId = args.completed_worker_task_id
+    ? sanitizeId(args.completed_worker_task_id, "completed_worker_task_id")
+    : null;
+  let teamTasks = getTeamTasks(team_name);
+  let assignee = args.assignee ? sanitizeName(args.assignee, "assignee") : null;
+
+  if (completedWorkerTaskId) {
+    const completedTask = teamTaskForWorker(teamTasks, completedWorkerTaskId);
+    if (completedTask) {
+      assignee = assignee || completedTask.assignee || null;
+      if (
+        completedTask.status !== "completed" &&
+        completedTask.status !== "cancelled"
+      ) {
+        handleUpdateTask({
+          task_id: completedTask.task_id,
+          status: "completed",
+          metadata: {
+            dispatch: {
+              ...taskDispatchMeta(completedTask),
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              completed_worker_task_id: completedWorkerTaskId,
+            },
+            worker_task_id: completedWorkerTaskId,
+          },
+        });
+        teamTasks = getTeamTasks(team_name);
+      }
+    }
+  }
+
+  if (!assignee) return { found: false };
+
+  const unresolvedBlockersByTaskId = new Map(
+    teamTasks.map((t) => [t.task_id, taskBlocked(t, teamTasks)]),
+  );
+  const nextTask = teamTasks
+    .filter((t) => t.status === "pending")
+    .filter((t) => (taskDispatchMeta(t).status || "queued") === "queued")
+    .filter(
+      (t) => (unresolvedBlockersByTaskId.get(t.task_id) || []).length === 0,
+    )
+    .filter((t) => !t.assignee || t.assignee === assignee)
+    .sort(sortQueuedTasks)[0];
+
+  if (!nextTask) return { found: false };
+
+  const dispatch = taskDispatchMeta(nextTask);
+  const prompt = String(dispatch.prompt || "").trim();
+  if (!prompt) return { found: false };
+
+  patchTaskMetadata(nextTask.task_id, (t) => {
+    if (!t.metadata) t.metadata = {};
+    t.metadata.dispatch = {
+      ...taskDispatchMeta(t),
+      status: "dispatched",
+      dispatched_at: new Date().toISOString(),
+      assignee,
+    };
+    if (assignee) t.assignee = assignee;
+  });
+
+  return {
+    found: true,
+    task_id: nextTask.task_id,
+    subject: nextTask.subject,
+    prompt,
+    assignee,
+  };
+}
+
 function dispatchExistingQueuedTask(task, snap, assignee, args = {}) {
   const dispatch = taskDispatchMeta(task);
   const prompt = String(dispatch.prompt || "").trim();

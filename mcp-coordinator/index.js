@@ -90,6 +90,7 @@ import {
   handleTeamStatusCompact,
   handleTeamQueueTask,
   handleClaimNextTask,
+  handleClaimNextTaskData,
   handleTeamAssignNext,
   handleTeamRebalance,
   handleSidecarStatus,
