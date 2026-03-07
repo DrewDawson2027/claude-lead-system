@@ -1,7 +1,7 @@
 export interface TeamSummary {
   team_name: string;
-  execution_path?: 'native' | 'coordinator' | 'hybrid' | string;
-  low_overhead_mode?: 'simple' | 'advanced' | string;
+  execution_path?: "native" | "coordinator" | "hybrid" | string;
+  low_overhead_mode?: "simple" | "advanced" | string;
   policy?: Record<string, unknown>;
 }
 

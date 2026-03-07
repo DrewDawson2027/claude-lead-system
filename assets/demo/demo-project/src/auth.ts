@@ -16,7 +16,10 @@ interface AuthResult {
   error?: string;
 }
 
-export async function login(email: string, password: string): Promise<AuthResult> {
+export async function login(
+  email: string,
+  password: string,
+): Promise<AuthResult> {
   const user = await findUserByEmail(email);
   if (!user) {
     return { success: false, error: "User not found" };
@@ -29,7 +32,10 @@ export async function login(email: string, password: string): Promise<AuthResult
   return { success: true, token };
 }
 
-export async function register(email: string, password: string): Promise<AuthResult> {
+export async function register(
+  email: string,
+  password: string,
+): Promise<AuthResult> {
   const existing = await findUserByEmail(email);
   if (existing) {
     return { success: false, error: "Email already registered" };
@@ -47,7 +53,10 @@ async function findUserByEmail(email: string): Promise<User | null> {
   return null;
 }
 
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
+async function verifyPassword(
+  password: string,
+  hash: string,
+): Promise<boolean> {
   // TODO: implement bcrypt comparison
   return false;
 }
@@ -58,7 +67,12 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 async function createUser(email: string, passwordHash: string): Promise<User> {
-  return { id: crypto.randomUUID(), email, passwordHash, createdAt: new Date() };
+  return {
+    id: crypto.randomUUID(),
+    email,
+    passwordHash,
+    createdAt: new Date(),
+  };
 }
 
 function generateToken(user: User): string {

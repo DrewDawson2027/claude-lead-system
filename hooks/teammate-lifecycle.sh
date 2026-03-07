@@ -73,4 +73,23 @@ if [ -n "$SESSION_ID" ]; then
   fi
 fi
 
+# Quality gate check — only for TaskCompleted events
+if [[ "$EVENT_NAME" == "TaskCompleted" ]]; then
+  GATE_SCRIPT=""
+  if [[ -n "$CLAUDE_LEAD_QUALITY_GATE" && -x "$CLAUDE_LEAD_QUALITY_GATE" ]]; then
+    GATE_SCRIPT="$CLAUDE_LEAD_QUALITY_GATE"
+  elif [[ -x "${CWD}/.quality-gate.sh" ]]; then
+    GATE_SCRIPT="${CWD}/.quality-gate.sh"
+  fi
+
+  if [[ -n "$GATE_SCRIPT" ]]; then
+    GATE_OUTPUT=$(echo "$INPUT" | "$GATE_SCRIPT" "$EVENT_NAME" 2>&1)
+    GATE_EXIT=$?
+    if [[ "$GATE_EXIT" -eq 2 ]]; then
+      printf "Quality gate FAILED for task %s:\n%s\n" "$TASK_ID" "$GATE_OUTPUT"
+      exit 2
+    fi
+  fi
+fi
+
 exit 0

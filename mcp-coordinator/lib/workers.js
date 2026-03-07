@@ -204,12 +204,13 @@ export function handleSpawnWorker(args) {
   const contextSummary = args.context_summary
     ? String(args.context_summary).trim()
     : null;
-  // All 5 native modes + 2 coordinator extras. planOnly maps to plan for CLI.
+  // All 5 native modes + 2 coordinator extras + auto. planOnly maps to plan for CLI.
   const validModes = [
     "acceptEdits",
     "bypassPermissions",
     "default",
     "dontAsk",
+    "auto",
     "plan",
     "planOnly",
     "readOnly",
@@ -220,8 +221,8 @@ export function handleSpawnWorker(args) {
     : validModes.includes(args.permission_mode)
       ? args.permission_mode
       : rolePreset?.permissionMode || "acceptEdits";
-  // Map planOnly → plan (planOnly kept as alias for backward compat)
-  const permissionMode = rawPermMode === "planOnly" ? "plan" : rawPermMode;
+  // Map planOnly → plan for CLI execution (keep original in metadata)
+  const cliPermissionMode = rawPermMode === "planOnly" ? "plan" : rawPermMode;
   const budgetPolicy = ["off", "warn", "enforce"].includes(
     teamPolicy.budget_policy,
   )
@@ -257,11 +258,11 @@ export function handleSpawnWorker(args) {
   );
   const requirePlanRequested =
     typeof teamPolicy.require_plan === "boolean"
-      ? teamPolicy.require_plan || permissionMode === "plan"
+      ? teamPolicy.require_plan || cliPermissionMode === "plan"
       : Boolean(
           args.require_plan ||
           rolePreset?.requirePlan ||
-          permissionMode === "plan",
+          cliPermissionMode === "plan",
         );
   if (!prompt) return text("Prompt is required.");
   if (!existsSync(directory)) return text(`Directory not found: ${directory}`);
@@ -390,8 +391,26 @@ export function handleSpawnWorker(args) {
 
   // Generate session ID for --session-id + --resume support (Gap 2)
   const claudeSessionId = mode === "interactive" ? randomUUID() : null;
-  // Get lead's tmux pane for bidirectional communication (Gap 4)
-  const leadPaneId = isInsideTmux() ? getCurrentTmuxPane() : null;
+  // Resolve lead's tmux pane for bidirectional communication (Gap 4)
+  let leadPaneId = null;
+  if (notify_session_id) {
+    const leadSessionFile = join(
+      TERMINALS_DIR,
+      `session-${notify_session_id}.json`,
+    );
+    if (existsSync(leadSessionFile)) {
+      try {
+        const leadSession = JSON.parse(readFileSync(leadSessionFile, "utf-8"));
+        const pane = String(leadSession?.tmux_pane_id || "").trim();
+        if (pane.startsWith("%")) leadPaneId = pane;
+      } catch {
+        // Ignore malformed session files and continue to local tmux fallback.
+      }
+    }
+  }
+  if (!leadPaneId && isInsideTmux()) {
+    leadPaneId = getCurrentTmuxPane();
+  }
 
   const meta = {
     task_id: taskId,
@@ -413,8 +432,8 @@ export function handleSpawnWorker(args) {
     team_low_overhead_mode: teamConfig?.low_overhead_mode || null,
     worker_name: workerName,
     max_turns: maxTurns,
-    permission_mode: permissionMode,
-    require_plan: requirePlan || permissionMode === "plan",
+    permission_mode: rawPermMode,
+    require_plan: requirePlan || cliPermissionMode === "plan",
     claude_session_id: claudeSessionId,
     backend_type: layout === "tmux" ? "tmux" : layout,
     budget_policy: budgetPolicy,
@@ -539,6 +558,9 @@ export function handleSpawnWorker(args) {
         notify_session_id
           ? `- Message the lead: \`coord_send_message from="${workerName || taskId}" to="${notify_session_id}" content="..." summary="<5-10 word preview>"\``
           : `- No lead session — write findings to ~/.claude/session-cache/coder-context.md`,
+        notify_session_id
+          ? `  Example: \`coord_send_message from="${workerName || taskId}" to="${notify_session_id}" content="Need guidance on API contract" summary="Blocked on API contract"\``
+          : ``,
         `- Messages from the lead appear as "--- INCOMING MESSAGES FROM COORDINATOR ---" before your tool calls`,
         `- If you receive instructions from the lead, prioritize them immediately`,
         `- If told to stop, pivot, or change direction — do so without question`,
@@ -566,6 +588,7 @@ export function handleSpawnWorker(args) {
           `You are part of a team. Your output is NOT visible to teammates — use these tools:`,
           `- Discover teammates: \`coord_discover_peers team_name=${teamName}\``,
           `- Message a peer by name: \`coord_send_message from="${workerName || taskId}" target_name="<name>" content="..." summary="<5-10 word preview>"\``,
+          `  Example: \`coord_send_message from="${workerName || taskId}" target_name="reviewer" content="Please validate migration edge cases" summary="Need edge-case review"\``,
           `- Message by session ID: \`coord_send_message from="${workerName || taskId}" to="<session_id>" content="..."\``,
           `- Broadcast to all: \`coord_broadcast from="${workerName || taskId}" content="..."\``,
           `- Shutdown request: \`coord_send_protocol type="shutdown_request" recipient="<name>"\``,
@@ -661,13 +684,10 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       );
     }
 
-    // Pass team info for native P2P: workers join the native team if available
-    const useNativeTeam =
-      teamConfig?.execution_path === "native" ||
-      teamConfig?.execution_path === "hybrid";
     const scriptOpts = {
       taskId,
       workDir: workerDir,
+      defaultDirectory: directory,
       resultFile,
       pidFile,
       metaFile,
@@ -678,11 +698,24 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       platformName: PLATFORM,
       workerName,
       maxTurns,
-      permissionMode,
+      permissionMode: cliPermissionMode,
+      mode,
+      runtime,
+      layout,
+      role,
+      contextLevel,
+      budgetPolicy,
+      budgetTokens,
+      globalBudgetPolicy,
+      globalBudgetTokens,
+      maxActiveWorkers,
+      requirePlan,
+      contextSummary,
+      isolate,
       sessionId: claudeSessionId,
       leadSessionId: notify_session_id,
       leadPaneId,
-      teamName: useNativeTeam ? teamName : null,
+      teamName,
     };
     let workerScript;
     if (runtime === "codex") {
@@ -722,7 +755,7 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
         `- Team: ${teamName || "none"}${teamName ? ` (path=${teamConfig?.execution_path || "hybrid"}, overhead=${teamConfig?.low_overhead_mode || "advanced"})` : ""}\n` +
         `- Layout: ${layout} via ${usedApp}\n- Platform: ${PLATFORM}\n` +
         `- Isolated: ${isolate ? `yes (branch: ${worktreeBranch})` : "no"}\n` +
-        `- Permission Mode: ${permissionMode}\n` +
+        `- Permission Mode: ${rawPermMode}${rawPermMode !== cliPermissionMode ? ` (CLI: ${cliPermissionMode})` : ""}\n` +
         `- Plan Mode: ${requirePlan ? "enabled" : "disabled"}\n` +
         `- Files: ${files.join(", ") || "none"}\n- Results: ${resultFile}\n\n` +
         `- Budget: ${budgetPolicy} (${estimatedTokens}/${budgetTokens} est tokens)\n` +
@@ -936,12 +969,30 @@ export function handleResumeWorker(args) {
     const resumeScript = buildResumeWorkerScript({
       sessionId: meta.claude_session_id,
       workDir: meta.original_directory || meta.directory,
+      defaultDirectory: meta.original_directory || meta.directory,
       pidFile: newPidFile,
       metaFile: newMetaFile,
       taskId: newTaskId,
       workerName: meta.worker_name || newTaskId,
+      teamName: meta.team_name,
+      mode: meta.mode || "interactive",
+      runtime: meta.runtime || "claude",
+      layout: meta.backend_type || "background",
+      model: meta.model,
+      agent: meta.agent,
+      role: meta.role,
+      permissionMode: meta.permission_mode,
+      contextLevel: meta.context_level || "standard",
+      budgetPolicy: meta.budget_policy || "warn",
+      budgetTokens: meta.budget_tokens,
+      globalBudgetPolicy: meta.global_budget_policy || "warn",
+      globalBudgetTokens: meta.global_budget_tokens,
+      maxActiveWorkers: meta.max_active_workers,
+      requirePlan: meta.require_plan,
+      maxTurns: meta.max_turns,
       leadSessionId: meta.notify_session_id,
       leadPaneId,
+      isolate: meta.isolated,
     });
 
     // Spawn in same layout as original

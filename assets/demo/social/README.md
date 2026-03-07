@@ -17,4 +17,3 @@ python3 assets/demo/social/make_assets.py
 ## Capture page (optional)
 
 Open `assets/demo/social/landing/index.html` and screenshot/record it.
-

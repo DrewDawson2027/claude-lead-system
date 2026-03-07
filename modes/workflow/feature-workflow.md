@@ -9,6 +9,7 @@ Spec-driven development: gather requirements → write specs → get approval �
 ## Spec-Driven Development Process
 
 ### Step 1: Create Spec Directory
+
 ```bash
 mkdir -p .claude/specs/{feature-slug}
 ```
@@ -16,6 +17,7 @@ mkdir -p .claude/specs/{feature-slug}
 ### Step 2: Requirements Gathering
 
 Interview the user systematically:
+
 1. **Problem**: What problem does this solve? Why now?
 2. **User**: Who is the primary user? What's their context?
 3. **Scope**: What's in scope? What's explicitly OUT of scope?
@@ -31,22 +33,28 @@ Use AskUserQuestion for structured multi-choice questions when possible.
 # Requirements: {Feature Name}
 
 ## Problem Statement
+
 [What problem are we solving and why it matters]
 
 ## User Stories
+
 - As a [user], I want to [action] so that [benefit]
 
 ## Acceptance Criteria
+
 - [ ] Criterion 1 (specific, testable)
 - [ ] Criterion 2
 
 ## Out of Scope
+
 - [What we're NOT doing — prevents scope creep]
 
 ## Success Metrics
+
 - [How we'll know it worked — quantifiable]
 
 ## Constraints
+
 - [Technical, timeline, dependency constraints]
 ```
 
@@ -56,25 +64,31 @@ Use AskUserQuestion for structured multi-choice questions when possible.
 # Design: {Feature Name}
 
 ## Architecture Decisions
+
 - [Decision and rationale — why this approach over alternatives]
 
 ## API Endpoints (if applicable)
+
 | Method | Path | Description | Auth |
-|--------|------|-------------|------|
+| ------ | ---- | ----------- | ---- |
 
 ## Data Models
+
 [Schema changes needed — link to database-design mode if complex]
 
 ## File Changes
-| File | Change Type | Description |
-|------|-------------|-------------|
-| src/... | Create | New component for... |
-| src/... | Modify | Add endpoint for... |
+
+| File    | Change Type | Description          |
+| ------- | ----------- | -------------------- |
+| src/... | Create      | New component for... |
+| src/... | Modify      | Add endpoint for...  |
 
 ## Dependencies
+
 - [New dependencies needed with rationale]
 
 ## Testing Strategy
+
 - Unit: [what to unit test]
 - Integration: [what to integration test]
 - E2E: [critical user flows to verify]
@@ -86,15 +100,18 @@ Use AskUserQuestion for structured multi-choice questions when possible.
 # Tasks: {Feature Name}
 
 ## Implementation Tasks (ordered by dependency)
+
 - [ ] Task 1: [Specific step with clear done condition]
 - [ ] Task 2: [Next step — depends on Task 1]
 - [ ] Task 3: [Independent — can parallelize with Task 2]
 
 ## Testing Tasks
+
 - [ ] Write unit tests for [specific module]
 - [ ] Write integration tests for [specific flow]
 
 ## Documentation Tasks
+
 - [ ] Update API docs
 - [ ] Add inline code documentation where non-obvious
 ```
@@ -102,6 +119,7 @@ Use AskUserQuestion for structured multi-choice questions when possible.
 ### Step 6: Get Approval
 
 Present the complete spec to the user:
+
 1. Summary of requirements
 2. Architecture approach (with alternatives considered)
 3. File changes overview
@@ -111,6 +129,7 @@ Present the complete spec to the user:
 ### Step 7: Implementation
 
 If approved, execute tasks from tasks.md:
+
 - Follow task order (respects dependencies)
 - Commit after each logical task completion
 - Run tests after each change
@@ -120,6 +139,7 @@ If approved, execute tasks from tasks.md:
 ## Integration with GSD
 
 When a feature is large enough for GSD:
+
 1. Run requirements gathering (Steps 2-3)
 2. Convert design.md into `.planning/` PLAN.md files
 3. Use `/gsd:execute-plan` for structured execution
@@ -128,6 +148,7 @@ When a feature is large enough for GSD:
 ## Quick Features (< 30 min implementation)
 
 For simple features, streamline the process:
+
 1. Write a brief requirements + design in one file
 2. Get verbal approval
 3. Implement directly

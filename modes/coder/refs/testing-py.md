@@ -1,6 +1,7 @@
 # Python Testing Patterns (pytest)
 
 ## Test Structure (AAA)
+
 ```python
 def test_create_user():
     # Arrange
@@ -13,6 +14,7 @@ def test_create_user():
 ```
 
 ## Fixtures
+
 ```python
 @pytest.fixture
 def db_session():
@@ -28,6 +30,7 @@ def sample_user(db_session):
 ```
 
 ## Parametrize
+
 ```python
 @pytest.mark.parametrize("input,expected", [
     ("valid@email.com", True),
@@ -40,6 +43,7 @@ def test_validate_email(input, expected):
 ```
 
 ## Mocking
+
 ```python
 from unittest.mock import patch, MagicMock
 
@@ -52,6 +56,7 @@ def test_with_mock(mock_fetch):
 ```
 
 ## Async Testing
+
 ```python
 import pytest
 
@@ -62,6 +67,7 @@ async def test_async_fetch():
 ```
 
 ## Rules
+
 - Test behavior, not implementation
 - Each test independent (no shared mutable state)
 - Descriptive names: `test_create_user_with_duplicate_email_raises_error`

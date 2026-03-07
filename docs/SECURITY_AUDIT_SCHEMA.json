@@ -6,7 +6,10 @@
   "required": ["ok", "schema_version", "generated_at", "events", "summary"],
   "properties": {
     "ok": { "type": "boolean", "const": true },
-    "schema_version": { "type": "string", "const": "sidecar-security-audit/v1" },
+    "schema_version": {
+      "type": "string",
+      "const": "sidecar-security-audit/v1"
+    },
     "generated_at": { "type": "string", "format": "date-time" },
     "events": {
       "type": "array",
@@ -14,7 +17,15 @@
         "type": "object",
         "required": ["type", "ip", "path", "ts"],
         "properties": {
-          "type": { "type": "string", "enum": ["auth_failure", "origin_reject", "csrf_failure", "rate_limit"] },
+          "type": {
+            "type": "string",
+            "enum": [
+              "auth_failure",
+              "origin_reject",
+              "csrf_failure",
+              "rate_limit"
+            ]
+          },
           "ip": { "type": "string" },
           "path": { "type": "string" },
           "origin": { "type": "string" },
@@ -30,7 +41,10 @@
       "properties": {
         "total": { "type": "integer", "minimum": 0 },
         "recent": { "type": "array" },
-        "by_type": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } }
+        "by_type": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
       },
       "additionalProperties": true
     }

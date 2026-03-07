@@ -188,7 +188,7 @@ case "$FILE_PATH" in
     ;;
 esac
 
-# ─── AUTO-STALE: Mark other sessions stale if inactive >5m ───
+# ─── AUTO-STALE: Mark other sessions stale if inactive >30s ───
 # Only check every 60s (not every heartbeat) by using a separate lock
 STALE_LOCK="/tmp/claude-stale-check.lock"
 STALE_COOLDOWN=60
@@ -241,7 +241,7 @@ if $DO_STALE; then
         IDLE_REPORTED=~/.claude/terminals/results/"$(basename "$mf" .meta.json)".${SF_SID}.idle-notified
         [ -f "$IDLE_REPORTED" ] && continue
         jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg sid "$SF_SID" \
-          '{ts:$ts,from:"coordinator",priority:"normal",content:("[WORKER IDLE] Session " + $sid + " — inactive for >5min, marked stale.")}' \
+          '{ts:$ts,from:"coordinator",priority:"normal",content:("[WORKER IDLE] Session " + $sid + " — inactive for >30s, marked stale.")}' \
           >> "${INBOX_DIR}/${LEAD_SID}.jsonl" 2>/dev/null
         touch "$IDLE_REPORTED"
       done

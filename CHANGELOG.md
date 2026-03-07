@@ -9,11 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Breaking Changes
+
 - **API error schema**: Error responses now use `{ error_code, message, request_id }` instead of `{ error: string }`. Clients parsing error responses must update their JSON key expectations.
 - **Token-required browser auth contract**: when `LEAD_SIDECAR_REQUIRE_TOKEN=1`, same-origin browser requests no longer substitute for bearer authentication on mutations; `Authorization: Bearer <token>` is required and CSRF remains mandatory for browser-origin writes.
 - **Installer dev/ref contract**: `--ref` installs are now explicitly dev-only and require `--allow-unsigned-release`; verified release installs should use `--version` with signed metadata + source tarball.
 
 ### Added
+
 - `scripts/release/security-smoke.sh`: release-focused sidecar smoke gate for auth bypass resistance, path-containment regression coverage, and TLS dashboard URL behavior
 - **Master Agent System**: 4 consolidated master agents (`master-coder`, `master-researcher`, `master-architect`, `master-workflow`) with on-demand mode loading
 - 17 mode files across 4 agent types (build, debug, refactor, scrape, school, deep, academic, competitor, market, system, api, database, frontend, gsd, feature, git, autonomous)
@@ -45,6 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - README: "Who Is This For" section, positioning resilience note, accurate benchmark table
 
 ### Changed
+
 - `hooks/token-guard.py`: now displays real metered token data alongside heuristic estimates in report
 - `install.sh`: now installs agents, mode files, reference cards, and lead-tools in addition to hooks and MCP coordinator
 - Modularized MCP coordinator: monolithic `index.js` split into 10 modules under `lib/` (security, helpers, constants, sessions, messaging, conflicts, workers, pipelines, gc, platform/)
@@ -56,12 +59,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Coverage gate: 80%+ line coverage enforced in CI (currently 88%+)
 
 ### Removed
+
 - `coord_send_message` tool (superseded by `coord_wake_session` which delivers via inbox + Enter keystroke)
 - `coord_register_work` tool (superseded by automatic heartbeat-based `files_touched` tracking)
 - `coord_assign_task` tool (superseded by Claude Code Agent Teams' native `TaskCreate`)
 - `handleSendMessage`, `handleRegisterWork`, `handleAssignTask` handler functions and all associated tests
 
 ### Fixed
+
 - `hooks/terminal-heartbeat.sh`: Rate limiting and concurrent file locking now works on stock macOS (was silently no-op due to missing `flock`); replaced with portable `mkdir`-based lock fallback
 - `hooks/terminal-heartbeat.sh`: Removed spurious `transcript: "unknown"` from heartbeat-fallback session creation
 - `mcp-coordinator/lib/pipelines.js`: Windows .bat pipeline scripts now use `batQuote()` for all interpolated paths (was using raw string interpolation)
@@ -71,6 +76,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `README.md`: Replaced misleading "207x faster" transcript comparison with actual coordinator benchmark table; removed dead `coord_send_message` and `assign` references
 
 ### Security
+
 - Release verification examples/docs now pin cosign identity to signed release workflows + tag refs (no trust-all regex patterns).
 - Installer release mode now enforces signed checksums, signed release manifest, source tarball hash binding, and provenance verification by default.
 - Defense in depth: regex validation + `shellQuote`/`batQuote` + filesystem hardening (0700/0600 + symlink check + ownership check)
@@ -100,6 +106,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Release operations toolkit: `docs/RELEASE_CHECKLIST.md`, `scripts/release/preflight.sh`, `scripts/release/verify-release.sh`
 
 ### Fixed
+
 - `hooks/session-register.sh`: removed raw input debug logging that could expose sensitive session metadata; replaced with structured field logging
 - `hooks/check-inbox.sh`: atomic inbox drain via `mv` before read — prevents message loss if hook crashes mid-delivery
 - `hooks/session-register.sh`: switched to `jq --arg` JSON writing to prevent malformed JSON on special characters
@@ -138,6 +145,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Removed remaining project-specific examples/references from docs/prompts
 
 ### Changed
+
 - `README.md`: complete rewrite with badges, hero description, architecture diagram, platform table, enriched session file example, one-line install, and full components reference
 - `settings/settings.local.json`: replaced with portable minimal template focused on coordinator + lead hooks
 - `install.sh`: expands `__HOME__` placeholder in settings template during install
@@ -156,6 +164,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.0.0] — 2026-02-01
 
 ### Added
+
 - Initial release
 - `terminal-heartbeat.sh` — rate-limited PostToolUse session enrichment
 - `session-register.sh` — SessionStart registry with TTY capture

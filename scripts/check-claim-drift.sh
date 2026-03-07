@@ -31,7 +31,7 @@ done
 # 2. Feature comparison table has exactly 13 rows
 echo ""
 echo "Checking feature table row count..."
-feature_rows=$(sed -n '/^| Feature | Agent Teams | Lead System |$/,/^$/p' "$README" | grep -c '^|' || echo 0)
+feature_rows=$(sed -n '/^| Feature | Agent Teams | Lead System |$/,/^$/p' "$README" | (grep -c '^|' || true))
 # Subtract 2 for header + separator rows
 feature_count=$((feature_rows - 2))
 if [ "$feature_count" -eq 13 ]; then
@@ -56,22 +56,22 @@ else
   log_warn "bench/latest-results.json not found (may not exist until first benchmark run)"
 fi
 
-# 4. Cost comparison numbers: README $8.10 vs $3.51 match methodology doc
+# 4. Cost comparison numbers: README $6.30 vs $0.61 match methodology doc
 echo ""
 echo "Checking cost comparison consistency..."
 METHODOLOGY="$REPO_ROOT/docs/COMPARISON_METHODOLOGY.md"
 if [ -f "$METHODOLOGY" ]; then
-  readme_total_at=$(grep -c '\$8\.10' "$README" || echo 0)
-  readme_total_ls=$(grep -c '\$3\.51' "$README" || echo 0)
-  method_total_at=$(grep -c '\$8\.10' "$METHODOLOGY" || echo 0)
-  method_total_ls=$(grep -c '\$3\.51' "$METHODOLOGY" || echo 0)
+  readme_total_at=$(grep -c '\$6\.30' "$README" || echo 0)
+  readme_total_ls=$(grep -c '\$0\.61' "$README" || echo 0)
+  method_total_at=$(grep -c '\$6\.30' "$METHODOLOGY" || echo 0)
+  method_total_ls=$(grep -c '\$0\.61' "$METHODOLOGY" || echo 0)
   if [ "$readme_total_at" -gt 0 ] && [ "$method_total_at" -gt 0 ]; then
-    log_ok "Agent Teams total (\$8.10) consistent between README and methodology"
+    log_ok "Agent Teams total (\$6.30) consistent between README and methodology"
   else
     log_fail "Agent Teams total mismatch between README and methodology"
   fi
   if [ "$readme_total_ls" -gt 0 ] && [ "$method_total_ls" -gt 0 ]; then
-    log_ok "Lead System total (\$3.51) consistent between README and methodology"
+    log_ok "Lead System total (\$0.61) consistent between README and methodology"
   else
     log_fail "Lead System total mismatch between README and methodology"
   fi

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 from pathlib import Path
 
-HOME = Path.home()
+HOME = Path(os.path.expanduser("~"))
 SETTINGS = HOME / ".claude/settings.json"
 APPROVALS = HOME / ".claude/governance/tier2-approvals.json"
 REPORT_DIR = HOME / ".claude/reports"

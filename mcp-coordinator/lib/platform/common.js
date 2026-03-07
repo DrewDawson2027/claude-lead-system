@@ -11,8 +11,65 @@ import {
   readFileSync,
 } from "fs";
 import { spawn, spawnSync, execFileSync } from "child_process";
+import { fileURLToPath } from "url";
 import { cfg } from "../constants.js";
 import { shellQuote } from "../helpers.js";
+
+const AUTOCLAIM_SCRIPT = fileURLToPath(
+  new URL("../../scripts/claim-next-task.mjs", import.meta.url),
+);
+const AUTOCLAIM_NODE = process.execPath || "node";
+
+function buildAutoClaimPayload(opts = {}) {
+  const teamName = String(opts.teamName || "").trim();
+  const assignee = String(opts.workerName || "").trim();
+  if (!teamName || !assignee) return null;
+  const payload = {
+    team_name: teamName,
+    assignee,
+    completed_worker_task_id: opts.taskId,
+    directory: opts.defaultDirectory || opts.workDir,
+    mode: opts.mode,
+    runtime: opts.runtime,
+    layout: opts.layout,
+    notify_session_id: opts.leadSessionId,
+    model: opts.model,
+    agent: opts.agent,
+    role: opts.role,
+    permission_mode: opts.permissionMode,
+    context_level: opts.contextLevel,
+    budget_policy: opts.budgetPolicy,
+    budget_tokens: opts.budgetTokens,
+    global_budget_policy: opts.globalBudgetPolicy,
+    global_budget_tokens: opts.globalBudgetTokens,
+    max_active_workers: opts.maxActiveWorkers,
+    require_plan: opts.requirePlan,
+    max_turns: opts.maxTurns,
+    context_summary: opts.contextSummary,
+  };
+  if (typeof opts.isolate === "boolean") payload.isolate = opts.isolate;
+  return Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => {
+      if (value === undefined || value === null) return false;
+      if (typeof value === "string") return value.trim() !== "";
+      return true;
+    }),
+  );
+}
+
+function buildAutoClaimEnvExports(opts = {}) {
+  const payload = buildAutoClaimPayload(opts);
+  if (!payload) return [];
+  return [
+    `export CLAUDE_AUTOCLAIM_NODE=${shellQuote(AUTOCLAIM_NODE)}`,
+    `export CLAUDE_AUTOCLAIM_SCRIPT=${shellQuote(AUTOCLAIM_SCRIPT)}`,
+    `export CLAUDE_AUTOCLAIM_ARGS_B64=${shellQuote(Buffer.from(JSON.stringify(payload), "utf8").toString("base64"))}`,
+  ];
+}
+
+function autoClaimShellCommand() {
+  return '([ -n "${CLAUDE_AUTOCLAIM_ARGS_B64:-}" ] && "$CLAUDE_AUTOCLAIM_NODE" "$CLAUDE_AUTOCLAIM_SCRIPT" >/dev/null 2>&1) || true';
+}
 
 /**
  * Detect if we're running inside a tmux session.
@@ -28,35 +85,36 @@ export function isInsideTmux() {
  */
 export function getCurrentTmuxPane() {
   if (!isInsideTmux()) return null;
-  return process.env.TMUX_PANE || null;
+  try {
+    const result = spawnSync("tmux", ["display-message", "-p", "#{pane_id}"], {
+      encoding: "utf-8",
+      timeout: 3000,
+    });
+    const paneId = (result.stdout || "").trim();
+    if (result.status === 0 && paneId.startsWith("%")) return paneId;
+  } catch {
+    // Fall back to env var if tmux command is unavailable.
+  }
+  const envPane = String(process.env.TMUX_PANE || "").trim();
+  return envPane.startsWith("%") ? envPane : null;
 }
 
 /**
  * Spawn a worker in a new tmux pane (split from current window).
  * Returns the new pane's ID for message injection via send-keys.
  * @param {string} script - Shell command to run in the pane
- * @param {object} [opts] - Options
- * @param {string} [opts.direction] - "h" (horizontal/right) or "v" (vertical/below). Default "h"
- * @param {number} [opts.percentage] - Pane size percentage. Default 50
  * @returns {{ paneId: string, app: string }} Pane ID and app name
  */
-export function spawnTmuxPaneWorker(script, opts = {}) {
-  const direction = opts.direction === "v" ? "-v" : "-h";
-  const percentage = opts.percentage || 50;
-
-  // split-window returns the new pane's ID via -PF
+export function spawnTmuxPaneWorker(script) {
+  // split-window prints the new pane's ID via -P/-F
   const result = spawnSync(
     "tmux",
     [
       "split-window",
-      direction,
-      "-l",
-      `${percentage}%`,
       "-d", // don't switch focus to new pane
-      "-PF",
+      "-P",
+      "-F",
       "#{pane_id}", // print new pane ID
-      "bash",
-      "-lc",
       script,
     ],
     { encoding: "utf-8", timeout: 10000 },
@@ -93,11 +151,13 @@ export function spawnTmuxPaneWorker(script, opts = {}) {
 export function tmuxSendKeys(paneId, text) {
   if (!paneId || !isInsideTmux()) return false;
   try {
-    // Escape special tmux characters in the text
-    const escaped = text.replace(/;/g, "\\;").replace(/"/g, '\\"');
+    const payload = String(text || "")
+      .replace(/[\r\n]+/g, " ")
+      .trim();
+    if (!payload) return false;
     const result = spawnSync(
       "tmux",
-      ["send-keys", "-t", paneId, escaped, "Enter"],
+      ["send-keys", "-t", paneId, payload, "Enter"],
       { stdio: "ignore", timeout: 5000 },
     );
     return result.status === 0;
@@ -399,34 +459,31 @@ export function isSafeTTYPath(pathValue) {
   return /^\/dev\/(?:ttys?\d+|pts\/\d+)$/.test(tty);
 }
 
-/**
- * Build a cross-platform interactive worker script.
- * Interactive workers run as full Claude sessions with hooks (inbox checking, heartbeat).
- * The lead can send mid-execution messages that the worker receives on every tool call.
- * @param {object} opts - Worker options (same as buildWorkerScript)
- * @returns {string} Shell script string
- */
 export function buildInteractiveWorkerScript(opts) {
   const { PLATFORM, SETTINGS_FILE, CLAUDE_BIN } = cfg();
-  const {
-    taskId,
-    workDir,
-    resultFile,
-    pidFile,
-    metaFile,
-    model,
-    agent,
-    promptFile,
-  } = opts;
+  const { taskId, workDir, pidFile, metaFile, model, agent, promptFile } = opts;
   const workerName = opts.workerName || "";
   const maxTurns = opts.maxTurns || "";
   const permissionMode = opts.permissionMode || "acceptEdits";
   const platformName = opts.platformName ?? PLATFORM;
+  const teamName = opts.teamName || "";
+  const mode = opts.mode || "interactive";
+  const runtime = opts.runtime || "claude";
+  const layout = opts.layout || "background";
+  const defaultDirectory = opts.defaultDirectory || workDir;
+  const role = opts.role || "";
+  const contextLevel = opts.contextLevel || "";
+  const budgetPolicy = opts.budgetPolicy || "";
+  const budgetTokens = opts.budgetTokens;
+  const globalBudgetPolicy = opts.globalBudgetPolicy || "";
+  const globalBudgetTokens = opts.globalBudgetTokens;
+  const maxActiveWorkers = opts.maxActiveWorkers;
+  const requirePlan = opts.requirePlan;
+  const contextSummary = opts.contextSummary || "";
   const sessionId = opts.sessionId || "";
   const leadSessionId = opts.leadSessionId || "";
   const leadPaneId = opts.leadPaneId || "";
 
-  // Windows: fall back to pipe mode (interactive not yet supported)
   if (platformName === "win32") {
     return buildWorkerScript(opts);
   }
@@ -435,7 +492,6 @@ export function buildInteractiveWorkerScript(opts) {
   const qPid = shellQuote(pidFile);
   const qPrompt = shellQuote(promptFile);
   const qMetaDone = shellQuote(`${metaFile}.done`);
-  const qTaskId = shellQuote(taskId);
   const qModel = shellQuote(model);
   const qClaudeBin = shellQuote(CLAUDE_BIN);
   const agentArgs = agent ? `--agent ${shellQuote(agent)}` : "";
@@ -443,8 +499,32 @@ export function buildInteractiveWorkerScript(opts) {
     ? `--settings ${shellQuote(SETTINGS_FILE)}`
     : "";
 
-  // Worker identity env vars — inherited by Claude process and all hooks
   const envExports = [
+    ...buildAutoClaimEnvExports({
+      taskId,
+      workDir,
+      defaultDirectory,
+      teamName,
+      workerName: workerName || taskId,
+      mode,
+      runtime,
+      layout,
+      leadSessionId,
+      model,
+      agent,
+      role,
+      permissionMode,
+      contextLevel,
+      budgetPolicy,
+      budgetTokens,
+      globalBudgetPolicy,
+      globalBudgetTokens,
+      maxActiveWorkers,
+      requirePlan,
+      maxTurns,
+      contextSummary,
+      isolate: opts.isolate,
+    }),
     `export CLAUDE_WORKER_TASK_ID=${shellQuote(taskId)}`,
     workerName ? `export CLAUDE_WORKER_NAME=${shellQuote(workerName)}` : "",
     maxTurns
@@ -461,27 +541,17 @@ export function buildInteractiveWorkerScript(opts) {
     .filter(Boolean)
     .join(" && ");
 
-  // Transcript file for true resume capability
-  const transcriptFile = resultFile.replace(/\.txt$/, ".transcript");
+  const transcriptFile = opts.resultFile.replace(/\.txt$/, ".transcript");
   const qTranscript = shellQuote(transcriptFile);
-
-  // Use `script` to capture full terminal transcript for true resume
-  // macOS: script -q file command...
-  // Linux: script -q file -c "command..."
   const isLinux = platformName === "linux";
   const qPermMode = shellQuote(permissionMode);
   const sessionIdArg = sessionId ? `--session-id ${shellQuote(sessionId)}` : "";
-  // TODO: --team flag pending Claude Code native Agent Teams API stabilization
   const claudeCmd = `${qClaudeBin} --prompt "$WORKER_PROMPT" --permission-mode ${qPermMode} --model ${qModel} ${sessionIdArg} ${agentArgs} ${settingsArgs}`;
   const scriptWrapped = isLinux
     ? `script -q ${qTranscript} -c "${claudeCmd.replace(/"/g, '\\"')}"`
     : `script -q ${qTranscript} ${claudeCmd}`;
 
-  // Worker display name for notifications
   const workerDisplay = workerName || taskId;
-
-  // Exit trap: instant completion notification to lead (Gap 5, Layer 1)
-  // Uses env vars set in envExports — expanded at trap-fire time via single quotes
   const trapParts = [
     `printf '{"status":"completed","finished":"%s","task_id":"${taskId}"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ${qMetaDone}`,
     `rm -f ${qPid}`,
@@ -496,12 +566,12 @@ export function buildInteractiveWorkerScript(opts) {
       `printf '{"ts":"%s","from":"coordinator","priority":"normal","content":"[COMPLETED] ${workerDisplay}"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
     );
   }
+  trapParts.push(autoClaimShellCommand());
   trapParts.push(
     '[ -n "${_IDLE_PID:-}" ] && kill "$_IDLE_PID" 2>/dev/null || true',
   );
   const exitTrapCmd = `trap '${trapParts.join("; ")}' EXIT`;
 
-  // Background idle detector (Gap 5, Layer 2) — only when tmux + lead pane known
   let idleDetectorCmd = null;
   if (leadPaneId && sessionId) {
     const sid8 = sessionId.slice(0, 8);
@@ -522,8 +592,6 @@ export function buildInteractiveWorkerScript(opts) {
     ].join("; ");
   }
 
-  // Interactive mode: claude runs with --prompt and full hook infrastructure
-  // Exit trap handles done file, PID cleanup, and lead notification
   return [
     `cd ${qDir}`,
     `echo $$ > ${qPid}`,
@@ -531,7 +599,6 @@ export function buildInteractiveWorkerScript(opts) {
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     exitTrapCmd,
     idleDetectorCmd,
-    // unset CLAUDECODE prevents child inheriting parent session env
     `unset CLAUDECODE && ${scriptWrapped}`,
   ]
     .filter(Boolean)
@@ -556,6 +623,8 @@ export function buildResumeWorkerScript(opts) {
   const leadSessionId = opts.leadSessionId || "";
   const leadPaneId = opts.leadPaneId || "";
   const workerName = opts.workerName || taskId;
+  const teamName = opts.teamName || "";
+  const defaultDirectory = opts.defaultDirectory || workDir;
 
   const qDir = shellQuote(workDir);
   const qPid = shellQuote(pidFile);
@@ -567,6 +636,31 @@ export function buildResumeWorkerScript(opts) {
     : "";
 
   const envExports = [
+    ...buildAutoClaimEnvExports({
+      taskId,
+      workDir,
+      defaultDirectory,
+      teamName,
+      workerName,
+      mode: opts.mode || "interactive",
+      runtime: opts.runtime || "claude",
+      layout: opts.layout || "background",
+      leadSessionId,
+      model: opts.model,
+      agent: opts.agent,
+      role: opts.role,
+      permissionMode: opts.permissionMode,
+      contextLevel: opts.contextLevel,
+      budgetPolicy: opts.budgetPolicy,
+      budgetTokens: opts.budgetTokens,
+      globalBudgetPolicy: opts.globalBudgetPolicy,
+      globalBudgetTokens: opts.globalBudgetTokens,
+      maxActiveWorkers: opts.maxActiveWorkers,
+      requirePlan: opts.requirePlan,
+      maxTurns: opts.maxTurns,
+      contextSummary: opts.contextSummary,
+      isolate: opts.isolate,
+    }),
     `export CLAUDE_WORKER_TASK_ID=${shellQuote(taskId)}`,
     workerName ? `export CLAUDE_WORKER_NAME=${shellQuote(workerName)}` : "",
     leadSessionId
@@ -577,7 +671,6 @@ export function buildResumeWorkerScript(opts) {
     .filter(Boolean)
     .join(" && ");
 
-  // Exit trap for completion notification
   const trapParts = [
     `printf '{"status":"completed","finished":"%s","task_id":"${taskId}"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ${qMetaDone}`,
     `rm -f ${qPid}`,
@@ -592,6 +685,7 @@ export function buildResumeWorkerScript(opts) {
       `printf '{"ts":"%s","from":"coordinator","priority":"normal","content":"[COMPLETED] ${workerName} (resumed)"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
     );
   }
+  trapParts.push(autoClaimShellCommand());
   const exitTrapCmd = `trap '${trapParts.join("; ")}' EXIT`;
 
   return [
@@ -616,7 +710,6 @@ export function buildCodexWorkerScript(opts) {
     opts;
   const platformName = opts.platformName ?? cfg().PLATFORM;
 
-  // Windows not yet supported for Codex workers
   if (platformName === "win32") {
     return `echo "Codex workers not supported on Windows yet" && exit 1`;
   }
@@ -627,7 +720,31 @@ export function buildCodexWorkerScript(opts) {
   const qPrompt = shellQuote(promptFile);
   const qMetaDone = shellQuote(`${metaFile}.done`);
   const qTaskId = shellQuote(taskId);
-  // Codex uses -m for model; default is fine if not specified
+  const autoClaimEnv = buildAutoClaimEnvExports({
+    taskId,
+    workDir,
+    defaultDirectory: opts.defaultDirectory || workDir,
+    teamName: opts.teamName,
+    workerName: opts.workerName || taskId,
+    mode: opts.mode || "pipe",
+    runtime: opts.runtime || "codex",
+    layout: opts.layout || "background",
+    leadSessionId: opts.leadSessionId,
+    model,
+    agent: opts.agent,
+    role: opts.role,
+    permissionMode: opts.permissionMode,
+    contextLevel: opts.contextLevel,
+    budgetPolicy: opts.budgetPolicy,
+    budgetTokens: opts.budgetTokens,
+    globalBudgetPolicy: opts.globalBudgetPolicy,
+    globalBudgetTokens: opts.globalBudgetTokens,
+    maxActiveWorkers: opts.maxActiveWorkers,
+    requirePlan: opts.requirePlan,
+    maxTurns: opts.maxTurns,
+    contextSummary: opts.contextSummary,
+    isolate: opts.isolate,
+  }).join(" && ");
   const modelArgs =
     model && model !== "sonnet" ? `-m ${shellQuote(model)}` : "";
 
@@ -635,11 +752,15 @@ export function buildCodexWorkerScript(opts) {
     `cd ${qDir}`,
     `echo "Codex Worker ${qTaskId} starting at $(date)" > ${qResult}`,
     `echo $$ > ${qPid}`,
+    autoClaimEnv,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     `codex exec "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs} >> ${qResult} 2>&1` +
       `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-      `; rm -f ${qPid}`,
-  ].join(" && ");
+      `; rm -f ${qPid}` +
+      `; ${autoClaimShellCommand()}`,
+  ]
+    .filter(Boolean)
+    .join(" && ");
 }
 
 /**
@@ -662,17 +783,48 @@ export function buildCodexInteractiveWorkerScript(opts) {
   const qPrompt = shellQuote(promptFile);
   const qMetaDone = shellQuote(`${metaFile}.done`);
   const qTaskId = shellQuote(taskId);
+  const autoClaimEnv = buildAutoClaimEnvExports({
+    taskId,
+    workDir,
+    defaultDirectory: opts.defaultDirectory || workDir,
+    teamName: opts.teamName,
+    workerName: opts.workerName || taskId,
+    mode: opts.mode || "interactive",
+    runtime: opts.runtime || "codex",
+    layout: opts.layout || "background",
+    leadSessionId: opts.leadSessionId,
+    model,
+    agent: opts.agent,
+    role: opts.role,
+    permissionMode: opts.permissionMode,
+    contextLevel: opts.contextLevel,
+    budgetPolicy: opts.budgetPolicy,
+    budgetTokens: opts.budgetTokens,
+    globalBudgetPolicy: opts.globalBudgetPolicy,
+    globalBudgetTokens: opts.globalBudgetTokens,
+    maxActiveWorkers: opts.maxActiveWorkers,
+    requirePlan: opts.requirePlan,
+    maxTurns: opts.maxTurns,
+    contextSummary: opts.contextSummary,
+    isolate: opts.isolate,
+  })
+    .filter(Boolean)
+    .join(" && ");
   const modelArgs =
     model && model !== "sonnet" ? `-m ${shellQuote(model)}` : "";
 
   return [
     `cd ${qDir}`,
     `echo $$ > ${qPid}`,
+    autoClaimEnv,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     `codex "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs}` +
       `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-      `; rm -f ${qPid}`,
-  ].join(" && ");
+      `; rm -f ${qPid}` +
+      `; ${autoClaimShellCommand()}`,
+  ]
+    .filter(Boolean)
+    .join(" && ");
 }
 
 /**
@@ -712,7 +864,9 @@ export function buildWorkerScript(opts) {
     return [
       `cd /d "${workDir}"`,
       `powershell -NoProfile -ExecutionPolicy Bypass -File ${q(workerPs1File)} -WorkingDir ${q(workDir)} -ClaudeBin ${q(CLAUDE_BIN)} -PromptFile ${q(promptFile)} -ResultFile ${q(resultFile)} -PidFile ${q(pidFile)} -MetaDoneFile ${q(`${metaFile}.done`)} -Model ${q(model)} -Agent ${q(agent || "")} -SettingsFile ${q(winSettings)}`,
-    ].join(" && ");
+    ]
+      .filter(Boolean)
+      .join(" && ");
   } else {
     const qDir = shellQuote(workDir);
     const qResult = shellQuote(resultFile);
@@ -726,14 +880,45 @@ export function buildWorkerScript(opts) {
       ? `--settings ${shellQuote(SETTINGS_FILE)}`
       : "";
     const qTaskId = shellQuote(taskId);
+    const autoClaimEnv = buildAutoClaimEnvExports({
+      taskId,
+      workDir,
+      defaultDirectory: opts.defaultDirectory || workDir,
+      teamName: opts.teamName,
+      workerName: opts.workerName || taskId,
+      mode: opts.mode || "pipe",
+      runtime: opts.runtime || "claude",
+      layout: opts.layout || "background",
+      leadSessionId: opts.leadSessionId,
+      model,
+      agent,
+      role: opts.role,
+      permissionMode: opts.permissionMode,
+      contextLevel: opts.contextLevel,
+      budgetPolicy: opts.budgetPolicy,
+      budgetTokens: opts.budgetTokens,
+      globalBudgetPolicy: opts.globalBudgetPolicy,
+      globalBudgetTokens: opts.globalBudgetTokens,
+      maxActiveWorkers: opts.maxActiveWorkers,
+      requirePlan: opts.requirePlan,
+      maxTurns: opts.maxTurns,
+      contextSummary: opts.contextSummary,
+      isolate: opts.isolate,
+    })
+      .filter(Boolean)
+      .join(" && ");
     return [
       `cd ${qDir}`,
       `echo "Worker ${qTaskId} starting at $(date)" > ${qResult}`,
       `echo $$ > ${qPid}`,
+      autoClaimEnv,
       // unset CLAUDECODE: prevent child claude process from inheriting parent's session env
       `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} ${agentArgs} ${settingsArgs} < ${qPrompt} >> ${qResult} 2>&1`,
       `printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}`,
       `rm -f ${qPid}`,
-    ].join(" && ");
+      autoClaimShellCommand(),
+    ]
+      .filter(Boolean)
+      .join(" && ");
   }
 }

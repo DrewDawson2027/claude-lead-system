@@ -856,3 +856,83 @@ test('handleListTeams shows all teams', async () => {
     restore();
   }
 });
+
+// ─── GAP 4: auto permission mode ──────────────────────────────────────────────
+
+test('normalizeTeamPolicy accepts auto permission_mode', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    api.handleCreateTeam({
+      team_name: 'auto-mode-team',
+      policy: { permission_mode: 'auto' },
+    });
+
+    const teamFile = join(home, '.claude', 'terminals', 'teams', 'auto-mode-team.json');
+    const team = readJson(teamFile);
+    assert.equal(team.policy.permission_mode, 'auto', 'auto mode should be accepted by normalizeTeamPolicy');
+  } finally {
+    restore();
+  }
+});
+
+// ─── GAP 6: active teammate guard ─────────────────────────────────────────────
+
+test('handleDeleteTeam blocks deletion when teammate is active', async () => {
+  const { home, terminals } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+
+    // Create team with a member that has a session_id
+    const sessionId = 'abcd1234';
+    api.handleCreateTeam({
+      team_name: 'guarded-team',
+      members: [{ name: 'worker-alpha', role: 'worker', session_id: sessionId }],
+    });
+
+    // Write a session file that looks active (last_active = now)
+    const sessionFile = join(terminals, `session-${sessionId}.json`);
+    writeFileSync(sessionFile, JSON.stringify({
+      status: 'active',
+      last_active: new Date().toISOString(),
+      worker_name: 'worker-alpha',
+    }));
+
+    const result = api.handleToolCall('coord_delete_team', { team_name: 'guarded-team' });
+    const txt = textOf(result);
+    assert.match(txt, /Cannot delete team/, 'should block deletion when teammate is active');
+    assert.match(txt, /worker-alpha/, 'should name the active teammate');
+  } finally {
+    restore();
+  }
+});
+
+test('handleDeleteTeam proceeds with force:true even if teammate is active', async () => {
+  const { home, terminals } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+
+    const sessionId = 'eeee9999';
+    api.handleCreateTeam({
+      team_name: 'force-delete-team',
+      members: [{ name: 'worker-beta', role: 'worker', session_id: sessionId }],
+    });
+
+    // Write an active session
+    const sessionFile = join(terminals, `session-${sessionId}.json`);
+    writeFileSync(sessionFile, JSON.stringify({
+      status: 'active',
+      last_active: new Date().toISOString(),
+      worker_name: 'worker-beta',
+    }));
+
+    const result = api.handleToolCall('coord_delete_team', { team_name: 'force-delete-team', force: true });
+    const txt = textOf(result);
+    assert.match(txt, /deleted/i, 'force:true should bypass active check and delete');
+  } finally {
+    restore();
+  }
+});

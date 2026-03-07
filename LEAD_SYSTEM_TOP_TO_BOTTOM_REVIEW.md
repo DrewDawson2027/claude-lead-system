@@ -12,12 +12,15 @@ This addendum fully replaces the prior strategic review and corrects the scope t
 ## 1.1 Symlink path traversal in `isPathWithin`
 
 ### Status
+
 Resolved in current tree.
 
 ### Exact hardening implemented
+
 `isPathWithin` now canonicalizes both base and candidate paths through `realpathSync` before containment checks, including ENOENT-aware parent probing.
 
 References:
+
 - `@/Users/drewdawson/claude-lead-system/sidecar/server/routes/shared.ts#1-67`
 
 Equivalent patch shape (if backport needed):
@@ -46,13 +49,16 @@ Equivalent patch shape (if backport needed):
 ```
 
 ### All callsites of `isPathWithin`
+
 - `@/Users/drewdawson/claude-lead-system/sidecar/server/routes/maintenance.ts#47-49` (`/checkpoints/restore`)
 - `@/Users/drewdawson/claude-lead-system/sidecar/server/routes/maintenance.ts#104-106` (`/repair/fix`)
 - `@/Users/drewdawson/claude-lead-system/sidecar/server/routes/maintenance.ts#183-185` (`/backups/restore`)
 - `@/Users/drewdawson/claude-lead-system/sidecar/server/routes/system.ts#116-119` (`/reports/comparison` baseline file)
 
 ### Test coverage assessment
+
 Covered with both unit and integration tests:
+
 - Unit symlink-escape test: `@/Users/drewdawson/claude-lead-system/sidecar/test/path-containment.test.mjs#50-78`
 - HTTP containment bypass + symlink bypass checks across diagnostics/repair/checkpoints/backups:
   `@/Users/drewdawson/claude-lead-system/sidecar/test/server-http.test.mjs#420-510`
@@ -64,9 +70,11 @@ Conclusion: this item is no longer open in current code.
 ## 1.2 Action retry split lineage
 
 ### Status
+
 Resolved with **Option (a): reuse original record and increment attempt count**.
 
 ### Current behavior (no lineage split)
+
 1. Retry/fallback transitions same `action_id` back to pending with incremented `retry_count`:
    - `@/Users/drewdawson/claude-lead-system/sidecar/native/action-queue.js#109-120`
 2. Retry/fallback routes pass `trackedActionId` into tracked runner:
@@ -88,7 +96,9 @@ Equivalent patch shape (if backport needed):
 ```
 
 ### Test coverage assessment
+
 Explicit integration test verifies no duplicate record creation on retry/fallback:
+
 - `@/Users/drewdawson/claude-lead-system/sidecar/test/server-http.test.mjs#258-308`
 
 Conclusion: this item is no longer open in current code.
@@ -98,15 +108,18 @@ Conclusion: this item is no longer open in current code.
 ## 1.3 Reassign/gate-check integration tests
 
 ### Status
+
 Implemented.
 
 ### Integration coverage now present
+
 - End-to-end route behavior test (not just schema validation), including coordinator execution effects:
   - `@/Users/drewdawson/claude-lead-system/sidecar/test/server-http.test.mjs#112-190`
 - Schema allowlist tests also present:
   - `@/Users/drewdawson/claude-lead-system/sidecar/test/route-validation.test.mjs#112-131`
 
 ### Optional additional tests still worth adding
+
 1. Reassign failure path returns `ACTION_FAILED` when coordinator throws.
 2. Gate-check failure path returns `ACTION_FAILED` on coordinator error.
 3. Reassign rejects empty `new_assignee` (400) at HTTP integration level (not only route unit/schema).
@@ -120,6 +133,7 @@ Conclusion: baseline integration gap is closed; only negative-path expansion rem
 ## 2.1 Hooks layer redo (`~/.claude/hooks`)
 
 Wiring in settings is confirmed for all six requested hooks:
+
 - `token-guard.py`, `model-router.py` on `PreToolUse: Task`:
   `@/Users/drewdawson/.claude/settings.json#179-191`
 - `credential-guard.py` on `PreToolUse: Write|Edit|MultiEdit|Bash`:
@@ -169,6 +183,7 @@ Wiring in settings is confirmed for all six requested hooks:
    - Fail posture: fail-open on parse/no-match; fail-closed on blocked-pattern match.
 
 ### Comparison to native Claude Agent Teams
+
 Native Agent Teams provides no equivalent local hook enforcement layer (no PreToolUse/PostToolUse policy chain by default). This `~/.claude/hooks` stack is a meaningful governance advantage, but only where rules are truly blocking (not advisory).
 
 ---
@@ -176,9 +191,11 @@ Native Agent Teams provides no equivalent local hook enforcement layer (no PreTo
 ## 2.2 Agent definitions redo (`~/.claude/agents`)
 
 Reviewed active set:
+
 - `reviewer.md`, `quick-reviewer.md`, `fp-checker.md`, `code-simplifier.md`, `verify-app.md`, `code-architect.md`, `scout.md`, `practice-creator.md`
 
 References:
+
 - `@/Users/drewdawson/.claude/agents/reviewer.md#1-81`
 - `@/Users/drewdawson/.claude/agents/quick-reviewer.md#1-46`
 - `@/Users/drewdawson/.claude/agents/fp-checker.md#1-54`
@@ -212,15 +229,18 @@ References:
 ## 2.3 CLAUDE.md redo (`~/.claude/CLAUDE.md`)
 
 Reference:
+
 - `@/Users/drewdawson/.claude/CLAUDE.md#1-191`
 
 ### Internal consistency review
 
 Key strengths:
+
 - Clear routing matrix and explicit default model policy.
 - Explicit hard-rule language for prompt length, backgrounding, and verification.
 
 Detected contradictions/tension points:
+
 1. "Never dispatch two agents for same analysis" vs "multiple approaches compared → 3 parallel agents" (`@/Users/drewdawson/.claude/CLAUDE.md#51-53`, `#93-95`).
 2. "HARD RULE background=true" is not mechanically enforced by hooks (router warns only) (`@/Users/drewdawson/.claude/CLAUDE.md#69-76` vs `@/Users/drewdawson/.claude/hooks/model-router.py#194-203`).
 3. Several "HARD RULE" items are advisory-only in practice (no-double-reads, parallel dispatch-by-default).
@@ -234,12 +254,14 @@ Detected contradictions/tension points:
 ### Effectiveness: enforceable vs advisory
 
 **Mechanically enforced** (good):
+
 - prompt length cap for Task prompts
 - task spawn gating/cooldowns
 - credential and risky-command block patterns
 - mandatory queue-based auto-dispatch chains
 
 **Advisory-only** (gap):
+
 - background requirement for heavy agents
 - no-double-reads
 - some model routing guidance
@@ -258,6 +280,7 @@ Detected contradictions/tension points:
 Current file is ~191 lines (not 351), but still dense and mixed (routing + chains + verification + tool routing + learning policy).
 
 Recommended split:
+
 1. Keep `CLAUDE.md` as short policy index (core non-negotiables only).
 2. Extract to machine-checkable modules:
    - `rules/model-routing.md`

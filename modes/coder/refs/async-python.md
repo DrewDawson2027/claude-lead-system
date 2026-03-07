@@ -1,12 +1,14 @@
 # Async Python Patterns
 
 ## Core Concepts
+
 - **Event loop**: single-threaded cooperative multitasking
 - **Coroutines**: `async def` functions, paused/resumed with `await`
 - **Tasks**: scheduled coroutines running concurrently
 - Use async for I/O-bound ops. Use multiprocessing for CPU-bound.
 
 ## Concurrency Patterns
+
 ```python
 import asyncio
 
@@ -31,6 +33,7 @@ async def fetch_with_timeout(url):
 ```
 
 ## Async Context Managers
+
 ```python
 class AsyncDBPool:
     async def __aenter__(self):
@@ -41,6 +44,7 @@ class AsyncDBPool:
 ```
 
 ## Common Pitfalls
+
 - Never call blocking I/O in async code (use `run_in_executor` for sync libs)
 - `asyncio.gather` vs `asyncio.wait`: gather raises on first error, wait gives all results
 - Don't forget `await` — missing await returns coroutine object, not result
@@ -48,6 +52,7 @@ class AsyncDBPool:
 - Testing: use `pytest-asyncio` with `@pytest.mark.asyncio`
 
 ## When to Use
+
 - **Async**: HTTP clients, DB queries, file I/O, WebSockets, web scrapers
 - **Threading**: CPU-light I/O, legacy sync library integration
 - **Multiprocessing**: CPU-heavy computation, data processing, ML inference

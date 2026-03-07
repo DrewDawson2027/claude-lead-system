@@ -43,6 +43,7 @@ cd mcp-coordinator && npm run test:e2e
 ## Reporting bugs
 
 Open an issue with:
+
 - Your OS and terminal emulator
 - Output of `bash ~/.claude/hooks/health-check.sh`
 - What you expected vs. what happened

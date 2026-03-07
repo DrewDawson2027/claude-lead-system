@@ -4,14 +4,29 @@
  */
 
 import {
-  writeFileSync, readFileSync, appendFileSync, existsSync,
-  mkdirSync, unlinkSync, lstatSync, chmodSync, statSync,
-  openSync, closeSync, realpathSync, renameSync, fsyncSync,
+  writeFileSync,
+  readFileSync,
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  unlinkSync,
+  lstatSync,
+  chmodSync,
+  statSync,
+  openSync,
+  closeSync,
+  realpathSync,
+  renameSync,
+  fsyncSync,
 } from "fs";
 import { join, basename, resolve, isAbsolute } from "path";
 import { execFileSync } from "child_process";
 import {
-  cfg, SAFE_ID_RE, SAFE_NAME_RE, SAFE_MODEL_RE, SAFE_AGENT_RE,
+  cfg,
+  SAFE_ID_RE,
+  SAFE_NAME_RE,
+  SAFE_MODEL_RE,
+  SAFE_AGENT_RE,
 } from "./constants.js";
 
 /**
@@ -24,10 +39,12 @@ export function ensureSecureDirectory(pathValue) {
   mkdirSync(pathValue, { recursive: true, mode: 0o700 });
   try {
     const lst = lstatSync(pathValue);
-    if (lst.isSymbolicLink()) throw new Error(`${pathValue} must not be a symlink.`);
+    if (lst.isSymbolicLink())
+      throw new Error(`${pathValue} must not be a symlink.`);
     if (typeof process.getuid === "function") {
       const uid = process.getuid();
-      if (Number.isInteger(uid) && lst.uid !== uid) throw new Error(`${pathValue} is not owned by current user.`);
+      if (Number.isInteger(uid) && lst.uid !== uid)
+        throw new Error(`${pathValue} is not owned by current user.`);
     }
     if (PLATFORM !== "win32") chmodSync(pathValue, 0o700);
     else enforceWindowsAcl(pathValue, true);
@@ -49,17 +66,25 @@ export function writeFileSecure(pathValue, data) {
     writeFileSync(tempPath, data, { mode: 0o600 });
     try {
       const fd = openSync(tempPath, "r");
-      try { fsyncSync(fd); } finally { closeSync(fd); }
-    } catch { }
+      try {
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    } catch {}
     renameSync(tempPath, pathValue);
     renamed = true;
   } finally {
     if (!renamed) {
-      try { unlinkSync(tempPath); } catch { }
+      try {
+        unlinkSync(tempPath);
+      } catch {}
     }
   }
   if (PLATFORM !== "win32") {
-    try { chmodSync(pathValue, 0o600); } catch { }
+    try {
+      chmodSync(pathValue, 0o600);
+    } catch {}
   } else {
     enforceWindowsAcl(pathValue, false);
   }
@@ -74,7 +99,9 @@ export function appendJSONLineSecure(pathValue, value) {
   const { PLATFORM } = cfg();
   appendFileSync(pathValue, `${JSON.stringify(value)}\n`, { mode: 0o600 });
   if (PLATFORM !== "win32") {
-    try { chmodSync(pathValue, 0o600); } catch { }
+    try {
+      chmodSync(pathValue, 0o600);
+    } catch {}
   } else {
     enforceWindowsAcl(pathValue, false);
   }
@@ -93,17 +120,45 @@ export function enforceWindowsAcl(pathValue, isDirectory = false) {
     try {
       const who = execFileSync("whoami", { encoding: "utf-8" }).trim();
       username = who.split("\\").pop() || who;
-    } catch (e) { process.stderr.write(`coord: whoami failed: ${e.message}\n`); }
+    } catch (e) {
+      process.stderr.write(`coord: whoami failed: ${e.message}\n`);
+    }
   }
-  if (!username) throw new Error("USERNAME is required for Windows ACL hardening.");
+  if (!username)
+    throw new Error("USERNAME is required for Windows ACL hardening.");
   const grant = isDirectory ? `${username}:(OI)(CI)F` : `${username}:F`;
-  execFileSync("icacls", [pathValue, "/inheritance:r", "/remove:g", "Everyone", "/remove:g", "Users", "/remove:g", "Authenticated Users", "/grant:r", grant], { stdio: "ignore" });
+  execFileSync(
+    "icacls",
+    [
+      pathValue,
+      "/inheritance:r",
+      "/remove:g",
+      "Everyone",
+      "/remove:g",
+      "Users",
+      "/remove:g",
+      "Authenticated Users",
+      "/grant:r",
+      grant,
+    ],
+    { stdio: "ignore" },
+  );
   const aclOutput = execFileSync("icacls", [pathValue], { encoding: "utf-8" });
   const lower = aclOutput.toLowerCase();
-  if (!lower.includes(`${username.toLowerCase()}:`)) throw new Error(`ACL hardening failed for ${pathValue}: missing user ACE.`);
-  if (/\(I\)/.test(aclOutput)) throw new Error(`ACL hardening failed for ${pathValue}: inherited ACE detected.`);
-  if (/\\everyone:/i.test(aclOutput) || /\\users:/i.test(aclOutput) || /authenticated users:/i.test(aclOutput)) {
-    throw new Error(`ACL hardening failed for ${pathValue}: broad principals still present.`);
+  if (!lower.includes(`${username.toLowerCase()}:`))
+    throw new Error(`ACL hardening failed for ${pathValue}: missing user ACE.`);
+  if (/\(I\)/.test(aclOutput))
+    throw new Error(
+      `ACL hardening failed for ${pathValue}: inherited ACE detected.`,
+    );
+  if (
+    /\\everyone:/i.test(aclOutput) ||
+    /\\users:/i.test(aclOutput) ||
+    /authenticated users:/i.test(aclOutput)
+  ) {
+    throw new Error(
+      `ACL hardening failed for ${pathValue}: broad principals still present.`,
+    );
   }
 }
 
@@ -115,7 +170,8 @@ export function enforceWindowsAcl(pathValue, isDirectory = false) {
 export function assertMessageBudget(content) {
   const { MAX_MESSAGE_BYTES } = cfg();
   const size = Buffer.byteLength(content, "utf-8");
-  if (size > MAX_MESSAGE_BYTES) throw new Error(`Message exceeds ${MAX_MESSAGE_BYTES} bytes.`);
+  if (size > MAX_MESSAGE_BYTES)
+    throw new Error(`Message exceeds ${MAX_MESSAGE_BYTES} bytes.`);
 }
 
 /**
@@ -138,7 +194,12 @@ export function sleepMs(ms) {
  * @param {number} retryDelayMs - Delay between retries
  * @returns {Function} Release function to call when done
  */
-export function acquireExclusiveFileLock(lockPath, timeoutMs = 2000, staleMs = 15000, retryDelayMs = 25) {
+export function acquireExclusiveFileLock(
+  lockPath,
+  timeoutMs = 2000,
+  staleMs = 15000,
+  retryDelayMs = 25,
+) {
   const started = Date.now();
   let lockFd;
 
@@ -150,9 +211,11 @@ export function acquireExclusiveFileLock(lockPath, timeoutMs = 2000, staleMs = 1
       if (err?.code !== "EEXIST") throw err;
       try {
         const st = statSync(lockPath);
-        if ((Date.now() - st.mtimeMs) > staleMs) unlinkSync(lockPath);
-      } catch (e) { process.stderr.write(`coord: stale lock check failed: ${e.message}\n`); }
-      if ((Date.now() - started) >= timeoutMs) {
+        if (Date.now() - st.mtimeMs > staleMs) unlinkSync(lockPath);
+      } catch (e) {
+        process.stderr.write(`coord: stale lock check failed: ${e.message}\n`);
+      }
+      if (Date.now() - started >= timeoutMs) {
         throw new Error(`Could not acquire lock for ${basename(lockPath)}.`);
       }
       sleepMs(retryDelayMs);
@@ -160,8 +223,12 @@ export function acquireExclusiveFileLock(lockPath, timeoutMs = 2000, staleMs = 1
   }
 
   return () => {
-    try { if (lockFd !== undefined) closeSync(lockFd); } catch { }
-    try { unlinkSync(lockPath); } catch { }
+    try {
+      if (lockFd !== undefined) closeSync(lockFd);
+    } catch {}
+    try {
+      unlinkSync(lockPath);
+    } catch {}
   };
 }
 
@@ -181,11 +248,17 @@ export function enforceMessageRateLimit(sessionId) {
     try {
       if (existsSync(rateFile)) {
         const parsed = JSON.parse(readFileSync(rateFile, "utf-8"));
-        events = Array.isArray(parsed.events) ? parsed.events.filter(ts => Number(ts) >= cutoff) : [];
+        events = Array.isArray(parsed.events)
+          ? parsed.events.filter((ts) => Number(ts) >= cutoff)
+          : [];
       }
-    } catch (e) { process.stderr.write(`coord: rate file parse failed: ${e.message}\n`); }
+    } catch (e) {
+      process.stderr.write(`coord: rate file parse failed: ${e.message}\n`);
+    }
     if (events.length >= MAX_MESSAGES_PER_MINUTE) {
-      throw new Error(`Rate limit exceeded for ${sessionId} (${MAX_MESSAGES_PER_MINUTE}/minute).`);
+      throw new Error(
+        `Rate limit exceeded for ${sessionId} (${MAX_MESSAGES_PER_MINUTE}/minute).`,
+      );
     }
     events.push(now);
     writeFileSecure(rateFile, JSON.stringify({ events }));
@@ -204,7 +277,8 @@ export function enforceMessageRateLimit(sessionId) {
  */
 export function sanitizeId(input, label = "id") {
   const value = String(input ?? "").trim();
-  if (!SAFE_ID_RE.test(value)) throw new Error(`Invalid ${label}. Use letters, numbers, _, - only.`);
+  if (!SAFE_ID_RE.test(value))
+    throw new Error(`Invalid ${label}. Use letters, numbers, _, - only.`);
   return value;
 }
 
@@ -215,7 +289,8 @@ export function sanitizeId(input, label = "id") {
  */
 export function sanitizeShortSessionId(input) {
   const value = sanitizeId(input, "session_id");
-  if (value.length < 8) throw new Error("Invalid session_id. Provide at least 8 characters.");
+  if (value.length < 8)
+    throw new Error("Invalid session_id. Provide at least 8 characters.");
   return value.slice(0, 8);
 }
 
@@ -235,7 +310,8 @@ export function sanitizeName(input, label = "name") {
     .replace(/-+/g, "-")
     .slice(0, 64)
     .replace(/[-.]+$/, "");
-  if (!normalized || !SAFE_NAME_RE.test(normalized)) throw new Error(`Invalid ${label}.`);
+  if (!normalized || !SAFE_NAME_RE.test(normalized))
+    throw new Error(`Invalid ${label}.`);
   return normalized;
 }
 
@@ -270,9 +346,11 @@ export function sanitizeAgent(input) {
 export function requireDirectoryPath(pathValue) {
   const directory = String(pathValue ?? "").trim();
   if (!directory) throw new Error("Directory is required.");
-  if (directory.includes("\n") || directory.includes("\r")) throw new Error("Invalid directory path.");
+  if (directory.includes("\n") || directory.includes("\r"))
+    throw new Error("Invalid directory path.");
   if (directory.includes("\0")) throw new Error("Invalid directory path.");
-  if (directory.includes('"')) throw new Error("Directory path cannot contain double quotes.");
+  if (directory.includes('"'))
+    throw new Error("Directory path cannot contain double quotes.");
   return directory;
 }
 
@@ -291,7 +369,7 @@ export function normalizeFilePath(filePath, cwd = "") {
     if (existsSync(candidate)) {
       candidate = realpathSync(candidate);
     }
-  } catch { }
+  } catch {}
   let normalized = candidate.replace(/\\/g, "/");
   if (PLATFORM === "win32") normalized = normalized.toLowerCase();
   return normalized;

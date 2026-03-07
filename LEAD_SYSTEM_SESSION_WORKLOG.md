@@ -1,32 +1,38 @@
 # Lead System Session Worklog
 
 ## Repository Root
+
 - `/Users/drewdawson/claude-lead-system`
 
 ## Requested Changes Implemented
 
 ### 1) Restore semantics are additive
+
 - Checkpoint restore now explicitly documents additive behavior and returns `restore_mode: "additive"`.
 - Pre-op backup restore now explicitly documents additive behavior and returns `restore_mode: "additive"`.
 
 Changed files:
+
 - `sidecar/core/checkpoint.js`
 - `sidecar/core/pre-op-backup.js`
 - `sidecar/test/checkpoint.test.mjs`
 - `sidecar/test/pre-op-backup.test.mjs`
 
 ### 2) Bridge health includes PID but degrades on freshness
+
 - Bridge status patch now always carries PID fallback.
 - Heartbeat now writes PID fallback.
 - Bridge worker prompt now asks for `pid` in heartbeat payload.
 - Health classification now prioritizes heartbeat freshness; PID/process liveness still reported.
 
 Changed files:
+
 - `sidecar/native/bridge-controller.js`
 - `sidecar/native/bridge-health.js`
 - `sidecar/test/bridge-health.test.mjs`
 
 ### 3) Interrupt-priority updates via dedicated coordinator action
+
 - Added dedicated coordinator handler: `handleUpdateTeamPolicy`.
 - Added new tool: `coord_update_team_policy`.
 - Wired tool schema, dispatch switch, and test exports.
@@ -34,6 +40,7 @@ Changed files:
 - Team route uses dedicated action and errors properly if update fails.
 
 Changed files:
+
 - `mcp-coordinator/lib/teams.js`
 - `mcp-coordinator/index.js`
 - `mcp-coordinator/test/coordinator-coverage.test.mjs`
@@ -42,6 +49,7 @@ Changed files:
 - `sidecar/test/server-http.test.mjs`
 
 ## Additional Fixes Applied During Session
+
 - Fixed team task reassign/gate-check routes that were calling a non-existent router API.
 - Added route body allowlist entries for:
   - `/teams/{name}/tasks/{id}/reassign`
@@ -49,6 +57,7 @@ Changed files:
 - Added route validation tests for those endpoints.
 
 Changed files:
+
 - `sidecar/server/routes/teams.ts`
 - `sidecar/server/http/validation.ts`
 - `sidecar/test/route-validation.test.mjs`
@@ -56,6 +65,7 @@ Changed files:
 ## Full Modified/New File List (current working tree)
 
 Modified:
+
 - `mcp-coordinator/index.js`
 - `mcp-coordinator/lib/teams.js`
 - `mcp-coordinator/test/coordinator-coverage.test.mjs`
@@ -71,10 +81,12 @@ Modified:
 - `sidecar/test/server-http.test.mjs`
 
 New:
+
 - `sidecar/test/bridge-health.test.mjs`
 - `sidecar/test/pre-op-backup.test.mjs`
 
 ## Open Findings Remaining (not fixed in this session)
+
 1. Path containment checks are not symlink-aware in sensitive restore/repair/report paths.
 2. Action retry/fallback path still requeues old action while creating a new tracked action, which can fragment lineage/state clarity.
 3. Team reassign/gate-check have validation coverage and route wiring fixes, but still could use dedicated HTTP integration tests for full end-to-end behavior assertions.
@@ -82,17 +94,21 @@ New:
 ## Validation Commands Run
 
 Sidecar targeted tests:
+
 - `npx tsx --test test/checkpoint.test.mjs test/pre-op-backup.test.mjs test/bridge-health.test.mjs test/route-validation.test.mjs`
 
 Coordinator targeted tests:
+
 - `node --test test/coordinator-coverage.test.mjs`
 
 Sidecar full suite:
+
 - `npm test`
 
 All above completed successfully in this session.
 
 ## Notes on Where Findings Lived Before This File
+
 - Prior findings were in the IDE chat transcript and terminal output history.
 - This file is the consolidated on-disk session artifact.
 
@@ -105,6 +121,7 @@ This section is intentionally long-form and detailed to capture the end-to-end s
 ## Phase 0 — Scope of review and direction
 
 Session objective (as executed):
+
 - Continue deep code review of Lead System (sidecar + coordinator + runtime + bridge + routes + recovery).
 - Prioritize high-risk runtime route wiring, restore semantics, bridge health behavior, and coordinator action contracts.
 - Implement requested behavior changes:
@@ -117,6 +134,7 @@ Session objective (as executed):
 Primary system files reviewed during discovery and analysis:
 
 Core sidecar logic:
+
 - `sidecar/core/policy-engine.js`
 - `sidecar/core/state-store.js`
 - `sidecar/core/snapshot-diff.js`
@@ -125,6 +143,7 @@ Core sidecar logic:
 - `sidecar/core/pre-op-backup.js`
 
 Native/bridge stack:
+
 - `sidecar/native/bridge-protocol.js`
 - `sidecar/native/bridge-health.js`
 - `sidecar/native/bridge-controller.js`
@@ -133,6 +152,7 @@ Native/bridge stack:
 - `sidecar/native/action-queue.js`
 
 Server/runtime/http routes and helpers:
+
 - `sidecar/server/snapshot-builder.js`
 - `sidecar/server/runtime/bootstrap.ts`
 - `sidecar/server/runtime/rebuild.ts`
@@ -151,6 +171,7 @@ Server/runtime/http routes and helpers:
 - `sidecar/server/router.ts`
 
 Coordinator and adapters:
+
 - `sidecar/adapters/coordinator-adapter.js`
 - `mcp-coordinator/index.js`
 - `mcp-coordinator/lib/teams.js`
@@ -162,14 +183,17 @@ Coordinator and adapters:
 - `mcp-coordinator/lib/security.js`
 
 Operational scripts and entrypoints:
+
 - `sidecar/bin/sidecarctl`
 - `sidecar/bin/claudex`
 - `sidecar/server/index.js`
 
 Schema/types context:
+
 - `sidecar/types/snapshot.ts`
 
 Test suite files reviewed during diagnosis:
+
 - `sidecar/test/server-http.test.mjs`
 - `sidecar/test/route-validation.test.mjs`
 - `sidecar/test/checkpoint.test.mjs`
@@ -212,6 +236,7 @@ Test-coverage findings:
 ### A) Restore semantics additive (explicit)
 
 Updated:
+
 - `sidecar/core/checkpoint.js`
   - Added explicit additive semantics docs.
   - Return payload now includes `restore_mode: 'additive'`.
@@ -220,6 +245,7 @@ Updated:
   - Return payload now includes `restore_mode: 'additive'`.
 
 Tests:
+
 - `sidecar/test/checkpoint.test.mjs`
   - Expanded restore test to assert extra files remain after restore.
   - Asserts `restore_mode === 'additive'`.
@@ -229,6 +255,7 @@ Tests:
 ### B) Bridge health includes PID and degrades on freshness
 
 Updated:
+
 - `sidecar/native/bridge-controller.js`
   - `_statusPatch` now persists PID fallback (`patch.pid`, then previous PID, then `process.pid`).
   - `heartbeat` now writes PID fallback similarly.
@@ -244,6 +271,7 @@ Updated:
   - `process_alive` remains reported and used as fallback degradation signal when freshness is absent.
 
 Tests:
+
 - `sidecar/test/bridge-health.test.mjs` (new)
   - Fresh heartbeat without PID still maps healthy.
   - Freshness aging transitions stale/degraded.
@@ -253,6 +281,7 @@ Tests:
 ### C) Dedicated coordinator action for interrupt priority updates
 
 Updated:
+
 - `mcp-coordinator/lib/teams.js`
   - Added interrupt weight key normalization (`0..200` bounded, rounded ints).
   - Added `mergeTeamPolicy` helper for policy merging with interrupt weight merging semantics.
@@ -276,6 +305,7 @@ Updated:
     - rebuilds snapshot on success.
 
 Tests:
+
 - `mcp-coordinator/test/coordinator-coverage.test.mjs`
   - Added `coord_update_team_policy` merge test (verifies partial merge behavior for interrupt weights).
 - `sidecar/test/server-http.test.mjs`
@@ -290,6 +320,7 @@ While touching the team route module, adjacent runtime defects were fixed:
 3. Added body validation + required-key handling + error mapping.
 
 Files:
+
 - `sidecar/server/routes/teams.ts`
 - `sidecar/adapters/coordinator-adapter.js` (adds `reassign-task` and `gate-check` actions)
 - `sidecar/server/http/validation.ts` (allowlist entries)
@@ -298,15 +329,19 @@ Files:
 ## Phase 5 — Verification and test execution log
 
 Targeted sidecar tests (pass):
+
 - `npx tsx --test test/checkpoint.test.mjs test/pre-op-backup.test.mjs test/bridge-health.test.mjs test/route-validation.test.mjs`
 
 Targeted coordinator tests (pass):
+
 - `node --test test/coordinator-coverage.test.mjs`
 
 Extended sidecar integration pass (pass):
+
 - `npx tsx --test test/server-http.test.mjs test/route-validation.test.mjs`
 
 Full sidecar suite (pass):
+
 - `npm test`
   - Result observed: all tests passing (199 pass, 0 fail)
 
@@ -315,6 +350,7 @@ Full sidecar suite (pass):
 Git status (session end) reflects these edited/new files:
 
 Modified:
+
 - `mcp-coordinator/index.js`
 - `mcp-coordinator/lib/teams.js`
 - `mcp-coordinator/test/coordinator-coverage.test.mjs`
@@ -330,6 +366,7 @@ Modified:
 - `sidecar/test/server-http.test.mjs`
 
 New:
+
 - `sidecar/test/bridge-health.test.mjs`
 - `sidecar/test/pre-op-backup.test.mjs`
 
@@ -347,6 +384,7 @@ New:
 ## Phase 8 — Session artifact locations
 
 Primary consolidated artifact:
+
 - `LEAD_SYSTEM_SESSION_WORKLOG.md` (this file)
 
 Evidence artifacts (code + tests) are the modified/new files listed above.
@@ -356,6 +394,7 @@ Evidence artifacts (code + tests) are the modified/new files listed above.
 ## Practical note
 
 If you want an even more literal transcript-style artifact ("every command and output block in raw order"), that can be exported to a second file, e.g.:
+
 - `LEAD_SYSTEM_SESSION_RAW_TRANSCRIPT.md`
 
 This current file is the complete engineering worklog view: discovery → findings → changes → verification → remaining items.

@@ -1,6 +1,6 @@
 export interface NativeCapabilityState {
   available: boolean;
-  mode?: 'bridge' | 'ephemeral' | 'unavailable' | string;
+  mode?: "bridge" | "ephemeral" | "unavailable" | string;
   tools?: {
     TeamCreate?: boolean;
     TeamStatus?: boolean;
@@ -9,8 +9,14 @@ export interface NativeCapabilityState {
   };
   last_probe_at?: string | null;
   last_probe_error?: string | null;
-  confidence?: 'high' | 'medium' | 'low' | string;
-  bridge_status?: 'healthy' | 'starting' | 'stale' | 'degraded' | 'down' | string;
+  confidence?: "high" | "medium" | "low" | string;
+  bridge_status?:
+    | "healthy"
+    | "starting"
+    | "stale"
+    | "degraded"
+    | "down"
+    | string;
 }
 
 export interface NativeBridgeValidationReport {

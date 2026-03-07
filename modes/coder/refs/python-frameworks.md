@@ -21,6 +21,7 @@ async def create_user(data: UserCreate, db=Depends(get_db)):
 ```
 
 **Key patterns:**
+
 - Pydantic V2 for all validation/serialization
 - Dependency injection via `Depends()` for DB sessions, auth, etc.
 - SQLAlchemy 2.0+ with async (`asyncpg`)
@@ -32,6 +33,7 @@ async def create_user(data: UserCreate, db=Depends(get_db)):
 **When**: Full web apps, admin interfaces, content management
 
 **Key patterns:**
+
 - Django 5.x async views: `async def view(request):`
 - DRF for REST APIs: serializers, viewsets, routers
 - ORM optimization: `select_related` (FK), `prefetch_related` (M2M)
@@ -39,6 +41,7 @@ async def create_user(data: UserCreate, db=Depends(get_db)):
 - Settings: `django-environ` for env vars, split settings for envs
 
 ## Shared Best Practices
+
 - Pydantic for validation in both (FastAPI native, Django via DRF serializers)
 - Alembic (FastAPI) / Django migrations for schema changes
 - Structured logging (structlog/loguru), not print/console

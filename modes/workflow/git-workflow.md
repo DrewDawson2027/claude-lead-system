@@ -5,6 +5,7 @@ Capabilities (from: commit, commit-push-pr, clean_gone commands)
 ## Commit Protocol
 
 ### Standard Commit
+
 1. Check status: `git status` (never `-uall`)
 2. Review changes: `git diff` (staged + unstaged)
 3. Check recent commits: `git log --oneline -10` (follow style)
@@ -24,18 +25,20 @@ EOF
 ```
 
 ### Conventional Commit Types
-| Type | When |
-|------|------|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `test` | Adding/updating tests |
+
+| Type       | When                                       |
+| ---------- | ------------------------------------------ |
+| `feat`     | New feature                                |
+| `fix`      | Bug fix                                    |
+| `test`     | Adding/updating tests                      |
 | `refactor` | Code change that's neither fix nor feature |
-| `perf` | Performance improvement |
-| `chore` | Build, deps, config changes |
-| `docs` | Documentation only |
-| `style` | Formatting, semicolons, etc. |
+| `perf`     | Performance improvement                    |
+| `chore`    | Build, deps, config changes                |
+| `docs`     | Documentation only                         |
+| `style`    | Formatting, semicolons, etc.               |
 
 ### Commit Message Rules
+
 - Focus on "why" not "what" (the diff shows the "what")
 - 50 char limit for subject line
 - Imperative mood: "add" not "added" or "adds"
@@ -46,6 +49,7 @@ EOF
 ## Commit-Push-PR Flow
 
 ### Full Workflow
+
 1. **Stage + Commit** (using protocol above)
 2. **Push**: `git push -u origin HEAD`
 3. **Create PR**:
@@ -68,16 +72,20 @@ EOF
 ```
 
 ### PR Title Rules
+
 - Under 70 characters
 - Use conventional prefix: `feat:`, `fix:`, `refactor:`
 - Details go in body, not title
 
 ### PR Body Structure
+
 ```markdown
 ## Summary
+
 <1-3 bullet points of what changed>
 
 ## Test plan
+
 [Bulleted checklist of verification steps]
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
@@ -86,6 +94,7 @@ EOF
 ## Branch Management
 
 ### Clean Gone Branches
+
 Remove local branches deleted on remote:
 
 ```bash
@@ -97,6 +106,7 @@ git branch -vv | grep ': gone]' | awk '{print $1}' | xargs git branch -D
 ```
 
 ### Branch Naming Convention
+
 ```
 feat/{issue-number}-{short-description}
 fix/{issue-number}-{short-description}
@@ -118,16 +128,19 @@ refactor/{short-description}
 ## Common Operations
 
 ### View PR comments
+
 ```bash
 gh api repos/{owner}/{repo}/pulls/{number}/comments
 ```
 
 ### Check CI status
+
 ```bash
 gh pr checks
 ```
 
 ### Interactive rebase (when user requests)
+
 ```bash
 # NOT -i (interactive not supported in Claude)
 # Instead, use non-interactive rebase
@@ -135,12 +148,14 @@ git rebase main
 ```
 
 ### Cherry-pick
+
 ```bash
 git cherry-pick {commit-hash}
 # If conflicts: resolve, then git cherry-pick --continue
 ```
 
 ### Stash
+
 ```bash
 git stash push -m "description of changes"
 git stash list
