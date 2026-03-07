@@ -5,6 +5,7 @@ This document defines what must pass before a release tag is created.
 ## Compatibility Guarantees
 
 The project guarantees support for:
+
 - Node.js `18.x` and `20.x` for `mcp-coordinator`
 - Python `3.10+` for hook guards
 - `jq` available on PATH for shell hooks
@@ -12,14 +13,14 @@ The project guarantees support for:
 
 ## Versioned Test Matrix
 
-| Dimension | Versions / Targets | Validation |
-|---|---|---|
-| Node.js | 18, 20 | `npm run test:unit`, `node --check` |
-| Python | 3.10, 3.11 | `python3 -m py_compile` + `ruff` |
-| OS | ubuntu-latest, macos-latest, windows-latest | platform launch unit tests |
-| Hook runtime | ubuntu-latest | `tests/hooks-smoke.sh` |
-| Health-check behavior | ubuntu-latest | `tests/health-check-regression.sh` |
-| Worker/pipeline lifecycle | ubuntu-latest | `npm run test:e2e` |
+| Dimension                 | Versions / Targets                          | Validation                          |
+| ------------------------- | ------------------------------------------- | ----------------------------------- |
+| Node.js                   | 18, 20                                      | `npm run test:unit`, `node --check` |
+| Python                    | 3.10, 3.11                                  | `python3 -m py_compile` + `ruff`    |
+| OS                        | ubuntu-latest, macos-latest, windows-latest | platform launch unit tests          |
+| Hook runtime              | ubuntu-latest                               | `tests/hooks-smoke.sh`              |
+| Health-check behavior     | ubuntu-latest                               | `tests/health-check-regression.sh`  |
+| Worker/pipeline lifecycle | ubuntu-latest                               | `npm run test:e2e`                  |
 
 ## Release Gates (must pass)
 
@@ -55,8 +56,11 @@ The project guarantees support for:
 2. Verify `install.sh` SHA256 against `checksums.txt` before executing
 3. Confirm `health-check.sh` shows healthy status
 4. Run sidecar release security smoke:
+
 - `bash scripts/release/security-smoke.sh`
+
 5. Start two Claude sessions and verify:
+
 - inbox messaging
 - conflict detection
 - worker spawn/result

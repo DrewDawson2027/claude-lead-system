@@ -18,11 +18,13 @@ Legacy aliases return deprecation headers:
 - Override (for staged rollouts/testing): `LEAD_SIDECAR_LEGACY_SUNSET_MS`
 
 Removal policy:
+
 - New clients should adopt `/v1/*` immediately
 - Legacy aliases should not be used for new integrations
 - Legacy aliases may be removed in a future release after the deprecation window and release notes announcement
 
 Client migration guidance:
+
 1. Update all client request paths from `/<route>` to `/v1/<route>`
 2. Keep response parsing unchanged (payloads are parity-compatible during the deprecation window)
 3. Treat `Deprecation`/`Sunset` headers on legacy routes as migration deadlines
@@ -45,6 +47,7 @@ Returns:
 ## Endpoint Families (Canonical Prefix)
 
 ### System / Diagnostics
+
 - `/v1/health`
 - `/v1/metrics.json`
 - `/v1/metrics/history`
@@ -57,6 +60,7 @@ Returns:
 - `/v1/diagnostics/*`
 
 ### Teams / Tasking
+
 - `/v1/teams`
 - `/v1/teams/:team`
 - `/v1/teams/:team/interrupts`
@@ -69,6 +73,7 @@ Returns:
 - `/v1/teams/:team/batch-triage`
 
 ### Native Bridge / Native Actions
+
 - `/v1/native/status`
 - `/v1/native/probe`
 - `/v1/native/actions/:action`
@@ -78,6 +83,7 @@ Returns:
 - `/v1/native/bridge/validation`
 
 ### Action Queue / Routing
+
 - `/v1/actions`
 - `/v1/actions/:id`
 - `/v1/actions/:id/retry`
@@ -86,6 +92,7 @@ Returns:
 - `/v1/route/simulate`
 
 ### UI / Maintenance / Recovery
+
 - `/v1/ui/bootstrap.json`
 - `/v1/ui/preferences`
 - `/v1/open-dashboard`

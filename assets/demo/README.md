@@ -5,10 +5,12 @@ Use this script to produce social-proof assets for GitHub/launch posts.
 ## 1) Record terminal demo (2 minutes)
 
 Recommended tools:
+
 - `asciinema` + `agg` (terminal gif)
 - or OBS (video)
 
 Suggested flow:
+
 1. Run installer
 2. Open two Claude sessions
 3. `/lead` boot dashboard

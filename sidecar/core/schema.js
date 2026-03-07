@@ -8,7 +8,8 @@ const migrations = [
   {
     from: 1,
     to: 2,
-    description: 'Add quality_gates, acceptance_criteria, audit_trail_summary to tasks; add auto_rebalance to policy',
+    description:
+      "Add quality_gates, acceptance_criteria, audit_trail_summary to tasks; add auto_rebalance to policy",
     migrate(bundle) {
       const tasks = bundle.snapshot?.tasks || [];
       for (const t of tasks) {
@@ -16,10 +17,14 @@ const migrations = [
         if (!t.acceptance_criteria) t.acceptance_criteria = [];
         if (!t.audit_trail_summary) t.audit_trail_summary = [];
       }
-      for (const team of (bundle.snapshot?.teams || [])) {
+      for (const team of bundle.snapshot?.teams || []) {
         if (!team.policy) team.policy = {};
         if (!team.policy.auto_rebalance) {
-          team.policy.auto_rebalance = { enabled: false, cooldown_ms: 60000, triggers: {} };
+          team.policy.auto_rebalance = {
+            enabled: false,
+            cooldown_ms: 60000,
+            triggers: {},
+          };
         }
       }
       bundle.schema_version = 2;
@@ -29,12 +34,14 @@ const migrations = [
   {
     from: 2,
     to: 3,
-    description: 'Phase E: add checkpoint_version and recovery_metadata to teams',
+    description:
+      "Phase E: add checkpoint_version and recovery_metadata to teams",
     migrate(bundle) {
       if (bundle.snapshot) {
-        if (!bundle.snapshot.checkpoint_version) bundle.snapshot.checkpoint_version = 0;
+        if (!bundle.snapshot.checkpoint_version)
+          bundle.snapshot.checkpoint_version = 0;
       }
-      for (const team of (bundle.snapshot?.teams || [])) {
+      for (const team of bundle.snapshot?.teams || []) {
         if (!team.recovery_metadata) {
           team.recovery_metadata = { last_checkpoint: null, last_repair: null };
         }
@@ -51,10 +58,14 @@ export function migrateBundle(bundle) {
   const applied = [];
 
   while (version < CURRENT_SCHEMA_VERSION) {
-    const migration = migrations.find(m => m.from === version);
+    const migration = migrations.find((m) => m.from === version);
     if (!migration) break;
     migration.migrate(bundle);
-    applied.push({ from: migration.from, to: migration.to, description: migration.description });
+    applied.push({
+      from: migration.from,
+      to: migration.to,
+      description: migration.description,
+    });
     version = migration.to;
   }
 
@@ -82,12 +93,16 @@ export function dryRunMigration(bundle) {
   const wouldApply = [];
   let v = version;
   while (v < CURRENT_SCHEMA_VERSION) {
-    const m = migrations.find(x => x.from === v);
+    const m = migrations.find((x) => x.from === v);
     if (!m) break;
     wouldApply.push({ from: m.from, to: m.to, description: m.description });
     v = m.to;
   }
-  return { would_apply: wouldApply, current_version: version, target_version: CURRENT_SCHEMA_VERSION };
+  return {
+    would_apply: wouldApply,
+    current_version: version,
+    target_version: CURRENT_SCHEMA_VERSION,
+  };
 }
 
 /** Export migrations list for introspection */

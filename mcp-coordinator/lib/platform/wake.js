@@ -8,8 +8,11 @@ import { join } from "path";
 import { execFileSync, spawnSync } from "child_process";
 import { cfg } from "../constants.js";
 import {
-  sanitizeShortSessionId, assertMessageBudget,
-  enforceMessageRateLimit, writeFileSecure, appendJSONLineSecure,
+  sanitizeShortSessionId,
+  assertMessageBudget,
+  enforceMessageRateLimit,
+  writeFileSecure,
+  appendJSONLineSecure,
 } from "../security.js";
 import { readJSON, text } from "../helpers.js";
 import { getTerminalApp, isSafeTTYPath } from "./common.js";
@@ -90,15 +93,28 @@ exit 0
 `.trim();
   try {
     writeFileSecure(scriptPath, ps1);
-    const result = spawnSync("powershell", [
-      "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath,
-      "-WindowHint", `claude-${sessionId}`, "-Message", message,
-    ], { stdio: "ignore", timeout: 8000 });
+    const result = spawnSync(
+      "powershell",
+      [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        scriptPath,
+        "-WindowHint",
+        `claude-${sessionId}`,
+        "-Message",
+        message,
+      ],
+      { stdio: "ignore", timeout: 8000 },
+    );
     return result.status === 0;
   } catch {
     return false;
   } finally {
-    try { if (existsSync(scriptPath)) unlinkSync(scriptPath); } catch {}
+    try {
+      if (existsSync(scriptPath)) unlinkSync(scriptPath);
+    } catch {}
   }
 }
 
@@ -126,32 +142,41 @@ export function handleWakeSession(args) {
 
   // Linux: TTY write
   if (PLATFORM === "linux" && targetTTY && wakeViaTTY(targetTTY, wakeText)) {
-    return text(`Woke ${session_id} via TTY write (${targetTTY})${wakeModeNote}.\nMessage: "${message}"`);
+    return text(
+      `Woke ${session_id} via TTY write (${targetTTY})${wakeModeNote}.\nMessage: "${message}"`,
+    );
   }
   // Windows: AppActivate
   if (PLATFORM === "win32" && wakeViaWindowsAppActivate(session_id, wakeText)) {
-    return text(`Woke ${session_id} via Windows AppActivate${wakeModeNote}.\nMessage: "${message}"`);
+    return text(
+      `Woke ${session_id} via Windows AppActivate${wakeModeNote}.\nMessage: "${message}"`,
+    );
   }
 
   // Non-macOS fallback
   if (PLATFORM !== "darwin") {
     const inboxFile = join(INBOX_DIR, `${session_id}.jsonl`);
     appendJSONLineSecure(inboxFile, {
-      ts: new Date().toISOString(), from: "lead", priority: "urgent",
+      ts: new Date().toISOString(),
+      from: "lead",
+      priority: "urgent",
       content: `[WAKE] ${message}`,
     });
     return text(
       `Platform: ${PLATFORM} \u2014 AppleScript not available.\n` +
-      `Sent URGENT inbox message instead. Session will receive it on next tool call.\n` +
-      `Message: "${message}"\n\n` +
-      `If the session is idle (not making tool calls), use coord_spawn_worker to dispatch autonomous work instead.`
+        `Sent URGENT inbox message instead. Session will receive it on next tool call.\n` +
+        `Message: "${message}"\n\n` +
+        `If the session is idle (not making tool calls), use coord_spawn_worker to dispatch autonomous work instead.`,
     );
   }
 
   /* c8 ignore start — macOS AppleScript, requires osascript */
   // macOS: AppleScript
   try {
-    const escapedMessage = wakeText.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+    const escapedMessage = wakeText
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, "\\n");
     const termApp = getTerminalApp();
     let appleScript;
 
@@ -225,26 +250,39 @@ end if
 return found`.trim();
     }
 
-    const result = execFileSync("osascript", ["-e", appleScript], { timeout: 10000, encoding: "utf-8" }).trim();
+    const result = execFileSync("osascript", ["-e", appleScript], {
+      timeout: 10000,
+      encoding: "utf-8",
+    }).trim();
 
     if (result === "true") {
-      return text(`Woke ${session_id} via ${termApp}${targetTTY ? ` (${targetTTY})` : ""}${wakeModeNote}.\nMessage: "${message}"`);
+      return text(
+        `Woke ${session_id} via ${termApp}${targetTTY ? ` (${targetTTY})` : ""}${wakeModeNote}.\nMessage: "${message}"`,
+      );
     }
 
     // Fallback to inbox
     const inboxFile = join(INBOX_DIR, `${session_id}.jsonl`);
     appendJSONLineSecure(inboxFile, {
-      ts: new Date().toISOString(), from: "lead", priority: "urgent",
+      ts: new Date().toISOString(),
+      from: "lead",
+      priority: "urgent",
       content: `[WAKE] ${message}`,
     });
-    return text(`Could not find session in ${termApp}. Sent inbox message as fallback.\nUse coord_spawn_worker if session is truly dead.`);
+    return text(
+      `Could not find session in ${termApp}. Sent inbox message as fallback.\nUse coord_spawn_worker if session is truly dead.`,
+    );
   } catch (err) {
     const inboxFile = join(INBOX_DIR, `${session_id}.jsonl`);
     appendJSONLineSecure(inboxFile, {
-      ts: new Date().toISOString(), from: "lead", priority: "urgent",
+      ts: new Date().toISOString(),
+      from: "lead",
+      priority: "urgent",
       content: `[WAKE] ${message}`,
     });
-    return text(`AppleScript failed: ${err.message}\nSent inbox message as fallback.`);
+    return text(
+      `AppleScript failed: ${err.message}\nSent inbox message as fallback.`,
+    );
   }
   /* c8 ignore stop */
 }

@@ -70,7 +70,9 @@ Typography sets tone. Don't always default:
 These apply regardless of design direction. This is the quality floor.
 
 ### The 4px Grid
+
 All spacing uses a 4px base grid:
+
 - `4px` - micro spacing (icon gaps)
 - `8px` - tight spacing (within components)
 - `12px` - standard spacing (between related elements)
@@ -79,6 +81,7 @@ All spacing uses a 4px base grid:
 - `32px` - major separation
 
 ### Symmetrical Padding
+
 **TLBR must match.** If top padding is 16px, left/bottom/right must also be 16px. Exception: when content naturally creates visual balance.
 
 ```css
@@ -91,6 +94,7 @@ padding: 24px 16px 12px 16px;
 ```
 
 ### Border Radius Consistency
+
 Stick to the 4px grid. Sharper corners feel technical, rounder corners feel friendly. Pick a system and commit:
 
 - Sharp: 4px, 6px, 8px
@@ -123,42 +127,49 @@ border: 0.5px solid var(--border);
 
 /* Layered shadow approach */
 --shadow-layered:
-  0 0 0 0.5px rgba(0, 0, 0, 0.05),
-  0 1px 2px rgba(0, 0, 0, 0.04),
-  0 2px 4px rgba(0, 0, 0, 0.03),
-  0 4px 8px rgba(0, 0, 0, 0.02);
+  0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04),
+  0 2px 4px rgba(0, 0, 0, 0.03), 0 4px 8px rgba(0, 0, 0, 0.02);
 ```
 
 ### Card Layouts Vary, Surface Treatment Stays Consistent
+
 Design each card's internal structure for its specific content — but keep the surface treatment consistent: same border weight, shadow depth, corner radius, padding scale, typography.
 
 ### Isolated Controls
+
 **Never use native form elements for styled UI.** Build custom components:
+
 - Custom select: trigger button + positioned dropdown menu
 - Custom date picker: input + calendar popover
 - Custom select triggers: `display: inline-flex` with `white-space: nowrap`
 
 ### Typography Hierarchy
+
 - Headlines: 600 weight, tight letter-spacing (-0.02em)
 - Body: 400-500 weight, standard tracking
 - Labels: 500 weight, slight positive tracking for uppercase
 - Scale: 11px, 12px, 13px, 14px (base), 16px, 18px, 24px, 32px
 
 ### Monospace for Data
+
 Numbers, IDs, codes, timestamps belong in monospace. Use `tabular-nums` for columnar alignment.
 
 ### Iconography
+
 Use **Phosphor Icons** (`@phosphor-icons/react`). Icons clarify, not decorate.
 
 ### Animation
+
 - 150ms for micro-interactions, 200-250ms for larger transitions
 - Easing: `cubic-bezier(0.25, 1, 0.5, 1)`
 - No spring/bouncy effects in enterprise UI
 
 ### Contrast Hierarchy
+
 Build a four-level system: foreground (primary) → secondary → muted → faint. Use all four consistently.
 
 ### Color for Meaning Only
+
 Gray builds structure. Color only appears when it communicates: status, action, error, success. Decorative color is noise.
 
 ---
@@ -176,10 +187,12 @@ Sidebars: same background as main content, subtle border for separation (Supabas
 **Same structure, different values** — Hierarchy still applies, inverted.
 
 ## Anti-Patterns (NEVER)
+
 - Dramatic drop shadows, large border radius (16px+) on small elements
 - Asymmetric padding without reason, pure white cards on colored backgrounds
 - Thick borders (2px+) for decoration, spring/bouncy animations
 - Gradients for decoration, multiple accent colors competing
 
 ## The Standard
-Every interface should look designed by a team that obsesses over 1-pixel differences. Not stripped — *crafted*. Intricate minimalism with appropriate personality.
+
+Every interface should look designed by a team that obsesses over 1-pixel differences. Not stripped — _crafted_. Intricate minimalism with appropriate personality.

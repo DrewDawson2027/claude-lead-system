@@ -177,7 +177,7 @@ function applyLegacyDeprecationToOutput(toolName, data) {
         LEGACY_COST_DEPRECATIONS[toolName].canonical_command;
       return JSON.stringify(parsed, null, 2);
     }
-  } catch { }
+  } catch {}
   return `${raw}\n\n[DEPRECATED]\ncanonical_tool=${LEGACY_COST_DEPRECATIONS[toolName].canonical_tool}\ncanonical_command=${LEGACY_COST_DEPRECATIONS[toolName].canonical_command}\n`;
 }
 

@@ -14,6 +14,7 @@ LEAD_SIDECAR_REQUIRE_TOKEN=1 node sidecar/server/index.js --port 9900
 ```
 
 Browser-origin security notes:
+
 - Only the sidecar UI origin (`http://127.0.0.1:<sidecar-port>`) may call the sidecar API from a browser.
 - Cross-port localhost browser requests are blocked by design.
 - Use `X-Sidecar-CSRF` for browser-origin mutation requests.
@@ -82,11 +83,11 @@ curl -X POST http://127.0.0.1:9900/reports/comparison -H 'Content-Type: applicat
 
 ## Configuration Knobs
 
-| Env Variable | Default | Description |
-|--------------|---------|-------------|
-| `LEAD_SIDECAR_REQUIRE_TOKEN` | `0` | Enable bearer-token auth for non-browser clients (browser UI uses same-origin + CSRF) |
-| `COORD_PERF_MIN_SPEEDUP` | `50` | Perf gate speedup threshold |
-| `BENCH_ITERATIONS` | `100` | Benchmark iteration count |
+| Env Variable                 | Default | Description                                                                           |
+| ---------------------------- | ------- | ------------------------------------------------------------------------------------- |
+| `LEAD_SIDECAR_REQUIRE_TOKEN` | `0`     | Enable bearer-token auth for non-browser clients (browser UI uses same-origin + CSRF) |
+| `COORD_PERF_MIN_SPEEDUP`     | `50`    | Perf gate speedup threshold                                                           |
+| `BENCH_ITERATIONS`           | `100`   | Benchmark iteration count                                                             |
 
 ## Emergency Procedures
 

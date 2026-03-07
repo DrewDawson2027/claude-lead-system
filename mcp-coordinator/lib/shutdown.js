@@ -7,7 +7,12 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
-import { sanitizeId, sanitizeShortSessionId, appendJSONLineSecure, writeFileSecure } from "./security.js";
+import {
+  sanitizeId,
+  sanitizeShortSessionId,
+  appendJSONLineSecure,
+  writeFileSecure,
+} from "./security.js";
 import { readJSON, text } from "./helpers.js";
 import { getAllSessions, getSessionStatus } from "./sessions.js";
 import { isProcessAlive, killProcess } from "./platform/common.js";
@@ -21,8 +26,13 @@ import { isProcessAlive, killProcess } from "./platform/common.js";
  */
 export function handleShutdownRequest(args) {
   const { INBOX_DIR, RESULTS_DIR } = cfg();
-  const message = String(args.message || "Task complete, wrapping up the session.").trim();
-  const forceTimeout = Math.max(10, Math.min(300, parseInt(args.force_timeout_seconds, 10) || 60));
+  const message = String(
+    args.message || "Task complete, wrapping up the session.",
+  ).trim();
+  const forceTimeout = Math.max(
+    10,
+    Math.min(300, parseInt(args.force_timeout_seconds, 10) || 60),
+  );
 
   // Resolve target — by task_id, target_name, or target_session
   let targetSid = null;
@@ -76,15 +86,22 @@ export function handleShutdownRequest(args) {
 
   // Write shutdown tracking file
   const shutdownFile = join(RESULTS_DIR, `${requestId}.shutdown`);
-  writeFileSecure(shutdownFile, JSON.stringify({
-    request_id: requestId,
-    task_id: taskId,
-    target_session: targetSid,
-    message,
-    force_timeout_seconds: forceTimeout,
-    requested_at: new Date().toISOString(),
-    status: "pending",
-  }, null, 2));
+  writeFileSecure(
+    shutdownFile,
+    JSON.stringify(
+      {
+        request_id: requestId,
+        task_id: taskId,
+        target_session: targetSid,
+        message,
+        force_timeout_seconds: forceTimeout,
+        requested_at: new Date().toISOString(),
+        status: "pending",
+      },
+      null,
+      2,
+    ),
+  );
 
   // Schedule force kill after timeout (non-blocking)
   if (taskId) {
@@ -110,12 +127,12 @@ export function handleShutdownRequest(args) {
 
   return text(
     `Shutdown requested: **${targetSid}**\n` +
-    `- Request ID: ${requestId}\n` +
-    `- Task: ${taskId || "none"}\n` +
-    `- Message: ${message}\n` +
-    `- Force timeout: ${forceTimeout}s\n` +
-    `- Worker will receive the request on their next tool call.\n` +
-    `- If no response in ${forceTimeout}s, worker will be force-killed.`
+      `- Request ID: ${requestId}\n` +
+      `- Task: ${taskId || "none"}\n` +
+      `- Message: ${message}\n` +
+      `- Force timeout: ${forceTimeout}s\n` +
+      `- Worker will receive the request on their next tool call.\n` +
+      `- If no response in ${forceTimeout}s, worker will be force-killed.`,
   );
 }
 
@@ -146,18 +163,20 @@ export function handleShutdownResponse(args) {
       const metaFile = join(RESULTS_DIR, `${tracking.task_id}.meta.json`);
       const meta = readJSON(metaFile);
       if (meta?.notify_session_id) {
-        appendJSONLineSecure(join(INBOX_DIR, `${meta.notify_session_id}.jsonl`), {
-          ts: new Date().toISOString(),
-          from: "worker",
-          priority: "normal",
-          content: `[SHUTDOWN_APPROVED] ${tracking.task_id} — Worker approved shutdown.`,
-        });
+        appendJSONLineSecure(
+          join(INBOX_DIR, `${meta.notify_session_id}.jsonl`),
+          {
+            ts: new Date().toISOString(),
+            from: "worker",
+            priority: "normal",
+            content: `[SHUTDOWN_APPROVED] ${tracking.task_id} — Worker approved shutdown.`,
+          },
+        );
       }
     }
 
     return text(
-      `Shutdown approved: ${requestId}\n` +
-      `Worker will terminate gracefully.`
+      `Shutdown approved: ${requestId}\n` + `Worker will terminate gracefully.`,
     );
   } else {
     tracking.status = "rejected";
@@ -170,19 +189,22 @@ export function handleShutdownResponse(args) {
       const metaFile = join(RESULTS_DIR, `${tracking.task_id}.meta.json`);
       const meta = readJSON(metaFile);
       if (meta?.notify_session_id) {
-        appendJSONLineSecure(join(INBOX_DIR, `${meta.notify_session_id}.jsonl`), {
-          ts: new Date().toISOString(),
-          from: "worker",
-          priority: "normal",
-          content: `[SHUTDOWN_REJECTED] ${tracking.task_id} — ${reason || "Worker rejected shutdown (no reason given)."}`,
-        });
+        appendJSONLineSecure(
+          join(INBOX_DIR, `${meta.notify_session_id}.jsonl`),
+          {
+            ts: new Date().toISOString(),
+            from: "worker",
+            priority: "normal",
+            content: `[SHUTDOWN_REJECTED] ${tracking.task_id} — ${reason || "Worker rejected shutdown (no reason given)."}`,
+          },
+        );
       }
     }
 
     return text(
       `Shutdown rejected: ${requestId}\n` +
-      `- Reason: ${reason || "none"}\n` +
-      `Lead has been notified.`
+        `- Reason: ${reason || "none"}\n` +
+        `Lead has been notified.`,
     );
   }
 }

@@ -4,7 +4,13 @@
  * @module tasks
  */
 
-import { existsSync, readdirSync, mkdirSync, appendFileSync, readFileSync } from "fs";
+import {
+  existsSync,
+  readdirSync,
+  mkdirSync,
+  appendFileSync,
+  readFileSync,
+} from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
 import {
@@ -19,14 +25,23 @@ import { readJSON, text } from "./helpers.js";
 // ── C2: Audit Trail ──
 
 function auditFile(taskId) {
-  return join(cfg().RESULTS_DIR, `${sanitizeId(taskId, "task_id")}.audit.jsonl`);
+  return join(
+    cfg().RESULTS_DIR,
+    `${sanitizeId(taskId, "task_id")}.audit.jsonl`,
+  );
 }
 
 export function appendAuditEntry(taskId, event, from, to, details = {}) {
-  const entry = { ts: new Date().toISOString(), event, from: from || null, to: to || null, details };
+  const entry = {
+    ts: new Date().toISOString(),
+    event,
+    from: from || null,
+    to: to || null,
+    details,
+  };
   try {
     appendFileSync(auditFile(taskId), JSON.stringify(entry) + "\n", "utf-8");
-  } catch { }
+  } catch {}
 }
 
 export function readAuditTrail(taskId) {
@@ -34,9 +49,17 @@ export function readAuditTrail(taskId) {
     return readFileSync(auditFile(taskId), "utf-8")
       .split("\n")
       .filter(Boolean)
-      .map(line => { try { return JSON.parse(line); } catch { return null; } })
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
       .filter(Boolean);
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 export function handleGetTaskAudit(args) {
@@ -48,7 +71,8 @@ export function handleGetTaskAudit(args) {
     out += `- **${e.ts}** ${e.event}`;
     if (e.from) out += ` from=${e.from}`;
     if (e.to) out += ` to=${e.to}`;
-    if (e.details && Object.keys(e.details).length) out += ` | ${JSON.stringify(e.details)}`;
+    if (e.details && Object.keys(e.details).length)
+      out += ` | ${JSON.stringify(e.details)}`;
     out += `\n`;
   }
   return text(out);
@@ -60,9 +84,14 @@ export function handleCheckQualityGates(args) {
   const taskId = sanitizeId(args.task_id, "task_id");
   const task = readJSON(join(tasksDir(), `${taskId}.json`));
   if (!task) return text(`Task ${taskId} not found.`);
-  const gates = Array.isArray(task.metadata?.quality_gates) ? task.metadata.quality_gates : [];
-  const criteria = Array.isArray(task.metadata?.acceptance_criteria) ? task.metadata.acceptance_criteria : [];
-  if (gates.length === 0 && criteria.length === 0) return text(`Task ${taskId} has no quality gates or acceptance criteria.`);
+  const gates = Array.isArray(task.metadata?.quality_gates)
+    ? task.metadata.quality_gates
+    : [];
+  const criteria = Array.isArray(task.metadata?.acceptance_criteria)
+    ? task.metadata.acceptance_criteria
+    : [];
+  if (gates.length === 0 && criteria.length === 0)
+    return text(`Task ${taskId} has no quality gates or acceptance criteria.`);
 
   const results = [];
   for (const gate of gates) {
@@ -73,7 +102,7 @@ export function handleCheckQualityGates(args) {
     const passed = (task.metadata?.criteria_results || []).includes(criterion);
     results.push({ gate: criterion, passed, type: "acceptance_criterion" });
   }
-  const allPassed = results.every(r => r.passed);
+  const allPassed = results.every((r) => r.passed);
   let out = `## Quality Gates: ${taskId}\n\n`;
   out += `- Overall: ${allPassed ? "PASS" : "FAIL"}\n\n`;
   for (const r of results) {
@@ -91,12 +120,18 @@ export function handleReassignTask(args) {
     const taskFile = join(dir, `${taskId}.json`);
     const task = readJSON(taskFile);
     if (!task) return text(`Task ${taskId} not found.`);
-    if (task.status !== "in_progress") return text(`Task ${taskId} is not in_progress (current: ${task.status}). Only in-progress tasks can be reassigned.`);
+    if (task.status !== "in_progress")
+      return text(
+        `Task ${taskId} is not in_progress (current: ${task.status}). Only in-progress tasks can be reassigned.`,
+      );
 
-    const newAssignee = args.new_assignee ? sanitizeName(args.new_assignee, "new_assignee") : null;
+    const newAssignee = args.new_assignee
+      ? sanitizeName(args.new_assignee, "new_assignee")
+      : null;
     if (!newAssignee) return text("new_assignee is required.");
     const oldAssignee = task.assignee || null;
-    if (oldAssignee === newAssignee) return text(`Task ${taskId} is already assigned to ${newAssignee}.`);
+    if (oldAssignee === newAssignee)
+      return text(`Task ${taskId} is already assigned to ${newAssignee}.`);
 
     // Build handoff snapshot
     const handoff = {
@@ -127,15 +162,17 @@ export function handleReassignTask(args) {
     writeFileSecure(taskFile, JSON.stringify(task, null, 2));
 
     // Audit trail
-    appendAuditEntry(taskId, "reassigned", oldAssignee, newAssignee, { reason: handoff.reason });
+    appendAuditEntry(taskId, "reassigned", oldAssignee, newAssignee, {
+      reason: handoff.reason,
+    });
 
     return text(
       `## Task Reassigned: ${taskId}\n\n` +
-      `- Subject: ${task.subject}\n` +
-      `- From: ${oldAssignee || "unassigned"}\n` +
-      `- To: ${newAssignee}\n` +
-      `- Reason: ${handoff.reason}\n` +
-      `- Handoff snapshot: ${handoffFile}\n`
+        `- Subject: ${task.subject}\n` +
+        `- From: ${oldAssignee || "unassigned"}\n` +
+        `- To: ${newAssignee}\n` +
+        `- Reason: ${handoff.reason}\n` +
+        `- Handoff snapshot: ${handoffFile}\n`,
     );
   });
 }
@@ -148,7 +185,9 @@ function tasksDir() {
   const dir = join(cfg().TERMINALS_DIR, "tasks");
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
-    try { ensureSecureDirectory(dir); } catch { }
+    try {
+      ensureSecureDirectory(dir);
+    } catch {}
   }
   return dir;
 }
@@ -171,10 +210,12 @@ function getAllTasks() {
   const dir = tasksDir();
   try {
     return readdirSync(dir)
-      .filter(f => f.endsWith(".json"))
-      .map(f => readJSON(join(dir, f)))
+      .filter((f) => f.endsWith(".json"))
+      .map((f) => readJSON(join(dir, f)))
       .filter(Boolean);
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -194,10 +235,16 @@ export function handleCreateTask(args) {
     const taskFile = join(dir, `${taskId}.json`);
     if (existsSync(taskFile)) return text(`Task ${taskId} already exists.`);
 
-    const blockedBy = (args.blocked_by || []).map(id => sanitizeId(id, "blocked_by"));
-    const missingDependencies = blockedBy.filter(depId => !existsSync(join(dir, `${depId}.json`)));
+    const blockedBy = (args.blocked_by || []).map((id) =>
+      sanitizeId(id, "blocked_by"),
+    );
+    const missingDependencies = blockedBy.filter(
+      (depId) => !existsSync(join(dir, `${depId}.json`)),
+    );
     if (missingDependencies.length) {
-      return text(`Invalid blocked_by task IDs (not found): ${missingDependencies.join(", ")}`);
+      return text(
+        `Invalid blocked_by task IDs (not found): ${missingDependencies.join(", ")}`,
+      );
     }
 
     const task = {
@@ -205,13 +252,25 @@ export function handleCreateTask(args) {
       subject,
       description: String(args.description || "").trim(),
       status: "pending",
-      team_name: args.team_name ? sanitizeName(args.team_name, "team_name") : null,
+      team_name: args.team_name
+        ? sanitizeName(args.team_name, "team_name")
+        : null,
       assignee: args.assignee ? sanitizeName(args.assignee, "assignee") : null,
-      priority: args.priority === "high" ? "high" : args.priority === "low" ? "low" : "normal",
-      files: (args.files || []).map(f => String(f).trim()).filter(Boolean),
+      priority:
+        args.priority === "high"
+          ? "high"
+          : args.priority === "low"
+            ? "low"
+            : "normal",
+      files: (args.files || []).map((f) => String(f).trim()).filter(Boolean),
       blocked_by: blockedBy,
       blocks: [],
-      metadata: (args.metadata && typeof args.metadata === "object" && !Array.isArray(args.metadata)) ? args.metadata : {},
+      metadata:
+        args.metadata &&
+        typeof args.metadata === "object" &&
+        !Array.isArray(args.metadata)
+          ? args.metadata
+          : {},
       created: new Date().toISOString(),
       updated: new Date().toISOString(),
     };
@@ -228,15 +287,20 @@ export function handleCreateTask(args) {
     }
 
     writeFileSecure(taskFile, JSON.stringify(task, null, 2));
-    appendAuditEntry(taskId, "created", null, task.assignee, { subject, priority: task.priority, team: task.team_name });
-    if (task.assignee) appendAuditEntry(taskId, "assigned", null, task.assignee, {});
+    appendAuditEntry(taskId, "created", null, task.assignee, {
+      subject,
+      priority: task.priority,
+      team: task.team_name,
+    });
+    if (task.assignee)
+      appendAuditEntry(taskId, "assigned", null, task.assignee, {});
     return text(
       `Task created: **${taskId}**\n` +
-      `- Subject: ${subject}\n` +
-      `- Priority: ${task.priority}\n` +
-      `- Team: ${task.team_name || "none"}\n` +
-      `- Assignee: ${task.assignee || "unassigned"}\n` +
-      `- Blocked by: ${task.blocked_by.length ? task.blocked_by.join(", ") : "none"}`
+        `- Subject: ${subject}\n` +
+        `- Priority: ${task.priority}\n` +
+        `- Team: ${task.team_name || "none"}\n` +
+        `- Assignee: ${task.assignee || "unassigned"}\n` +
+        `- Blocked by: ${task.blocked_by.length ? task.blocked_by.join(", ") : "none"}`,
     );
   });
 }
@@ -258,16 +322,21 @@ export function handleUpdateTask(args) {
 
     if (args.status) {
       const valid = ["pending", "in_progress", "completed", "cancelled"];
-      if (!valid.includes(args.status)) return text(`Invalid status. Use: ${valid.join(", ")}`);
+      if (!valid.includes(args.status))
+        return text(`Invalid status. Use: ${valid.join(", ")}`);
       task.status = args.status;
       changes.push(`status → ${args.status}`);
     }
     if (args.assignee !== undefined) {
-      task.assignee = args.assignee ? sanitizeName(args.assignee, "assignee") : null;
+      task.assignee = args.assignee
+        ? sanitizeName(args.assignee, "assignee")
+        : null;
       changes.push(`assignee → ${task.assignee || "unassigned"}`);
     }
     if (args.team_name !== undefined) {
-      task.team_name = args.team_name ? sanitizeName(args.team_name, "team_name") : null;
+      task.team_name = args.team_name
+        ? sanitizeName(args.team_name, "team_name")
+        : null;
       changes.push(`team → ${task.team_name || "none"}`);
     }
     if (args.subject) {
@@ -279,20 +348,37 @@ export function handleUpdateTask(args) {
       changes.push("description updated");
     }
     if (args.priority) {
-      task.priority = args.priority === "high" ? "high" : args.priority === "low" ? "low" : "normal";
+      task.priority =
+        args.priority === "high"
+          ? "high"
+          : args.priority === "low"
+            ? "low"
+            : "normal";
       changes.push(`priority → ${task.priority}`);
     }
 
-    const addBlockedByIds = (args.add_blocked_by || []).map(depId => sanitizeId(depId, "blocked_by"));
-    const addBlocksIds = (args.add_blocks || []).map(targetId => sanitizeId(targetId, "blocks"));
+    const addBlockedByIds = (args.add_blocked_by || []).map((depId) =>
+      sanitizeId(depId, "blocked_by"),
+    );
+    const addBlocksIds = (args.add_blocks || []).map((targetId) =>
+      sanitizeId(targetId, "blocks"),
+    );
 
-    const missingBlockedBy = addBlockedByIds.filter(id => !existsSync(join(dir, `${id}.json`)));
+    const missingBlockedBy = addBlockedByIds.filter(
+      (id) => !existsSync(join(dir, `${id}.json`)),
+    );
     if (missingBlockedBy.length) {
-      return text(`Invalid add_blocked_by task IDs (not found): ${missingBlockedBy.join(", ")}`);
+      return text(
+        `Invalid add_blocked_by task IDs (not found): ${missingBlockedBy.join(", ")}`,
+      );
     }
-    const missingBlocks = addBlocksIds.filter(id => !existsSync(join(dir, `${id}.json`)));
+    const missingBlocks = addBlocksIds.filter(
+      (id) => !existsSync(join(dir, `${id}.json`)),
+    );
     if (missingBlocks.length) {
-      return text(`Invalid add_blocks task IDs (not found): ${missingBlocks.join(", ")}`);
+      return text(
+        `Invalid add_blocks task IDs (not found): ${missingBlocks.join(", ")}`,
+      );
     }
 
     // Add blocked_by dependencies
@@ -325,7 +411,8 @@ export function handleUpdateTask(args) {
           const target = readJSON(targetFile);
           if (!target) continue;
           if (!target.blocked_by) target.blocked_by = [];
-          if (!target.blocked_by.includes(taskId)) target.blocked_by.push(taskId);
+          if (!target.blocked_by.includes(taskId))
+            target.blocked_by.push(taskId);
           target.updated = new Date().toISOString();
           writeFileSecure(targetFile, JSON.stringify(target, null, 2));
         }
@@ -334,7 +421,11 @@ export function handleUpdateTask(args) {
     }
 
     // Merge metadata (null values delete keys)
-    if (args.metadata && typeof args.metadata === "object" && !Array.isArray(args.metadata)) {
+    if (
+      args.metadata &&
+      typeof args.metadata === "object" &&
+      !Array.isArray(args.metadata)
+    ) {
       if (!task.metadata) task.metadata = {};
       for (const [k, v] of Object.entries(args.metadata)) {
         if (v === null) {
@@ -352,11 +443,17 @@ export function handleUpdateTask(args) {
     writeFileSecure(taskFile, JSON.stringify(task, null, 2));
     // C2: Audit trail for updates
     for (const change of changes) {
-      if (change.startsWith("status")) appendAuditEntry(taskId, `status_${args.status}`, null, null, { change });
-      else if (change.startsWith("assignee")) appendAuditEntry(taskId, "assigned", null, task.assignee, { change });
+      if (change.startsWith("status"))
+        appendAuditEntry(taskId, `status_${args.status}`, null, null, {
+          change,
+        });
+      else if (change.startsWith("assignee"))
+        appendAuditEntry(taskId, "assigned", null, task.assignee, { change });
       else appendAuditEntry(taskId, "updated", null, null, { change });
     }
-    return text(`Task ${taskId} updated:\n${changes.map(c => `- ${c}`).join("\n")}`);
+    return text(
+      `Task ${taskId} updated:\n${changes.map((c) => `- ${c}`).join("\n")}`,
+    );
   });
 }
 
@@ -368,11 +465,13 @@ export function handleUpdateTask(args) {
 export function handleListTasks(args = {}) {
   const allTasks = getAllTasks();
   let tasks = allTasks;
-  if (args.status) tasks = tasks.filter(t => t.status === args.status);
-  if (args.assignee) tasks = tasks.filter(t => t.assignee === args.assignee);
+  if (args.status) tasks = tasks.filter((t) => t.status === args.status);
+  if (args.assignee) tasks = tasks.filter((t) => t.assignee === args.assignee);
   if (args.team_name) {
     const tn = sanitizeName(args.team_name, "team_name");
-    tasks = tasks.filter(t => t.team_name === tn || t.metadata?.team_name === tn);
+    tasks = tasks.filter(
+      (t) => t.team_name === tn || t.metadata?.team_name === tn,
+    );
   }
 
   if (tasks.length === 0) return text("No tasks found.");
@@ -382,18 +481,22 @@ export function handleListTasks(args = {}) {
   tasks.sort((a, b) => (order[a.status] ?? 4) - (order[b.status] ?? 4));
 
   // Check which blocked_by tasks are actually done
-  const statusMap = new Map(allTasks.map(t => [t.task_id, t.status]));
+  const statusMap = new Map(allTasks.map((t) => [t.task_id, t.status]));
 
-  const rows = tasks.map(t => {
-    const openBlockers = (t.blocked_by || []).filter(id => {
+  const rows = tasks.map((t) => {
+    const openBlockers = (t.blocked_by || []).filter((id) => {
       const s = statusMap.get(id);
       return s && s !== "completed" && s !== "cancelled";
     });
-    const blocked = openBlockers.length > 0 ? `BLOCKED(${openBlockers.join(",")})` : "";
+    const blocked =
+      openBlockers.length > 0 ? `BLOCKED(${openBlockers.join(",")})` : "";
     return `| ${t.task_id} | ${t.team_name || "-"} | ${t.subject.slice(0, 40)} | ${t.status} | ${t.priority} | ${t.assignee || "-"} | ${blocked} |`;
   });
 
-  const table = `| ID | Team | Subject | Status | Priority | Assignee | Blocked |\n|-----|------|---------|--------|----------|----------|---------|` + "\n" + rows.join("\n");
+  const table =
+    `| ID | Team | Subject | Status | Priority | Assignee | Blocked |\n|-----|------|---------|--------|----------|----------|---------|` +
+    "\n" +
+    rows.join("\n");
   return text(`## Tasks (${tasks.length})\n\n${table}`);
 }
 
@@ -416,11 +519,16 @@ export function handleGetTask(args) {
   output += `- **Created:** ${task.created}\n`;
   output += `- **Updated:** ${task.updated}\n`;
   if (task.description) output += `\n### Description\n${task.description}\n`;
-  if (task.files?.length) output += `\n### Files\n${task.files.map(f => `- ${f}`).join("\n")}\n`;
-  if (task.blocked_by?.length) output += `\n### Blocked By\n${task.blocked_by.map(id => `- ${id}`).join("\n")}\n`;
-  if (task.blocks?.length) output += `\n### Blocks\n${task.blocks.map(id => `- ${id}`).join("\n")}\n`;
+  if (task.files?.length)
+    output += `\n### Files\n${task.files.map((f) => `- ${f}`).join("\n")}\n`;
+  if (task.blocked_by?.length)
+    output += `\n### Blocked By\n${task.blocked_by.map((id) => `- ${id}`).join("\n")}\n`;
+  if (task.blocks?.length)
+    output += `\n### Blocks\n${task.blocks.map((id) => `- ${id}`).join("\n")}\n`;
   if (task.metadata && Object.keys(task.metadata).length > 0) {
-    output += `\n### Metadata\n${Object.entries(task.metadata).map(([k, v]) => `- **${k}:** ${JSON.stringify(v)}`).join("\n")}\n`;
+    output += `\n### Metadata\n${Object.entries(task.metadata)
+      .map(([k, v]) => `- **${k}:** ${JSON.stringify(v)}`)
+      .join("\n")}\n`;
   }
 
   return text(output);

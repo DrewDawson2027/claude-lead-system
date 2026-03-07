@@ -5,6 +5,7 @@ Use this for every public release to keep quality and attribution verifiable.
 ## One-Time Setup (Authorship + Signing)
 
 1. Enable branch protection on `main`:
+
 - Require PR reviews
 - Require status checks to pass
 - Require `CI` and `supply-chain-policy` status checks (plus repository security checks)
@@ -43,6 +44,7 @@ npm run release:gate
 ```
 
 3. Choose release version:
+
 - Stable: `vX.Y.Z`
 - Pre-release: `vX.Y.Z-rc.1`
 
@@ -64,6 +66,7 @@ gh release create "$VERSION" \
 ```
 
 6. Wait for workflow completion:
+
 - `.github/workflows/ci.yml`
 - `.github/workflows/supply-chain-policy.yml`
 - `.github/workflows/supply-chain.yml`
@@ -94,25 +97,30 @@ See `docs/TAG_VERIFICATION.md` for detailed instructions on verifying signed tag
 
 ## GitHub Release Copy (Template)
 
-```markdown
+````markdown
 ## Claude Lead System {{VERSION}}
 
 Canonical repo: https://github.com/DrewDawson2027/claude-lead-system  
 Author: Drew Dawson (@DrewDawson2027)
 
 ### Verification
+
 This release includes:
+
 - Signed bundle (`claude-lead-system.tar.gz.sig` + `.pem`)
 - SPDX SBOM (`sbom.spdx.json`)
 - GitHub build provenance attestation
 
 Verify locally:
+
 ```bash
 bash scripts/release/verify-release.sh {{VERSION}} DrewDawson2027/claude-lead-system
 ```
+````
 
 Provenance details: `docs/PROVENANCE.md`
-```
+
+````
 
 ## X/Twitter Post Copy (Template)
 
@@ -129,4 +137,4 @@ Release includes verifiable provenance:
 
 Verify it yourself:
 bash scripts/release/verify-release.sh {{VERSION}} DrewDawson2027/claude-lead-system
-```
+````

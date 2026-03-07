@@ -6,11 +6,11 @@ How performance benchmarks are configured, measured, and enforced.
 
 The benchmark suite (`bench/coord-benchmark.mjs`) measures actual coordinator operations:
 
-| Operation | What It Tests |
-|-----------|---------------|
-| Session read | Load and parse a session JSON file |
-| Boot scan | Full directory scan for sessions, workers, pipelines |
-| Conflict detection | Compare files_touched arrays across active sessions |
+| Operation          | What It Tests                                        |
+| ------------------ | ---------------------------------------------------- |
+| Session read       | Load and parse a session JSON file                   |
+| Boot scan          | Full directory scan for sessions, workers, pipelines |
+| Conflict detection | Compare files_touched arrays across active sessions  |
 
 ## How It's Measured
 
@@ -19,6 +19,7 @@ The benchmark suite (`bench/coord-benchmark.mjs`) measures actual coordinator op
 Each operation is run multiple times (default: 10 iterations). The **median** value is reported, not the mean.
 
 **Why medians over means:**
+
 - Medians are robust to outliers caused by CI runner variance (GC pauses, disk I/O spikes)
 - A single slow run doesn't inflate the result
 - More representative of typical user experience
@@ -40,6 +41,7 @@ If any operation's median exceeds its threshold, the CI job fails.
 ## Environment
 
 ### CI environment
+
 - Runner: `ubuntu-latest` GitHub Actions runner
 - CPU: 2-core AMD EPYC (shared)
 - RAM: 7 GB
@@ -59,6 +61,7 @@ cat bench/latest-results.json | jq .
 ### Hardware/software capture
 
 Benchmark results include:
+
 - Node.js version
 - OS platform and architecture
 - Timestamp
@@ -83,6 +86,7 @@ Benchmark results include:
 ```
 
 Fields:
+
 - `median_ms`: Median execution time across all iterations
 - `p95_ms`: 95th percentile
 - `runs`: Array of individual run times (for debugging flaky results)

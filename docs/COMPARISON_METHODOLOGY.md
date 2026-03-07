@@ -6,26 +6,29 @@ How the README cost comparison numbers were calculated.
 
 As of February 2026 (Anthropic pricing page):
 
-| Model | Input (per 1M tokens) | Output (per 1M tokens) |
-|-------|----------------------|------------------------|
-| Claude Opus | $15.00 | $75.00 |
-| Claude Sonnet | $3.00 | $15.00 |
+| Model         | Input (per 1M tokens) | Output (per 1M tokens) |
+| ------------- | --------------------- | ---------------------- |
+| Claude Opus   | $15.00                | $75.00                 |
+| Claude Sonnet | $3.00                 | $15.00                 |
 
 ## Assumptions
 
 ### Task scenario
+
 - Moderately complex feature build (e.g., "add error handling to API endpoints")
 - 2 parallel workers + 1 lead session
 - Each worker handles a focused subtask and exits
 - Lead coordinates, reviews, merges
 
 ### Agent Teams context growth
+
 - Lead session: ~150K tokens (Opus) — maintains full context for orchestration
 - Teammate A: ~300K tokens (Sonnet) — context grows with every tool call (Edit, Read, Bash)
 - Teammate B: ~250K tokens (Sonnet) — context grows similarly
 - Coordination overhead: ~100K tokens — messages between teammates are in-context
 
 ### Lead System context
+
 - Lead session: ~150K tokens (Opus) — same orchestration load
 - Worker 1: ~80K tokens (Sonnet) — gets task, executes, exits (no context growth from coordination)
 - Worker 2: ~60K tokens (Sonnet) — same pattern
@@ -34,6 +37,7 @@ As of February 2026 (Anthropic pricing page):
 ## Cost Calculation
 
 ### Agent Teams
+
 ```
 Lead:         150K tokens × ($3 + $15) / 2M  ≈ $0.45  (Sonnet 4.6 rates)
 Teammate A:   300K tokens × ($3 + $15) / 2M  ≈ $2.70  (Sonnet rates, context grows)
@@ -43,6 +47,7 @@ TOTAL: $6.30
 ```
 
 ### Lead System
+
 ```
 Lead:         150K tokens × ($3 + $15) / 2M  ≈ $0.45  (Sonnet 4.6)
 Worker 1:     40K tokens × ($0.25 + $1.25) / 2M ≈ $0.09  (Haiku, stateless)
@@ -52,6 +57,7 @@ TOTAL: $0.61
 ```
 
 ### Savings
+
 ```
 $6.30 - $0.61 = $5.69 savings (90%)
 ```
@@ -59,23 +65,25 @@ $6.30 - $0.61 = $5.69 savings (90%)
 ## Why Workers Use Fewer Tokens
 
 Agent Teams teammates maintain growing context windows:
+
 - Every `TaskList`, `SendMessage`, `TaskUpdate` call adds to context
 - Idle teammates still hold their full context window open
 - Messages between teammates are delivered as context (not free)
 
 Lead System workers are stateless:
+
 - Worker gets a task prompt, executes it, writes `result.json`, exits
 - No coordination messages in context — messages are JSON files
 - No idle cost — workers don't exist between tasks
 
 ## Key Difference: Coordination Cost
 
-| Operation | Agent Teams Cost | Lead System Cost |
-|-----------|-----------------|-----------------|
-| Send message | ~500-2000 tokens (in-context) | 0 tokens (JSON file) |
-| Check task status | ~1000 tokens (tool call) | 0 tokens (read JSON) |
-| Worker idle wait | Full context maintained | Worker doesn't exist |
-| Conflict detection | Not available | 0 tokens (hook reads JSON) |
+| Operation          | Agent Teams Cost              | Lead System Cost           |
+| ------------------ | ----------------------------- | -------------------------- |
+| Send message       | ~500-2000 tokens (in-context) | 0 tokens (JSON file)       |
+| Check task status  | ~1000 tokens (tool call)      | 0 tokens (read JSON)       |
+| Worker idle wait   | Full context maintained       | Worker doesn't exist       |
+| Conflict detection | Not available                 | 0 tokens (hook reads JSON) |
 
 ## Disclaimer
 
