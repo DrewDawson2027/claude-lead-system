@@ -17,10 +17,12 @@ import {
   sanitizeId,
   sanitizeName,
   writeFileSecure,
+  appendJSONLineSecure,
   ensureSecureDirectory,
   acquireExclusiveFileLock,
 } from "./security.js";
 import { readJSON, text } from "./helpers.js";
+import { resolveWorkerName } from "./messaging.js";
 
 // ── C2: Audit Trail ──
 
@@ -235,6 +237,20 @@ function autoUnblockDependents(completedTaskId, dir) {
     appendAuditEntry(t.task_id, "unblocked", null, null, {
       cleared_dependency: completedTaskId,
     });
+    // Active notification: if task is now fully unblocked and has an assignee,
+    // push an inbox message so the worker knows it can proceed without polling.
+    if (t.blocked_by.length === 0 && t.assignee) {
+      const { INBOX_DIR } = cfg();
+      const sid = resolveWorkerName(t.assignee);
+      if (sid) {
+        appendJSONLineSecure(join(INBOX_DIR, `${sid}.jsonl`), {
+          ts: new Date().toISOString(),
+          from: "coordinator",
+          priority: "normal",
+          content: `[UNBLOCKED] Task ${t.task_id} "${t.subject}" is now ready — dependency ${completedTaskId} completed.`,
+        });
+      }
+    }
   }
 }
 
