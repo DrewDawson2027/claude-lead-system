@@ -35,25 +35,25 @@ As of February 2026 (Anthropic pricing page):
 
 ### Agent Teams
 ```
-Lead:         150K tokens × ($15 + $75) / 2M ≈ $2.25  (mix of input/output at Opus rates)
-Teammate A:   300K tokens × ($3 + $15) / 2M  ≈ $2.70  (Sonnet rates)
+Lead:         150K tokens × ($3 + $15) / 2M  ≈ $0.45  (Sonnet 4.6 rates)
+Teammate A:   300K tokens × ($3 + $15) / 2M  ≈ $2.70  (Sonnet rates, context grows)
 Teammate B:   250K tokens × ($3 + $15) / 2M  ≈ $2.25
 Coordination: 100K tokens × ($3 + $15) / 2M  ≈ $0.90
-TOTAL: $8.10
+TOTAL: $6.30
 ```
 
 ### Lead System
 ```
-Lead:         150K tokens × ($15 + $75) / 2M ≈ $2.25  (same)
-Worker 1:     80K tokens × ($3 + $15) / 2M   ≈ $0.72  (smaller context)
-Worker 2:     60K tokens × ($3 + $15) / 2M   ≈ $0.54  (smaller context)
-Coordination: 0 tokens (filesystem)           = $0.00
-TOTAL: $3.51
+Lead:         150K tokens × ($3 + $15) / 2M  ≈ $0.45  (Sonnet 4.6)
+Worker 1:     40K tokens × ($0.25 + $1.25) / 2M ≈ $0.09  (Haiku, stateless)
+Worker 2:     30K tokens × ($0.25 + $1.25) / 2M ≈ $0.07  (Haiku, stateless)
+Coordination: 0 tokens (filesystem)              = $0.00
+TOTAL: $0.61
 ```
 
 ### Savings
 ```
-$8.10 - $3.51 = $4.59 savings (57%)
+$6.30 - $0.61 = $5.69 savings (90%)
 ```
 
 ## Why Workers Use Fewer Tokens
