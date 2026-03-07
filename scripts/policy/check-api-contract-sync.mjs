@@ -10,7 +10,7 @@ const schemaSrc = readFileSync(schemaPath, 'utf8');
 const contractSrc = readFileSync(contractPath, 'utf8');
 
 const schemaSet = new Set();
-for (const m of schemaSrc.matchAll(/\{\s*method:\s*'([A-Z]+)'\s*,\s*path:\s*'([^']+)'/g)) {
+for (const m of schemaSrc.matchAll(/\{\s*method:\s*['\"]([A-Z]+)['\"]\s*,\s*path:\s*['\"]([^'\"]+)['\"]/g)) {
   schemaSet.add(`${m[1]} ${m[2]}`);
 }
 
