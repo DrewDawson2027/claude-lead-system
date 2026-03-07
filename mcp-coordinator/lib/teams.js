@@ -492,30 +492,43 @@ export function handleDeleteTeam(args) {
   }
 
   let tasksRemoved = 0;
-  if (args.clean_tasks) {
-    const tasksDir = join(cfg().TERMINALS_DIR, "tasks");
-    try {
-      const files = readdirSync(tasksDir).filter((f) => f.endsWith(".json"));
-      for (const f of files) {
-        const task = readJSON(join(tasksDir, f));
-        if (
-          task &&
-          (task.team_name === teamName || task.metadata?.team_name === teamName)
-        ) {
-          try {
-            unlinkSync(join(tasksDir, f));
-            tasksRemoved++;
-          } catch {}
-        }
+  const tasksDir = join(cfg().TERMINALS_DIR, "tasks");
+  try {
+    const files = readdirSync(tasksDir).filter((f) => f.endsWith(".json"));
+    for (const f of files) {
+      const task = readJSON(join(tasksDir, f));
+      if (
+        task &&
+        (task.team_name === teamName || task.metadata?.team_name === teamName)
+      ) {
+        try {
+          unlinkSync(join(tasksDir, f));
+          tasksRemoved++;
+        } catch {}
       }
-    } catch {}
-  }
+    }
+  } catch {}
+
+  let metasRemoved = 0;
+  try {
+    const metaFiles = readdirSync(cfg().RESULTS_DIR).filter((f) =>
+      f.endsWith(".meta.json"),
+    );
+    for (const f of metaFiles) {
+      const meta = readJSON(join(cfg().RESULTS_DIR, f));
+      if (meta && meta.team_name === teamName) {
+        try {
+          unlinkSync(join(cfg().RESULTS_DIR, f));
+          metasRemoved++;
+        } catch {}
+      }
+    }
+  } catch {}
 
   return text(
     `Team **${teamName}** deleted.\n` +
       `- Members removed: ${memberCount}\n` +
-      (args.clean_tasks
-        ? `- Tasks cleaned: ${tasksRemoved}\n`
-        : "- Tasks preserved (use clean_tasks: true to remove)\n"),
+      `- Tasks cleaned: ${tasksRemoved}\n` +
+      `- Worker meta files cleaned: ${metasRemoved}\n`,
   );
 }
