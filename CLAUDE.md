@@ -168,7 +168,19 @@ In-process display mode (Shift+Up/Down in same terminal) is an architectural imp
 
 Code paths exist but have not been verified end-to-end. Run once before declaring GAP 5 closed.
 
+### Status Summary (as of 2026-03-07)
+
+| Scenario          | Code Path   | Integration Tests                              | Live Run   |
+| ----------------- | ----------- | ---------------------------------------------- | ---------- |
+| E1: Agent Resume  | ✅ verified | ✅ Gap 2 tests pass (platform-launch.test.mjs) | ⏳ pending |
+| E2: P2P Messaging | ✅ verified | ✅ 4/4 p2p-messaging.test.mjs pass             | ⏳ pending |
+| E3: Plan Approval | ✅ verified | ✅ 2/2 phase3-gap-parity tests pass            | ⏳ pending |
+
 ### E1: Agent Resume (`buildResumeWorkerScript`)
+
+**Code path:** `buildResumeWorkerScript` at `lib/platform/common.js:626` — `--session-id` arg confirmed. `coord_resume_worker` wired in `index.js:1689`. Gap 2 tests cover true-resume path and continuation-spawn fallback. **Status: code path verified ✅**
+
+Live run steps (pending):
 
 1. Spawn a worker on a task, note the session ID from its meta file
 2. Kill the worker mid-task (`coord_kill_worker`)
@@ -177,6 +189,10 @@ Code paths exist but have not been verified end-to-end. Run once before declarin
 
 ### E2: Bidirectional Worker-to-Peer Messaging
 
+**Code path:** `target_name` resolution in `lib/messaging.js:236` — tmuxSendKeys push + inbox fallback confirmed. `p2p-messaging.test.mjs` — 4/4 pass (P2P send, unknown-target, broadcast, peer discovery). **Status: code path verified ✅ / integration tested ✅**
+
+Live run steps (pending):
+
 1. Spawn two workers on the same team: `alpha`, `beta`
 2. In alpha's task prompt, include: "call coord_send_message to target_name=beta with content=ping"
 3. Verify `~/.claude/terminals/inbox/{beta_session_id}.jsonl` contains the message
@@ -184,10 +200,14 @@ Code paths exist but have not been verified end-to-end. Run once before declarin
 
 ### E3: Plan Approval Flow
 
+**Code path:** `coord_send_protocol` wired in `index.js:1791` with `plan_approval_response` type. Both approve=true (`[APPROVED]`) and approve=false (`[REVISION]`) covered in `test/phase3-gap-parity.test.mjs` Gap 3 tests. **Status: code path verified ✅ / live worker-in-plan-mode run still pending**
+
+Live run steps (pending):
+
 1. Spawn a worker with `permission_mode: plan`
 2. Worker enters plan mode and calls `coord_send_protocol type=plan_approval_request`
 3. Lead receives the request via its inbox
-4. Call approval endpoint; verify worker resumes execution
+4. Call `coord_send_protocol type=plan_approval_response approve=true`; verify worker resumes
 
 ---
 
