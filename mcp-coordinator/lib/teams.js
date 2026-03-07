@@ -244,7 +244,15 @@ export function handleCreateTeam(args) {
   if (args.members?.length) {
     for (const m of args.members) {
       const name = sanitizeName(m.name || m, "member name");
-      const role = m.role ? String(m.role).trim() : "worker";
+      const hasRole =
+        typeof m === "object" &&
+        m !== null &&
+        Object.prototype.hasOwnProperty.call(m, "role");
+      const role = hasRole
+        ? m.role
+          ? String(m.role).trim()
+          : "worker"
+        : undefined;
       const session_id = m.session_id ? String(m.session_id).slice(0, 8) : null;
       const hasTaskId =
         typeof m === "object" &&
@@ -261,7 +269,7 @@ export function handleCreateTeam(args) {
       const idx = team.members.findIndex((x) => x.name === name);
       if (idx >= 0) {
         // Update existing member
-        if (role) team.members[idx].role = role;
+        if (hasRole && role) team.members[idx].role = role;
         if (session_id) team.members[idx].session_id = session_id;
         if (hasTaskId) team.members[idx].task_id = task_id;
         if (agentId) team.members[idx].agentId = agentId;
@@ -269,7 +277,7 @@ export function handleCreateTeam(args) {
       } else {
         team.members.push({
           name,
-          role,
+          role: role || "worker",
           session_id,
           task_id: task_id ?? null,
           agentId,
@@ -440,6 +448,38 @@ export function handleDeleteTeam(args) {
 
   const team = readJSON(teamFile);
   const memberCount = team?.members?.length || 0;
+
+  // Guard: refuse deletion if any teammate is active in the last 5 minutes
+  if (!args.force) {
+    const now = Date.now();
+    const activeMates = (team?.members || [])
+      .filter((m) => m.session_id)
+      .map((m) => ({
+        name: m.name,
+        session: readJSON(
+          join(
+            cfg().TERMINALS_DIR,
+            `session-${String(m.session_id).slice(0, 8)}.json`,
+          ),
+        ),
+      }))
+      .filter(({ session }) => {
+        if (!session || session.status === "closed" || session.status === "stale")
+          return false;
+        const age = session.last_active
+          ? (now - new Date(session.last_active).getTime()) / 1000
+          : Infinity;
+        return age < 300; // active in last 5 minutes
+      });
+
+    if (activeMates.length > 0) {
+      const names = activeMates.map((m) => m.name).join(", ");
+      return text(
+        `Cannot delete team **${teamName}** — ${activeMates.length} active teammate(s): ${names}\n` +
+          `Use force: true to delete anyway.`,
+      );
+    }
+  }
 
   try {
     unlinkSync(teamFile);
