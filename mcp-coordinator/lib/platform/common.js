@@ -674,24 +674,47 @@ export function buildResumeWorkerScript(opts) {
     `printf '{"status":"completed","finished":"%s","task_id":"${taskId}"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ${qMetaDone}`,
     `rm -f ${qPid}`,
   ];
-  if (leadPaneId) {
-    trapParts.push(
-      `tmux send-keys -t "$CLAUDE_LEAD_PANE_ID" "[COMPLETED] ${workerName} (resumed)" Enter 2>/dev/null || true`,
-    );
-  }
+  // NOTE: tmux send-keys "[COMPLETED]" removed from resume script — same fix as
+  // buildInteractiveWorkerScript. It injects raw text as user input into the lead's
+  // terminal, causing Claude to treat it as a user message. Inbox-only delivery below.
   if (leadSessionId) {
     trapParts.push(
       `printf '{"ts":"%s","from":"coordinator","priority":"normal","content":"[COMPLETED] ${workerName} (resumed)"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
     );
   }
   trapParts.push(autoClaimShellCommand());
+  trapParts.push(
+    '[ -n "${_IDLE_PID:-}" ] && kill "$_IDLE_PID" 2>/dev/null || true',
+  );
   const exitTrapCmd = `trap '${trapParts.join("; ")}' EXIT`;
+
+  // Idle detector for resumed workers (same as interactive workers)
+  let idleDetectorCmd = null;
+  if (leadSessionId && sessionId) {
+    const sid8 = sessionId.slice(0, 8);
+    idleDetectorCmd = [
+      `(IDLE_SENT=false`,
+      `while kill -0 $$ 2>/dev/null`,
+      `do sleep 1`,
+      `SF="$HOME/.claude/terminals/session-${sid8}.json"`,
+      `[ ! -f "$SF" ] && continue`,
+      `AGE=$(( $(date +%s) - $(stat -f %m "$SF" 2>/dev/null || stat -c %Y "$SF" 2>/dev/null || echo $(date +%s)) ))`,
+      `if [ "$AGE" -gt 5 ] && [ "$IDLE_SENT" = false ]`,
+      `then printf '{"ts":"%s","from":"idle-detector","priority":"normal","content":"[IDLE] ${workerName} (resumed) — no activity for '\\''\${AGE}'\\'s"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
+      `IDLE_SENT=true`,
+      `elif [ "$AGE" -le 5 ]`,
+      `then IDLE_SENT=false`,
+      `fi`,
+      `done) & _IDLE_PID=$!`,
+    ].join("; ");
+  }
 
   return [
     `cd ${qDir}`,
     `echo $$ > ${qPid}`,
     envExports,
     exitTrapCmd,
+    idleDetectorCmd,
     `unset CLAUDECODE && ${qClaudeBin} --resume ${qSessionId} ${settingsArgs}`,
   ]
     .filter(Boolean)
