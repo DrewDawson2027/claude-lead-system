@@ -26,62 +26,64 @@ Capabilities (from: mastermind-architect, feature-dev:code-architect)
 
 ### Monolith vs Microservices Decision
 
-| Factor | Monolith | Microservices |
-|--------|----------|---------------|
-| Team size | < 20 engineers | > 20, multiple teams |
-| Domain complexity | Single domain | Multiple bounded contexts |
-| Scale needs | Uniform scaling | Independent scaling per service |
-| Deploy cadence | Weekly+ | Multiple daily deploys |
+| Factor               | Monolith         | Microservices                    |
+| -------------------- | ---------------- | -------------------------------- |
+| Team size            | < 20 engineers   | > 20, multiple teams             |
+| Domain complexity    | Single domain    | Multiple bounded contexts        |
+| Scale needs          | Uniform scaling  | Independent scaling per service  |
+| Deploy cadence       | Weekly+          | Multiple daily deploys           |
 | Operational maturity | Low (start here) | High (K8s, observability, CI/CD) |
 
 **Default: Start monolith, extract services when pain is real.** Premature microservices is the #1 architecture mistake.
 
 ### Service Communication
 
-| Pattern | Latency | Coupling | Reliability | Use When |
-|---------|---------|----------|-------------|----------|
-| Sync REST/gRPC | Low | High | Medium | Need immediate response |
-| Async message queue | Medium | Low | High | Can tolerate delay |
-| Event streaming | Medium | Very low | High | Event sourcing, replay |
-| CQRS | Varies | Low | High | Different read/write patterns |
+| Pattern             | Latency | Coupling | Reliability | Use When                      |
+| ------------------- | ------- | -------- | ----------- | ----------------------------- |
+| Sync REST/gRPC      | Low     | High     | Medium      | Need immediate response       |
+| Async message queue | Medium  | Low      | High        | Can tolerate delay            |
+| Event streaming     | Medium  | Very low | High        | Event sourcing, replay        |
+| CQRS                | Varies  | Low      | High        | Different read/write patterns |
 
 ### Scaling Strategies
 
-| Strategy | When | How |
-|----------|------|-----|
-| Vertical | First attempt | Bigger instance |
-| Horizontal | Web servers, stateless services | Load balancer + N instances |
-| Database read replicas | Read-heavy workloads | Primary + read replicas |
-| Sharding | Single DB can't handle load | Partition data across DBs |
-| Caching | Repeated reads, expensive queries | Redis/Memcached, CDN |
-| CDN | Static assets, global users | CloudFlare, CloudFront |
-| Queue-based | Absorb traffic spikes | SQS/RabbitMQ + workers |
+| Strategy               | When                              | How                         |
+| ---------------------- | --------------------------------- | --------------------------- |
+| Vertical               | First attempt                     | Bigger instance             |
+| Horizontal             | Web servers, stateless services   | Load balancer + N instances |
+| Database read replicas | Read-heavy workloads              | Primary + read replicas     |
+| Sharding               | Single DB can't handle load       | Partition data across DBs   |
+| Caching                | Repeated reads, expensive queries | Redis/Memcached, CDN        |
+| CDN                    | Static assets, global users       | CloudFlare, CloudFront      |
+| Queue-based            | Absorb traffic spikes             | SQS/RabbitMQ + workers      |
 
 ### Caching Architecture
 
-| Layer | Tech | TTL | Invalidation |
-|-------|------|-----|-------------|
-| Browser | HTTP Cache-Control | Short (5min) | ETags, versioned URLs |
-| CDN | CloudFlare/CloudFront | Medium (1hr) | Purge API, cache tags |
-| Application | Redis | Varies | Event-driven, TTL |
-| Database | Materialized views | Refresh schedule | REFRESH CONCURRENTLY |
+| Layer       | Tech                  | TTL              | Invalidation          |
+| ----------- | --------------------- | ---------------- | --------------------- |
+| Browser     | HTTP Cache-Control    | Short (5min)     | ETags, versioned URLs |
+| CDN         | CloudFlare/CloudFront | Medium (1hr)     | Purge API, cache tags |
+| Application | Redis                 | Varies           | Event-driven, TTL     |
+| Database    | Materialized views    | Refresh schedule | REFRESH CONCURRENTLY  |
 
 **Cache invalidation rules:**
+
 - TTL as safety net (always set one)
 - Event-driven for consistency-critical data
 - Cache stampede prevention: lock + single refresh, or probabilistic early refresh
 
 ### Data Consistency
 
-| Model | Guarantee | Latency | Use When |
-|-------|-----------|---------|----------|
-| Strong (ACID) | Immediate | Higher | Financial transactions, inventory |
-| Eventual | Delayed convergence | Lower | Social feeds, analytics, search |
-| Causal | Respects causality | Medium | Messaging, collaborative editing |
+| Model         | Guarantee           | Latency | Use When                          |
+| ------------- | ------------------- | ------- | --------------------------------- |
+| Strong (ACID) | Immediate           | Higher  | Financial transactions, inventory |
+| Eventual      | Delayed convergence | Lower   | Social feeds, analytics, search   |
+| Causal        | Respects causality  | Medium  | Messaging, collaborative editing  |
 
 ## Back-of-Envelope Calculations
 
 ### Quick Reference
+
 - 1 day = ~86,400 seconds ≈ 100k seconds
 - 1 million requests/day = ~12 requests/sec
 - 1 billion requests/day = ~12,000 requests/sec
@@ -90,6 +92,7 @@ Capabilities (from: mastermind-architect, feature-dev:code-architect)
 - SSD read: ~0.1ms, Network (same DC): ~0.5ms, Network (cross-region): ~50-150ms
 
 ### Capacity Template
+
 ```
 Users: ___
 DAU: ___ (typically 10-30% of total)
@@ -119,49 +122,61 @@ When designing features within an existing codebase:
 # ADR: {Decision Title}
 
 ## Status
+
 [Proposed | Accepted | Deprecated | Superseded]
 
 ## Context
+
 [What is the issue we're addressing? What constraints exist?]
 
 ## Decision Drivers
+
 - [Driver 1: e.g., "Must handle 10k req/sec"]
 - [Driver 2: e.g., "Team has Python expertise"]
 
 ## Considered Options
+
 1. [Option 1] - [Brief description]
 2. [Option 2] - [Brief description]
 3. [Option 3] - [Brief description]
 
 ## Decision
+
 We will go with [Option X] because...
 
 ## Trade-off Analysis
-| Criterion | Option 1 | Option 2 | Option 3 |
-|-----------|----------|----------|----------|
-| Scalability | | | |
-| Complexity | | | |
-| Cost | | | |
-| Time to Implement | | | |
-| Operational Burden | | | |
+
+| Criterion          | Option 1 | Option 2 | Option 3 |
+| ------------------ | -------- | -------- | -------- |
+| Scalability        |          |          |          |
+| Complexity         |          |          |          |
+| Cost               |          |          |          |
+| Time to Implement  |          |          |          |
+| Operational Burden |          |          |          |
 
 ## Consequences
+
 ### Positive
+
 - [Benefit 1]
 
 ### Negative
+
 - [Drawback 1]
 
 ### Risks
+
 - [Risk 1] - Mitigation: [Strategy]
 
 ## Implementation Notes
+
 [Key technical details, migration path]
 ```
 
 ## Diagram Standard (Mermaid)
 
 Always include at least one diagram:
+
 - **System context**: Who uses the system, what external systems it connects to
 - **Container**: Major components and their responsibilities
 - **Data flow**: How data moves through the system for key operations

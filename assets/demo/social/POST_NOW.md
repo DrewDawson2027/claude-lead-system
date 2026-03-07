@@ -128,23 +128,23 @@ curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/m
 
 ## Asset Locations (all relative to repo root)
 
-| Tweet | File | Dimensions |
-|-------|------|-----------|
-| 1 | `assets/demo/demo.mp4` | 1920x1080 video |
-| 3 | `assets/demo/screenshots/screenshot_dashboard.png` | 1600x820 |
-| 4 | `assets/demo/screenshots/screenshot_conflicts.png` | 1600x700 |
-| 5 | `assets/demo/screenshots/screenshot_messaging.png` | 1600x680 |
-| 6 | `assets/demo/screenshots/screenshot_worker.png` | 1600x730 |
+| Tweet | File                                               | Dimensions      |
+| ----- | -------------------------------------------------- | --------------- |
+| 1     | `assets/demo/demo.mp4`                             | 1920x1080 video |
+| 3     | `assets/demo/screenshots/screenshot_dashboard.png` | 1600x820        |
+| 4     | `assets/demo/screenshots/screenshot_conflicts.png` | 1600x700        |
+| 5     | `assets/demo/screenshots/screenshot_messaging.png` | 1600x680        |
+| 6     | `assets/demo/screenshots/screenshot_worker.png`    | 1600x730        |
 
 ## Additional Assets Available
 
-| File | Use |
-|------|-----|
-| `assets/demo/demo.gif` | GitHub README hero, alternative to video |
-| `assets/demo/before-after.png` | Quote tweet / standalone post |
-| `assets/demo/screenshots/screenshot_healthcheck.png` | Bonus tweet if thread gets traction |
-| `assets/demo/social/carousel/slide_01-04.png` | LinkedIn / carousel post alternative |
-| `assets/demo/social/thumbnails/thumb_*.png` | Cross-platform thumbnails |
+| File                                                 | Use                                      |
+| ---------------------------------------------------- | ---------------------------------------- |
+| `assets/demo/demo.gif`                               | GitHub README hero, alternative to video |
+| `assets/demo/before-after.png`                       | Quote tweet / standalone post            |
+| `assets/demo/screenshots/screenshot_healthcheck.png` | Bonus tweet if thread gets traction      |
+| `assets/demo/social/carousel/slide_01-04.png`        | LinkedIn / carousel post alternative     |
+| `assets/demo/social/thumbnails/thumb_*.png`          | Cross-platform thumbnails                |
 
 ---
 

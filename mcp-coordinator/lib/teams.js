@@ -25,7 +25,7 @@ function teamsDir() {
     mkdirSync(dir, { recursive: true });
     try {
       ensureSecureDirectory(dir);
-    } catch { }
+    } catch {}
   }
   return dir;
 }
@@ -119,8 +119,8 @@ function mergeTeamPolicy(currentPolicy = {}, patchPolicy = {}) {
   ) {
     const prevWeights =
       currentPolicy?.interrupt_weights &&
-        typeof currentPolicy.interrupt_weights === "object" &&
-        !Array.isArray(currentPolicy.interrupt_weights)
+      typeof currentPolicy.interrupt_weights === "object" &&
+      !Array.isArray(currentPolicy.interrupt_weights)
         ? currentPolicy.interrupt_weights
         : {};
     merged.interrupt_weights = {
@@ -293,18 +293,18 @@ export function handleCreateTeam(args) {
 
   return text(
     `Team ${existing ? "updated" : "created"}: **${teamName}**\n` +
-    `- Project: ${team.project || "unset"}\n` +
-    `- Execution Path: ${team.execution_path}\n` +
-    `- Overhead Mode: ${team.low_overhead_mode}\n` +
-    `- Team Permission Mode: ${team.policy?.permission_mode || "unset"}\n` +
-    `- Team Plan Mode: ${team.policy?.require_plan === true ? "required" : team.policy?.require_plan === false ? "optional" : "unset"}\n` +
-    `- Members: ${team.members.length}\n` +
-    team.members
-      .map(
-        (m) =>
-          `  - ${m.name} (${m.role})${m.task_id ? ` → ${m.task_id}` : ""}`,
-      )
-      .join("\n"),
+      `- Project: ${team.project || "unset"}\n` +
+      `- Execution Path: ${team.execution_path}\n` +
+      `- Overhead Mode: ${team.low_overhead_mode}\n` +
+      `- Team Permission Mode: ${team.policy?.permission_mode || "unset"}\n` +
+      `- Team Plan Mode: ${team.policy?.require_plan === true ? "required" : team.policy?.require_plan === false ? "optional" : "unset"}\n` +
+      `- Members: ${team.members.length}\n` +
+      team.members
+        .map(
+          (m) =>
+            `  - ${m.name} (${m.role})${m.task_id ? ` → ${m.task_id}` : ""}`,
+        )
+        .join("\n"),
   );
 }
 
@@ -322,8 +322,8 @@ export function handleUpdateTeamPolicy(args) {
 
   const incomingPolicy =
     args.policy &&
-      typeof args.policy === "object" &&
-      !Array.isArray(args.policy)
+    typeof args.policy === "object" &&
+    !Array.isArray(args.policy)
       ? { ...args.policy }
       : {};
   if (
@@ -346,10 +346,10 @@ export function handleUpdateTeamPolicy(args) {
   const updatedKeys = Object.keys(normalized).sort();
   return text(
     `Team policy updated: **${teamName}**\n` +
-    `- Updated keys: ${updatedKeys.join(", ")}\n` +
-    (team.policy?.interrupt_weights
-      ? `- Interrupt weights: ${JSON.stringify(team.policy.interrupt_weights)}\n`
-      : ""),
+      `- Updated keys: ${updatedKeys.join(", ")}\n` +
+      (team.policy?.interrupt_weights
+        ? `- Interrupt weights: ${JSON.stringify(team.policy.interrupt_weights)}\n`
+        : ""),
   );
 }
 
@@ -464,7 +464,11 @@ export function handleDeleteTeam(args) {
         ),
       }))
       .filter(({ session }) => {
-        if (!session || session.status === "closed" || session.status === "stale")
+        if (
+          !session ||
+          session.status === "closed" ||
+          session.status === "stale"
+        )
           return false;
         const age = session.last_active
           ? (now - new Date(session.last_active).getTime()) / 1000
@@ -501,17 +505,17 @@ export function handleDeleteTeam(args) {
           try {
             unlinkSync(join(tasksDir, f));
             tasksRemoved++;
-          } catch { }
+          } catch {}
         }
       }
-    } catch { }
+    } catch {}
   }
 
   return text(
     `Team **${teamName}** deleted.\n` +
-    `- Members removed: ${memberCount}\n` +
-    (args.clean_tasks
-      ? `- Tasks cleaned: ${tasksRemoved}\n`
-      : "- Tasks preserved (use clean_tasks: true to remove)\n"),
+      `- Members removed: ${memberCount}\n` +
+      (args.clean_tasks
+        ? `- Tasks cleaned: ${tasksRemoved}\n`
+        : "- Tasks preserved (use clean_tasks: true to remove)\n"),
   );
 }

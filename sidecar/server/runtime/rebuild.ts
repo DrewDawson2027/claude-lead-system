@@ -1,11 +1,31 @@
 // @ts-nocheck
-export function createRebuildOps({ store, nativeAdapter, actionQueue, metrics, buildSidecarSnapshot, paths, readdirSync, mkdirSync, unlinkSync, writeJSON }) {
+export function createRebuildOps({
+  store,
+  nativeAdapter,
+  actionQueue,
+  metrics,
+  buildSidecarSnapshot,
+  paths,
+  readdirSync,
+  mkdirSync,
+  unlinkSync,
+  writeJSON,
+}) {
   let rebuilding = false;
 
   async function enrichDynamicState() {
-    const nativeStatus = await nativeAdapter.getStatus().catch((err) => ({ adapter_ok: false, mode: 'unavailable', error: err.message }));
+    const nativeStatus = await nativeAdapter
+      .getStatus()
+      .catch((err) => ({
+        adapter_ok: false,
+        mode: "unavailable",
+        error: err.message,
+      }));
     store.setNativeCapabilities({
-      ...(nativeStatus.native || { available: false, last_probe_error: nativeStatus.error || null }),
+      ...(nativeStatus.native || {
+        available: false,
+        last_probe_error: nativeStatus.error || null,
+      }),
       validation: nativeStatus.bridge_validation || null,
     });
     if (nativeStatus.bridge) store.emitBridgeStatus(nativeStatus.bridge);
@@ -13,7 +33,7 @@ export function createRebuildOps({ store, nativeAdapter, actionQueue, metrics, b
     store.setMetrics(metrics.snapshot());
   }
 
-  async function rebuild(source = 'manual') {
+  async function rebuild(source = "manual") {
     if (rebuilding) return;
     rebuilding = true;
     try {
@@ -26,14 +46,25 @@ export function createRebuildOps({ store, nativeAdapter, actionQueue, metrics, b
         alerts: store.getSnapshot().alerts,
         metrics: store.getSnapshot().metrics,
       });
-      store.emitTimeline({ type: 'snapshot.rebuilt', source, generated_at: base.generated_at });
+      store.emitTimeline({
+        type: "snapshot.rebuilt",
+        source,
+        generated_at: base.generated_at,
+      });
       try {
         mkdirSync(paths.snapshotHistoryDir, { recursive: true });
-        writeJSON(`${paths.snapshotHistoryDir}/snap-${Date.now()}.json`, store.getSnapshot());
-        const histFiles = readdirSync(paths.snapshotHistoryDir).filter((f) => f.startsWith('snap-')).sort();
+        writeJSON(
+          `${paths.snapshotHistoryDir}/snap-${Date.now()}.json`,
+          store.getSnapshot(),
+        );
+        const histFiles = readdirSync(paths.snapshotHistoryDir)
+          .filter((f) => f.startsWith("snap-"))
+          .sort();
         if (histFiles.length > 50) {
           for (const f of histFiles.slice(0, histFiles.length - 50)) {
-            try { unlinkSync(`${paths.snapshotHistoryDir}/${f}`); } catch {}
+            try {
+              unlinkSync(`${paths.snapshotHistoryDir}/${f}`);
+            } catch {}
           }
         }
       } catch {}

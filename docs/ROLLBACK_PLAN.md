@@ -5,6 +5,7 @@ Step-by-step process for rolling back a bad release.
 ## Decision Criteria
 
 Rollback when any of these apply:
+
 - **Broken installer**: `install.sh` fails on supported platforms
 - **Security vulnerability**: Discovered post-release
 - **Data corruption**: Release causes state file corruption or loss
@@ -54,6 +55,7 @@ git push origin hotfix/v1.2.1
 ### 5. Fast-track hotfix through CI
 
 The hotfix goes through the same CI gates:
+
 - All lint, test, coverage, perf-gate jobs must pass
 - Smoke install test must pass
 - Supply chain workflow generates new signed artifacts

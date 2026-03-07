@@ -1,4 +1,8 @@
-export type SecurityEventType = 'auth_failure' | 'origin_reject' | 'csrf_failure' | 'rate_limit';
+export type SecurityEventType =
+  | "auth_failure"
+  | "origin_reject"
+  | "csrf_failure"
+  | "rate_limit";
 
 export interface SecurityEvent {
   type: SecurityEventType;
@@ -23,7 +27,7 @@ export class RequestAuditLog {
   private buffer: RequestLogEntry[];
   private maxEntries: number;
   private auditAll: boolean;
-  private mutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+  private mutationMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
   constructor({ maxEntries = 1000, auditAll = false } = {}) {
     this.buffer = [];
@@ -31,7 +35,7 @@ export class RequestAuditLog {
     this.auditAll = auditAll;
   }
 
-  log(entry: Omit<RequestLogEntry, 'ts'>): void {
+  log(entry: Omit<RequestLogEntry, "ts">): void {
     if (!this.auditAll && !this.mutationMethods.has(entry.method)) return;
     const full: RequestLogEntry = { ...entry, ts: new Date().toISOString() };
     this.buffer.push(full);
@@ -44,7 +48,12 @@ export class RequestAuditLog {
     return this.buffer.slice(-limit);
   }
 
-  snapshot(): { total: number; recent: RequestLogEntry[]; by_method: Record<string, number>; by_status: Record<string, number> } {
+  snapshot(): {
+    total: number;
+    recent: RequestLogEntry[];
+    by_method: Record<string, number>;
+    by_status: Record<string, number>;
+  } {
     const byMethod: Record<string, number> = {};
     const byStatus: Record<string, number> = {};
     for (const e of this.buffer) {
@@ -52,7 +61,12 @@ export class RequestAuditLog {
       const bucket = `${Math.floor(e.status / 100)}xx`;
       byStatus[bucket] = (byStatus[bucket] || 0) + 1;
     }
-    return { total: this.buffer.length, recent: this.buffer.slice(-20), by_method: byMethod, by_status: byStatus };
+    return {
+      total: this.buffer.length,
+      recent: this.buffer.slice(-20),
+      by_method: byMethod,
+      by_status: byStatus,
+    };
   }
 }
 
@@ -71,7 +85,7 @@ export class SecurityAuditLog {
     this.recentWindowStart = Date.now();
   }
 
-  log(event: Omit<SecurityEvent, 'ts'>): void {
+  log(event: Omit<SecurityEvent, "ts">): void {
     const now = Date.now();
     if (now - this.recentWindowStart > 1000) {
       this.recentCount = 0;
@@ -90,11 +104,19 @@ export class SecurityAuditLog {
     return this.buffer.slice(-limit);
   }
 
-  snapshot(): { total: number; recent: SecurityEvent[]; by_type: Record<string, number> } {
+  snapshot(): {
+    total: number;
+    recent: SecurityEvent[];
+    by_type: Record<string, number>;
+  } {
     const byType: Record<string, number> = {};
     for (const e of this.buffer) {
       byType[e.type] = (byType[e.type] || 0) + 1;
     }
-    return { total: this.buffer.length, recent: this.buffer.slice(-20), by_type: byType };
+    return {
+      total: this.buffer.length,
+      recent: this.buffer.slice(-20),
+      by_type: byType,
+    };
   }
 }

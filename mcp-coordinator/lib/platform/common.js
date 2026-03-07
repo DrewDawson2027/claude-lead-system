@@ -151,7 +151,9 @@ export function spawnTmuxPaneWorker(script) {
 export function tmuxSendKeys(paneId, text) {
   if (!paneId || !isInsideTmux()) return false;
   try {
-    const payload = String(text || "").replace(/[\r\n]+/g, " ").trim();
+    const payload = String(text || "")
+      .replace(/[\r\n]+/g, " ")
+      .trim();
     if (!payload) return false;
     const result = spawnSync(
       "tmux",
@@ -205,7 +207,7 @@ export function getTerminalApp() {
       );
       if (wt.toLowerCase().includes("windowsterminal"))
         return "WindowsTerminal";
-    } catch { }
+    } catch {}
     try {
       const ps = execFileSync(
         "tasklist",
@@ -213,7 +215,7 @@ export function getTerminalApp() {
         { encoding: "utf-8" },
       );
       if (ps.toLowerCase().includes("powershell")) return "PowerShell";
-    } catch { }
+    } catch {}
     return "cmd";
   } else {
     for (const app of [
@@ -388,13 +390,13 @@ export function spawnBackgroundWorker(script, resultFile, pidFile) {
   const child =
     PLATFORM === "win32"
       ? spawn("cmd", ["/c", script], {
-        detached: true,
-        stdio: ["ignore", out, out],
-      })
+          detached: true,
+          stdio: ["ignore", out, out],
+        })
       : spawn("sh", ["-c", script], {
-        detached: true,
-        stdio: ["ignore", out, out],
-      });
+          detached: true,
+          stdio: ["ignore", out, out],
+        });
   writeFileSync(pidFile, String(child.pid));
   child.unref();
   closeSync(out);
@@ -459,15 +461,7 @@ export function isSafeTTYPath(pathValue) {
 
 export function buildInteractiveWorkerScript(opts) {
   const { PLATFORM, SETTINGS_FILE, CLAUDE_BIN } = cfg();
-  const {
-    taskId,
-    workDir,
-    pidFile,
-    metaFile,
-    model,
-    agent,
-    promptFile,
-  } = opts;
+  const { taskId, workDir, pidFile, metaFile, model, agent, promptFile } = opts;
   const workerName = opts.workerName || "";
   const maxTurns = opts.maxTurns || "";
   const permissionMode = opts.permissionMode || "acceptEdits";
@@ -761,9 +755,9 @@ export function buildCodexWorkerScript(opts) {
     autoClaimEnv,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     `codex exec "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs} >> ${qResult} 2>&1` +
-    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-    `; rm -f ${qPid}` +
-    `; ${autoClaimShellCommand()}`,
+      `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
+      `; rm -f ${qPid}` +
+      `; ${autoClaimShellCommand()}`,
   ]
     .filter(Boolean)
     .join(" && ");
@@ -825,9 +819,9 @@ export function buildCodexInteractiveWorkerScript(opts) {
     autoClaimEnv,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     `codex "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs}` +
-    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-    `; rm -f ${qPid}` +
-    `; ${autoClaimShellCommand()}`,
+      `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
+      `; rm -f ${qPid}` +
+      `; ${autoClaimShellCommand()}`,
   ]
     .filter(Boolean)
     .join(" && ");

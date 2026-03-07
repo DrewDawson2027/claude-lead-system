@@ -21,6 +21,7 @@ This document preserves the implementation framework so work can continue across
 8. Tests for secure mode and failure modes.
 
 Exit criteria:
+
 - Sidecar secure mode remains usable (web + TUI).
 - Hardening paths are covered by sidecar tests.
 - No coordinator regressions.

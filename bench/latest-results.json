@@ -116,12 +116,7 @@
       }
     },
     "iterations": 100,
-    "team_sizes": [
-      1,
-      5,
-      10,
-      20
-    ],
+    "team_sizes": [1, 5, 10, 20],
     "dataset": {
       "session_count": 10,
       "avg_session_bytes": 1708

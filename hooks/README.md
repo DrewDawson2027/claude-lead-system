@@ -28,7 +28,7 @@ Every Claude Code user has felt this pain:
 - Fires off **13 sequential Read calls** one-at-a-time instead of batching them in parallel — **context window bloat compounds every turn**
 - You write rules in `CLAUDE.md` saying "don't do this" — **it rationalizes past them every time**
 
-> *"This case is different." "The user needs comprehensive coverage." "I should be thorough."*
+> _"This case is different." "The user needs comprehensive coverage." "I should be thorough."_
 >
 > LLMs are world-class rationalizers. Written rules are suggestions. You need enforcement.
 
@@ -60,6 +60,7 @@ Agents cost ~50k tokens. Direct tools cost ~2-10k.
 Here's what happens when Claude tries to waste your tokens:
 
 **Attempt: Spawn a 2nd Explore agent**
+
 ```
 $ echo '{"tool_name":"Task","tool_input":{"subagent_type":"Explore",...}}' | python3 token-guard.py
 
@@ -71,6 +72,7 @@ Exit code: 2 — tool call cancelled. No tokens burned.
 ```
 
 **Attempt: Use an agent for a task Grep can handle**
+
 ```
 $ echo '{"tool_name":"Task","tool_input":{"prompt":"search for the function handleAuth",...}}' | python3 token-guard.py
 
@@ -82,6 +84,7 @@ Exit code: 2 — $0.50 saved in 10ms.
 ```
 
 **Attempt: Read the same file for the 4th time**
+
 ```
 $ echo '{"tool_name":"Read","tool_input":{"file_path":"src/main.py"}}' | python3 read-efficiency-guard.py
 
@@ -112,13 +115,13 @@ Tool Call
   └─► Tool Executes  ──── Log ──► audit.jsonl
 ```
 
-| Layer | File | What It Does |
-|-------|------|-------------|
-| Advisory | `settings.json` prompt hook | Reminds the AI of token rules before every Task call |
-| Agent Enforcement | `token-guard.py` | Hard-blocks agent spawns (7 rules + anti-evasion) |
-| Read Enforcement | `read-efficiency-guard.py` | Hard-blocks duplicate/sequential reads |
-| Self-Healing | `self-heal.py` | Validates and repairs the system on every session start |
-| Shared Infrastructure | `hook_utils.py` | Portable locking, atomic writes, audit logging |
+| Layer                 | File                        | What It Does                                            |
+| --------------------- | --------------------------- | ------------------------------------------------------- |
+| Advisory              | `settings.json` prompt hook | Reminds the AI of token rules before every Task call    |
+| Agent Enforcement     | `token-guard.py`            | Hard-blocks agent spawns (7 rules + anti-evasion)       |
+| Read Enforcement      | `read-efficiency-guard.py`  | Hard-blocks duplicate/sequential reads                  |
+| Self-Healing          | `self-heal.py`              | Validates and repairs the system on every session start |
+| Shared Infrastructure | `hook_utils.py`             | Portable locking, atomic writes, audit logging          |
 
 ## Quick Start
 
@@ -179,31 +182,31 @@ Share this as a testimonial:
 
 ## What It Catches
 
-| Pattern | What Happens | Tokens Saved |
-|---------|-------------|-------------|
-| 2nd Explore agent in same session | **BLOCKED** — "Max 1 per session. Merge queries." | ~50,000 |
-| "Search for function X" as agent task | **BLOCKED** — "Use Grep directly." | ~48,000 |
-| Same file read 3+ times | **BLOCKED** — "Trust your first read." | ~5,000/read |
-| 15+ sequential reads in 120s | **BLOCKED** — "Batch into parallel groups." | ~20,000+ |
-| Type-switching evasion (Explore blocked → tries general-purpose) | **BLOCKED** — "Resembles a previously blocked attempt." | ~50,000 |
-| Rapid-fire agent spawns (<5s apart) | **BLOCKED** — "Wait between spawns." | ~50,000 |
-| Agent in Explore'd directory | **WARNED** — "Already mapped by Explore." | Advisory |
-| Opus model requested for agent | **WARNED** — "Opus costs ~3x more." | Advisory |
+| Pattern                                                          | What Happens                                            | Tokens Saved |
+| ---------------------------------------------------------------- | ------------------------------------------------------- | ------------ |
+| 2nd Explore agent in same session                                | **BLOCKED** — "Max 1 per session. Merge queries."       | ~50,000      |
+| "Search for function X" as agent task                            | **BLOCKED** — "Use Grep directly."                      | ~48,000      |
+| Same file read 3+ times                                          | **BLOCKED** — "Trust your first read."                  | ~5,000/read  |
+| 15+ sequential reads in 120s                                     | **BLOCKED** — "Batch into parallel groups."             | ~20,000+     |
+| Type-switching evasion (Explore blocked → tries general-purpose) | **BLOCKED** — "Resembles a previously blocked attempt." | ~50,000      |
+| Rapid-fire agent spawns (<5s apart)                              | **BLOCKED** — "Wait between spawns."                    | ~50,000      |
+| Agent in Explore'd directory                                     | **WARNED** — "Already mapped by Explore."               | Advisory     |
+| Opus model requested for agent                                   | **WARNED** — "Opus costs ~3x more."                     | Advisory     |
 
 ## Configuration
 
 Edit `~/.claude/hooks/token-guard-config.json`:
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `max_agents` | int | `5` | Maximum agents per session |
-| `parallel_window_seconds` | int | `30` | Block same-type spawns within this window |
-| `global_cooldown_seconds` | int | `5` | Minimum seconds between any spawns |
-| `max_per_subagent_type` | int | `1` | Max of any single agent type |
-| `state_ttl_hours` | int | `24` | Auto-cleanup session state after this |
-| `audit_log` | bool | `true` | Enable/disable audit logging |
-| `one_per_session` | list | `["Explore", "Plan", ...]` | Types limited to exactly 1 |
-| `always_allowed` | list | `["claude-code-guide", ...]` | Types that bypass all rules |
+| Option                    | Type | Default                      | Description                               |
+| ------------------------- | ---- | ---------------------------- | ----------------------------------------- |
+| `max_agents`              | int  | `5`                          | Maximum agents per session                |
+| `parallel_window_seconds` | int  | `30`                         | Block same-type spawns within this window |
+| `global_cooldown_seconds` | int  | `5`                          | Minimum seconds between any spawns        |
+| `max_per_subagent_type`   | int  | `1`                          | Max of any single agent type              |
+| `state_ttl_hours`         | int  | `24`                         | Auto-cleanup session state after this     |
+| `audit_log`               | bool | `true`                       | Enable/disable audit logging              |
+| `one_per_session`         | list | `["Explore", "Plan", ...]`   | Types limited to exactly 1                |
+| `always_allowed`          | list | `["claude-code-guide", ...]` | Types that bypass all rules               |
 
 ### Hook Registration
 
@@ -315,42 +318,47 @@ CI runs on every push: Python 3.8 / 3.10 / 3.12 × Ubuntu / macOS / Windows = **
 
 ## Before / After
 
-| Metric | Without Guard | With Guard |
-|--------|:------------:|:----------:|
-| Agents spawned per session | 8-12 | 2-4 |
-| Duplicate file reads | 5-6 per file | Max 2 |
-| Sequential reads per turn | 10-13 | 3-4 (batched) |
-| Tokens per session | ~400k | ~150k |
-| Estimated cost per session | ~$3.00 | ~$1.10 |
+| Metric                     | Without Guard |  With Guard   |
+| -------------------------- | :-----------: | :-----------: |
+| Agents spawned per session |     8-12      |      2-4      |
+| Duplicate file reads       | 5-6 per file  |     Max 2     |
+| Sequential reads per turn  |     10-13     | 3-4 (batched) |
+| Tokens per session         |     ~400k     |     ~150k     |
+| Estimated cost per session |    ~$3.00     |    ~$1.10     |
 
-*Based on real usage data from the audit log across 63 agent spawn attempts.*
+_Based on real usage data from the audit log across 63 agent spawn attempts._
 
 ## vs Alternatives
 
-| Feature | Claude Token Guard | CLAUDE.md Rules | claude-code-guardrails | Manual Monitoring |
-|---------|:------------------:|:---------------:|:---------------------:|:-----------------:|
-| Actually blocks wasteful calls | **Yes** | No (advisory only) | Yes (cloud-based) | No |
-| Zero dependencies | **Yes** | Yes | No (needs Rulebricks) | N/A |
-| Self-hosted | **Yes** | Yes | No (cloud API) | Yes |
-| Anti-evasion detection | **Yes** | No | No | No |
-| Self-healing | **Yes** | No | No | No |
-| Audit analytics | **Yes** | No | Yes | No |
-| Test suite | **140+ tests** | N/A | None published | N/A |
-| Setup time | 2 minutes | 0 | 5 minutes | Ongoing |
+| Feature                        | Claude Token Guard |  CLAUDE.md Rules   | claude-code-guardrails | Manual Monitoring |
+| ------------------------------ | :----------------: | :----------------: | :--------------------: | :---------------: |
+| Actually blocks wasteful calls |      **Yes**       | No (advisory only) |   Yes (cloud-based)    |        No         |
+| Zero dependencies              |      **Yes**       |        Yes         | No (needs Rulebricks)  |        N/A        |
+| Self-hosted                    |      **Yes**       |        Yes         |     No (cloud API)     |        Yes        |
+| Anti-evasion detection         |      **Yes**       |         No         |           No           |        No         |
+| Self-healing                   |      **Yes**       |         No         |           No           |        No         |
+| Audit analytics                |      **Yes**       |         No         |          Yes           |        No         |
+| Test suite                     |   **140+ tests**   |        N/A         |     None published     |        N/A        |
+| Setup time                     |     2 minutes      |         0          |       5 minutes        |      Ongoing      |
 
 ## How It Works Under the Hood
 
 ### Atomic State Management
+
 All state writes use `tempfile.mkstemp()` + `os.replace()` — if the process crashes mid-write, the original file is untouched. Portable across macOS, Linux, and Windows.
 
 ### File Locking
+
 Shared state is protected by exclusive file locks (`fcntl.flock` on Unix, `msvcrt.locking` on Windows). No race conditions from concurrent hooks.
 
 ### Fail-Open Philosophy
+
 If anything goes wrong (can't create state dir, can't parse input, can't acquire lock), the hook exits 0 and **allows the tool call**. False negatives are better than false positives — a bug in the guard should never block legitimate work.
 
 ### Bounded Growth
+
 Every array has a TTL:
+
 - Read records: 5 minutes
 - Blocked attempts: 5 minutes
 - Session state files: 24 hours
@@ -359,7 +367,7 @@ Every array has a TTL:
 ## FAQ
 
 **Q: Will this break my Claude Code sessions?**
-A: No. Every hook follows the fail-open principle. If anything goes wrong, it allows the tool call. The guard can only *block*, never *crash*.
+A: No. Every hook follows the fail-open principle. If anything goes wrong, it allows the tool call. The guard can only _block_, never _crash_.
 
 **Q: Can Claude learn to bypass this?**
 A: The type-switching detector catches evasion attempts (similarity matching on descriptions). The necessity scorer catches "same task, different words." But if Claude genuinely needs more agents, increase `max_agents` in the config.
@@ -379,6 +387,7 @@ A: ~10-20ms per tool call. Negligible compared to the API round-trip.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). PRs welcome, especially:
+
 - New necessity scoring patterns (with tests)
 - Threshold tuning backed by audit data
 - Windows/Linux testing

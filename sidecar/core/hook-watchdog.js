@@ -2,9 +2,9 @@
  * Hook watchdog — validate hook files exist, are executable, have valid syntax.
  */
 
-import { existsSync, accessSync, constants, readdirSync } from 'fs';
-import { join, extname } from 'path';
-import { spawnSync } from 'child_process';
+import { existsSync, accessSync, constants, readdirSync } from "fs";
+import { join, extname } from "path";
+import { spawnSync } from "child_process";
 
 /**
  * Validate all hook files in a directory.
@@ -15,9 +15,13 @@ export function validateHooks(hooksDir) {
   if (!existsSync(hooksDir)) return { hooks: [], all_valid: true };
 
   let files;
-  try { files = readdirSync(hooksDir); } catch { return { hooks: [], all_valid: true }; }
+  try {
+    files = readdirSync(hooksDir);
+  } catch {
+    return { hooks: [], all_valid: true };
+  }
 
-  const hookFiles = files.filter(f => f.endsWith('.sh') || f.endsWith('.py'));
+  const hookFiles = files.filter((f) => f.endsWith(".sh") || f.endsWith(".py"));
   const results = [];
 
   for (const f of hookFiles) {
@@ -28,36 +32,60 @@ export function validateHooks(hooksDir) {
     let syntax_valid = true;
 
     // Check executable permission (non-Windows, .sh only)
-    if (ext === '.sh' && process.platform !== 'win32') {
+    if (ext === ".sh" && process.platform !== "win32") {
       try {
         accessSync(fp, constants.X_OK);
       } catch {
         executable = false;
-        issues.push('Not executable (missing +x)');
+        issues.push("Not executable (missing +x)");
       }
     }
 
     // Syntax check
-    if (ext === '.sh') {
-      const result = spawnSync('bash', ['-n', fp], { timeout: 5000, stdio: 'pipe' });
+    if (ext === ".sh") {
+      const result = spawnSync("bash", ["-n", fp], {
+        timeout: 5000,
+        stdio: "pipe",
+      });
       if (result.status !== 0) {
         syntax_valid = false;
-        issues.push(`Bash syntax error: ${(result.stderr || '').toString().trim().slice(0, 200)}`);
+        issues.push(
+          `Bash syntax error: ${(result.stderr || "").toString().trim().slice(0, 200)}`,
+        );
       }
-    } else if (ext === '.py') {
-      const result = spawnSync('python3', ['-c', `import py_compile, sys; py_compile.compile(sys.argv[1], doraise=True)`, fp], { timeout: 5000, stdio: 'pipe' });
+    } else if (ext === ".py") {
+      const result = spawnSync(
+        "python3",
+        [
+          "-c",
+          `import py_compile, sys; py_compile.compile(sys.argv[1], doraise=True)`,
+          fp,
+        ],
+        { timeout: 5000, stdio: "pipe" },
+      );
       if (result.status !== 0) {
         syntax_valid = false;
-        issues.push(`Python syntax error: ${(result.stderr || '').toString().trim().slice(0, 200)}`);
+        issues.push(
+          `Python syntax error: ${(result.stderr || "").toString().trim().slice(0, 200)}`,
+        );
       }
     }
 
-    results.push({ name: f, path: fp, exists: true, executable, syntax_valid, issues });
+    results.push({
+      name: f,
+      path: fp,
+      exists: true,
+      executable,
+      syntax_valid,
+      issues,
+    });
   }
 
   return {
     hooks: results,
-    all_valid: results.every(h => h.executable && h.syntax_valid && h.issues.length === 0),
+    all_valid: results.every(
+      (h) => h.executable && h.syntax_valid && h.issues.length === 0,
+    ),
   };
 }
 
@@ -74,11 +102,11 @@ export function validateHookOutputFormat(hookName, sampleOutput) {
   }
 
   // Python hooks should output valid JSON
-  if (hookName.endsWith('.py')) {
+  if (hookName.endsWith(".py")) {
     try {
       JSON.parse(sampleOutput.trim());
     } catch {
-      issues.push('Python hook output is not valid JSON');
+      issues.push("Python hook output is not valid JSON");
     }
   }
 
@@ -95,28 +123,51 @@ export function runHookSelftest(hooksDir) {
   if (!existsSync(hooksDir)) return [];
 
   let files;
-  try { files = readdirSync(hooksDir); } catch { return []; }
+  try {
+    files = readdirSync(hooksDir);
+  } catch {
+    return [];
+  }
 
   const results = [];
-  for (const f of files.filter(x => x.endsWith('.sh') || x.endsWith('.py'))) {
+  for (const f of files.filter((x) => x.endsWith(".sh") || x.endsWith(".py"))) {
     const fp = join(hooksDir, f);
     const ext = extname(f);
-    const cmd = ext === '.sh' ? 'bash' : 'python3';
-    const args = ext === '.sh' ? [fp, '--selftest'] : [fp, '--selftest'];
+    const cmd = ext === ".sh" ? "bash" : "python3";
+    const args = ext === ".sh" ? [fp, "--selftest"] : [fp, "--selftest"];
 
     try {
-      const result = spawnSync(cmd, args, { timeout: 10000, stdio: 'pipe', env: { ...process.env, HOOK_SELFTEST: '1' } });
-      const output = (result.stdout || '').toString().trim();
-      const stderr = (result.stderr || '').toString().trim();
+      const result = spawnSync(cmd, args, {
+        timeout: 10000,
+        stdio: "pipe",
+        env: { ...process.env, HOOK_SELFTEST: "1" },
+      });
+      const output = (result.stdout || "").toString().trim();
+      const stderr = (result.stderr || "").toString().trim();
 
       if (result.status === 0) {
-        results.push({ name: f, selftest_passed: true, output: output.slice(0, 500), error: null });
+        results.push({
+          name: f,
+          selftest_passed: true,
+          output: output.slice(0, 500),
+          error: null,
+        });
       } else {
         // Hooks that don't support --selftest will exit non-zero — that's OK
-        results.push({ name: f, selftest_passed: false, output: output.slice(0, 500), error: stderr.slice(0, 200) || 'exited non-zero' });
+        results.push({
+          name: f,
+          selftest_passed: false,
+          output: output.slice(0, 500),
+          error: stderr.slice(0, 200) || "exited non-zero",
+        });
       }
     } catch (err) {
-      results.push({ name: f, selftest_passed: false, output: '', error: err.message });
+      results.push({
+        name: f,
+        selftest_passed: false,
+        output: "",
+        error: err.message,
+      });
     }
   }
 

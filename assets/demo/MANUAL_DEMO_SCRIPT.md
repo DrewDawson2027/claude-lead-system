@@ -5,19 +5,23 @@ Record this with OBS or screen recording software. Total runtime: ~3 minutes.
 ## Pre-recording Setup
 
 1. **Clean terminal prompt** — use a minimal PS1:
+
    ```bash
    export PS1="\w $ "
    ```
 
 2. **Run the terminal layout script**:
+
    ```bash
    bash assets/demo/setup_demo_terminals.sh
    ```
+
    This opens 3 iTerm2 panes side by side.
 
 3. **Clear all terminals** — `clear` in each pane
 
 4. **Set working directory** in all panes:
+
    ```bash
    cd ~/claude-lead-system/assets/demo/demo-project
    ```
@@ -27,6 +31,7 @@ Record this with OBS or screen recording software. Total runtime: ~3 minutes.
 ## Recording Flow
 
 ### Terminal Layout
+
 ```
 ┌─────────────────┬─────────────────┬─────────────────┐
 │   Terminal A     │   Terminal B     │   Terminal C     │

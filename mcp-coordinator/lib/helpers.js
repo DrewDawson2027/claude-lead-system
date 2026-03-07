@@ -13,7 +13,11 @@ import { cfg } from "./constants.js";
  * @returns {object|null} Parsed JSON or null
  */
 export function readJSON(path) {
-  try { return JSON.parse(readFileSync(path, "utf-8")); } catch { return null; }
+  try {
+    return JSON.parse(readFileSync(path, "utf-8"));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -49,7 +53,8 @@ export function readJSONLLimited(pathValue, maxLines, maxBytes) {
   if (maxLines === undefined) maxLines = c.MAX_INBOX_LINES;
   if (maxBytes === undefined) maxBytes = c.MAX_INBOX_BYTES;
   try {
-    if (!existsSync(pathValue)) return { items: [], truncated: false, totalLines: 0 };
+    if (!existsSync(pathValue))
+      return { items: [], truncated: false, totalLines: 0 };
     let raw = readFileSync(pathValue, "utf-8");
     let truncated = false;
     if (Buffer.byteLength(raw, "utf-8") > maxBytes) {
@@ -60,7 +65,13 @@ export function readJSONLLimited(pathValue, maxLines, maxBytes) {
     const lines = allLines.slice(0, maxLines);
     if (allLines.length > maxLines) truncated = true;
     const items = lines
-      .map(line => { try { return JSON.parse(line); } catch { return null; } })
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
       .filter(Boolean);
     return { items, truncated, totalLines: allLines.length };
   } catch {
@@ -76,10 +87,21 @@ export function readJSONLLimited(pathValue, maxLines, maxBytes) {
 export function readJSONL(path) {
   try {
     if (!existsSync(path)) return [];
-    return readFileSync(path, "utf-8").trim().split("\n").filter(Boolean)
-      .map(line => { try { return JSON.parse(line); } catch { return null; } })
+    return readFileSync(path, "utf-8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
       .filter(Boolean);
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 /**
