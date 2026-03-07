@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import http from "http";
 import readline from "readline";
+import { execFileSync } from "child_process";
+import { existsSync, readFileSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
 
 const host = process.env.LEAD_SIDECAR_HOST || "127.0.0.1";
 let sidecarPort =
@@ -39,10 +43,12 @@ const state = {
   forcePath: "",
   metrics: null,
   focusMode: "all",
-  viewMode: "main", // 'main' | 'approval' | 'action-detail'
+  viewMode: "main", // 'main' | 'approval' | 'teammate'
   selectedApprovalIdx: 0,
+  selectedMemberIdx: 0,
   autoRefreshInterval: 5000,
   autoRefreshTimer: null,
+  teammateRefreshTimer: null,
 };
 
 // ── HTTP Client ──
@@ -201,7 +207,7 @@ function renderHeader() {
     `${C.bold}Lead Sidecar TUI${C.reset}  ${C.dim}focus:${C.cyan}${mode}${C.reset}  ${C.dim}path:${fp}${C.reset}  ${C.dim}view:${state.viewMode}${C.reset}`,
   );
   line(
-    `${C.dim}[F]ocus [P]approvals [j/k]team [[]|[]]action [y]retry [c]coord [v]native [d]dispatch [q]queue [a]assign [r]rebalance [s]sim [SPACE]refresh [x]quit${C.reset}`,
+    `${C.dim}[F]ocus [P]approvals [j/k]team [[]|[]]action [y]retry [c]coord [v]native [d]dispatch [q]queue [a]assign [r]rebalance [s]sim [Shift+UP/DN]teammate [SPACE]refresh [x]quit${C.reset}`,
   );
   hr();
 }
@@ -360,7 +366,7 @@ function renderRebalanceExplain() {
   box("Rebalance Explain");
   for (const t of re.tasks.slice(0, 5)) {
     line(
-      `  ${C.bold}${t.task_id}${C.reset} ${t.subject} → ${C.cyan}${t.recommended_assignee || "?"}${C.reset} (score=${t.recommended_score ?? "-"})`,
+      `  ${C.bold}${t.task_id}${C.reset} ${t.subject} -> ${C.cyan}${t.recommended_assignee || "?"}${C.reset} (score=${t.recommended_score ?? "-"})`,
     );
     if (t.candidates?.length) {
       for (const c of t.candidates.slice(0, 3)) {
@@ -402,10 +408,119 @@ function renderApprovalView() {
   line(state.message || "");
 }
 
+// ── Teammate Live View ──
+// Emulates native Agent Teams in-process display (Shift+Up/Down cycling).
+// Primary: tmux capture-pane reads the live visible content of the worker's
+// pane. Fallback: reads the last output from the results JSON file.
+
+function renderTeammateView() {
+  const teammates = state.detail?.teammates || [];
+  const m = teammates[state.selectedMemberIdx];
+  if (!m) {
+    state.viewMode = "main";
+    return render();
+  }
+  clear();
+  const total = teammates.length;
+  const idx = state.selectedMemberIdx;
+  line(
+    `${C.bold}Teammate View${C.reset}  ${C.dim}[${idx + 1}/${total}]  [Shift+UP/DN]cycle  [Esc]back${C.reset}`,
+  );
+  hr();
+  const pc = presenceColor(m.presence);
+  line(
+    `${pc}o${C.reset} ${C.bold}${m.display_name || m.name || "?"}${C.reset}  ${C.dim}role=${m.role || "-"}${C.reset}  ${pc}${m.presence}${C.reset}  ${C.dim}task=${m.current_task_ref || m.worker_task_id || "-"}${C.reset}`,
+  );
+  line(
+    `  ${C.dim}load=${m.load_score ?? "-"}  ready=${m.dispatch_readiness ?? "-"}  session=${m.session_id || "-"}  pane=${m.tmux_pane_id || "-"}${C.reset}`,
+  );
+  hr();
+
+  // Primary: tmux capture-pane with FULL scrollback history (-S -)
+  // Native Claude Code buffers all output in-memory; we replicate this by
+  // capturing the entire tmux scrollback buffer, not just the visible viewport.
+  let output = null;
+  if (m.tmux_pane_id) {
+    try {
+      output = execFileSync(
+        "tmux",
+        ["capture-pane", "-t", m.tmux_pane_id, "-p", "-S", "-", "-e"],
+        { encoding: "utf8", timeout: 2000 },
+      );
+    } catch {
+      output = null;
+    }
+  }
+
+  // Fallback 1: tail the `script` transcript file (created at interactive spawn)
+  // This works even in non-tmux environments because buildInteractiveWorkerScript
+  // wraps claude in `script -q <transcript>`, capturing all terminal output.
+  if (!output) {
+    const taskId = m.current_task_ref || m.worker_task_id;
+    if (taskId) {
+      try {
+        const transcriptPath = join(
+          homedir(),
+          ".claude",
+          "terminals",
+          "results",
+          `${taskId}.transcript`,
+        );
+        if (existsSync(transcriptPath)) {
+          const raw = readFileSync(transcriptPath, "utf-8");
+          output = raw.slice(-4000);
+        }
+      } catch {
+        output = null;
+      }
+    }
+  }
+
+  // Fallback 2: results JSON file for pipe-mode workers
+  if (!output) {
+    const taskId = m.current_task_ref || m.worker_task_id;
+    if (taskId) {
+      try {
+        const resultsPath = join(
+          homedir(),
+          ".claude",
+          "terminals",
+          "results",
+          `${taskId}.json`,
+        );
+        if (existsSync(resultsPath)) {
+          const data = JSON.parse(readFileSync(resultsPath, "utf-8"));
+          output =
+            typeof data.output === "string"
+              ? data.output.slice(-2000)
+              : JSON.stringify(data, null, 2).slice(-2000);
+        }
+      } catch {
+        output = null;
+      }
+    }
+  }
+
+  // Show output, fitting to terminal height for readability
+  if (output) {
+    const maxLines = Math.max(10, (process.stdout.rows || 40) - 8);
+    const lines = output.split("\n");
+    const visible = lines.slice(-maxLines).join("\n");
+    w(visible);
+  } else {
+    line(
+      `${C.dim}[No live output -- teammate may be offline or not yet assigned a task]${C.reset}`,
+    );
+  }
+  line("");
+  line(state.message || `${C.dim}Ready.${C.reset}`);
+}
+
 // ── Main Render ──
 
 function render() {
   if (state.viewMode === "approval") return renderApprovalView();
+  if (state.viewMode === "teammate") return renderTeammateView();
   clear();
   renderHeader();
   renderNative();
@@ -581,7 +696,7 @@ async function routeSim(action, payload = {}) {
     if (trace.length) {
       line("");
       box("Decision Trace");
-      for (const step of trace) line(`  ${C.dim}→${C.reset} ${step}`);
+      for (const step of trace) line(`  ${C.dim}-->${C.reset} ${step}`);
     }
   } catch (err) {
     state.message = `route-sim failed: ${err.message}`;
@@ -611,6 +726,21 @@ async function batchTriage(op) {
 }
 
 // ── Auto-refresh ──
+
+// Live streaming emulation: re-render the teammate view every 500ms so output
+// appears to stream in real-time (native Claude Code renders in-process from
+// an in-memory buffer; we poll tmux scrollback or transcript files instead).
+function startTeammateAutoRefresh() {
+  if (state.teammateRefreshTimer) clearInterval(state.teammateRefreshTimer);
+  state.teammateRefreshTimer = setInterval(() => {
+    if (state.viewMode === "teammate") {
+      render();
+    } else {
+      clearInterval(state.teammateRefreshTimer);
+      state.teammateRefreshTimer = null;
+    }
+  }, 500);
+}
 
 function startAutoRefresh() {
   if (state.autoRefreshTimer) clearInterval(state.autoRefreshTimer);
@@ -685,6 +815,38 @@ async function main() {
         });
       }
       return;
+    }
+
+    // Escape -- exit teammate view back to main
+    if (key.name === "escape" && state.viewMode === "teammate") {
+      state.viewMode = "main";
+      if (state.teammateRefreshTimer) {
+        clearInterval(state.teammateRefreshTimer);
+        state.teammateRefreshTimer = null;
+      }
+      return render();
+    }
+
+    // Shift+Up -- cycle teammate view up (native Agent Teams parity: in-process display)
+    if (key.shift && key.name === "up") {
+      const teammates = state.detail?.teammates || [];
+      if (!teammates.length) return;
+      state.selectedMemberIdx =
+        (state.selectedMemberIdx - 1 + teammates.length) % teammates.length;
+      state.viewMode = "teammate";
+      startTeammateAutoRefresh();
+      return render();
+    }
+
+    // Shift+Down -- cycle teammate view down
+    if (key.shift && key.name === "down") {
+      const teammates = state.detail?.teammates || [];
+      if (!teammates.length) return;
+      state.selectedMemberIdx =
+        (state.selectedMemberIdx + 1) % teammates.length;
+      state.viewMode = "teammate";
+      startTeammateAutoRefresh();
+      return render();
     }
 
     // Main view keys
