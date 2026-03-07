@@ -1931,6 +1931,7 @@ export const __test__ = {
   handleTeamStatusCompact,
   handleTeamQueueTask,
   handleClaimNextTask,
+  handleClaimNextTaskData,
   handleTeamAssignNext,
   handleTeamRebalance,
   handleSidecarStatus,
