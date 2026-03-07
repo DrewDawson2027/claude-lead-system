@@ -8,6 +8,7 @@ import { existsSync, readdirSync, mkdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
 import {
+  sanitizeId,
   sanitizeName,
   writeFileSecure,
   ensureSecureDirectory,
@@ -24,7 +25,7 @@ function teamsDir() {
     mkdirSync(dir, { recursive: true });
     try {
       ensureSecureDirectory(dir);
-    } catch {}
+    } catch { }
   }
   return dir;
 }
@@ -118,8 +119,8 @@ function mergeTeamPolicy(currentPolicy = {}, patchPolicy = {}) {
   ) {
     const prevWeights =
       currentPolicy?.interrupt_weights &&
-      typeof currentPolicy.interrupt_weights === "object" &&
-      !Array.isArray(currentPolicy.interrupt_weights)
+        typeof currentPolicy.interrupt_weights === "object" &&
+        !Array.isArray(currentPolicy.interrupt_weights)
         ? currentPolicy.interrupt_weights
         : {};
     merged.interrupt_weights = {
@@ -145,6 +146,7 @@ function normalizeTeamPolicy(policy = {}) {
   };
   strEnum("permission_mode", [
     "acceptEdits",
+    "auto",
     "planOnly",
     "readOnly",
     "editOnly",
@@ -244,7 +246,15 @@ export function handleCreateTeam(args) {
       const name = sanitizeName(m.name || m, "member name");
       const role = m.role ? String(m.role).trim() : "worker";
       const session_id = m.session_id ? String(m.session_id).slice(0, 8) : null;
-      const task_id = m.task_id || null;
+      const hasTaskId =
+        typeof m === "object" &&
+        m !== null &&
+        Object.prototype.hasOwnProperty.call(m, "task_id");
+      const task_id = hasTaskId
+        ? m.task_id
+          ? sanitizeId(m.task_id, "task_id")
+          : null
+        : undefined;
 
       const agentId = m.agentId || null;
 
@@ -253,7 +263,7 @@ export function handleCreateTeam(args) {
         // Update existing member
         if (role) team.members[idx].role = role;
         if (session_id) team.members[idx].session_id = session_id;
-        if (task_id) team.members[idx].task_id = task_id;
+        if (hasTaskId) team.members[idx].task_id = task_id;
         if (agentId) team.members[idx].agentId = agentId;
         team.members[idx].updated = new Date().toISOString();
       } else {
@@ -261,7 +271,7 @@ export function handleCreateTeam(args) {
           name,
           role,
           session_id,
-          task_id,
+          task_id: task_id ?? null,
           agentId,
           joined: new Date().toISOString(),
           updated: new Date().toISOString(),
@@ -275,18 +285,18 @@ export function handleCreateTeam(args) {
 
   return text(
     `Team ${existing ? "updated" : "created"}: **${teamName}**\n` +
-      `- Project: ${team.project || "unset"}\n` +
-      `- Execution Path: ${team.execution_path}\n` +
-      `- Overhead Mode: ${team.low_overhead_mode}\n` +
-      `- Team Permission Mode: ${team.policy?.permission_mode || "unset"}\n` +
-      `- Team Plan Mode: ${team.policy?.require_plan === true ? "required" : team.policy?.require_plan === false ? "optional" : "unset"}\n` +
-      `- Members: ${team.members.length}\n` +
-      team.members
-        .map(
-          (m) =>
-            `  - ${m.name} (${m.role})${m.task_id ? ` → ${m.task_id}` : ""}`,
-        )
-        .join("\n"),
+    `- Project: ${team.project || "unset"}\n` +
+    `- Execution Path: ${team.execution_path}\n` +
+    `- Overhead Mode: ${team.low_overhead_mode}\n` +
+    `- Team Permission Mode: ${team.policy?.permission_mode || "unset"}\n` +
+    `- Team Plan Mode: ${team.policy?.require_plan === true ? "required" : team.policy?.require_plan === false ? "optional" : "unset"}\n` +
+    `- Members: ${team.members.length}\n` +
+    team.members
+      .map(
+        (m) =>
+          `  - ${m.name} (${m.role})${m.task_id ? ` → ${m.task_id}` : ""}`,
+      )
+      .join("\n"),
   );
 }
 
@@ -304,8 +314,8 @@ export function handleUpdateTeamPolicy(args) {
 
   const incomingPolicy =
     args.policy &&
-    typeof args.policy === "object" &&
-    !Array.isArray(args.policy)
+      typeof args.policy === "object" &&
+      !Array.isArray(args.policy)
       ? { ...args.policy }
       : {};
   if (
@@ -328,10 +338,10 @@ export function handleUpdateTeamPolicy(args) {
   const updatedKeys = Object.keys(normalized).sort();
   return text(
     `Team policy updated: **${teamName}**\n` +
-      `- Updated keys: ${updatedKeys.join(", ")}\n` +
-      (team.policy?.interrupt_weights
-        ? `- Interrupt weights: ${JSON.stringify(team.policy.interrupt_weights)}\n`
-        : ""),
+    `- Updated keys: ${updatedKeys.join(", ")}\n` +
+    (team.policy?.interrupt_weights
+      ? `- Interrupt weights: ${JSON.stringify(team.policy.interrupt_weights)}\n`
+      : ""),
   );
 }
 
@@ -451,17 +461,17 @@ export function handleDeleteTeam(args) {
           try {
             unlinkSync(join(tasksDir, f));
             tasksRemoved++;
-          } catch {}
+          } catch { }
         }
       }
-    } catch {}
+    } catch { }
   }
 
   return text(
     `Team **${teamName}** deleted.\n` +
-      `- Members removed: ${memberCount}\n` +
-      (args.clean_tasks
-        ? `- Tasks cleaned: ${tasksRemoved}\n`
-        : "- Tasks preserved (use clean_tasks: true to remove)\n"),
+    `- Members removed: ${memberCount}\n` +
+    (args.clean_tasks
+      ? `- Tasks cleaned: ${tasksRemoved}\n`
+      : "- Tasks preserved (use clean_tasks: true to remove)\n"),
   );
 }

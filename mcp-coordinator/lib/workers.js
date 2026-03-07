@@ -204,12 +204,13 @@ export function handleSpawnWorker(args) {
   const contextSummary = args.context_summary
     ? String(args.context_summary).trim()
     : null;
-  // All 5 native modes + 2 coordinator extras. planOnly maps to plan for CLI.
+  // All 5 native modes + 2 coordinator extras + auto. planOnly maps to plan for CLI.
   const validModes = [
     "acceptEdits",
     "bypassPermissions",
     "default",
     "dontAsk",
+    "auto",
     "plan",
     "planOnly",
     "readOnly",
@@ -680,13 +681,10 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       );
     }
 
-    // Pass team info for native P2P: workers join the native team if available
-    const useNativeTeam =
-      teamConfig?.execution_path === "native" ||
-      teamConfig?.execution_path === "hybrid";
     const scriptOpts = {
       taskId,
       workDir: workerDir,
+      defaultDirectory: directory,
       resultFile,
       pidFile,
       metaFile,
@@ -698,10 +696,23 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       workerName,
       maxTurns,
       permissionMode: cliPermissionMode,
+      mode,
+      runtime,
+      layout,
+      role,
+      contextLevel,
+      budgetPolicy,
+      budgetTokens,
+      globalBudgetPolicy,
+      globalBudgetTokens,
+      maxActiveWorkers,
+      requirePlan,
+      contextSummary,
+      isolate,
       sessionId: claudeSessionId,
       leadSessionId: notify_session_id,
       leadPaneId,
-      teamName: useNativeTeam ? teamName : null,
+      teamName,
     };
     let workerScript;
     if (runtime === "codex") {
@@ -955,12 +966,30 @@ export function handleResumeWorker(args) {
     const resumeScript = buildResumeWorkerScript({
       sessionId: meta.claude_session_id,
       workDir: meta.original_directory || meta.directory,
+      defaultDirectory: meta.original_directory || meta.directory,
       pidFile: newPidFile,
       metaFile: newMetaFile,
       taskId: newTaskId,
       workerName: meta.worker_name || newTaskId,
+      teamName: meta.team_name,
+      mode: meta.mode || "interactive",
+      runtime: meta.runtime || "claude",
+      layout: meta.backend_type || "background",
+      model: meta.model,
+      agent: meta.agent,
+      role: meta.role,
+      permissionMode: meta.permission_mode,
+      contextLevel: meta.context_level || "standard",
+      budgetPolicy: meta.budget_policy || "warn",
+      budgetTokens: meta.budget_tokens,
+      globalBudgetPolicy: meta.global_budget_policy || "warn",
+      globalBudgetTokens: meta.global_budget_tokens,
+      maxActiveWorkers: meta.max_active_workers,
+      requirePlan: meta.require_plan,
+      maxTurns: meta.max_turns,
       leadSessionId: meta.notify_session_id,
       leadPaneId,
+      isolate: meta.isolated,
     });
 
     // Spawn in same layout as original
