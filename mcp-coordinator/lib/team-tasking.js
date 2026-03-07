@@ -759,7 +759,6 @@ export function handleClaimNextTask(args) {
   return text(out);
 }
 
-
 /**
  * Claim-only mode: find next task for a worker and return its data without
  * dispatching a new process. Used by claim-next-task.mjs --claim-only so the

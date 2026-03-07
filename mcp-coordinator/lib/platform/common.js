@@ -580,14 +580,14 @@ export function buildInteractiveWorkerScript(opts) {
     `printf '%s' "$_NP" > ${qPrompt}`,
     'CLAUDE_WORKER_TASK_ID="$_TID" && export CLAUDE_WORKER_TASK_ID',
     `echo $$ > ${qPid}`,
-  ].join('; ');
+  ].join("; ");
 
   const loopBody = [
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     `unset CLAUDECODE && ${scriptWrapped}`,
     ...completionCmds,
     claimNextCmds,
-  ].join('; ');
+  ].join("; ");
 
   const persistentLoop = `while true; do ${loopBody}; done`;
 
