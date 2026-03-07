@@ -32,6 +32,7 @@ function normalizeTeammates(teamSnap) {
     native_agent_id: null,
     role: m.role || "worker",
     presence: m.presence || m.session_status || "offline",
+    tmux_pane_id: m.tmux_pane_id || null,
     last_active: m.last_active || null,
     current_task_ref: m.current_task_ref || null,
     policy_state: m.policy_state || {},

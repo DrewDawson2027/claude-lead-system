@@ -246,12 +246,15 @@ export function buildTeamOperationalSnapshot(teamNameRaw) {
       .map((m) => [m.task_id, m.name]),
   );
 
+  const workerByTaskId = new Map(workers.map((w) => [w.task_id, w]));
   const members = mapped.members.map((m) => {
     const { presence, risk_flags } = buildPresence(m, allTasks);
+    const worker = m.task_id ? workerByTaskId.get(m.task_id) || null : null;
     return {
       ...m,
       presence,
       risk_flags,
+      tmux_pane_id: worker?.tmux_pane_id || null,
       current_task_ref: m.task_id || m.session?.current_task || null,
       policy_state: {
         permission_mode: team.policy?.permission_mode || null,
@@ -741,6 +744,8 @@ export function handleClaimNextTask(args) {
     default_directory: args.directory,
     worker_task_id: args.worker_task_id,
   });
+  // Record which worker claimed this task (native schema parity)
+  handleUpdateTask({ task_id: nextTask.task_id, claimed_by: assignee });
   const dTxt = contentText(dispatchRes);
   let out = `## Claim Next Task (${team_name})\n\n`;
   out += `- Assignee: ${assignee}\n`;
