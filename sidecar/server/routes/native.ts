@@ -5,13 +5,11 @@ export function registerNativeRoutes(registry: any): void {
     const { req, res, url } = ctx;
     if (!(req.method === "GET" && url.pathname === "/native/status"))
       return false;
-    const native = await ctx.nativeAdapter
-      .getStatus()
-      .catch((err: any) => ({
-        adapter_ok: false,
-        error: err.message,
-        mode: "unavailable",
-      }));
+    const native = await ctx.nativeAdapter.getStatus().catch((err: any) => ({
+      adapter_ok: false,
+      error: err.message,
+      mode: "unavailable",
+    }));
     ctx.store.setNativeCapabilities({
       ...(native.native || {
         available: false,
@@ -42,13 +40,11 @@ export function registerNativeRoutes(registry: any): void {
     const { req, res, url } = ctx;
     if (!(req.method === "GET" && url.pathname === "/native/bridge/validation"))
       return false;
-    const native = await ctx.nativeAdapter
-      .getStatus()
-      .catch((err: any) => ({
-        adapter_ok: false,
-        error: err.message,
-        mode: "unavailable",
-      }));
+    const native = await ctx.nativeAdapter.getStatus().catch((err: any) => ({
+      adapter_ok: false,
+      error: err.message,
+      mode: "unavailable",
+    }));
     ctx.sendJson(
       res,
       200,

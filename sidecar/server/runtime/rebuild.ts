@@ -14,13 +14,11 @@ export function createRebuildOps({
   let rebuilding = false;
 
   async function enrichDynamicState() {
-    const nativeStatus = await nativeAdapter
-      .getStatus()
-      .catch((err) => ({
-        adapter_ok: false,
-        mode: "unavailable",
-        error: err.message,
-      }));
+    const nativeStatus = await nativeAdapter.getStatus().catch((err) => ({
+      adapter_ok: false,
+      mode: "unavailable",
+      error: err.message,
+    }));
     store.setNativeCapabilities({
       ...(nativeStatus.native || {
         available: false,
