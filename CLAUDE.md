@@ -37,33 +37,34 @@ Workers (claude -p) → stateless, exit when done
 Verified against [official Agent Teams docs](https://code.claude.com/docs/en/agent-teams) and CLI v2.1.71.
 Full assessment: `~/.claude/agents/revisions/2026-03-06/first-round-revisions.md`
 
-| Native Agent Teams Feature           | Lead System                                            | Parity   | Notes                                         |
-| ------------------------------------ | ------------------------------------------------------ | -------- | --------------------------------------------- |
-| TeamCreate                           | coord_create_team + coord_spawn_worker                 | 85%      | Works, but separate calls vs native atomic    |
-| Shared Task List + Dependencies      | tasks.js with blocked_by + file locking                | 90%      | Done — dependencies, locking, 3 states        |
-| **Self-Claim (auto-pick next task)** | coord_claim_next_task + claim-next-task.mjs exit-trap  | **~65%** | Implemented, needs E2E verification           |
-| SendMessage Protocol (5 types)       | coord_send_message + broadcast + send_protocol         | 95%      | All 5 native types mapped                     |
-| Push Message Delivery                | tmuxSendKeys() + inbox polling fallback                | 85%      | ~85% in tmux, ~50% non-tmux                   |
-| **In-Process Display Mode**          | **Not possible — architectural limit**                 | **0%**   | **Requires Claude Code runtime internals**    |
-| Split-Pane Display (tmux)            | spawnTmuxPaneWorker() + auto-tile                      | 95%      | Nearly identical to native split-pane         |
-| Idle Notifications                   | Exit trap (instant) + idle detector (3-5s) + heartbeat | 93%      | Completion instant, mid-task 3-5s lag         |
-| Agent Resume                         | --session-id at spawn + --resume on resume             | 90%      | Code exists, needs end-to-end verification    |
-| Peer Discovery                       | coord_discover_peers + meta scan                       | 90%      | current_task written via heartbeat hook       |
-| Bidirectional Communication          | Env vars + worker instruction block                    | 80%      | Workers have tools, not verified end-to-end   |
-| Plan Approval Workflow               | coord_send_protocol + approval.js                      | 85%      | Protocol exists, e2e not verified             |
-| Permission Modes (6 native)          | 8 modes including `auto`                               | ~100%    | auto mode added to both validModes allowlists |
-| Team Cleanup                         | coord_delete_team + active teammate guard              | ~95%     | Blocks deletion if any teammate is active     |
-| Quality Gate Hooks                   | teammate-lifecycle.sh + exit-code-2 pattern            | ~85%     | Exit-code-2 feedback implemented              |
-| Task Auto-Unblock                    | Dependencies tracked, passive check                    | 75%      | Checked on query, not actively triggered      |
-| Token enforcement                    | token-guard.py (7 rules)                               | N/A      | Lead-exclusive feature                        |
-| Conflict detection                   | conflict-guard.sh                                      | N/A      | Lead-exclusive feature                        |
+| Native Agent Teams Feature           | Lead System                                              | Parity   | Notes                                                             |
+| ------------------------------------ | -------------------------------------------------------- | -------- | ----------------------------------------------------------------- |
+| TeamCreate                           | coord_create_team + coord_spawn_worker                   | 85%      | Works, but separate calls vs native atomic                        |
+| Shared Task List + Dependencies      | tasks.js with blocked_by + file locking                  | 90%      | Done — dependencies, locking, 3 states                            |
+| **Self-Claim (auto-pick next task)** | coord_claim_next_task + claim-next-task.mjs exit-trap    | **~65%** | Implemented, needs E2E verification                               |
+| SendMessage Protocol (5 types)       | coord_send_message + broadcast + send_protocol           | 95%      | All 5 native types mapped                                         |
+| Push Message Delivery                | tmuxSendKeys() + inbox polling fallback                  | 85%      | ~85% in tmux, ~50% non-tmux                                       |
+| In-Process Display Mode              | renderTeammateView() + Shift+Up/Down + tmux capture-pane | **80%**  | tmux pane capture (live); file-tail fallback; no in-memory buffer |
+| Split-Pane Display (tmux)            | spawnTmuxPaneWorker() + auto-tile                        | 95%      | Nearly identical to native split-pane                             |
+| Idle Notifications                   | Exit trap (instant) + idle detector (3-5s) + heartbeat   | 93%      | Completion instant, mid-task 3-5s lag                             |
+| Agent Resume                         | --session-id at spawn + --resume on resume               | 90%      | Code exists, needs end-to-end verification                        |
+| Peer Discovery                       | coord_discover_peers + meta scan                         | 90%      | current_task written via heartbeat hook                           |
+| Bidirectional Communication          | Env vars + worker instruction block                      | 80%      | Workers have tools, not verified end-to-end                       |
+| Plan Approval Workflow               | coord_send_protocol + approval.js                        | 85%      | Protocol exists, e2e not verified                                 |
+| Permission Modes (6 native)          | 8 modes including `auto`                                 | ~100%    | auto mode added to both validModes allowlists                     |
+| Team Cleanup                         | coord_delete_team + active teammate guard                | ~95%     | Blocks deletion if any teammate is active                         |
+| Quality Gate Hooks                   | teammate-lifecycle.sh + exit-code-2 pattern              | ~85%     | Exit-code-2 feedback implemented                                  |
+| Task Auto-Unblock                    | Dependencies tracked, passive check                      | 75%      | Checked on query, not actively triggered                          |
+| Token enforcement                    | token-guard.py (7 rules)                                 | N/A      | Lead-exclusive feature                                            |
+| Conflict detection                   | conflict-guard.sh                                        | N/A      | Lead-exclusive feature                                            |
 
-### Critical open gaps (1 architectural blocker remaining)
+### Critical open gaps (1 partial gap remaining)
 
-1. **In-Process Display (0%)** — Architectural limit. Native runs teammates inside same terminal with keyboard cycling. Cannot be emulated from MCP. Tmux pane mode is the closest equivalent.
+1. **In-Process Display (~80%)** — Emulated via `renderTeammateView()` + `tmux capture-pane` (primary) + results-file tail (fallback). Shift+Up/Down cycling implemented in `sidecar/ui-tui/index.js`. True 100% requires Claude Code runtime internals (architectural ceiling).
 
-### Resolved gaps (committed on codex/team-recover-budget-auto)
+### Resolved gaps
 
+- **In-Process Display (~80%)** — Committed on `feature/delivery-idle-quality`. `tmux_pane_id` now flows from meta files through `team-tasking.js` → `snapshot-builder.js` → TUI.
 - **Self-Claim (~65%)** — `coord_claim_next_task` tool + `claim-next-task.mjs` exit-trap implemented. Needs E2E verification.
 - **Quality Gate Hooks (~85%)** — Exit-code-2 feedback pattern implemented in `teammate-lifecycle.sh`.
 - **Permission Modes (~100%)** — `auto` mode added to both `validModes` allowlists in `workers.js` and `teams.js`.
