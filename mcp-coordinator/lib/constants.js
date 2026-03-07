@@ -25,7 +25,7 @@ export const SAFE_AGENT_RE = /^[A-Za-z0-9._:-]{1,64}$/;
  * @returns {object} Current config values
  */
 export function cfg() {
-  const home = homedir();
+  const home = process.env.HOME || homedir();
   const claudeDir = join(home, ".claude");
   const terminalsDir = join(claudeDir, "terminals");
   return {
