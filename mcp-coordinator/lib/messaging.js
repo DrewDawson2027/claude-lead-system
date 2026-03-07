@@ -216,6 +216,63 @@ function resolveTargetPaneId(sessionId, targetName) {
 }
 
 /**
+ * Check whether a recipient session exists (session file or worker meta).
+ * @param {string} to - Short session ID (8 chars)
+ * @returns {{ exists: boolean, status: string|null }}
+ */
+function checkRecipientExists(to) {
+  const { TERMINALS_DIR, RESULTS_DIR } = cfg();
+  const sessionFile = join(TERMINALS_DIR, `session-${to}.json`);
+  if (existsSync(sessionFile)) {
+    const s = readJSON(sessionFile);
+    return { exists: true, status: s?.status || null };
+  }
+  try {
+    const files = readdirSync(RESULTS_DIR).filter(
+      (f) => f.endsWith(".meta.json") && !f.includes(".done"),
+    );
+    for (const f of files) {
+      const meta = readJSON(join(RESULTS_DIR, f));
+      if (!meta) continue;
+      if (
+        meta.worker_name === to ||
+        meta.notify_session_id === to ||
+        (meta.claude_session_id && meta.claude_session_id.slice(0, 8) === to)
+      ) {
+        return { exists: true, status: meta.status || null };
+      }
+    }
+  } catch {}
+  return { exists: false, status: null };
+}
+
+/**
+ * Build a human-readable list of available session IDs and worker names.
+ * @returns {string} Comma-separated list or "(none)"
+ */
+function listAvailableSessions() {
+  const { RESULTS_DIR } = cfg();
+  const names = new Set();
+  for (const s of getAllSessions()) {
+    if (s.session && getSessionStatus(s) !== "closed") names.add(s.session);
+    if (s.worker_name) names.add(s.worker_name);
+  }
+  try {
+    const files = readdirSync(RESULTS_DIR).filter(
+      (f) => f.endsWith(".meta.json") && !f.includes(".done"),
+    );
+    for (const f of files) {
+      const meta = readJSON(join(RESULTS_DIR, f));
+      if (!meta) continue;
+      if (meta.notify_session_id) names.add(meta.notify_session_id);
+      if (meta.worker_name) names.add(meta.worker_name);
+    }
+  } catch {}
+  if (names.size === 0) return "(none)";
+  return [...names].join(", ");
+}
+
+/**
  * Handle coord_send_message tool call.
  * Writes message to target session's inbox file — zero API tokens.
  * Supports name-based targeting via target_name parameter.
@@ -246,6 +303,14 @@ export function handleSendMessage(args) {
   } else {
     return text(
       "Either 'to' (session ID) or 'target_name' (worker name) is required.",
+    );
+  }
+
+  // Validate recipient exists (bug #25135 parity: never silently succeed for unknown recipients)
+  const recipientCheck = checkRecipientExists(to);
+  if (!recipientCheck.exists) {
+    return text(
+      `Recipient session '${to}' not found. Available sessions: ${listAvailableSessions()}`,
     );
   }
 
@@ -321,12 +386,18 @@ export function handleSendMessage(args) {
     nativePush = true;
   }
 
+  const exitedWarning =
+    recipientCheck.status === "exited"
+      ? `\n⚠ Warning: session '${to}' has exited. Message written to inbox but may not be read.`
+      : "";
+
   return text(
     `Message sent to ${to}\n- From: ${from}\n- Priority: ${priority}\n- Content: "${content.slice(0, 200)}"` +
       (summary ? `\n- Summary: "${summary}"` : "") +
       (tmuxPushed ? `\n- Tmux push: delivered to pane.` : "") +
       (nativePush ? `\n- Native push: queued for delivery.` : "") +
       wakeStatus +
+      exitedWarning +
       `\n- 0 API tokens used.`,
   );
 }
@@ -528,6 +599,14 @@ export function handleSendProtocol(args) {
     protocolContent = approve
       ? `[APPROVED] request_id=${requestId}${feedback ? ` — ${feedback}` : ""}`
       : `[REVISION] request_id=${requestId}${feedback ? ` — ${feedback}` : ""}`;
+  }
+
+  // Validate recipient exists (bug #25135 parity)
+  const protocolRecipientCheck = checkRecipientExists(to);
+  if (!protocolRecipientCheck.exists) {
+    return text(
+      `Recipient session '${to}' not found. Available sessions: ${listAvailableSessions()}`,
+    );
   }
 
   const inboxFile = join(INBOX_DIR, `${to}.jsonl`);

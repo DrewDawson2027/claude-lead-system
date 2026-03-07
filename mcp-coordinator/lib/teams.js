@@ -14,6 +14,20 @@ import {
   ensureSecureDirectory,
 } from "./security.js";
 import { readJSON, text } from "./helpers.js";
+// handleSpawnWorker is imported lazily inside handleCreateTeam to avoid
+// circular-dependency issues (workers.js imports teams.js).
+// We use a dynamic import shim stored here so tests can override it.
+/** @type {((args: object) => object) | null} */
+let _spawnWorkerFn = null;
+/** Override in tests to inject a mock spawn function. */
+export function _setSpawnWorkerFn(fn) {
+  _spawnWorkerFn = fn;
+}
+async function getSpawnWorker() {
+  if (_spawnWorkerFn) return _spawnWorkerFn;
+  const mod = await import("./workers.js");
+  return mod.handleSpawnWorker;
+}
 
 /**
  * Get the teams directory path, ensuring it exists.
@@ -193,10 +207,21 @@ export function readTeamConfig(teamNameRaw) {
 /**
  * Handle coord_create_team tool call.
  * Creates or updates a team config with members, roles, and project info.
- * @param {object} args - { team_name, project, description, members }
- * @returns {object} MCP text response
+ * When `workers` is provided, spawns all workers atomically — rolls back on
+ * any failure (kills already-spawned workers and deletes the team config).
+ * @param {object} args - { team_name, project, description, members, workers? }
+ * @returns {object|Promise<object>} MCP text response
  */
 export function handleCreateTeam(args) {
+  // If workers array is supplied, delegate to the async atomic path.
+  if (Array.isArray(args.workers) && args.workers.length > 0) {
+    return _handleCreateTeamAtomic(args);
+  }
+  return _handleCreateTeamSync(args);
+}
+
+/** Synchronous (original) team-only creation. */
+function _handleCreateTeamSync(args) {
   const teamName = sanitizeName(args.team_name, "team_name");
   const dir = teamsDir();
   const teamFile = join(dir, `${teamName}.json`);
@@ -305,6 +330,110 @@ export function handleCreateTeam(args) {
             `  - ${m.name} (${m.role})${m.task_id ? ` → ${m.task_id}` : ""}`,
         )
         .join("\n"),
+  );
+}
+
+/**
+ * Async atomic team creation with workers.
+ * Spawns every worker in `args.workers`; on any failure kills all already-
+ * spawned workers and removes the team config file, then rejects.
+ * @param {object} args
+ * @returns {Promise<object>}
+ */
+async function _handleCreateTeamAtomic(args) {
+  // 1. Create the team config first (synchronous path, workers omitted).
+  const teamResult = _handleCreateTeamSync({ ...args, workers: undefined });
+  const teamText = teamResult?.content?.[0]?.text || "";
+  // Propagate any unexpected team-config-level failure immediately.
+  if (/error|failed/i.test(teamText) && !/created|updated/i.test(teamText)) {
+    return teamResult;
+  }
+
+  // Resolve team name and config file path (same logic as _handleCreateTeamSync).
+  const resolvedTeamName = sanitizeName(args.team_name, "team_name");
+  const teamFile = join(teamsDir(), `${resolvedTeamName}.json`);
+
+  const spawnWorker = await getSpawnWorker();
+
+  const spawnedTaskIds = [];
+  const workerResults = [];
+
+  for (let i = 0; i < args.workers.length; i++) {
+    const w = args.workers[i];
+    // Build worker args, merging per-worker fields; team_name is always forced.
+    const workerArgs = {
+      directory: w.directory || args.directory || process.env.HOME,
+      prompt: w.task || w.prompt || "",
+      model: w.model || "sonnet",
+      worker_name: w.name || `worker-${i + 1}`,
+      layout: "background",
+      ...w,
+      // Overrides that must not be clobbered by spread:
+      team_name: resolvedTeamName,
+      prompt: w.task || w.prompt || "",
+    };
+
+    let result;
+    try {
+      result = spawnWorker(workerArgs);
+    } catch (err) {
+      result = {
+        content: [
+          { type: "text", text: `Failed to spawn worker: ${err.message}` },
+        ],
+      };
+    }
+
+    const resultText = result?.content?.[0]?.text || "";
+    // A spawn is considered failed when the result text signals an error AND
+    // does NOT contain the success phrase "Worker spawned:".
+    const failed =
+      /failed|error|blocked|conflict/i.test(resultText) &&
+      !/worker spawned:/i.test(resultText);
+
+    if (failed) {
+      // ── ROLLBACK ────────────────────────────────────────────────────────
+      // Kill workers that were already spawned successfully.
+      const { handleKillWorker } = await import("./workers.js");
+      for (const tid of spawnedTaskIds) {
+        try {
+          handleKillWorker({ task_id: tid });
+        } catch {
+          /* best-effort */
+        }
+      }
+      // Remove the partially-created team config.
+      try {
+        if (existsSync(teamFile)) unlinkSync(teamFile);
+      } catch {
+        /* best-effort */
+      }
+
+      return text(
+        `Atomic team creation FAILED and was rolled back.\n` +
+          `- Team config removed: ${resolvedTeamName}\n` +
+          `- Workers killed: ${spawnedTaskIds.length}\n` +
+          `- Failed worker: ${w.name || `worker-${i + 1}`} (index ${i})\n` +
+          `- Error: ${resultText}`,
+      );
+    }
+
+    // Parse task_id from the success text so we can roll back this worker if
+    // a later one fails.
+    const tidMatch =
+      resultText.match(/Worker spawned:\s+\*?\*?([^\s*\n]+)/i) ||
+      resultText.match(/task_id[=:\s"]+([A-Za-z0-9_-]+)/i);
+    if (tidMatch?.[1]) spawnedTaskIds.push(tidMatch[1]);
+    workerResults.push({ name: w.name || `worker-${i + 1}`, text: resultText });
+  }
+
+  // ── SUCCESS ─────────────────────────────────────────────────────────────
+  return text(
+    `${teamText}\n\n` +
+      `### Atomically Spawned Workers (${workerResults.length})\n` +
+      workerResults
+        .map((r, idx) => `#### Worker ${idx + 1}: ${r.name}\n${r.text}`)
+        .join("\n\n"),
   );
 }
 
