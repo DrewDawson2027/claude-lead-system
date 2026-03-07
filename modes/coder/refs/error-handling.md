@@ -1,12 +1,14 @@
 # Error Handling Patterns
 
 ## Philosophy
+
 - **Exceptions**: unexpected errors, exceptional conditions
 - **Result types**: expected errors, validation failures
 - **Fail fast**: validate input early, fail quickly
 - **Handle at right level**: catch where you can meaningfully respond
 
 ## Python Patterns
+
 ```python
 # Custom exception hierarchy
 class AppError(Exception):
@@ -33,19 +35,26 @@ def db_transaction(session):
 ```
 
 ## TypeScript Patterns
+
 ```typescript
 // Result type for explicit error handling
 type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E };
 
 // Custom errors with status codes
 class AppError extends Error {
-    constructor(message: string, public code: string, public statusCode = 500) {
-        super(message); this.name = this.constructor.name;
-    }
+  constructor(
+    message: string,
+    public code: string,
+    public statusCode = 500,
+  ) {
+    super(message);
+    this.name = this.constructor.name;
+  }
 }
 ```
 
 ## Rules
+
 1. Never catch too broadly (`except:` / `catch(e)` without specifics)
 2. Never swallow errors silently (empty catch blocks = ALWAYS flag)
 3. Never log AND re-throw (creates duplicate entries) — pick one
