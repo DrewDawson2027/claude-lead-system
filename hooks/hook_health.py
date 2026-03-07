@@ -92,7 +92,6 @@ def compute_health() -> Dict:
         blocks_counter = counter.get("fail_closed", 0)
 
         dec = decisions.get(name, {})
-        errors_audit = dec.get("error", 0)
 
         lats = latencies.get(name, [])
         lat_stats = {}
