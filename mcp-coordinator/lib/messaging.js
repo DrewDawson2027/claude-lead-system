@@ -152,7 +152,7 @@ export function handleCheckInbox(args) {
  * @param {string} targetName - Worker name to resolve
  * @returns {string|null} Session ID (8-char) or null
  */
-function resolveWorkerName(targetName) {
+export function resolveWorkerName(targetName) {
   // Check session files for worker_name field (set by heartbeat from CLAUDE_WORKER_NAME env var)
   const sessions = getAllSessions();
   for (const s of sessions) {
