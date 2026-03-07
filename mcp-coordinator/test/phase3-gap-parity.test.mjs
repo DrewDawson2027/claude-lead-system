@@ -242,7 +242,7 @@ test('Gap 5: buildInteractiveWorkerScript contains EXIT trap for instant complet
   assert.match(cmd, /rm -f/, 'trap must clean up PID file on exit');
 });
 
-test('Gap 5: EXIT trap notifies lead via tmux send-keys when leadPaneId is provided', () => {
+test('Gap 5: EXIT trap notifies lead via inbox delivery when leadSessionId is provided', () => {
   const cmd = __test__.buildInteractiveWorkerScript({
     taskId: 'W_TRAP2',
     workDir: '/tmp/work',
@@ -258,8 +258,9 @@ test('Gap 5: EXIT trap notifies lead via tmux send-keys when leadPaneId is provi
     leadSessionId: 'lead5678',
     sessionId: 'aaaabbbb-cccc-dddd-eeee-000011112222',
   });
-  assert.match(cmd, /tmux send-keys.*COMPLETED/i, 'trap must push COMPLETED to lead pane');
-  assert.match(cmd, /CLAUDE_LEAD_PANE_ID/, 'trap must use CLAUDE_LEAD_PANE_ID env var');
+  // Inbox delivery replaces tmux send-keys — avoids injecting raw text into lead terminal
+  assert.match(cmd, /COMPLETED.*W_TRAP2/i, 'trap must include COMPLETED notification');
+  assert.match(cmd, /CLAUDE_LEAD_SESSION_ID/, 'trap must use CLAUDE_LEAD_SESSION_ID for inbox path');
 });
 
 test('Gap 5: idle detector subprocess is added when leadPaneId and sessionId are both known', () => {

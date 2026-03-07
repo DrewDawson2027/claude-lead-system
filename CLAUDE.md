@@ -32,7 +32,7 @@ Workers (claude -p) → stateless, exit when done
 
 ---
 
-## Parity Status (as of 2026-03-07): ~90%
+## Parity Status (as of 2026-03-07): ~88%
 
 Verified against [official Agent Teams docs](https://code.claude.com/docs/en/agent-teams) and CLI v2.1.71.
 Full assessment: `~/.claude/agents/revisions/2026-03-06/first-round-revisions.md`
@@ -40,8 +40,8 @@ Full assessment: `~/.claude/agents/revisions/2026-03-06/first-round-revisions.md
 | Native Agent Teams Feature           | Lead System                                              | Parity   | Notes                                                             |
 | ------------------------------------ | -------------------------------------------------------- | -------- | ----------------------------------------------------------------- |
 | TeamCreate                           | coord_create_team + coord_spawn_worker                   | 85%      | Works, but separate calls vs native atomic                        |
-| Shared Task List + Dependencies      | tasks.js with blocked_by + file locking                  | 90%      | Done — dependencies, locking, 3 states                            |
-| **Self-Claim (auto-pick next task)** | coord_claim_next_task + claim-next-task.mjs exit-trap    | **~65%** | Implemented, needs E2E verification                               |
+| Shared Task List + Dependencies      | tasks.js + id/assigned_to/claimed_by schema fields       | 100%     | Native schema fully matched — id, assigned_to, claimed_by added   |
+| **Self-Claim (auto-pick next task)** | coord_claim_next_task + claimed_by field on task         | **~70%** | claimed_by stamped on claim; full E2E verification pending        |
 | SendMessage Protocol (5 types)       | coord_send_message + broadcast + send_protocol           | 95%      | All 5 native types mapped                                         |
 | Push Message Delivery                | tmuxSendKeys() + inbox polling fallback                  | 85%      | ~85% in tmux, ~50% non-tmux                                       |
 | In-Process Display Mode              | renderTeammateView() + Shift+Up/Down + tmux capture-pane | **80%**  | tmux pane capture (live); file-tail fallback; no in-memory buffer |
@@ -52,7 +52,7 @@ Full assessment: `~/.claude/agents/revisions/2026-03-06/first-round-revisions.md
 | Bidirectional Communication          | Env vars + worker instruction block                      | 90%      | P2P messaging E2E live verified 2026-03-07                        |
 | Plan Approval Workflow               | coord_send_protocol + approval.js                        | 95%      | E2E live verified 2026-03-07                                      |
 | Permission Modes (6 native)          | 8 modes including `auto`                                 | ~100%    | auto mode added to both validModes allowlists                     |
-| Team Cleanup                         | coord_delete_team + active teammate guard                | ~95%     | Blocks deletion if any teammate is active                         |
+| Team Cleanup                         | coord_delete_team + full task + meta cleanup             | 100%     | Always removes task files + worker meta files on delete           |
 | Quality Gate Hooks                   | teammate-lifecycle.sh + exit-code-2 pattern              | ~85%     | Exit-code-2 feedback implemented                                  |
 | Task Auto-Unblock                    | Dependencies tracked, passive check                      | 75%      | Checked on query, not actively triggered                          |
 | Token enforcement                    | token-guard.py (7 rules)                                 | N/A      | Lead-exclusive feature                                            |
@@ -66,6 +66,8 @@ Full assessment: `~/.claude/agents/revisions/2026-03-06/first-round-revisions.md
 
 - **In-Process Display (~80%)** — Committed on `feature/delivery-idle-quality`. `tmux_pane_id` now flows from meta files through `team-tasking.js` → `snapshot-builder.js` → TUI.
 - **Self-Claim (~65%)** — `coord_claim_next_task` tool + `claim-next-task.mjs` exit-trap implemented. Needs E2E verification.
+- **Task Schema (100%)** — `id`, `assigned_to`, `claimed_by` fields added to task schema. `coord_claim_next_task` now stamps `claimed_by` on the task.
+- **Team Cleanup (100%)** — `coord_delete_team` now always removes task files and worker meta files for the team.
 - **Quality Gate Hooks (~85%)** — Exit-code-2 feedback pattern implemented in `teammate-lifecycle.sh`.
 - **Permission Modes (~100%)** — `auto` mode added to both `validModes` allowlists in `workers.js` and `teams.js`.
 - **Team Cleanup (~95%)** — Active teammate guard added to `handleDeleteTeam`; blocks deletion if a session is live.
