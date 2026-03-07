@@ -80,11 +80,383 @@ export function isInsideTmux() {
 }
 
 /**
- * Interactive workers run as full Claude sessions with hooks (inbox checking, heartbeat).
- * The lead can send mid-execution messages that the worker receives on every tool call.
- * @param {object} opts - Worker options (same as buildWorkerScript)
- * @returns {string} Shell script string
+ * Get the current tmux pane ID.
+ * @returns {string|null} e.g. "%5"
  */
+export function getCurrentTmuxPane() {
+  if (!isInsideTmux()) return null;
+  try {
+    const result = spawnSync("tmux", ["display-message", "-p", "#{pane_id}"], {
+      encoding: "utf-8",
+      timeout: 3000,
+    });
+    const paneId = (result.stdout || "").trim();
+    if (result.status === 0 && paneId.startsWith("%")) return paneId;
+  } catch {
+    // Fall back to env var if tmux command is unavailable.
+  }
+  const envPane = String(process.env.TMUX_PANE || "").trim();
+  return envPane.startsWith("%") ? envPane : null;
+}
+
+/**
+ * Spawn a worker in a new tmux pane (split from current window).
+ * Returns the new pane's ID for message injection via send-keys.
+ * @param {string} script - Shell command to run in the pane
+ * @returns {{ paneId: string, app: string }} Pane ID and app name
+ */
+export function spawnTmuxPaneWorker(script) {
+  // split-window prints the new pane's ID via -P/-F
+  const result = spawnSync(
+    "tmux",
+    [
+      "split-window",
+      "-d", // don't switch focus to new pane
+      "-P",
+      "-F",
+      "#{pane_id}", // print new pane ID
+      script,
+    ],
+    { encoding: "utf-8", timeout: 10000 },
+  );
+
+  if (result.status !== 0) {
+    throw new Error(
+      `tmux split-window failed: ${(result.stderr || "").trim()}`,
+    );
+  }
+
+  const paneId = (result.stdout || "").trim();
+  if (!paneId.startsWith("%")) {
+    throw new Error(`tmux split-window returned unexpected pane ID: ${paneId}`);
+  }
+
+  // Auto-tile after creating pane for balanced layout
+  spawnSync("tmux", ["select-layout", "tiled"], {
+    stdio: "ignore",
+    timeout: 3000,
+  });
+
+  return { paneId, app: "tmux" };
+}
+
+/**
+ * Send keys to a tmux pane — push-delivers a message as user input.
+ * This is how native Agent Teams delivers messages: injecting text into the
+ * teammate's terminal so Claude sees it as a new conversation turn.
+ * @param {string} paneId - tmux pane ID (e.g. "%5")
+ * @param {string} text - Text to inject
+ * @returns {boolean} Whether send succeeded
+ */
+export function tmuxSendKeys(paneId, text) {
+  if (!paneId || !isInsideTmux()) return false;
+  try {
+    const payload = String(text || "").replace(/[\r\n]+/g, " ").trim();
+    if (!payload) return false;
+    const result = spawnSync(
+      "tmux",
+      ["send-keys", "-t", paneId, payload, "Enter"],
+      { stdio: "ignore", timeout: 5000 },
+    );
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a tmux pane still exists.
+ * @param {string} paneId - tmux pane ID
+ * @returns {boolean}
+ */
+export function isTmuxPaneAlive(paneId) {
+  if (!paneId || !isInsideTmux()) return false;
+  try {
+    const result = spawnSync("tmux", ["list-panes", "-F", "#{pane_id}"], {
+      encoding: "utf-8",
+      timeout: 3000,
+    });
+    return (result.stdout || "").includes(paneId);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Detect which terminal emulator is running.
+ * @returns {string} Terminal app name or "none"/"background"
+ */
+export function getTerminalApp() {
+  const { PLATFORM } = cfg();
+  if (PLATFORM === "darwin") {
+    if (spawnSync("pgrep", ["-x", "iTerm2"], { stdio: "ignore" }).status === 0)
+      return "iTerm2";
+    if (
+      spawnSync("pgrep", ["-x", "Terminal"], { stdio: "ignore" }).status === 0
+    )
+      return "Terminal";
+    return "none";
+  } else if (PLATFORM === "win32") {
+    try {
+      const wt = execFileSync(
+        "tasklist",
+        ["/FI", "IMAGENAME eq WindowsTerminal.exe", "/NH"],
+        { encoding: "utf-8" },
+      );
+      if (wt.toLowerCase().includes("windowsterminal"))
+        return "WindowsTerminal";
+    } catch { }
+    try {
+      const ps = execFileSync(
+        "tasklist",
+        ["/FI", "IMAGENAME eq powershell.exe", "/NH"],
+        { encoding: "utf-8" },
+      );
+      if (ps.toLowerCase().includes("powershell")) return "PowerShell";
+    } catch { }
+    return "cmd";
+  } else {
+    for (const app of [
+      "gnome-terminal",
+      "konsole",
+      "alacritty",
+      "kitty",
+      "xterm",
+    ]) {
+      if (spawnSync("pgrep", ["-x", app], { stdio: "ignore" }).status === 0)
+        return app;
+    }
+    return "none";
+  }
+}
+
+/**
+ * Build a platform-specific terminal launch command.
+ * @param {string} platformName - OS platform
+ * @param {string} termApp - Detected terminal app
+ * @param {string} command - Shell command to run
+ * @param {string} layout - "tab" or "split"
+ * @returns {{ command: string, args: string[], app: string, detached?: boolean }}
+ */
+export function buildPlatformLaunchCommand(
+  platformName,
+  termApp,
+  command,
+  layout = "tab",
+) {
+  if (platformName === "darwin") {
+    if (termApp === "iTerm2") {
+      const splitScript =
+        'tell application "iTerm2" to tell current session of current window to split vertically with default profile';
+      const tabScript =
+        'tell application "iTerm2" to tell current window to create tab with default profile';
+      const writeScript = `tell application "iTerm2" to tell current session of current window to write text ${JSON.stringify(command)}`;
+      return {
+        command: "osascript",
+        args:
+          layout === "split"
+            ? ["-e", splitScript, "-e", writeScript]
+            : ["-e", tabScript, "-e", writeScript],
+        app: "iTerm2",
+      };
+    }
+    if (termApp === "Terminal") {
+      return {
+        command: "osascript",
+        args: [
+          "-e",
+          `tell application "Terminal" to do script ${JSON.stringify(command)}`,
+        ],
+        app: "Terminal",
+      };
+    }
+    return {
+      command: "bash",
+      args: ["-lc", command],
+      detached: true,
+      app: "background",
+    };
+  }
+
+  if (platformName === "win32") {
+    if (termApp === "WindowsTerminal") {
+      const base =
+        layout === "split"
+          ? ["-w", "0", "sp", "-V", "cmd", "/c", command]
+          : ["-w", "0", "nt", "cmd", "/c", command];
+      return { command: "wt", args: base, app: "WindowsTerminal" };
+    }
+    return {
+      command: "cmd",
+      args: ["/c", "start", "", "cmd", "/c", command],
+      app: "cmd",
+    };
+  }
+
+  // Linux
+  if (termApp === "gnome-terminal")
+    return {
+      command: "gnome-terminal",
+      args: ["--", "bash", "-c", command],
+      app: "gnome-terminal",
+    };
+  if (termApp === "konsole")
+    return {
+      command: "konsole",
+      args: ["-e", "bash", "-c", command],
+      app: "konsole",
+    };
+  if (termApp === "alacritty")
+    return {
+      command: "alacritty",
+      args: ["-e", "bash", "-c", command],
+      app: "alacritty",
+    };
+  if (termApp === "kitty") {
+    return {
+      command: "kitty",
+      args:
+        layout === "split"
+          ? ["@", "launch", "--type=window", "bash", "-c", command]
+          : ["@", "launch", "--type=tab", "bash", "-c", command],
+      app: "kitty",
+    };
+  }
+  return {
+    command: "bash",
+    args: ["-lc", command],
+    detached: true,
+    app: "background",
+  };
+}
+
+/**
+ * Open a new terminal pane/tab with a command.
+ * Falls back to headless background process if no terminal is detected.
+ * @param {string} command - Shell command
+ * @param {string} layout - "tab" or "split"
+ * @returns {string} App name used
+ */
+export function openTerminalWithCommand(command, layout = "tab") {
+  const { TEST_MODE, PLATFORM } = cfg();
+  if (TEST_MODE) {
+    if (PLATFORM === "win32") return "test-background-win32";
+    const child = spawn("bash", ["-lc", command], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+    return "test-background";
+  }
+
+  const termApp = getTerminalApp();
+  const launch = buildPlatformLaunchCommand(PLATFORM, termApp, command, layout);
+  if (launch.detached) {
+    const child = spawn(launch.command, launch.args || [], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+  } else {
+    const res = spawnSync(launch.command, launch.args || [], {
+      stdio: "ignore",
+      timeout: 5000,
+    });
+    if (res.status !== 0) {
+      // Headless fallback: if terminal launch fails, run as background process
+      const child = spawn("bash", ["-lc", command], {
+        detached: true,
+        stdio: "ignore",
+      });
+      child.unref();
+      return "headless-background";
+    }
+  }
+  return launch.app;
+}
+
+/**
+ * Spawn a worker as a background process (no terminal).
+ * Fastest spawn mode — eliminates all terminal overhead.
+ * @param {string} script - Shell script to execute
+ * @param {string} resultFile - Path for stdout/stderr capture
+ * @param {string} pidFile - Path to write child PID
+ */
+export function spawnBackgroundWorker(script, resultFile, pidFile) {
+  const { PLATFORM } = cfg();
+  const out = openSync(resultFile, "a");
+  const child =
+    PLATFORM === "win32"
+      ? spawn("cmd", ["/c", script], {
+        detached: true,
+        stdio: ["ignore", out, out],
+      })
+      : spawn("sh", ["-c", script], {
+        detached: true,
+        stdio: ["ignore", out, out],
+      });
+  writeFileSync(pidFile, String(child.pid));
+  child.unref();
+  closeSync(out);
+}
+
+/**
+ * Check if a process is alive. Cross-platform.
+ * @param {string|number} pid - Process ID
+ * @returns {boolean} Whether the process is running
+ */
+export function isProcessAlive(pid) {
+  const { PLATFORM } = cfg();
+  const pidNum = Number(pid);
+  if (!Number.isInteger(pidNum) || pidNum <= 0) return false;
+  try {
+    if (PLATFORM === "win32") {
+      const output = execFileSync(
+        "tasklist",
+        ["/FI", `PID eq ${pidNum}`, "/NH"],
+        { encoding: "utf-8" },
+      );
+      if (!output.includes(String(pidNum))) return false;
+    } else {
+      process.kill(pidNum, 0);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Kill a process. Cross-platform.
+ * @param {string|number} pid - Process ID
+ */
+export function killProcess(pid) {
+  const { PLATFORM } = cfg();
+  const pidNum = Number(pid);
+  if (!Number.isInteger(pidNum) || pidNum <= 0) throw new Error("Invalid PID.");
+  if (PLATFORM === "win32") {
+    execFileSync("taskkill", ["/PID", String(pidNum), "/T", "/F"], {
+      stdio: "ignore",
+    });
+  } else {
+    try {
+      process.kill(-pidNum, "SIGTERM");
+    } catch {
+      process.kill(pidNum, "SIGTERM");
+    }
+  }
+}
+
+/**
+ * Validate a TTY path is safe (no path traversal).
+ * @param {string} pathValue - TTY path
+ * @returns {boolean} Whether the path is a valid TTY
+ */
+export function isSafeTTYPath(pathValue) {
+  const tty = String(pathValue || "").trim();
+  return /^\/dev\/(?:ttys?\d+|pts\/\d+)$/.test(tty);
+}
+
 export function buildInteractiveWorkerScript(opts) {
   const { PLATFORM, SETTINGS_FILE, CLAUDE_BIN } = cfg();
   const {
