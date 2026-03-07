@@ -306,10 +306,14 @@ test('Gap 5: idle detector is absent when leadPaneId is missing', () => {
 // ─── Gap 3: Peer-to-Peer DMs ─────────────────────────────────────────────────
 
 test('Gap 3: coord_send_protocol shutdown_request writes [SHUTDOWN_REQUEST] to target inbox', async () => {
-  const { home, inbox } = setupHome();
+  const { home, inbox, terminals } = setupHome();
   const { api, restore } = await loadForTest(home);
   try {
     api.ensureDirsOnce();
+    // Create target session file so recipient validation passes
+    writeFileSync(join(terminals, 'session-peer5678.json'), JSON.stringify({
+      session: 'peer5678', status: 'active', last_active: new Date().toISOString(),
+    }));
     const result = api.handleToolCall('coord_send_protocol', {
       type: 'shutdown_request',
       to: 'peer5678',
@@ -329,10 +333,13 @@ test('Gap 3: coord_send_protocol shutdown_request writes [SHUTDOWN_REQUEST] to t
 });
 
 test('Gap 3: coord_send_protocol shutdown_response approved=true writes SHUTDOWN_RESPONSE approved=true', async () => {
-  const { home, inbox } = setupHome();
+  const { home, inbox, terminals } = setupHome();
   const { api, restore } = await loadForTest(home);
   try {
     api.ensureDirsOnce();
+    writeFileSync(join(terminals, 'session-lead5678.json'), JSON.stringify({
+      session: 'lead5678', status: 'active', last_active: new Date().toISOString(),
+    }));
     api.handleToolCall('coord_send_protocol', {
       type: 'shutdown_response',
       to: 'lead5678',
@@ -351,10 +358,13 @@ test('Gap 3: coord_send_protocol shutdown_response approved=true writes SHUTDOWN
 });
 
 test('Gap 3: coord_send_protocol shutdown_response approve=false writes approved=false', async () => {
-  const { home, inbox } = setupHome();
+  const { home, inbox, terminals } = setupHome();
   const { api, restore } = await loadForTest(home);
   try {
     api.ensureDirsOnce();
+    writeFileSync(join(terminals, 'session-lead5678.json'), JSON.stringify({
+      session: 'lead5678', status: 'active', last_active: new Date().toISOString(),
+    }));
     api.handleToolCall('coord_send_protocol', {
       type: 'shutdown_response',
       to: 'lead5678',
@@ -371,10 +381,13 @@ test('Gap 3: coord_send_protocol shutdown_response approve=false writes approved
 });
 
 test('Gap 3: coord_send_protocol plan_approval_response approve=true writes [APPROVED]', async () => {
-  const { home, inbox } = setupHome();
+  const { home, inbox, terminals } = setupHome();
   const { api, restore } = await loadForTest(home);
   try {
     api.ensureDirsOnce();
+    writeFileSync(join(terminals, 'session-work5678.json'), JSON.stringify({
+      session: 'work5678', status: 'active', last_active: new Date().toISOString(),
+    }));
     api.handleToolCall('coord_send_protocol', {
       type: 'plan_approval_response',
       to: 'work5678',
@@ -393,10 +406,13 @@ test('Gap 3: coord_send_protocol plan_approval_response approve=true writes [APP
 });
 
 test('Gap 3: coord_send_protocol plan_approval_response approve=false writes [REVISION]', async () => {
-  const { home, inbox } = setupHome();
+  const { home, inbox, terminals } = setupHome();
   const { api, restore } = await loadForTest(home);
   try {
     api.ensureDirsOnce();
+    writeFileSync(join(terminals, 'session-work5678.json'), JSON.stringify({
+      session: 'work5678', status: 'active', last_active: new Date().toISOString(),
+    }));
     api.handleToolCall('coord_send_protocol', {
       type: 'plan_approval_response',
       to: 'work5678',
