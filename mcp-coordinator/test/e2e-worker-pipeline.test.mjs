@@ -1219,3 +1219,41 @@ runE2E('run pipeline -> completion -> get pipeline status', async () => {
     restore();
   }
 });
+
+test('completing a task auto-unblocks its dependents (blocked_by cleared on completion)', async () => {
+  const { home, binDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+  });
+
+  try {
+    await api.handleToolCall('coord_create_task', {
+      task_id: 'T_BLOCKER',
+      subject: 'Blocking task',
+    });
+    await api.handleToolCall('coord_create_task', {
+      task_id: 'T_DEPENDENT',
+      subject: 'Dependent task',
+      blocked_by: ['T_BLOCKER'],
+    });
+
+    // Verify T_DEPENDENT shows as blocked before completion
+    const before = await api.handleToolCall('coord_get_task', { task_id: 'T_DEPENDENT' });
+    assert.match(contentText(before), /T_BLOCKER/);
+
+    // Complete the blocking task
+    await api.handleToolCall('coord_update_task', {
+      task_id: 'T_BLOCKER',
+      status: 'completed',
+    });
+
+    // T_DEPENDENT's blocked_by should now be empty — no "Blocked By" section
+    const after = await api.handleToolCall('coord_get_task', { task_id: 'T_DEPENDENT' });
+    assert.doesNotMatch(contentText(after), /Blocked By/i);
+  } finally {
+    restore();
+  }
+});
