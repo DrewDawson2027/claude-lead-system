@@ -578,7 +578,7 @@ export function buildInteractiveWorkerScript(opts) {
     idleDetectorCmd = [
       `(IDLE_SENT=false`,
       `while kill -0 $$ 2>/dev/null`,
-      `do sleep 3`,
+      `do sleep 1`,
       `SF="$HOME/.claude/terminals/session-${sid8}.json"`,
       `[ ! -f "$SF" ] && continue`,
       `AGE=$(( $(date +%s) - $(stat -f %m "$SF" 2>/dev/null || stat -c %Y "$SF" 2>/dev/null || echo $(date +%s)) ))`,
