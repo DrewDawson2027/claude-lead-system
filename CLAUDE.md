@@ -32,37 +32,42 @@ Workers (claude -p) → stateless, exit when done
 
 ---
 
-## Parity Status (as of 2026-03-06): ~70%
+## Parity Status (as of 2026-03-06): ~83%
 
 Verified against [official Agent Teams docs](https://code.claude.com/docs/en/agent-teams) and CLI v2.1.71.
 Full assessment: `~/.claude/agents/revisions/2026-03-06/first-round-revisions.md`
 
-| Native Agent Teams Feature           | Lead System                                            | Parity  | Notes                                            |
-| ------------------------------------ | ------------------------------------------------------ | ------- | ------------------------------------------------ |
-| TeamCreate                           | coord_create_team + coord_spawn_worker                 | 85%     | Works, but separate calls vs native atomic       |
-| Shared Task List + Dependencies      | tasks.js with blocked_by + file locking                | 90%     | Done — dependencies, locking, 3 states           |
-| **Self-Claim (auto-pick next task)** | **Not implemented**                                    | **0%**  | **Workers exit after completion, no task loop**  |
-| SendMessage Protocol (5 types)       | coord_send_message + broadcast + send_protocol         | 95%     | All 5 native types mapped                        |
-| Push Message Delivery                | tmuxSendKeys() + inbox polling fallback                | 85%     | ~85% in tmux, ~50% non-tmux                      |
-| **In-Process Display Mode**          | **Not possible — architectural limit**                 | **0%**  | **Requires Claude Code runtime internals**       |
-| Split-Pane Display (tmux)            | spawnTmuxPaneWorker() + auto-tile                      | 95%     | Nearly identical to native split-pane            |
-| Idle Notifications                   | Exit trap (instant) + idle detector (3-5s) + heartbeat | 93%     | Completion instant, mid-task 3-5s lag            |
-| Agent Resume                         | --session-id at spawn + --resume on resume             | 90%     | Code exists, needs end-to-end verification       |
-| Peer Discovery                       | coord_discover_peers + meta scan                       | 90%     | current_task written via heartbeat hook          |
-| Bidirectional Communication          | Env vars + worker instruction block                    | 80%     | Workers have tools, not verified end-to-end      |
-| Plan Approval Workflow               | coord_send_protocol + approval.js                      | 85%     | Protocol exists, e2e not verified                |
-| Permission Modes (6 native)          | 8 modes but missing `auto`                             | 90%     | Has 5 original + 2 extras, missing `auto`        |
-| Team Cleanup                         | coord_delete_team with clean_tasks                     | 85%     | No active-teammate check before deletion         |
-| **Quality Gate Hooks**               | **teammate-lifecycle.sh — telemetry only**             | **40%** | **Logs events, no exit-code-2 feedback pattern** |
-| Task Auto-Unblock                    | Dependencies tracked, passive check                    | 75%     | Checked on query, not actively triggered         |
-| Token enforcement                    | token-guard.py (7 rules)                               | N/A     | Lead-exclusive feature                           |
-| Conflict detection                   | conflict-guard.sh                                      | N/A     | Lead-exclusive feature                           |
+| Native Agent Teams Feature           | Lead System                                            | Parity   | Notes                                         |
+| ------------------------------------ | ------------------------------------------------------ | -------- | --------------------------------------------- |
+| TeamCreate                           | coord_create_team + coord_spawn_worker                 | 85%      | Works, but separate calls vs native atomic    |
+| Shared Task List + Dependencies      | tasks.js with blocked_by + file locking                | 90%      | Done — dependencies, locking, 3 states        |
+| **Self-Claim (auto-pick next task)** | coord_claim_next_task + claim-next-task.mjs exit-trap  | **~65%** | Implemented, needs E2E verification           |
+| SendMessage Protocol (5 types)       | coord_send_message + broadcast + send_protocol         | 95%      | All 5 native types mapped                     |
+| Push Message Delivery                | tmuxSendKeys() + inbox polling fallback                | 85%      | ~85% in tmux, ~50% non-tmux                   |
+| **In-Process Display Mode**          | **Not possible — architectural limit**                 | **0%**   | **Requires Claude Code runtime internals**    |
+| Split-Pane Display (tmux)            | spawnTmuxPaneWorker() + auto-tile                      | 95%      | Nearly identical to native split-pane         |
+| Idle Notifications                   | Exit trap (instant) + idle detector (3-5s) + heartbeat | 93%      | Completion instant, mid-task 3-5s lag         |
+| Agent Resume                         | --session-id at spawn + --resume on resume             | 90%      | Code exists, needs end-to-end verification    |
+| Peer Discovery                       | coord_discover_peers + meta scan                       | 90%      | current_task written via heartbeat hook       |
+| Bidirectional Communication          | Env vars + worker instruction block                    | 80%      | Workers have tools, not verified end-to-end   |
+| Plan Approval Workflow               | coord_send_protocol + approval.js                      | 85%      | Protocol exists, e2e not verified             |
+| Permission Modes (6 native)          | 8 modes including `auto`                               | ~100%    | auto mode added to both validModes allowlists |
+| Team Cleanup                         | coord_delete_team + active teammate guard              | ~95%     | Blocks deletion if any teammate is active     |
+| Quality Gate Hooks                   | teammate-lifecycle.sh + exit-code-2 pattern            | ~85%     | Exit-code-2 feedback implemented              |
+| Task Auto-Unblock                    | Dependencies tracked, passive check                    | 75%      | Checked on query, not actively triggered      |
+| Token enforcement                    | token-guard.py (7 rules)                               | N/A      | Lead-exclusive feature                        |
+| Conflict detection                   | conflict-guard.sh                                      | N/A      | Lead-exclusive feature                        |
 
-### Critical open gaps (3 blockers to higher parity)
+### Critical open gaps (1 architectural blocker remaining)
 
-1. **Self-Claim (0%)** — Workers exit after task completion. No mechanism to auto-pick next unblocked task. Needs `coord_claim_next_task` tool + exit-trap integration.
-2. **In-Process Display (0%)** — Architectural limit. Native runs teammates inside same terminal with keyboard cycling. Cannot be emulated from MCP. Tmux pane mode is the closest equivalent.
-3. **Quality Gate Hooks (40%)** — `teammate-lifecycle.sh` only logs. Needs exit-code-2 pattern to prevent completion / send feedback.
+1. **In-Process Display (0%)** — Architectural limit. Native runs teammates inside same terminal with keyboard cycling. Cannot be emulated from MCP. Tmux pane mode is the closest equivalent.
+
+### Resolved gaps (committed on codex/team-recover-budget-auto)
+
+- **Self-Claim (~65%)** — `coord_claim_next_task` tool + `claim-next-task.mjs` exit-trap implemented. Needs E2E verification.
+- **Quality Gate Hooks (~85%)** — Exit-code-2 feedback pattern implemented in `teammate-lifecycle.sh`.
+- **Permission Modes (~100%)** — `auto` mode added to both `validModes` allowlists in `workers.js` and `teams.js`.
+- **Team Cleanup (~95%)** — Active teammate guard added to `handleDeleteTeam`; blocks deletion if a session is live.
 
 ### Resolved concerns
 
@@ -151,10 +156,10 @@ The integration goal is complete when:
 2. Workers can message each other by name (P2P via `coord_send_message target_name=`) — implemented, needs e2e verification
 3. Token cost for a 2-worker task is 75–80% less than the equivalent native Agent Teams run
 4. `coord_discover_peers` returns live session IDs for all active workers — working (`current_task` written via heartbeat)
-5. Workers auto-claim next unblocked task after completing (self-claim) — NOT YET IMPLEMENTED
-6. Quality gate hooks prevent task completion when checks fail — NOT YET IMPLEMENTED
+5. Workers auto-claim next unblocked task after completing (self-claim) — IMPLEMENTED (needs E2E verification)
+6. Quality gate hooks prevent task completion when checks fail — IMPLEMENTED
 
-Items 1, 2, 3, 4 are achievable now. Item 5 (self-claim) is in progress. Item 6 (quality gates) is implemented.
+Items 1–6 are all implemented. In-process display mode (Shift+Up/Down in same terminal) is an architectural impossibility — tmux panes are the equivalent.
 In-process display mode (Shift+Up/Down in same terminal) is an architectural impossibility — tmux panes are the equivalent.
 
 ---
@@ -164,18 +169,21 @@ In-process display mode (Shift+Up/Down in same terminal) is an architectural imp
 Code paths exist but have not been verified end-to-end. Run once before declaring GAP 5 closed.
 
 ### E1: Agent Resume (`buildResumeWorkerScript`)
+
 1. Spawn a worker on a task, note the session ID from its meta file
 2. Kill the worker mid-task (`coord_kill_worker`)
 3. Call `coord_resume_worker` with that `session_id`
 4. Verify the resumed worker picks up from prior conversation context (not a fresh run)
 
 ### E2: Bidirectional Worker-to-Peer Messaging
+
 1. Spawn two workers on the same team: `alpha`, `beta`
 2. In alpha's task prompt, include: "call coord_send_message to target_name=beta with content=ping"
 3. Verify `~/.claude/terminals/inbox/{beta_session_id}.jsonl` contains the message
 4. Verify beta's tmux pane shows the injected message
 
 ### E3: Plan Approval Flow
+
 1. Spawn a worker with `permission_mode: plan`
 2. Worker enters plan mode and calls `coord_send_protocol type=plan_approval_request`
 3. Lead receives the request via its inbox
