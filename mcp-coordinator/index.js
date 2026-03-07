@@ -84,6 +84,7 @@ import {
   handleListTeams,
   handleDeleteTeam,
   handleUpdateTeamPolicy,
+  _setSpawnWorkerFn,
 } from "./lib/teams.js";
 import { handleTeamDispatch } from "./lib/team-dispatch.js";
 import {
@@ -920,6 +921,30 @@ const ALL_TOOLS = [
             required: ["name"],
           },
           description: "Team members to add/update",
+        },
+        workers: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Worker name" },
+              task: {
+                type: "string",
+                description: "Task prompt for the worker",
+              },
+              model: {
+                type: "string",
+                description: "Model to use (haiku/sonnet/opus)",
+              },
+              directory: {
+                type: "string",
+                description: "Working directory for the worker",
+              },
+            },
+            required: ["name", "task"],
+          },
+          description:
+            "Optional: spawn workers atomically with team creation. On any spawn failure, all spawned workers are killed and the team config is removed (full rollback).",
         },
       },
       required: ["team_name"],
@@ -1898,6 +1923,7 @@ export const __test__ = {
   handleGetTaskAudit,
   handleCheckQualityGates,
   handleCreateTeam,
+  _setSpawnWorkerFn,
   handleUpdateTeamPolicy,
   handleGetTeam,
   handleListTeams,
