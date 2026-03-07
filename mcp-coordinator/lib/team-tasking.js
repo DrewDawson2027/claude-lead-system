@@ -124,11 +124,11 @@ function mapTeamMembers(teamName) {
             : sessionStatus === "stale"
               ? 20
               : 5) +
-          Math.min(20, recentOps.length * 2) +
-          Math.min(
-            10,
-            (tc.Bash || 0) + (tc.Edit || 0) + (tc.Write || 0) > 0 ? 10 : 0,
-          ),
+        Math.min(20, recentOps.length * 2) +
+        Math.min(
+          10,
+          (tc.Bash || 0) + (tc.Edit || 0) + (tc.Write || 0) > 0 ? 10 : 0,
+        ),
       ),
     );
     const interruptibility = Math.max(
@@ -369,8 +369,8 @@ export function handleTeamQueueTask(args) {
 
   const metadata =
     args.metadata &&
-    typeof args.metadata === "object" &&
-    !Array.isArray(args.metadata)
+      typeof args.metadata === "object" &&
+      !Array.isArray(args.metadata)
       ? args.metadata
       : {};
   const dispatchMeta = {
@@ -635,6 +635,125 @@ function patchTaskMetadata(taskId, mutateFn) {
   });
 }
 
+function sortQueuedTasks(a, b) {
+  const pri = { high: 0, normal: 1, low: 2 };
+  const ap = pri[a.priority] ?? 1;
+  const bp = pri[b.priority] ?? 1;
+  if (ap !== bp) return ap - bp;
+  return String(a.created || "").localeCompare(String(b.created || ""));
+}
+
+function teamTaskForWorker(teamTasks, workerTaskId) {
+  return (
+    teamTasks.find((task) => {
+      const dispatch = taskDispatchMeta(task);
+      return (
+        dispatch.worker_task_id === workerTaskId ||
+        task.metadata?.worker_task_id === workerTaskId
+      );
+    }) || null
+  );
+}
+
+export function handleClaimNextTask(args) {
+  const team_name = sanitizeName(args.team_name, "team_name");
+  const completedWorkerTaskId = args.completed_worker_task_id
+    ? sanitizeId(args.completed_worker_task_id, "completed_worker_task_id")
+    : null;
+  let teamTasks = getTeamTasks(team_name);
+  let completedTask = null;
+  let assignee = args.assignee ? sanitizeName(args.assignee, "assignee") : null;
+
+  if (completedWorkerTaskId) {
+    completedTask = teamTaskForWorker(teamTasks, completedWorkerTaskId);
+    if (completedTask) {
+      assignee = assignee || completedTask.assignee || null;
+      if (
+        completedTask.status !== "completed" &&
+        completedTask.status !== "cancelled"
+      ) {
+        const dispatch = taskDispatchMeta(completedTask);
+        handleUpdateTask({
+          task_id: completedTask.task_id,
+          status: "completed",
+          metadata: {
+            dispatch: {
+              ...dispatch,
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              completed_worker_task_id: completedWorkerTaskId,
+            },
+            worker_task_id: completedWorkerTaskId,
+          },
+        });
+        completedTask.status = "completed";
+        if (!completedTask.metadata) completedTask.metadata = {};
+        completedTask.metadata.dispatch = {
+          ...dispatch,
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          completed_worker_task_id: completedWorkerTaskId,
+        };
+        completedTask.metadata.worker_task_id = completedWorkerTaskId;
+      }
+    }
+  }
+
+  if (!assignee) {
+    return text(
+      `No assignee available to claim the next task for team ${team_name}.`,
+    );
+  }
+
+  handleCreateTeam({
+    team_name,
+    members: [{ name: assignee, task_id: null }],
+  });
+
+  const unresolvedBlockersByTaskId = new Map(
+    teamTasks.map((t) => [t.task_id, taskBlocked(t, teamTasks)]),
+  );
+  const nextTask = teamTasks
+    .filter((t) => t.status === "pending")
+    .filter((t) => (taskDispatchMeta(t).status || "queued") === "queued")
+    .filter(
+      (t) => (unresolvedBlockersByTaskId.get(t.task_id) || []).length === 0,
+    )
+    .filter((t) => !t.assignee || t.assignee === assignee)
+    .sort(sortQueuedTasks)[0];
+
+  if (!nextTask) {
+    let out = `## Claim Next Task (${team_name})\n\n`;
+    out += `- Assignee: ${assignee}\n`;
+    if (completedTask) {
+      out += `- Completed: ${completedTask.task_id}\n`;
+    } else if (completedWorkerTaskId) {
+      out += `- Completed Worker Task: ${completedWorkerTaskId}\n`;
+    }
+    out += `- Result: no claimable queued tasks\n`;
+    return text(out);
+  }
+
+  const snap = buildTeamOperationalSnapshot(team_name);
+  const dispatchRes = dispatchExistingQueuedTask(nextTask, snap, assignee, {
+    ...args,
+    assignee,
+    default_directory: args.directory,
+    worker_task_id: args.worker_task_id,
+  });
+  const dTxt = contentText(dispatchRes);
+  let out = `## Claim Next Task (${team_name})\n\n`;
+  out += `- Assignee: ${assignee}\n`;
+  if (completedTask) {
+    out += `- Completed: ${completedTask.task_id}\n`;
+  } else if (completedWorkerTaskId) {
+    out += `- Completed Worker Task: ${completedWorkerTaskId}\n`;
+  }
+  out += `- Claimed: ${nextTask.task_id} (${nextTask.subject})\n\n`;
+  out += dTxt;
+  return text(out);
+}
+
 function dispatchExistingQueuedTask(task, snap, assignee, args = {}) {
   const dispatch = taskDispatchMeta(task);
   const prompt = String(dispatch.prompt || "").trim();
@@ -700,13 +819,7 @@ export function handleTeamAssignNext(args) {
     .filter(
       (t) => (unresolvedBlockersByTaskId.get(t.task_id) || []).length === 0,
     )
-    .sort((a, b) => {
-      const pri = { high: 0, normal: 1, low: 2 };
-      const ap = pri[a.priority] ?? 1;
-      const bp = pri[b.priority] ?? 1;
-      if (ap !== bp) return ap - bp;
-      return String(a.created || "").localeCompare(String(b.created || ""));
-    });
+    .sort(sortQueuedTasks);
   if (queued.length === 0) {
     const blockedQueuedCount = snap.task_queue
       .filter((t) => t.dispatch_status === "queued")
@@ -786,17 +899,17 @@ export function handleTeamAssignNext(args) {
     };
     return text(
       `## No Eligible Candidate for ${task.task_id}\n\n` +
-        `**Members considered:** ${explanation.members_considered}\n\n` +
-        `### Rejections\n` +
-        rejections
-          .map(
-            (r) =>
-              `- **${r.name}** (${r.role || "no role"}): ${r.reason} — ${r.detail}`,
-          )
-          .join("\n") +
-        `\n\n### Suggestions\n` +
-        suggestions.map((s) => `- ${s}`).join("\n") +
-        `\n\n\`\`\`json\n${JSON.stringify(explanation, null, 2)}\n\`\`\``,
+      `**Members considered:** ${explanation.members_considered}\n\n` +
+      `### Rejections\n` +
+      rejections
+        .map(
+          (r) =>
+            `- **${r.name}** (${r.role || "no role"}): ${r.reason} — ${r.detail}`,
+        )
+        .join("\n") +
+      `\n\n### Suggestions\n` +
+      suggestions.map((s) => `- ${s}`).join("\n") +
+      `\n\n\`\`\`json\n${JSON.stringify(explanation, null, 2)}\n\`\`\``,
     );
   }
 
@@ -813,11 +926,11 @@ export function handleTeamAssignNext(args) {
   const dTxt = contentText(dispatchRes);
   return text(
     `## Team Assign Next (${team_name})\n\n` +
-      `- Task: ${task.task_id} (${task.subject})\n` +
-      `- Assignee: ${choice.member.name}\n` +
-      `- Score: ${choice.scored.score}\n` +
-      `- Reasons: ${choice.scored.reasons.join("; ")}\n\n` +
-      dTxt,
+    `- Task: ${task.task_id} (${task.subject})\n` +
+    `- Assignee: ${choice.member.name}\n` +
+    `- Score: ${choice.scored.score}\n` +
+    `- Reasons: ${choice.scored.reasons.join("; ")}\n\n` +
+    dTxt,
   );
 }
 

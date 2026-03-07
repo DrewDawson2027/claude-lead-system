@@ -445,26 +445,27 @@ test('coord_team_queue_task + coord_team_status_compact + coord_team_assign_next
     const queued = await api.handleToolCall('coord_team_queue_task', {
       team_name: 'ops',
       task_id: 'TQ1',
-      subject: 'Implement API endpoint',
-      prompt: 'Implement endpoint and tests',
-      role_hint: 'implementer',
+      subject: 'Implement API layer',
+      prompt: 'Implement the API layer',
       priority: 'high',
       files: ['src/api.ts'],
     });
     assert.match(contentText(queued), /Task created: \*\*TQ1\*\*/i);
 
-    const compact = await api.handleToolCall('coord_team_status_compact', { team_name: 'ops' });
-    const compactTxt = contentText(compact);
-    assert.match(compactTxt, /## Team Status \(Compact\): ops/i);
-    assert.match(compactTxt, /TQ1 \| high/i);
-    assert.match(compactTxt, /ivy \(implementer\)/i);
+    const status = await api.handleToolCall('coord_team_status_compact', {
+      team_name: 'ops',
+    });
+    const statusTxt = contentText(status);
+    assert.match(statusTxt, /Team Status \(Compact\): ops/i);
+    assert.match(statusTxt, /TQ1 \| high/i);
+    assert.match(statusTxt, /ivy \(implementer\)/i);
 
     const assigned = await api.handleToolCall('coord_team_assign_next', {
       team_name: 'ops',
       directory: projectDir,
       worker_task_id: 'WQ1',
-      model: 'sonnet',
       mode: 'pipe',
+      model: 'sonnet',
     });
     const assignedTxt = contentText(assigned);
     assert.match(assignedTxt, /Team Assign Next \(ops\)/i);
@@ -477,6 +478,76 @@ test('coord_team_queue_task + coord_team_status_compact + coord_team_assign_next
     assert.match(taskTxt, /\*\*Status:\*\* in_progress/i);
     assert.match(taskTxt, /"status":"spawned"/i);
     assert.match(taskTxt, /"worker_task_id":"WQ1"/i);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_claim_next_task completes the current team task and claims the next newly unblocked queued task', async () => {
+  const { home, binDir, projectDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+    COORDINATOR_CLAUDE_BIN: 'claude-mock',
+    MOCK_CLAUDE_DELAY: '0',
+  });
+
+  try {
+    await api.handleToolCall('coord_create_team', {
+      team_name: 'claimers',
+      preset: 'simple',
+      members: [{ name: 'ivy', role: 'implementer' }],
+    });
+
+    await api.handleToolCall('coord_team_queue_task', {
+      team_name: 'claimers',
+      task_id: 'TQ_ROOT',
+      subject: 'Implement root task',
+      prompt: 'Implement the root task',
+      role_hint: 'implementer',
+      priority: 'high',
+    });
+
+    await api.handleToolCall('coord_team_queue_task', {
+      team_name: 'claimers',
+      task_id: 'TQ_FOLLOWUP',
+      subject: 'Implement follow-up task',
+      prompt: 'Implement the follow-up task',
+      role_hint: 'implementer',
+      blocked_by: ['TQ_ROOT'],
+    });
+
+    const assigned = await api.handleToolCall('coord_team_assign_next', {
+      team_name: 'claimers',
+      directory: projectDir,
+      worker_task_id: 'WQ_ROOT',
+      mode: 'pipe',
+    });
+    assert.match(contentText(assigned), /Task: TQ_ROOT/i);
+
+    const claimed = await api.handleToolCall('coord_claim_next_task', {
+      team_name: 'claimers',
+      completed_worker_task_id: 'WQ_ROOT',
+      assignee: 'ivy',
+      directory: projectDir,
+      mode: 'pipe',
+    });
+    const claimedTxt = contentText(claimed);
+    assert.match(claimedTxt, /Claim Next Task \(claimers\)/i);
+    assert.match(claimedTxt, /Completed: TQ_ROOT/i);
+    assert.match(claimedTxt, /Claimed: TQ_FOLLOWUP/i);
+    assert.match(claimedTxt, /Status: dispatched/i);
+
+    const rootTask = await api.handleToolCall('coord_get_task', { task_id: 'TQ_ROOT' });
+    assert.match(contentText(rootTask), /\*\*Status:\*\* completed/i);
+
+    const followupTask = await api.handleToolCall('coord_get_task', { task_id: 'TQ_FOLLOWUP' });
+    const followupTxt = contentText(followupTask);
+    assert.match(followupTxt, /\*\*Status:\*\* in_progress/i);
+    assert.match(followupTxt, /"status":"spawned"/i);
+    assert.match(followupTxt, /\*\*Assignee:\*\* ivy/i);
   } finally {
     restore();
   }

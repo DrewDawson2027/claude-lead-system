@@ -89,6 +89,7 @@ import { handleTeamDispatch } from "./lib/team-dispatch.js";
 import {
   handleTeamStatusCompact,
   handleTeamQueueTask,
+  handleClaimNextTask,
   handleTeamAssignNext,
   handleTeamRebalance,
   handleSidecarStatus,
@@ -255,6 +256,7 @@ const TEAMS_TOOLS = new Set([
   "coord_team_dispatch",
   "coord_team_status_compact",
   "coord_team_queue_task",
+  "coord_claim_next_task",
   "coord_team_assign_next",
   "coord_team_rebalance",
 ]);
@@ -1101,6 +1103,44 @@ const ALL_TOOLS = [
     },
   },
   {
+    name: "coord_claim_next_task",
+    description:
+      "Mark a teammate's completed team task from its worker task ID, then let that same teammate claim the next unblocked queued task.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        team_name: { type: "string" },
+        completed_worker_task_id: { type: "string" },
+        assignee: {
+          type: "string",
+          description: "Specific teammate name to continue claiming work as",
+        },
+        directory: {
+          type: "string",
+          description:
+            "Default working directory for queued tasks missing dispatch.directory",
+        },
+        worker_task_id: { type: "string" },
+        model: { type: "string" },
+        agent: { type: "string" },
+        role: {
+          type: "string",
+          enum: ["researcher", "implementer", "reviewer", "planner"],
+        },
+        mode: { type: "string", enum: ["pipe", "interactive"] },
+        runtime: { type: "string", enum: ["claude", "codex"] },
+        layout: {
+          type: "string",
+          enum: ["tab", "split", "background", "tmux"],
+        },
+        isolate: { type: "boolean" },
+        notify_session_id: { type: "string" },
+        context_summary: { type: "string" },
+      },
+      required: ["team_name"],
+    },
+  },
+  {
     name: "coord_team_assign_next",
     description:
       "Select the best teammate for the next queued team task using deterministic load-aware scoring, then dispatch it.",
@@ -1703,6 +1743,9 @@ function handleToolCall(name, args = {}) {
       case "coord_team_queue_task":
         result = handleTeamQueueTask(args);
         break;
+      case "coord_claim_next_task":
+        result = handleClaimNextTask(args);
+        break;
       case "coord_team_assign_next":
         result = handleTeamAssignNext(args);
         break;
@@ -1860,6 +1903,7 @@ export const __test__ = {
   handleTeamDispatch,
   handleTeamStatusCompact,
   handleTeamQueueTask,
+  handleClaimNextTask,
   handleTeamAssignNext,
   handleTeamRebalance,
   handleSidecarStatus,

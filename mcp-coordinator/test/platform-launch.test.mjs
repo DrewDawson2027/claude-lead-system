@@ -190,6 +190,46 @@ test('interactive worker script on linux uses script -c wrapper and exports work
   assert.match(cmd, /rm -f '\/tmp\/pid\.txt'/);
 });
 
+test('interactive team worker script exports auto-claim helper env and invokes it on exit', () => {
+  const cmd = __test__.buildInteractiveWorkerScript({
+    taskId: 'W5_AUTO',
+    workDir: '/tmp/work',
+    defaultDirectory: '/tmp/work',
+    resultFile: '/tmp/result.txt',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    model: 'sonnet',
+    agent: '',
+    promptFile: '/tmp/prompt.txt',
+    workerName: 'ivy',
+    teamName: 'claimers',
+    mode: 'interactive',
+    runtime: 'claude',
+    layout: 'background',
+    permissionMode: 'acceptEdits',
+    platformName: 'linux',
+  });
+  assert.match(cmd, /CLAUDE_AUTOCLAIM_SCRIPT=/);
+  assert.match(cmd, /CLAUDE_AUTOCLAIM_ARGS_B64=/);
+  assert.match(cmd, /CLAUDE_AUTOCLAIM_NODE/);
+});
+
+test('plain worker script without team auto-claim context does not emit malformed shell separators', () => {
+  const cmd = __test__.buildWorkerScript({
+    taskId: 'W_NO_AUTO',
+    workDir: '/tmp/work',
+    resultFile: '/tmp/result.txt',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    model: 'sonnet',
+    agent: '',
+    promptFile: '/tmp/prompt.txt',
+    workerPs1File: '',
+    platformName: 'linux',
+  });
+  assert.doesNotMatch(cmd, /&&\s*&&/);
+});
+
 test('interactive worker script on darwin uses script without -c wrapper', () => {
   const cmd = __test__.buildInteractiveWorkerScript({
     taskId: 'W6',
