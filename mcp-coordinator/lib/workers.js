@@ -100,6 +100,33 @@ function pickPolicy(overrideValue, envValue, fallback = "warn") {
   return fallback;
 }
 
+const FULL_SESSION_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function normalizeParentSessionId(value) {
+  const raw = String(value || "").trim();
+  return FULL_SESSION_ID_RE.test(raw) ? raw : null;
+}
+
+function readLeadSessionRecord(terminalsDir, notifySessionId) {
+  if (!notifySessionId) return null;
+  const leadSessionFile = join(terminalsDir, `session-${notifySessionId}.json`);
+  if (!existsSync(leadSessionFile)) return null;
+  try {
+    return JSON.parse(readFileSync(leadSessionFile, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function resolveLeadParentSessionId(explicitParentSessionId, leadSession) {
+  const explicit = normalizeParentSessionId(explicitParentSessionId);
+  if (explicit) return explicit;
+  return normalizeParentSessionId(
+    leadSession?.claude_session_id || leadSession?.full_session_id || "",
+  );
+}
+
 function getActiveWorkerUsage(resultsDir) {
   let activeWorkers = 0;
   let activeEstimatedTokens = 0;
@@ -165,6 +192,15 @@ export function handleSpawnWorker(args) {
   const notify_session_id = notifySessionRaw
     ? sanitizeShortSessionId(notifySessionRaw)
     : null;
+  const parentSessionRaw =
+    args.parent_session_id === undefined || args.parent_session_id === null
+      ? ""
+      : String(args.parent_session_id).trim();
+  if (parentSessionRaw && !normalizeParentSessionId(parentSessionRaw)) {
+    return text(
+      "parent_session_id must be a full Claude session UUID (36 chars, with hyphens).",
+    );
+  }
   const files = (args.files || []).map((f) => String(f).trim()).filter(Boolean);
   let layout = ["split", "background", "tab", "tmux"].includes(args.layout)
     ? args.layout
@@ -393,20 +429,14 @@ export function handleSpawnWorker(args) {
   const claudeSessionId = mode === "interactive" ? randomUUID() : null;
   // Resolve lead's tmux pane for bidirectional communication (Gap 4)
   let leadPaneId = null;
-  if (notify_session_id) {
-    const leadSessionFile = join(
-      TERMINALS_DIR,
-      `session-${notify_session_id}.json`,
-    );
-    if (existsSync(leadSessionFile)) {
-      try {
-        const leadSession = JSON.parse(readFileSync(leadSessionFile, "utf-8"));
-        const pane = String(leadSession?.tmux_pane_id || "").trim();
-        if (pane.startsWith("%")) leadPaneId = pane;
-      } catch {
-        // Ignore malformed session files and continue to local tmux fallback.
-      }
-    }
+  const leadSession = readLeadSessionRecord(TERMINALS_DIR, notify_session_id);
+  const leadParentSessionId = resolveLeadParentSessionId(
+    parentSessionRaw,
+    leadSession,
+  );
+  if (leadSession) {
+    const pane = String(leadSession?.tmux_pane_id || "").trim();
+    if (pane.startsWith("%")) leadPaneId = pane;
   }
   if (!leadPaneId && isInsideTmux()) {
     leadPaneId = getCurrentTmuxPane();
@@ -435,6 +465,7 @@ export function handleSpawnWorker(args) {
     permission_mode: rawPermMode,
     require_plan: requirePlan || cliPermissionMode === "plan",
     claude_session_id: claudeSessionId,
+    claude_parent_session_id: leadParentSessionId,
     backend_type: layout === "tmux" ? "tmux" : layout,
     budget_policy: budgetPolicy,
     budget_tokens: budgetTokens,
@@ -460,45 +491,44 @@ export function handleSpawnWorker(args) {
     if (contextSummary) {
       contextPreamble += `## Lead's Conversation Context\n${contextSummary.slice(0, ctxLimit)}\n\n---\n\n`;
     }
+    if (notify_session_id) {
+      const delegationContext = [
+        `## Lead Delegation Context`,
+        `Lead coordinator session: ${notify_session_id}`,
+        leadParentSessionId
+          ? `Lead Claude session ID: ${leadParentSessionId}`
+          : `Native Claude parent-session linkage is unavailable for this spawn; treat this task as a delegated sub-agent request from the lead and preserve that relationship explicitly.`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      contextPreamble += `${delegationContext}\n\n---\n\n`;
+    }
     // Enhanced context: include lead's session data at standard/full levels
-    if (contextLevel !== "minimal" && notify_session_id) {
-      const leadSessionFile = join(
-        TERMINALS_DIR,
-        `session-${notify_session_id}.json`,
-      );
-      if (existsSync(leadSessionFile)) {
-        try {
-          const leadSession = JSON.parse(
-            readFileSync(leadSessionFile, "utf-8"),
-          );
-          const extras = [];
-          if (leadSession.files_touched?.length) {
-            extras.push(
-              `## Lead's Recent Files\n${leadSession.files_touched.join("\n")}`,
-            );
-          }
-          if (leadSession.recent_ops?.length) {
-            extras.push(
-              `## Lead's Recent Operations\n${leadSession.recent_ops.map((op) => `- ${op.t} ${op.tool} ${op.file || ""}`).join("\n")}`,
-            );
-          }
-          if (
-            contextLevel === "full" &&
-            leadSession.plan_file &&
-            existsSync(leadSession.plan_file)
-          ) {
-            const planContent = readFileSync(
-              leadSession.plan_file,
-              "utf-8",
-            ).slice(0, 5000);
-            extras.push(`## Lead's Active Plan\n${planContent}`);
-          }
-          if (extras.length) {
-            contextPreamble += extras.join("\n\n") + "\n\n---\n\n";
-          }
-        } catch {
-          /* ignore parse errors */
-        }
+    if (contextLevel !== "minimal" && leadSession) {
+      const extras = [];
+      if (leadSession.files_touched?.length) {
+        extras.push(
+          `## Lead's Recent Files\n${leadSession.files_touched.join("\n")}`,
+        );
+      }
+      if (leadSession.recent_ops?.length) {
+        extras.push(
+          `## Lead's Recent Operations\n${leadSession.recent_ops.map((op) => `- ${op.t} ${op.tool} ${op.file || ""}`).join("\n")}`,
+        );
+      }
+      if (
+        contextLevel === "full" &&
+        leadSession.plan_file &&
+        existsSync(leadSession.plan_file)
+      ) {
+        const planContent = readFileSync(leadSession.plan_file, "utf-8").slice(
+          0,
+          5000,
+        );
+        extras.push(`## Lead's Active Plan\n${planContent}`);
+      }
+      if (extras.length) {
+        contextPreamble += extras.join("\n\n") + "\n\n---\n\n";
       }
     }
     // Lead's persistent exported context (auto-inject from coord_export_context)
@@ -574,11 +604,16 @@ export function handleSpawnWorker(args) {
         ``,
         `### Completion Protocol`,
         `When your task is complete:`,
-        `1. Update the task board: \`coord_update_task task_id=${taskId} status=completed\``,
         notify_session_id
-          ? `2. Notify lead: \`coord_send_message from="${taskId}" to="${notify_session_id}" content="[COMPLETED] ${taskId} — <summary>"\``
-          : `2. Write key findings to ~/.claude/session-cache/coder-context.md`,
+          ? `1. Notify lead: \`coord_send_message from="${taskId}" to="${notify_session_id}" content="[COMPLETED] ${taskId} — <summary>"\``
+          : `1. Write key findings to ~/.claude/session-cache/coder-context.md`,
         ``,
+        `### Delegation`,
+        notify_session_id
+          ? leadParentSessionId
+            ? `Claude parent-session link requested with lead session ${leadParentSessionId}. Treat yourself as a delegated sub-agent of that lead conversation.`
+            : `Native Claude parent-session linkage is unavailable for this spawn. Treat yourself as a delegated sub-agent of lead session ${notify_session_id} and preserve that relationship explicitly.`
+          : ``,
       ];
 
       // Team context for peer messaging (Gap 3 + Gap 4)
@@ -662,6 +697,7 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
         workerName,
         leadSessionId: notify_session_id,
         leadPaneId,
+        parentSessionId: leadParentSessionId,
       });
       let usedApp;
       if (layout === "tmux" && isInsideTmux()) {
@@ -679,7 +715,8 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
           `- Resumed agentId: ${resumeAgentId}\n` +
           `- Full conversation history preserved via --resume\n` +
           `- Layout: ${usedApp}\n` +
-          `- Notify Session: ${notify_session_id || "none"}\n\n` +
+          `- Notify Session: ${notify_session_id || "none"}\n` +
+          `- Parent Session: ${leadParentSessionId || "prompt-emulated only"}\n\n` +
           `Send new task via \`coord_send_message\` to deliver work without re-spawning.`,
       );
     }
@@ -715,6 +752,7 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       sessionId: claudeSessionId,
       leadSessionId: notify_session_id,
       leadPaneId,
+      parentSessionId: leadParentSessionId,
       teamName,
     };
     let workerScript;
@@ -749,6 +787,7 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       `Worker spawned: **${taskId}**\n` +
         `- Directory: ${workerDir}\n- Model: ${model}\n- Agent: ${agent || "default"}\n` +
         `- Notify Session: ${notify_session_id || "none"}\n` +
+        `- Parent Session: ${leadParentSessionId || "prompt-emulated only"}\n` +
         `- Runtime: ${runtime}\n` +
         `- Mode: ${mode}${mode === "interactive" ? " (lead can message mid-execution)" : " (fire-and-forget)"}\n` +
         `- Role: ${role || "custom"}\n` +
@@ -992,6 +1031,7 @@ export function handleResumeWorker(args) {
       maxTurns: meta.max_turns,
       leadSessionId: meta.notify_session_id,
       leadPaneId,
+      parentSessionId: meta.claude_parent_session_id,
       isolate: meta.isolated,
     });
 
@@ -1031,6 +1071,7 @@ export function handleResumeWorker(args) {
     mode: newMode,
     runtime: meta.runtime || "claude",
     notify_session_id: meta.notify_session_id,
+    parent_session_id: meta.claude_parent_session_id,
     files: meta.files,
     role: meta.role,
     permission_mode: meta.permission_mode,
@@ -1185,4 +1226,27 @@ export function handleWorkerReport(args) {
   }
   out += `\n_${lines.length} total report(s)_\n`;
   return text(out);
+}
+
+/**
+ * Kill every worker whose PID file is present and whose process is alive.
+ * Called on coordinator exit to prevent orphaned worker processes.
+ */
+export function killAllWorkers() {
+  try {
+    const { RESULTS_DIR } = cfg();
+    const pidFiles = readdirSync(RESULTS_DIR).filter((f) => f.endsWith(".pid"));
+    for (const f of pidFiles) {
+      try {
+        const pid = readFileSync(join(RESULTS_DIR, f), "utf-8").trim();
+        if (pid && isProcessAlive(pid)) {
+          killProcess(pid);
+        }
+      } catch {
+        /* ignore individual failures — best-effort cleanup */
+      }
+    }
+  } catch {
+    /* ignore if RESULTS_DIR doesn't exist yet */
+  }
 }

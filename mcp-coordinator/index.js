@@ -57,6 +57,7 @@ import {
   handleResumeWorker,
   handleUpgradeWorker,
   handleWorkerReport,
+  killAllWorkers,
 } from "./lib/workers.js";
 import { handleRunPipeline, handleGetPipeline } from "./lib/pipelines.js";
 import {
@@ -917,6 +918,18 @@ const ALL_TOOLS = [
               role: { type: "string" },
               session_id: { type: "string" },
               task_id: { type: "string" },
+              color: {
+                type: "string",
+                enum: [
+                  "red",
+                  "green",
+                  "blue",
+                  "yellow",
+                  "purple",
+                  "cyan",
+                  "white",
+                ],
+              },
             },
             required: ["name"],
           },
@@ -1867,6 +1880,16 @@ async function main() {
       /* swallow — non-critical */
     }
   }, 30_000).unref();
+
+  // Kill all spawned workers when the coordinator exits so they don't
+  // accumulate as orphaned processes and exhaust RAM over long sessions.
+  const cleanExit = (code = 0) => {
+    killAllWorkers();
+    process.exit(code);
+  };
+  process.on("SIGTERM", () => cleanExit(0));
+  process.on("SIGINT", () => cleanExit(0));
+  process.on("exit", () => killAllWorkers());
 }
 
 const isDirectRun =
