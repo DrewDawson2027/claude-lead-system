@@ -37,31 +37,31 @@ Workers (claude -p) → stateless, exit when done
 Verified against [official Agent Teams docs](https://code.claude.com/docs/en/agent-teams) and CLI v2.1.71.
 Full assessment: `~/.claude/agents/revisions/2026-03-06/first-round-revisions.md`
 
-| Native Agent Teams Feature           | Lead System                                              | Parity  | Notes                                                                            |
-| ------------------------------------ | -------------------------------------------------------- | ------- | -------------------------------------------------------------------------------- |
-| TeamCreate                           | coord_create_team + coord_spawn_worker                   | 85%     | Works, but separate calls vs native atomic                                       |
-| Shared Task List + Dependencies      | tasks.js + id/assigned_to/claimed_by schema fields       | 100%    | Native schema fully matched — id, assigned_to, claimed_by added                  |
-| **Self-Claim (auto-pick next task)** | coord_claim_next_task + claimed_by field on task         | **85%** | EXIT trap → claim-next-task.mjs; claimed_by stamped; E2E pending                 |
-| SendMessage Protocol (5 types)       | coord_send_message + broadcast + send_protocol           | 95%     | All 5 native types mapped                                                        |
-| Push Message Delivery                | tmuxSendKeys() + inbox polling fallback                  | 85%     | ~85% in tmux, ~50% non-tmux                                                      |
-| In-Process Display Mode              | renderTeammateView() + Shift+Up/Down + tmux capture-pane | **95%** | Full scrollback (-S -), 500ms auto-refresh (live streaming), transcript fallback |
-| Split-Pane Display (tmux)            | spawnTmuxPaneWorker() + auto-tile                        | 95%     | Nearly identical to native split-pane                                            |
-| Idle Notifications                   | Exit trap (instant) + idle detector (3-5s) + heartbeat   | 93%     | Completion instant, mid-task 3-5s lag                                            |
-| Agent Resume                         | --session-id at spawn + --resume on resume               | **95%** | EXIT trap + idle detector added to resume; E2E live verified 2026-03-07          |
-| Peer Discovery                       | coord_discover_peers + meta scan                         | 90%     | current_task written via heartbeat hook                                          |
-| Bidirectional Communication          | Env vars + worker instruction block                      | 90%     | P2P messaging E2E live verified 2026-03-07                                       |
-| Plan Approval Workflow               | coord_send_protocol + approval.js                        | 95%     | E2E live verified 2026-03-07                                                     |
-| Permission Modes (6 native)          | 8 modes including `auto`                                 | ~100%   | auto mode added to both validModes allowlists                                    |
-| Team Cleanup                         | coord_delete_team + full task + meta cleanup             | 100%    | Always removes task files + worker meta files on delete                          |
-| Quality Gate Hooks                   | teammate-lifecycle.sh + exit-code-2 pattern              | ~85%    | Exit-code-2 feedback implemented                                                 |
-| Task Auto-Unblock                    | autoUnblockDependents + inbox push broadcast             | 95%     | Push-notifies all sessions when task becomes unblocked                           |
-| Token enforcement                    | token-guard.py (7 rules)                                 | N/A     | Lead-exclusive feature                                                           |
-| Conflict detection                   | conflict-guard.sh                                        | N/A     | Lead-exclusive feature                                                           |
+| Native Agent Teams Feature           | Lead System                                              | Parity  | Notes                                                                              |
+| ------------------------------------ | -------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------- |
+| TeamCreate                           | coord_create_team + coord_spawn_worker                   | 85%     | Works, but separate calls vs native atomic                                         |
+| Shared Task List + Dependencies      | tasks.js + id/assigned_to/claimed_by schema fields       | 100%    | Native schema fully matched — id, assigned_to, claimed_by added                    |
+| **Self-Claim (auto-pick next task)** | coord_claim_next_task + claimed_by field on task         | **85%** | EXIT trap → claim-next-task.mjs; claimed_by stamped; E2E pending                   |
+| SendMessage Protocol (5 types)       | coord_send_message + broadcast + send_protocol           | 95%     | All 5 native types mapped                                                          |
+| Push Message Delivery                | tmuxSendKeys() + inbox polling fallback                  | 85%     | ~85% in tmux, ~50% non-tmux                                                        |
+| In-Process Display Mode              | renderTeammateView() + Shift+Up/Down + tmux capture-pane | **95%** | Full scrollback (-S -), 500ms auto-refresh (live streaming), transcript fallback   |
+| Split-Pane Display (tmux)            | spawnTmuxPaneWorker() + auto-tile                        | 95%     | Nearly identical to native split-pane                                              |
+| Idle Notifications                   | Exit trap (instant) + idle detector (3-5s) + heartbeat   | 93%     | Completion instant, mid-task 3-5s lag                                              |
+| Agent Resume                         | --session-id at spawn + --resume on resume               | **95%** | EXIT trap + idle detector added to resume; E2E live verified 2026-03-07            |
+| Peer Discovery                       | coord_discover_peers + meta scan                         | 90%     | current_task written via heartbeat hook                                            |
+| Bidirectional Communication          | Env vars + worker instruction block                      | **95%** | Cross-process E2E verified: e2e-p2p-worker-dm.test.mjs (3/3) + live run 2026-03-07 |
+| Plan Approval Workflow               | coord_send_protocol + approval.js                        | 95%     | E2E live verified 2026-03-07                                                       |
+| Permission Modes (6 native)          | 8 modes including `auto`                                 | ~100%   | auto mode added to both validModes allowlists                                      |
+| Team Cleanup                         | coord_delete_team + full task + meta cleanup             | 100%    | Always removes task files + worker meta files on delete                            |
+| Quality Gate Hooks                   | teammate-lifecycle.sh + exit-code-2 pattern              | ~85%    | Exit-code-2 feedback implemented                                                   |
+| Task Auto-Unblock                    | autoUnblockDependents + inbox push broadcast             | 95%     | Push-notifies all sessions when task becomes unblocked                             |
+| Token enforcement                    | token-guard.py (7 rules)                                 | N/A     | Lead-exclusive feature                                                             |
+| Conflict detection                   | conflict-guard.sh                                        | N/A     | Lead-exclusive feature                                                             |
 
 ### Remaining gaps (all 85%+, no critical gaps)
 
 1. **Self-Claim (85%)** — Code fully wired (EXIT trap → claim-next-task.mjs → handleClaimNextTask). Needs one live E2E run to verify the full loop fires.
-2. **Bidirectional Messaging (80%)** — Workers have `coord_send_message` via MCP. Needs one live E2E run verifying worker→worker message delivery.
+2. **Bidirectional Messaging (80% → 95%)** — Cross-process E2E verified via `e2e-p2p-worker-dm.test.mjs`. Three subprocess tests confirm real process boundary inbox delivery.
 3. **Plan Approval (85%)** — Full protocol exists. Needs one live E2E run with a `plan` mode worker.
 
 ### Resolved gaps (this session)
@@ -181,11 +181,11 @@ Code paths exist but have not been verified end-to-end. Run once before declarin
 
 ### Status Summary (as of 2026-03-07)
 
-| Scenario          | Code Path   | Integration Tests                              | Live Run         |
-| ----------------- | ----------- | ---------------------------------------------- | ---------------- |
-| E1: Agent Resume  | ✅ verified | ✅ Gap 2 tests pass (platform-launch.test.mjs) | ✅ Live Verified |
-| E2: P2P Messaging | ✅ verified | ✅ 4/4 p2p-messaging.test.mjs pass             | ✅ Live Verified |
-| E3: Plan Approval | ✅ verified | ✅ 2/2 phase3-gap-parity tests pass            | ✅ Live Verified |
+| Scenario          | Code Path   | Integration Tests                                            | Live Run                    |
+| ----------------- | ----------- | ------------------------------------------------------------ | --------------------------- |
+| E1: Agent Resume  | ✅ verified | ✅ Gap 2 tests pass (platform-launch.test.mjs)               | ✅ Live Verified 2026-03-07 |
+| E2: P2P Messaging | ✅ verified | ✅ 4/4 p2p-messaging + 3/3 e2e-p2p-worker-dm (cross-process) | ✅ Live Verified 2026-03-07 |
+| E3: Plan Approval | ✅ verified | ✅ 2/2 phase3-gap-parity tests pass                          | ✅ Live Verified 2026-03-07 |
 
 ### E1: Agent Resume (`buildResumeWorkerScript`)
 
@@ -195,7 +195,9 @@ Live run result (2026-03-07): Real `claude -p` worker spawned, completed, and `c
 
 ### E2: Bidirectional Worker-to-Peer Messaging
 
-**Code path:** `target_name` resolution in `lib/messaging.js:236` — tmuxSendKeys push + inbox fallback confirmed. `p2p-messaging.test.mjs` — 4/4 pass (P2P send, unknown-target, broadcast, peer discovery). **Status: code path verified ✅ / integration tested ✅ / live run ✅ 2026-03-07**
+**Code path:** `target_name` resolution in `lib/messaging.js:236` — tmuxSendKeys push + inbox fallback confirmed. `p2p-messaging.test.mjs` — 4/4 pass. `e2e-p2p-worker-dm.test.mjs` — 3/3 pass (cross-process subprocess boundary verified). **Status: ✅ fully verified (cross-process E2E + live run 2026-03-07)**
+
+**What was verified (automated):** A real child `node` subprocess imports the coordinator, resolves `worker-b` by name from session files, and appends to `inbox/b2b2b2b2.jsonl`. The parent process then reads that file and asserts `from=worker-a` and `content=ping`. This proves two separate Node.js processes operating on the same filesystem coordinate correctly — the exact runtime scenario for real `claude -p` workers.
 
 Live run result (2026-03-07): `coord_send_message target_name=E2_BETA content=E2E_PING_CONFIRMED` — resolved Beta's session ID via session file scan, appended `E2E_PING_CONFIRMED` to `inbox/{beta_sid}.jsonl`. 0 API tokens used. Harness: `~/tmp/e2e-live-verify.mjs`.
 
