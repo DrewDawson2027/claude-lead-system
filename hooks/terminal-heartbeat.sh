@@ -87,6 +87,7 @@ if [ -f "$SESSION_FILE" ]; then
      --arg file_base "$FILE_BASE" \
      --arg file_path "$FILE_PATH" \
      --arg tty "$CURR_TTY" \
+     --arg raw_session_id "$RAW_SESSION_ID" \
      --argjson schema "$SCHEMA_VERSION" \
      --arg is_write_edit "$([ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] && echo "yes" || echo "no")" \
      --arg worker_name "$WORKER_NAME" \
@@ -95,6 +96,7 @@ if [ -f "$SESSION_FILE" ]; then
      .last_active = $now |
      .last_tool = $tool |
      .last_file = $file_base |
+     .claude_session_id = $raw_session_id |
      .schema_version = $schema |
      (if $tty != "" then .tty = $tty else . end) |
      (if $worker_name != "" then .worker_name = $worker_name else . end) |
@@ -143,39 +145,41 @@ else
   WORKER_TASK_ID="${CLAUDE_WORKER_TASK_ID:-}"
 
   jq -n \
-     --arg session "$SID8" \
-     --arg project "$PROJECT" \
-     --arg branch "$BRANCH" \
-     --arg cwd "$CWD" \
-     --arg now "$NOW" \
-     --arg tool "$TOOL_NAME" \
-     --arg file_base "$FILE_BASE" \
-     --arg tty "$CURR_TTY" \
-     --argjson schema "$SCHEMA_VERSION" \
-     --arg worker_name "$WORKER_NAME" \
-     --arg worker_task "$WORKER_TASK_ID" \
-     '
-     {
-       session: $session,
-       status: "active",
-       project: $project,
-       branch: $branch,
-       cwd: $cwd,
-       started: $now,
-       last_active: $now,
-       last_tool: $tool,
-       last_file: $file_base,
-       source: "heartbeat-fallback",
-       schema_version: $schema,
-       tool_counts: {($tool): 1},
-       turn_count: 1,
-       files_touched: [],
-       recent_ops: [{"t": $now, "tool": $tool, "file": $file_base}]
-     } |
-     (if $tty != "" then .tty = $tty else . end) |
-     (if $worker_name != "" then .worker_name = $worker_name else . end) |
-     (if $worker_task != "" then .current_task = $worker_task else . end)
-     ' > "$SESSION_FILE"
+    --arg session "$SID8" \
+    --arg claude_session_id "$RAW_SESSION_ID" \
+    --arg project "$PROJECT" \
+    --arg branch "$BRANCH" \
+    --arg cwd "$CWD" \
+    --arg now "$NOW" \
+    --arg tool "$TOOL_NAME" \
+    --arg file_base "$FILE_BASE" \
+    --arg tty "$CURR_TTY" \
+    --argjson schema "$SCHEMA_VERSION" \
+    --arg worker_name "$WORKER_NAME" \
+    --arg worker_task "$WORKER_TASK_ID" \
+    '
+    {
+      session: $session,
+      claude_session_id: $claude_session_id,
+      status: "active",
+      project: $project,
+      branch: $branch,
+      cwd: $cwd,
+      started: $now,
+      last_active: $now,
+      last_tool: $tool,
+      last_file: $file_base,
+      source: "heartbeat-fallback",
+      schema_version: $schema,
+      tool_counts: {($tool): 1},
+      turn_count: 1,
+      files_touched: [],
+      recent_ops: [{"t": $now, "tool": $tool, "file": $file_base}]
+    } |
+    (if $tty != "" then .tty = $tty else . end) |
+    (if $worker_name != "" then .worker_name = $worker_name else . end) |
+    (if $worker_task != "" then .current_task = $worker_task else . end)
+    ' > "$SESSION_FILE"
 fi
 
 # Track plan file writes (using --arg for safe path handling)

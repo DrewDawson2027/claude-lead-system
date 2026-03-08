@@ -23,7 +23,6 @@ const AGENT_COLORS = [
   "red",
   "yellow",
   "cyan",
-  "magenta",
   "white",
 ];
 const ANSI = {
@@ -33,7 +32,6 @@ const ANSI = {
   red: "\x1b[31m",
   yellow: "\x1b[33m",
   cyan: "\x1b[36m",
-  magenta: "\x1b[95m",
   white: "\x1b[37m",
   reset: "\x1b[0m",
 };
@@ -46,6 +44,12 @@ const ANSI = {
  */
 export function colorName(name, color) {
   return color && ANSI[color] ? `${ANSI[color]}${name}${ANSI.reset}` : name;
+}
+
+function normalizeMemberColor(color) {
+  if (typeof color !== "string") return null;
+  const normalized = color.trim().toLowerCase();
+  return AGENT_COLORS.includes(normalized) ? normalized : null;
 }
 
 // handleSpawnWorker is imported lazily inside handleCreateTeam to avoid
@@ -73,7 +77,7 @@ function teamsDir() {
     mkdirSync(dir, { recursive: true });
     try {
       ensureSecureDirectory(dir);
-    } catch {}
+    } catch { }
   }
   return dir;
 }
@@ -167,8 +171,8 @@ function mergeTeamPolicy(currentPolicy = {}, patchPolicy = {}) {
   ) {
     const prevWeights =
       currentPolicy?.interrupt_weights &&
-      typeof currentPolicy.interrupt_weights === "object" &&
-      !Array.isArray(currentPolicy.interrupt_weights)
+        typeof currentPolicy.interrupt_weights === "object" &&
+        !Array.isArray(currentPolicy.interrupt_weights)
         ? currentPolicy.interrupt_weights
         : {};
     merged.interrupt_weights = {
@@ -324,17 +328,24 @@ function _handleCreateTeamSync(args) {
         : undefined;
 
       const agentId = m.agentId || null;
+      const hasColor =
+        typeof m === "object" &&
+        m !== null &&
+        Object.prototype.hasOwnProperty.call(m, "color");
       const color =
-        typeof m === "object" && m.color
-          ? String(m.color)
-          : AGENT_COLORS[team.members.length % AGENT_COLORS.length];
+        normalizeMemberColor(hasColor ? m.color : null) ||
+        AGENT_COLORS[team.members.length % AGENT_COLORS.length];
 
       const idx = team.members.findIndex((x) => x.name === name);
       if (idx >= 0) {
         // Update existing member
         if (hasRole && role) team.members[idx].role = role;
         if (session_id) team.members[idx].session_id = session_id;
-        if (!team.members[idx].color) team.members[idx].color = color;
+        if (hasColor && normalizeMemberColor(m.color)) {
+          team.members[idx].color = normalizeMemberColor(m.color);
+        } else if (!team.members[idx].color) {
+          team.members[idx].color = color;
+        }
         if (hasTaskId) team.members[idx].task_id = task_id;
         if (agentId) team.members[idx].agentId = agentId;
         team.members[idx].updated = new Date().toISOString();
@@ -358,18 +369,18 @@ function _handleCreateTeamSync(args) {
 
   return text(
     `Team ${existing ? "updated" : "created"}: **${teamName}**\n` +
-      `- Project: ${team.project || "unset"}\n` +
-      `- Execution Path: ${team.execution_path}\n` +
-      `- Overhead Mode: ${team.low_overhead_mode}\n` +
-      `- Team Permission Mode: ${team.policy?.permission_mode || "unset"}\n` +
-      `- Team Plan Mode: ${team.policy?.require_plan === true ? "required" : team.policy?.require_plan === false ? "optional" : "unset"}\n` +
-      `- Members: ${team.members.length}\n` +
-      team.members
-        .map(
-          (m) =>
-            `  - ${m.name} (${m.role})${m.task_id ? ` → ${m.task_id}` : ""}`,
-        )
-        .join("\n"),
+    `- Project: ${team.project || "unset"}\n` +
+    `- Execution Path: ${team.execution_path}\n` +
+    `- Overhead Mode: ${team.low_overhead_mode}\n` +
+    `- Team Permission Mode: ${team.policy?.permission_mode || "unset"}\n` +
+    `- Team Plan Mode: ${team.policy?.require_plan === true ? "required" : team.policy?.require_plan === false ? "optional" : "unset"}\n` +
+    `- Members: ${team.members.length}\n` +
+    team.members
+      .map(
+        (m) =>
+          `  - ${m.name} (${m.role})${m.task_id ? ` → ${m.task_id}` : ""}`,
+      )
+      .join("\n"),
   );
 }
 
@@ -451,10 +462,10 @@ async function _handleCreateTeamAtomic(args) {
 
       return text(
         `Atomic team creation FAILED and was rolled back.\n` +
-          `- Team config removed: ${resolvedTeamName}\n` +
-          `- Workers killed: ${spawnedTaskIds.length}\n` +
-          `- Failed worker: ${w.name || `worker-${i + 1}`} (index ${i})\n` +
-          `- Error: ${resultText}`,
+        `- Team config removed: ${resolvedTeamName}\n` +
+        `- Workers killed: ${spawnedTaskIds.length}\n` +
+        `- Failed worker: ${w.name || `worker-${i + 1}`} (index ${i})\n` +
+        `- Error: ${resultText}`,
       );
     }
 
@@ -470,10 +481,10 @@ async function _handleCreateTeamAtomic(args) {
   // ── SUCCESS ─────────────────────────────────────────────────────────────
   return text(
     `${teamText}\n\n` +
-      `### Atomically Spawned Workers (${workerResults.length})\n` +
-      workerResults
-        .map((r, idx) => `#### Worker ${idx + 1}: ${r.name}\n${r.text}`)
-        .join("\n\n"),
+    `### Atomically Spawned Workers (${workerResults.length})\n` +
+    workerResults
+      .map((r, idx) => `#### Worker ${idx + 1}: ${r.name}\n${r.text}`)
+      .join("\n\n"),
   );
 }
 
@@ -491,8 +502,8 @@ export function handleUpdateTeamPolicy(args) {
 
   const incomingPolicy =
     args.policy &&
-    typeof args.policy === "object" &&
-    !Array.isArray(args.policy)
+      typeof args.policy === "object" &&
+      !Array.isArray(args.policy)
       ? { ...args.policy }
       : {};
   if (
@@ -515,10 +526,10 @@ export function handleUpdateTeamPolicy(args) {
   const updatedKeys = Object.keys(normalized).sort();
   return text(
     `Team policy updated: **${teamName}**\n` +
-      `- Updated keys: ${updatedKeys.join(", ")}\n` +
-      (team.policy?.interrupt_weights
-        ? `- Interrupt weights: ${JSON.stringify(team.policy.interrupt_weights)}\n`
-        : ""),
+    `- Updated keys: ${updatedKeys.join(", ")}\n` +
+    (team.policy?.interrupt_weights
+      ? `- Interrupt weights: ${JSON.stringify(team.policy.interrupt_weights)}\n`
+      : ""),
   );
 }
 
@@ -649,7 +660,7 @@ export function handleDeleteTeam(args) {
       const names = activeMates.map((m) => m.name).join(", ");
       return text(
         `Cannot delete team **${teamName}** — ${activeMates.length} active teammate(s): ${names}\n` +
-          `Use force: true to delete anyway.`,
+        `Use force: true to delete anyway.`,
       );
     }
   }
@@ -673,10 +684,10 @@ export function handleDeleteTeam(args) {
         try {
           unlinkSync(join(tasksDir, f));
           tasksRemoved++;
-        } catch {}
+        } catch { }
       }
     }
-  } catch {}
+  } catch { }
 
   let metasRemoved = 0;
   try {
@@ -689,15 +700,15 @@ export function handleDeleteTeam(args) {
         try {
           unlinkSync(join(cfg().RESULTS_DIR, f));
           metasRemoved++;
-        } catch {}
+        } catch { }
       }
     }
-  } catch {}
+  } catch { }
 
   return text(
     `Team **${teamName}** deleted.\n` +
-      `- Members removed: ${memberCount}\n` +
-      `- Tasks cleaned: ${tasksRemoved}\n` +
-      `- Worker meta files cleaned: ${metasRemoved}\n`,
+    `- Members removed: ${memberCount}\n` +
+    `- Tasks cleaned: ${tasksRemoved}\n` +
+    `- Worker meta files cleaned: ${metasRemoved}\n`,
   );
 }

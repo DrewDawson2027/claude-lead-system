@@ -43,7 +43,7 @@ const state = {
   forcePath: "",
   metrics: null,
   focusMode: "all",
-  viewMode: "main", // 'main' | 'approval' | 'teammate'
+  viewMode: "main", // 'main' | 'approval' | 'teammate' | 'split'
   selectedApprovalIdx: 0,
   selectedMemberIdx: 0,
   autoRefreshInterval: 5000,
@@ -207,7 +207,7 @@ function renderHeader() {
     `${C.bold}Lead Sidecar TUI${C.reset}  ${C.dim}focus:${C.cyan}${mode}${C.reset}  ${C.dim}path:${fp}${C.reset}  ${C.dim}view:${state.viewMode}${C.reset}`,
   );
   line(
-    `${C.dim}[F]ocus [P]approvals [j/k]team [[]|[]]action [y]retry [c]coord [v]native [d]dispatch [q]queue [a]assign [r]rebalance [s]sim [Shift+UP/DN]teammate [SPACE]refresh [x]quit${C.reset}`,
+    `${C.dim}[F]ocus [P]approvals [j/k]team [[]|[]]action [y]retry [c]coord [v]native [d]dispatch [q]queue [a]assign [r]rebalance [s]sim [Shift+UP/DN]teammate [Tab]split [SPACE]refresh [x]quit${C.reset}`,
   );
   hr();
 }
@@ -413,32 +413,9 @@ function renderApprovalView() {
 // Primary: tmux capture-pane reads the live visible content of the worker's
 // pane. Fallback: reads the last output from the results JSON file.
 
-function renderTeammateView() {
-  const teammates = state.detail?.teammates || [];
-  const m = teammates[state.selectedMemberIdx];
-  if (!m) {
-    state.viewMode = "main";
-    return render();
-  }
-  clear();
-  const total = teammates.length;
-  const idx = state.selectedMemberIdx;
-  line(
-    `${C.bold}Teammate View${C.reset}  ${C.dim}[${idx + 1}/${total}]  [Shift+UP/DN]cycle  [Esc]back${C.reset}`,
-  );
-  hr();
-  const pc = presenceColor(m.presence);
-  line(
-    `${pc}o${C.reset} ${C.bold}${m.display_name || m.name || "?"}${C.reset}  ${C.dim}role=${m.role || "-"}${C.reset}  ${pc}${m.presence}${C.reset}  ${C.dim}task=${m.current_task_ref || m.worker_task_id || "-"}${C.reset}`,
-  );
-  line(
-    `  ${C.dim}load=${m.load_score ?? "-"}  ready=${m.dispatch_readiness ?? "-"}  session=${m.session_id || "-"}  pane=${m.tmux_pane_id || "-"}${C.reset}`,
-  );
-  hr();
-
-  // Primary: tmux capture-pane with FULL scrollback history (-S -)
-  // Native Claude Code buffers all output in-memory; we replicate this by
-  // capturing the entire tmux scrollback buffer, not just the visible viewport.
+// Shared output capture: tmux scrollback → script transcript → results JSON.
+// Used by both renderTeammateView (full-screen) and renderSplit (right panel).
+function getTeammateOutput(m) {
   let output = null;
   if (m.tmux_pane_id) {
     try {
@@ -451,10 +428,6 @@ function renderTeammateView() {
       output = null;
     }
   }
-
-  // Fallback 1: tail the `script` transcript file (created at interactive spawn)
-  // This works even in non-tmux environments because buildInteractiveWorkerScript
-  // wraps claude in `script -q <transcript>`, capturing all terminal output.
   if (!output) {
     const taskId = m.current_task_ref || m.worker_task_id;
     if (taskId) {
@@ -467,16 +440,13 @@ function renderTeammateView() {
           `${taskId}.transcript`,
         );
         if (existsSync(transcriptPath)) {
-          const raw = readFileSync(transcriptPath, "utf-8");
-          output = raw.slice(-4000);
+          output = readFileSync(transcriptPath, "utf-8").slice(-4000);
         }
       } catch {
         output = null;
       }
     }
   }
-
-  // Fallback 2: results JSON file for pipe-mode workers
   if (!output) {
     const taskId = m.current_task_ref || m.worker_task_id;
     if (taskId) {
@@ -500,8 +470,35 @@ function renderTeammateView() {
       }
     }
   }
+  return output;
+}
 
+function renderTeammateView() {
+  const teammates = state.detail?.teammates || [];
+  const m = teammates[state.selectedMemberIdx];
+  if (!m) {
+    state.viewMode = "main";
+    return render();
+  }
+  clear();
+  const total = teammates.length;
+  const idx = state.selectedMemberIdx;
+  line(
+    `${C.bold}Teammate View${C.reset}  ${C.dim}[${idx + 1}/${total}]  [Shift+UP/DN]cycle  [Esc]back${C.reset}`,
+  );
+  hr();
+  const pc = presenceColor(m.presence);
+  line(
+    `${pc}o${C.reset} ${C.bold}${m.display_name || m.name || "?"}${C.reset}  ${C.dim}role=${m.role || "-"}${C.reset}  ${pc}${m.presence}${C.reset}  ${C.dim}task=${m.current_task_ref || m.worker_task_id || "-"}${C.reset}`,
+  );
+  line(
+    `  ${C.dim}load=${m.load_score ?? "-"}  ready=${m.dispatch_readiness ?? "-"}  session=${m.session_id || "-"}  pane=${m.tmux_pane_id || "-"}${C.reset}`,
+  );
+  hr();
+
+  // Primary: tmux scrollback → script transcript → results JSON (shared via getTeammateOutput)
   // Show output, fitting to terminal height for readability
+  const output = getTeammateOutput(m);
   if (output) {
     const maxLines = Math.max(10, (process.stdout.rows || 40) - 8);
     const lines = output.split("\n");
@@ -516,11 +513,93 @@ function renderTeammateView() {
   line(state.message || `${C.dim}Ready.${C.reset}`);
 }
 
+// ── Split-Pane Layout ──
+// Renders two columns using ANSI cursor absolute positioning.
+// Left panel: team/member list (fixed ~42 cols wide)
+// Right panel: selected teammate's live output (remaining cols)
+
+const SPLIT_LEFT_WIDTH = 42;
+
+function moveTo(row, col) {
+  process.stdout.write(`\x1b[${row};${col}H`);
+}
+
+function renderSplit() {
+  const totalCols = process.stdout.columns || 120;
+  const rows = process.stdout.rows || 40;
+  const rightStart = SPLIT_LEFT_WIDTH + 2;
+  const rightWidth = Math.max(20, totalCols - rightStart);
+
+  readline.cursorTo(process.stdout, 0, 0);
+  readline.clearScreenDown(process.stdout);
+
+  // ── Left panel: member list ──
+  const teammates = state.detail?.teammates || [];
+  let row = 1;
+  moveTo(row++, 1);
+  process.stdout.write(
+    `${C.bold}Workers${C.reset}  ${C.dim}[j/k]select${C.reset}`,
+  );
+  moveTo(row++, 1);
+  process.stdout.write("─".repeat(SPLIT_LEFT_WIDTH));
+  for (let i = 0; i < teammates.length && row < rows - 2; i++) {
+    const m = teammates[i];
+    const sel = i === state.selectedMemberIdx;
+    const pc = presenceColor(m.presence);
+    const name = (m.display_name || m.name || "?").slice(0, 16).padEnd(16);
+    const task = (m.current_task_ref || "-").slice(0, 12).padEnd(12);
+    const prefix = sel ? `${C.cyan}▶${C.reset} ` : "  ";
+    moveTo(row++, 1);
+    process.stdout.write(
+      `${prefix}${pc}●${C.reset} ${name} ${C.dim}${task}${C.reset}`,
+    );
+  }
+
+  // ── Divider ──
+  for (let r = 1; r <= rows - 1; r++) {
+    moveTo(r, SPLIT_LEFT_WIDTH + 1);
+    process.stdout.write(`${C.dim}│${C.reset}`);
+  }
+
+  // ── Right panel: selected worker output ──
+  const m = teammates[state.selectedMemberIdx];
+  let rightRow = 1;
+  if (m) {
+    moveTo(rightRow++, rightStart);
+    process.stdout.write(
+      `${C.bold}${m.display_name || m.name}${C.reset}  ${presenceColor(m.presence)}${m.presence}${C.reset}  ${C.dim}${m.current_task_ref || "idle"}${C.reset}`,
+    );
+    moveTo(rightRow++, rightStart);
+    process.stdout.write("─".repeat(Math.min(rightWidth, 60)));
+
+    const output = getTeammateOutput(m);
+    if (output) {
+      const maxLines = Math.max(5, rows - rightRow - 2);
+      const outputLines = output.split("\n").slice(-maxLines);
+      for (const l of outputLines) {
+        if (rightRow >= rows - 1) break;
+        moveTo(rightRow++, rightStart);
+        process.stdout.write(l.slice(0, rightWidth));
+      }
+    } else {
+      moveTo(rightRow, rightStart);
+      process.stdout.write(`${C.dim}[no output]${C.reset}`);
+    }
+  }
+
+  // ── Status bar ──
+  moveTo(rows, 1);
+  process.stdout.write(
+    `${C.dim}[j/k]select  [SPACE]refresh  [Tab]main view  [x]quit  ${state.message || ""}${C.reset}`,
+  );
+}
+
 // ── Main Render ──
 
 function render() {
   if (state.viewMode === "approval") return renderApprovalView();
   if (state.viewMode === "teammate") return renderTeammateView();
+  if (state.viewMode === "split") return renderSplit();
   clear();
   renderHeader();
   renderNative();
@@ -733,7 +812,7 @@ async function batchTriage(op) {
 function startTeammateAutoRefresh() {
   if (state.teammateRefreshTimer) clearInterval(state.teammateRefreshTimer);
   state.teammateRefreshTimer = setInterval(() => {
-    if (state.viewMode === "teammate") {
+    if (state.viewMode === "teammate" || state.viewMode === "split") {
       render();
     } else {
       clearInterval(state.teammateRefreshTimer);
@@ -764,6 +843,13 @@ async function main() {
     process.exit(1);
   });
   startAutoRefresh();
+
+  // Auto-enable split pane if terminal is wide enough
+  if ((process.stdout.columns || 0) >= 100) {
+    state.viewMode = "split";
+    startTeammateAutoRefresh();
+    render();
+  }
 
   readline.emitKeypressEvents(process.stdin);
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
@@ -817,12 +903,30 @@ async function main() {
       return;
     }
 
-    // Escape -- exit teammate view back to main
-    if (key.name === "escape" && state.viewMode === "teammate") {
+    // Escape -- exit teammate or split view back to main
+    if (
+      key.name === "escape" &&
+      (state.viewMode === "teammate" || state.viewMode === "split")
+    ) {
       state.viewMode = "main";
       if (state.teammateRefreshTimer) {
         clearInterval(state.teammateRefreshTimer);
         state.teammateRefreshTimer = null;
+      }
+      return render();
+    }
+
+    // Tab -- toggle split pane on/off
+    if (key.name === "tab") {
+      if (state.viewMode === "split") {
+        state.viewMode = "main";
+        if (state.teammateRefreshTimer) {
+          clearInterval(state.teammateRefreshTimer);
+          state.teammateRefreshTimer = null;
+        }
+      } else if (state.viewMode === "main") {
+        state.viewMode = "split";
+        startTeammateAutoRefresh();
       }
       return render();
     }
@@ -851,6 +955,14 @@ async function main() {
 
     // Main view keys
     if (key.name === "j") {
+      if (state.viewMode === "split") {
+        const teammates = state.detail?.teammates || [];
+        state.selectedMemberIdx = Math.min(
+          state.selectedMemberIdx + 1,
+          Math.max(0, teammates.length - 1),
+        );
+        return render();
+      }
       state.selectedTeamIdx = Math.min(
         state.selectedTeamIdx + 1,
         Math.max(0, state.teams.length - 1),
@@ -858,6 +970,10 @@ async function main() {
       return refresh().catch(() => {});
     }
     if (key.name === "k") {
+      if (state.viewMode === "split") {
+        state.selectedMemberIdx = Math.max(0, state.selectedMemberIdx - 1);
+        return render();
+      }
       state.selectedTeamIdx = Math.max(0, state.selectedTeamIdx - 1);
       return refresh().catch(() => {});
     }

@@ -90,7 +90,6 @@ test("colors cycle through palette for multiple members", async () => {
       "red",
       "yellow",
       "cyan",
-      "magenta",
       "white",
     ];
     api.handleToolCall("coord_create_team", {
@@ -116,17 +115,39 @@ test("colors cycle through palette for multiple members", async () => {
   }
 });
 
-test("9th member wraps back to first palette color", async () => {
+test("explicit member color is stored in the team roster", async () => {
   const { home, terminals } = setupHome();
   const { api, restore } = await loadForTest(home);
   try {
     api.ensureDirsOnce();
-    const nineMembers = Array.from({ length: 9 }, (_, i) => ({
+    api.handleToolCall("coord_create_team", {
+      team_name: "explicit_color",
+      members: [{ name: "violet", color: "purple" }],
+    });
+
+    const teamFile = join(terminals, "teams", "explicit_color.json");
+    const team = JSON.parse(
+      await import("node:fs").then(({ readFileSync }) =>
+        readFileSync(teamFile, "utf8"),
+      ),
+    );
+    assert.strictEqual(team.members[0].color, "purple");
+  } finally {
+    restore();
+  }
+});
+
+test("8th member wraps back to first palette color", async () => {
+  const { home, terminals } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const eightMembers = Array.from({ length: 8 }, (_, i) => ({
       name: `w${i}`,
     }));
     api.handleToolCall("coord_create_team", {
       team_name: "wrap_test",
-      members: nineMembers,
+      members: eightMembers,
     });
 
     const teamFile = join(terminals, "teams", "wrap_test.json");
@@ -135,8 +156,8 @@ test("9th member wraps back to first palette color", async () => {
         readFileSync(teamFile, "utf8"),
       ),
     );
-    // index 8 (9th member) should wrap to palette[0] = "purple"
-    assert.strictEqual(team.members[8].color, "purple");
+    // index 7 (8th member) should wrap to palette[0] = "purple"
+    assert.strictEqual(team.members[7].color, "purple");
   } finally {
     restore();
   }
@@ -223,35 +244,28 @@ test("coord_list_sessions Member column shows colored name for team worker", asy
   try {
     api.ensureDirsOnce();
 
-    // Create a team with alice assigned to a known session
     const sessionId = "ab12cd34";
-    const teamFile = join(terminals, "teams", "session_color_team.json");
-    writeFileSync(
-      teamFile,
-      JSON.stringify({
-        name: "session_color_team",
-        project: "test",
-        execution_path: "coordinator",
-        low_overhead_mode: "advanced",
-        members: [
-          {
-            name: "alice",
-            role: "worker",
-            session_id: sessionId,
-            task_id: null,
-            agentId: null,
-            color: "blue",
-            joined: new Date().toISOString(),
-            updated: new Date().toISOString(),
-          },
-        ],
-        policy: {},
-        created: new Date().toISOString(),
-        updated: new Date().toISOString(),
-      }),
-    );
+    api.handleToolCall("coord_create_team", {
+      team_name: "session_color_team",
+      project: "test",
+      members: [
+        {
+          name: "alice",
+          role: "worker",
+          session_id: sessionId,
+          color: "blue",
+        },
+      ],
+    });
 
-    // Write a session file for that session ID
+    const teamFile = join(terminals, "teams", "session_color_team.json");
+    const team = JSON.parse(
+      await import("node:fs").then(({ readFileSync }) =>
+        readFileSync(teamFile, "utf8"),
+      ),
+    );
+    assert.strictEqual(team.members[0].color, "blue");
+
     writeFileSync(
       join(terminals, `session-${sessionId}.json`),
       JSON.stringify({

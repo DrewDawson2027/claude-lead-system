@@ -71,8 +71,8 @@ export function handleTeamDispatch(args) {
       blocked_by: args.blocked_by || [],
       metadata: {
         ...(args.metadata &&
-        typeof args.metadata === "object" &&
-        !Array.isArray(args.metadata)
+          typeof args.metadata === "object" &&
+          !Array.isArray(args.metadata)
           ? args.metadata
           : {}),
         dispatch: {
@@ -102,6 +102,7 @@ export function handleTeamDispatch(args) {
     mode: args.mode,
     runtime: args.runtime,
     notify_session_id: args.notify_session_id,
+    parent_session_id: args.parent_session_id,
     files: args.files || [],
     layout: args.layout,
     isolate: args.isolate,
@@ -158,13 +159,13 @@ export function handleTeamDispatch(args) {
 
   return text(
     `## Team Dispatch (${team_name})\n\n` +
-      `- Subject: ${subject}\n` +
-      `- Team Task: ${createTask ? taskId : "skipped"}\n` +
-      `- Worker Task: ${workerTaskId}\n` +
-      `- Assignee: ${assignee || "auto:none"}\n` +
-      `- Worker Name: ${workerName || "none"}\n` +
-      `- Status: ${spawned ? "dispatched" : "worker spawn failed"}\n\n` +
-      (createTaskRes ? `### Task\n${contentText(createTaskRes)}\n\n` : "") +
-      `### Worker\n${spawnTxt}`,
+    `- Subject: ${subject}\n` +
+    `- Team Task: ${createTask ? taskId : "skipped"}\n` +
+    `- Worker Task: ${workerTaskId}\n` +
+    `- Assignee: ${assignee || "auto:none"}\n` +
+    `- Worker Name: ${workerName || "none"}\n` +
+    `- Status: ${spawned ? "dispatched" : "worker spawn failed"}\n\n` +
+    (createTaskRes ? `### Task\n${contentText(createTaskRes)}\n\n` : "") +
+    `### Worker\n${spawnTxt}`,
   );
 }

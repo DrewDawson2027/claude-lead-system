@@ -65,10 +65,10 @@ function queueNativeAction(action) {
       try {
         const mtime = statSync(join(actionsDir, f)).mtimeMs;
         if (now - mtime > TTL_MS) unlinkSync(join(actionsDir, f));
-      } catch {}
+      } catch { }
     }
     files = readdirSync(actionsDir).filter((f) => f.endsWith(".json"));
-  } catch {}
+  } catch { }
 
   if (files.length >= MAX_QUEUE_DEPTH) {
     process.stderr.write(
@@ -115,14 +115,14 @@ export function handleCheckInbox(args) {
   if (messages.length === 0) {
     try {
       if (existsSync(drainFile)) unlinkSync(drainFile);
-    } catch {}
+    } catch { }
     if (!existsSync(inboxFile)) writeFileSecure(inboxFile, "");
     return text("No pending messages.");
   }
 
   try {
     if (existsSync(drainFile)) unlinkSync(drainFile);
-  } catch {}
+  } catch { }
   if (!existsSync(inboxFile)) writeFileSecure(inboxFile, "");
   const sessionFile = join(TERMINALS_DIR, `session-${sid}.json`);
   if (existsSync(sessionFile)) {
@@ -132,7 +132,7 @@ export function handleCheckInbox(args) {
         s.has_messages = false;
         writeFileSecure(sessionFile, JSON.stringify(s, null, 2));
       }
-    } catch {}
+    } catch { }
   }
 
   let output = `## ${messages.length} Message(s)\n\n`;
@@ -168,15 +168,17 @@ export function resolveWorkerName(targetName) {
     );
     for (const f of files) {
       const meta = readJSON(join(RESULTS_DIR, f));
-      if (meta?.worker_name === targetName && meta.notify_session_id) {
+      if (meta?.worker_name === targetName) {
+        const metaSessionId = meta.session_id || meta.claude_session_id || null;
+        if (typeof metaSessionId === "string" && metaSessionId.length >= 8) {
+          return sanitizeShortSessionId(metaSessionId);
+        }
         // Find the worker's session by checking its notify relationship
-        const workerSessions = sessions.filter(
-          (s) => s.current_task === meta.task_id,
-        );
+        const workerSessions = sessions.filter((s) => s.current_task === meta.task_id);
         if (workerSessions.length > 0) return workerSessions[0].session;
       }
     }
-  } catch {}
+  } catch { }
   return null;
 }
 
@@ -206,7 +208,7 @@ function resolveTargetPaneId(sessionId, targetName) {
         return meta.tmux_pane_id;
       if (meta.notify_session_id === sessionId) continue; // That's the lead, not the worker
     }
-  } catch {}
+  } catch { }
   // Also check session files for tmux_pane_id
   const sessions = getAllSessions();
   for (const s of sessions) {
@@ -242,7 +244,7 @@ function checkRecipientExists(to) {
         return { exists: true, status: meta.status || null };
       }
     }
-  } catch {}
+  } catch { }
   return { exists: false, status: null };
 }
 
@@ -267,7 +269,7 @@ function listAvailableSessions() {
       if (meta.notify_session_id) names.add(meta.notify_session_id);
       if (meta.worker_name) names.add(meta.worker_name);
     }
-  } catch {}
+  } catch { }
   if (names.size === 0) return "(none)";
   return [...names].join(", ");
 }
@@ -338,7 +340,7 @@ export function handleSendMessage(args) {
         sessionStatus = s.status || "unknown";
         lastActive = s.last_active || null;
       }
-    } catch {}
+    } catch { }
   }
 
   // Tmux push delivery: inject message into target's tmux pane (Gap 1)
@@ -393,12 +395,12 @@ export function handleSendMessage(args) {
 
   return text(
     `Message sent to ${to}\n- From: ${from}\n- Priority: ${priority}\n- Content: "${content.slice(0, 200)}"` +
-      (summary ? `\n- Summary: "${summary}"` : "") +
-      (tmuxPushed ? `\n- Tmux push: delivered to pane.` : "") +
-      (nativePush ? `\n- Native push: queued for delivery.` : "") +
-      wakeStatus +
-      exitedWarning +
-      `\n- 0 API tokens used.`,
+    (summary ? `\n- Summary: "${summary}"` : "") +
+    (tmuxPushed ? `\n- Tmux push: delivered to pane.` : "") +
+    (nativePush ? `\n- Native push: queued for delivery.` : "") +
+    wakeStatus +
+    exitedWarning +
+    `\n- 0 API tokens used.`,
   );
 }
 
@@ -514,7 +516,7 @@ export function handleSendDirective(args) {
       sessionStatus = s.status || "unknown";
       lastActive = s.last_active || null;
     }
-  } catch {}
+  } catch { }
 
   // Determine if session needs waking
   const lastActiveMs = lastActive
@@ -631,10 +633,10 @@ export function handleSendProtocol(args) {
 
   return text(
     `Protocol message sent to ${to}\n` +
-      `- Type: ${type}\n- Request ID: ${requestId}\n- From: ${from}\n` +
-      `- Content: "${protocolContent.slice(0, 200)}"` +
-      (tmuxPushed ? `\n- Tmux push: delivered to pane.` : "") +
-      `\n- 0 API tokens used.`,
+    `- Type: ${type}\n- Request ID: ${requestId}\n- From: ${from}\n` +
+    `- Content: "${protocolContent.slice(0, 200)}"` +
+    (tmuxPushed ? `\n- Tmux push: delivered to pane.` : "") +
+    `\n- 0 API tokens used.`,
   );
 }
 
@@ -712,6 +714,6 @@ export function handleDrainNativeQueue(_args) {
 
   return text(
     `Native queue drained: ${processed} processed, ${skipped} skipped, ${expired} expired\n` +
-      (results.length ? results.map((r) => `- ${r}`).join("\n") : ""),
+    (results.length ? results.map((r) => `- ${r}`).join("\n") : ""),
   );
 }

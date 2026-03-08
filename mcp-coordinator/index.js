@@ -110,6 +110,7 @@ import {
   buildInteractiveWorkerScript,
   buildCodexWorkerScript,
   buildCodexInteractiveWorkerScript,
+  buildResumeWorkerScript,
 } from "./lib/platform/common.js";
 
 // Legacy cost MCP deprecation metadata (compat helpers for tests and envelope wrappers)
@@ -180,7 +181,7 @@ function applyLegacyDeprecationToOutput(toolName, data) {
         LEGACY_COST_DEPRECATIONS[toolName].canonical_command;
       return JSON.stringify(parsed, null, 2);
     }
-  } catch {}
+  } catch { }
   return `${raw}\n\n[DEPRECATED]\ncanonical_tool=${LEGACY_COST_DEPRECATIONS[toolName].canonical_tool}\ncanonical_command=${LEGACY_COST_DEPRECATIONS[toolName].canonical_command}\n`;
 }
 
@@ -509,6 +510,11 @@ const ALL_TOOLS = [
           description:
             "Lead's conversation context summary. Injected into worker prompt so worker inherits lead's knowledge. Use this to share decisions, requirements, and findings.",
         },
+        parent_session_id: {
+          type: "string",
+          description:
+            "Optional full Claude session UUID for native parent/child session linking when the local Claude CLI supports --parent-session-id.",
+        },
       },
       required: ["directory", "prompt"],
     },
@@ -572,6 +578,7 @@ const ALL_TOOLS = [
               global_budget_tokens: { type: "integer" },
               max_active_workers: { type: "integer" },
               team_name: { type: "string" },
+              parent_session_id: { type: "string" },
             },
             required: ["directory", "prompt"],
           },
@@ -953,6 +960,7 @@ const ALL_TOOLS = [
                 type: "string",
                 description: "Working directory for the worker",
               },
+              parent_session_id: { type: "string" },
             },
             required: ["name", "task"],
           },
@@ -1092,6 +1100,7 @@ const ALL_TOOLS = [
         max_active_workers: { type: "integer" },
         max_turns: { type: "integer" },
         context_summary: { type: "string" },
+        parent_session_id: { type: "string" },
       },
       required: ["team_name", "subject", "prompt", "directory"],
     },
@@ -1137,6 +1146,8 @@ const ALL_TOOLS = [
         },
         acceptance_criteria: { type: "array", items: { type: "string" } },
         metadata: { type: "object" },
+        notify_session_id: { type: "string" },
+        parent_session_id: { type: "string" },
       },
       required: ["team_name", "subject", "prompt"],
     },
@@ -1175,6 +1186,7 @@ const ALL_TOOLS = [
         isolate: { type: "boolean" },
         notify_session_id: { type: "string" },
         context_summary: { type: "string" },
+        parent_session_id: { type: "string" },
       },
       required: ["team_name"],
     },
@@ -1209,6 +1221,7 @@ const ALL_TOOLS = [
         isolate: { type: "boolean" },
         notify_session_id: { type: "string" },
         context_summary: { type: "string" },
+        parent_session_id: { type: "string" },
       },
       required: ["team_name"],
     },
@@ -1248,6 +1261,9 @@ const ALL_TOOLS = [
         runtime: { type: "string", enum: ["claude", "codex"] },
         layout: { type: "string", enum: ["tab", "split", "background"] },
         isolate: { type: "boolean" },
+        notify_session_id: { type: "string" },
+        context_summary: { type: "string" },
+        parent_session_id: { type: "string" },
       },
       required: ["team_name"],
     },
@@ -1916,9 +1932,14 @@ export const __test__ = {
   ensureDirsOnce,
   handleToolCall,
   buildWorkerScript,
+  buildInteractiveWorkerScript,
+  buildCodexWorkerScript,
+  buildCodexInteractiveWorkerScript,
+  buildResumeWorkerScript,
   buildPlatformLaunchCommand,
   isProcessAlive,
   killProcess,
+  isSafeTTYPath,
   sanitizeId,
   sanitizeShortSessionId,
   sanitizeName,
@@ -1929,7 +1950,6 @@ export const __test__ = {
   readJSONLLimited,
   batQuote,
   runGC,
-  isSafeTTYPath,
   selectWakeText,
   applyLegacyDeprecationToOutput,
   LEGACY_COST_DEPRECATIONS,
@@ -1962,9 +1982,6 @@ export const __test__ = {
   handleSendMessage,
   handleBroadcast,
   handleSendDirective,
-  buildInteractiveWorkerScript,
-  buildCodexWorkerScript,
-  buildCodexInteractiveWorkerScript,
   handleResumeWorker,
   handleUpgradeWorker,
   handleSpawnWorkers,
