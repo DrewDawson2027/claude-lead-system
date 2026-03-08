@@ -415,7 +415,7 @@ test('coord_team_dispatch creates team task, spawns worker, and links live team 
     const teamTxt = contentText(team);
     assert.match(teamTxt, /### Team Tasks/i);
     assert.match(teamTxt, /T_DISPATCH \| in_progress \| alice/i);
-    assert.match(teamTxt, /\*\*alice\*\*.*\| task: W_DISPATCH/i);
+    assert.match(teamTxt, /alice.*\| task: W_DISPATCH/i);
   } finally {
     restore();
   }

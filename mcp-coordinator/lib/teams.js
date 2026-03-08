@@ -14,6 +14,40 @@ import {
   ensureSecureDirectory,
 } from "./security.js";
 import { readJSON, text } from "./helpers.js";
+
+/** Ordered palette matching native Agent Teams colors. */
+const AGENT_COLORS = [
+  "purple",
+  "blue",
+  "green",
+  "red",
+  "yellow",
+  "cyan",
+  "magenta",
+  "white",
+];
+const ANSI = {
+  purple: "\x1b[35m",
+  blue: "\x1b[34m",
+  green: "\x1b[32m",
+  red: "\x1b[31m",
+  yellow: "\x1b[33m",
+  cyan: "\x1b[36m",
+  magenta: "\x1b[95m",
+  white: "\x1b[37m",
+  reset: "\x1b[0m",
+};
+/**
+ * Wrap a name in its ANSI color code for terminal display.
+ * Falls back to plain name if color is unknown or absent.
+ * @param {string} name
+ * @param {string|undefined} color
+ * @returns {string}
+ */
+export function colorName(name, color) {
+  return color && ANSI[color] ? `${ANSI[color]}${name}${ANSI.reset}` : name;
+}
+
 // handleSpawnWorker is imported lazily inside handleCreateTeam to avoid
 // circular-dependency issues (workers.js imports teams.js).
 // We use a dynamic import shim stored here so tests can override it.
@@ -290,12 +324,17 @@ function _handleCreateTeamSync(args) {
         : undefined;
 
       const agentId = m.agentId || null;
+      const color =
+        typeof m === "object" && m.color
+          ? String(m.color)
+          : AGENT_COLORS[team.members.length % AGENT_COLORS.length];
 
       const idx = team.members.findIndex((x) => x.name === name);
       if (idx >= 0) {
         // Update existing member
         if (hasRole && role) team.members[idx].role = role;
         if (session_id) team.members[idx].session_id = session_id;
+        if (!team.members[idx].color) team.members[idx].color = color;
         if (hasTaskId) team.members[idx].task_id = task_id;
         if (agentId) team.members[idx].agentId = agentId;
         team.members[idx].updated = new Date().toISOString();
@@ -306,6 +345,7 @@ function _handleCreateTeamSync(args) {
           session_id,
           task_id: task_id ?? null,
           agentId,
+          color,
           joined: new Date().toISOString(),
           updated: new Date().toISOString(),
         });
@@ -511,7 +551,7 @@ export function handleGetTeam(args) {
   output += `\n### Members (${team.members.length})\n`;
   for (const m of team.members) {
     const session = readSessionById(m.session_id);
-    output += `- **${m.name}** — ${m.role}`;
+    output += `- **${colorName(m.name, m.color)}** — ${m.role}`;
     if (m.session_id) output += ` | session: ${m.session_id}`;
     if (m.task_id) output += ` | task: ${m.task_id}`;
     if (session) {
