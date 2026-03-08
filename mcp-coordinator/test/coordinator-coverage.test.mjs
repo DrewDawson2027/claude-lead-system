@@ -610,6 +610,7 @@ test('handleCreateTeam with preset "simple" applies correct defaults', async () 
     assert.equal(team.policy.permission_mode, 'acceptEdits');
     assert.equal(team.policy.require_plan, false);
     assert.equal(team.policy.budget_policy, 'warn');
+    assert.equal(team.policy.default_context_level, 'standard');
   } finally {
     restore();
   }

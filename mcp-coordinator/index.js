@@ -460,7 +460,7 @@ const ALL_TOOLS = [
           type: "string",
           enum: ["minimal", "standard", "full"],
           description:
-            "How much prior context to include: minimal (3KB), standard (10KB + lead files), full (30KB + plan + lead context). Default: minimal",
+            "How much prior context to include: minimal (3KB), standard (10KB + lead files), full (30KB + plan + lead context). Default: standard",
         },
         budget_policy: {
           type: "string",
