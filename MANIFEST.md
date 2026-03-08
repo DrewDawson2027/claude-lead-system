@@ -107,3 +107,15 @@ Team members store an `agentId` field. When re-dispatching to a member with an e
 2. Wire into `settings.json` or `settings.local.json` hooks config
 3. Add tests to `tests/test_functional_hooks.py`
 4. Update this MANIFEST.md hook table
+
+---
+
+## Development Hooks
+
+Git hooks that enforce code quality locally before commits reach CI.
+
+| Hook         | File                    | Trigger      | Purpose                                                                                                                                                        |
+| ------------ | ----------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pre-commit` | `.git/hooks/pre-commit` | `git commit` | Runs `node --check` on all staged `.js` and `.mjs` files. Blocks the commit if any file has a syntax error and prints the offending file path + Node.js error. |
+
+**Note:** Git hooks are not tracked by version control (`.git/` is excluded from commits). To install the pre-commit hook on a fresh clone, copy `.git/hooks/pre-commit` from an existing clone or add a `scripts/install-hooks.sh` script.
