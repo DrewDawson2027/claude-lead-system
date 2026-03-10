@@ -62,7 +62,7 @@ Base URL: `http://127.0.0.1:<port>` (default 9900, configurable via `--port`)
 | Method | Path | Body | Description |
 |--------|------|------|-------------|
 | GET | `/teams/:name/tasks/:id/audit` | — | Task audit trail |
-| POST | `/teams/:name/tasks/:id/reassign` | `{ new_assignee, feedback? }` | Reassign in-progress task |
+| POST | `/teams/:name/tasks/:id/reassign` | `{ new_assignee, reason?, progress_context? }` | Reassign in-progress task |
 | POST | `/teams/:name/tasks/:id/gate-check` | — | Check quality gates |
 
 ## Task Templates
@@ -82,7 +82,7 @@ Base URL: `http://127.0.0.1:<port>` (default 9900, configurable via `--port`)
 
 | Method | Path | Body | Description |
 |--------|------|------|-------------|
-| POST | `/dispatch` | `{ team_name, action, payload, route_mode? }` | Dispatch action |
+| POST | `/dispatch` | `{ team_name, subject?, prompt?, directory?, priority?, role?, files?, blocked_by?, metadata?, force_path? }` | Dispatch action |
 
 ## Native Bridge
 

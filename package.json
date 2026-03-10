@@ -20,6 +20,6 @@
     "ci:local": "npm run lint:shell && npm run lint:python && npm run lint:coordinator && npm --workspace mcp-coordinator run test:coverage && npm run docs:audit && npm run typecheck:sidecar && npm run test:sidecar && npm run verify:hooks",
     "audit:endpoints": "node scripts/audit-sidecar-endpoints.mjs --json > /tmp/sidecar-endpoints-audit.json && echo endpoint-audit ok",
     "audit:coverage-claim": "node scripts/check-coverage-claim.mjs",
-    "docs:audit": "npm run audit:endpoints && npm run audit:coverage-claim"
+    "docs:audit": "node scripts/policy/check-api-contract-sync.mjs && npm run audit:endpoints && npm run audit:coverage-claim"
   }
 }
