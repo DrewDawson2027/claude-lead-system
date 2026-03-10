@@ -8,8 +8,8 @@ Living checklist tracking adherence to "top tier" open source engineering standa
 | -------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------- |
 | All public mutations validated server-side               | Done   | `BODY_ALLOWLISTS` in `sidecar/server/http/validation.ts`                            |
 | Consistent error envelopes                               | Done   | All routes use `sendError()` with `{ error_code, message, request_id }`             |
-| No claim-doc drift (automated)                           | Done   | `scripts/check-claim-drift.sh` in CI (`claim-drift` job)                            |
-| No TODO/HACK in critical runtime paths without issue IDs | Done   | `grep -r 'TODO\|HACK\|FIXME' hooks/ mcp-coordinator/lib/ sidecar/server/` returns 0 |
+| Claim-doc drift checks automated for governed claims     | Done   | `scripts/check-claim-drift.sh` in CI (`claim-drift` job) and local verification     |
+| TODO/HACK/FIXME markers absent in coordinator/sidecar runtime code | Done   | `rg -n "TODO|HACK|FIXME" mcp-coordinator/lib sidecar/server` returns no matches; `hooks/teammate-idle.py` intentionally contains TODO/FIXME scanner patterns |
 | High-risk code paths have direct tests                   | Done   | `auth-matrix.test.mjs`, `security-hardening.test.mjs`, `resilience-http.test.mjs`   |
 
 ## Security
@@ -27,7 +27,9 @@ Living checklist tracking adherence to "top tier" open source engineering standa
 
 | Standard                                  | Status | Evidence                                                             |
 | ----------------------------------------- | ------ | -------------------------------------------------------------------- |
-| End-to-end local gate reproducible        | Done   | `npm run ci:local`                                                   |
+| Core local gate reproducible              | Done   | `npm run ci:local`                                                   |
+| Fresh-checkout certification reproducible | Done   | `npm run cert:a-plus:fresh` (9-command cert runner with live metrics) |
+| Installed runtime health audited          | Done   | `bash ~/.claude/hooks/health-check.sh` (installed/blessed-path runtime only) |
 | Hook tests and regressions pass           | Done   | `tests/hooks-smoke.sh`, `tests/test-hooks.sh`, pytest in CI          |
 | Crash/restart/repair tested               | Done   | `repair.test.mjs`, `checkpoint.test.mjs`, `resilience-http.test.mjs` |
 | Limits and quotas documented and enforced | Done   | `docs/OPERATIONAL_SLOS.md`, rate limiter, body size caps             |
@@ -47,15 +49,21 @@ Living checklist tracking adherence to "top tier" open source engineering standa
 | Standard                                 | Status | Evidence                                                  |
 | ---------------------------------------- | ------ | --------------------------------------------------------- |
 | Benchmark methodology documented         | Done   | `docs/BENCH_METHODOLOGY.md`                               |
-| Claims linked to evidence                | Done   | `docs/CLAIM_PROVENANCE.md` (15 claims mapped)             |
+| Claims linked to evidence                | Done   | `docs/CLAIM_PROVENANCE.md` verification table             |
 | Demo assets current with release version | Done   | `scripts/check-demo-assets.sh` in CI                      |
 | Coverage claim auto-audited              | Done   | `scripts/check-coverage-claim.mjs` in CI (`coverage` job) |
 
 ## How to Verify
 
 ```bash
+# Fresh-checkout certification (process-level A+ command set)
+npm run cert:a-plus:fresh
+
+# Installed runtime health check (blessed-path scope, not raw checkout)
+bash ~/.claude/hooks/health-check.sh
+
 # Run all checks locally
-npm run ci:local                              # Full local CI gate
+npm run ci:local                              # Local composite gate (lint/test/docs audits)
 bash scripts/check-claim-drift.sh             # Claim-doc drift
 bash scripts/check-demo-assets.sh             # Demo asset freshness
 cd sidecar && npx tsx --test test/*.test.mjs  # Sidecar tests
