@@ -36,25 +36,26 @@ function assert(condition, msg) {
 /* ── Scenario 1: Happy Path ──────────────────────────────────────── */
 async function happyPath() {
   // Health check
-  const health = await api('GET', '/health.json');
+  const health = await api('GET', '/health');
   assert(health.ok, 'Health endpoint should be OK');
 
-  // Trigger snapshot rebuild
-  const rebuild = await api('POST', '/rebuild', { source: 'demo' });
-
-  // Get snapshot
-  const snap = await api('GET', '/snapshot.json');
-  assert(snap.ok, 'Snapshot should be accessible');
+  // Get teams (main sidecar state)
+  const teams = await api('GET', '/teams');
+  assert(teams.ok, 'Teams endpoint should be accessible');
 
   // Get metrics
   const metrics = await api('GET', '/metrics.json');
   assert(metrics.ok, 'Metrics should be accessible');
 
+  // Trigger maintenance sweep (replaces deprecated /rebuild)
+  const sweep = await api('POST', '/maintenance/run', {});
+  assert(sweep.ok, 'Maintenance sweep should succeed');
+
   // Export diagnostics
   const diag = await api('POST', '/diagnostics/export', { label: 'demo-happy-path' });
   assert(diag.ok, 'Diagnostics export should succeed');
 
-  return { health: health.data, has_snapshot: !!snap.data, diagnostics_file: diag.data?.file };
+  return { health: health.data, team_count: (teams.data?.teams || []).length, diagnostics_file: diag.data?.file };
 }
 
 /* ── Scenario 2: Metrics History ─────────────────────────────────── */
@@ -86,7 +87,7 @@ async function comparisonReport() {
 /* ── Scenario 4: Dispatch Routing ────────────────────────────────── */
 async function dispatchRouting() {
   // Route simulation
-  const sim = await api('POST', '/route/simulate', { action: 'coord_list_tasks', payload: {} });
+  const sim = await api('POST', '/route/simulate', { team_name: 'demo', action: 'coord_list_tasks', payload: {} });
   assert(sim.ok, 'Route simulation should succeed');
 
   return { simulation: sim.data };
