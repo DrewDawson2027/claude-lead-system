@@ -61,7 +61,7 @@ test("handleCostComparison returns full cost table with no workers or sessions",
 test("handleCostComparison includes sonnet worker from meta file", async () => {
   const { home, results } = setupHome();
   writeFileSync(
-    join(results, "meta-W99.json"),
+    join(results, "W99.meta.json"),
     JSON.stringify({
       worker_id: "W99",
       model: "sonnet",
@@ -84,7 +84,7 @@ test("handleCostComparison includes sonnet worker from meta file", async () => {
 test("handleCostComparison handles opus model worker with higher pricing", async () => {
   const { home, results } = setupHome();
   writeFileSync(
-    join(results, "meta-OPUS1.json"),
+    join(results, "OPUS1.meta.json"),
     JSON.stringify({
       worker_id: "OPUS1",
       model: "opus",
@@ -107,7 +107,7 @@ test("handleCostComparison handles opus model worker with higher pricing", async
 test("handleCostComparison handles haiku model worker", async () => {
   const { home, results } = setupHome();
   writeFileSync(
-    join(results, "meta-HAI1.json"),
+    join(results, "HAI1.meta.json"),
     JSON.stringify({ worker_id: "HAI1", model: "haiku", tokens: 30000 }),
   );
   const { api, restore } = await loadForTest(home);
@@ -146,7 +146,7 @@ test("handleCostComparison only counts open (non-closed) sessions", async () => 
 test("handleCostComparison uses default 80K tokens when meta has no token field", async () => {
   const { home, results } = setupHome();
   writeFileSync(
-    join(results, "meta-NOTOKENS.json"),
+    join(results, "NOTOKENS.meta.json"),
     JSON.stringify({ worker_id: "NOTOKENS", model: "sonnet" }),
   );
   const { api, restore } = await loadForTest(home);
