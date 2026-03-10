@@ -28,7 +28,12 @@ import sys
 import time
 from typing import Dict, List
 
-from guard_normalize import normalize_file_path, normalize_session_key, short_hash
+from guard_normalize import (
+    normalize_file_path,
+    normalize_session_key,
+    short_hash,
+    is_invalid_session_key,
+)
 
 # Shared infrastructure — locking, state, atomic writes
 from hook_utils import lock, unlock, load_json_state, save_json_state
@@ -46,6 +51,7 @@ SEQUENTIAL_WINDOW = (
     120  # Seconds window for sequential detection (raised: 90s too tight for analysis)
 )
 READ_TTL = 300  # Prune read records older than 5 minutes
+
 
 def default_read_state() -> Dict:
     """Return the default empty state for read tracking."""
@@ -73,6 +79,12 @@ def main():
     tool_name = input_data.get("tool_name", "")
     tool_input = input_data.get("tool_input", {})
     session_id = input_data.get("session_id", "unknown")
+    if is_invalid_session_key(session_id):
+        print(
+            "BLOCKED: Invalid session_id in read-efficiency-guard payload.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     if tool_name != "Read":
         sys.exit(0)

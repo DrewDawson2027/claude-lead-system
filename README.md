@@ -79,21 +79,21 @@ Lead System (2 workers, 1 lead):
 
 ## Features Agent Teams Doesn't Have
 
-| Feature | Agent Teams | Lead System |
-|---------|-------------|-------------|
-| Pre-edit conflict detection | No | Warns before two sessions edit the same file |
-| Session observability | Idle notifications only | Tool counts, files touched, recent ops — per session |
-| Native terminal tabs | Background-only agents | iTerm2 splits, gnome-terminal tabs, Windows Terminal panes |
-| Sequential pipelines | Manual chaining | `coord_run_pipeline` with per-step status tracking |
-| Activity log | None | Append-only `activity.jsonl` across all sessions |
-| Worker lifecycle | Spawn + wait | PID track, kill, resume, upgrade between modes |
-| Token enforcement | None | 7-rule mechanical enforcement via PreToolUse hooks |
-| Budget-aware gating | None | Per-worker and global budget policies (off/warn/enforce) |
-| Plan-first mode | None | Workers require approval before making edits |
-| Git worktree isolation | None | Workers get isolated branches automatically |
-| Cross-platform terminal spawning | None | macOS + Linux + Windows native terminal integration |
-| Context sharing | In-context messages | `coord_write_context` / `coord_read_context` between sessions |
-| Worker runtimes | Claude only | Claude + OpenAI Codex |
+| Feature                          | Agent Teams             | Lead System                                                   |
+| -------------------------------- | ----------------------- | ------------------------------------------------------------- |
+| Pre-edit conflict detection      | No                      | Warns before two sessions edit the same file                  |
+| Session observability            | Idle notifications only | Tool counts, files touched, recent ops — per session          |
+| Native terminal tabs             | Background-only agents  | iTerm2 splits, gnome-terminal tabs, Windows Terminal panes    |
+| Sequential pipelines             | Manual chaining         | `coord_run_pipeline` with per-step status tracking            |
+| Activity log                     | None                    | Append-only `activity.jsonl` across all sessions              |
+| Worker lifecycle                 | Spawn + wait            | PID track, kill, resume, upgrade between modes                |
+| Token enforcement                | None                    | 7-rule mechanical enforcement via PreToolUse hooks            |
+| Budget-aware gating              | None                    | Per-worker and global budget policies (off/warn/enforce)      |
+| Plan-first mode                  | None                    | Workers require approval before making edits                  |
+| Git worktree isolation           | None                    | Workers get isolated branches automatically                   |
+| Cross-platform terminal spawning | None                    | macOS + Linux + Windows native terminal integration           |
+| Context sharing                  | In-context messages     | `coord_write_context` / `coord_read_context` between sessions |
+| Worker runtimes                  | Claude only             | Claude + OpenAI Codex                                         |
 
 ---
 
@@ -101,15 +101,15 @@ Lead System (2 workers, 1 lead):
 
 Everything Agent Teams can do, the Lead System can do too — often better.
 
-| Agent Teams | Lead System | Verdict |
-|-------------|-------------|---------|
-| `TeamCreate` | `coord_create_team` | **Better** — team presets (simple/strict/native-first), policy engine |
-| `TeamStatus` | `coord_get_team`, `coord_team_status_compact` | **Better** — richer data, presence scoring |
-| `SendMessage` | `coord_send_message`, `coord_send_directive` | **Equal** — plus auto-wake and name resolution |
-| `TaskCreate` | `coord_create_task` | **Better** — dependencies, priority, metadata, audit trail |
-| `TaskList` | `coord_list_tasks` | **Better** — filtering, dependency status |
-| `TaskUpdate` | `coord_update_task` | **Better** — metadata merge, handoff snapshots, audit trail |
-| `Task` (spawn) | `coord_spawn_worker` | **Better** — role presets, budget gating, worktree isolation |
+| Agent Teams    | Lead System                                   | Verdict                                                               |
+| -------------- | --------------------------------------------- | --------------------------------------------------------------------- |
+| `TeamCreate`   | `coord_create_team`                           | **Better** — team presets (simple/strict/native-first), policy engine |
+| `TeamStatus`   | `coord_get_team`, `coord_team_status_compact` | **Better** — richer data, presence scoring                            |
+| `SendMessage`  | `coord_send_message`, `coord_send_directive`  | **Equal** — plus auto-wake and name resolution                        |
+| `TaskCreate`   | `coord_create_task`                           | **Better** — dependencies, priority, metadata, audit trail            |
+| `TaskList`     | `coord_list_tasks`                            | **Better** — filtering, dependency status                             |
+| `TaskUpdate`   | `coord_update_task`                           | **Better** — metadata merge, handoff snapshots, audit trail           |
+| `Task` (spawn) | `coord_spawn_worker`                          | **Better** — role presets, budget gating, worktree isolation          |
 
 ---
 
@@ -211,29 +211,29 @@ Each session file is ~2 KB of JSON maintained by shell hooks outside the context
 
 ## What `/lead` Can Do
 
-| Command | What Happens |
-|---------|-------------|
-| *(boot)* | Scans all sessions, shows live dashboard with W/E/B/R counters |
-| `tell [session] to [task]` | Sends a message to an active terminal (delivered via inbox hook) |
-| `wake [session] with [message]` | Wakes an idle terminal (AppleScript/TTY/SendKeys + inbox) |
-| `run [task] in [dir]` | Spawns an autonomous `claude -p` worker in a new terminal tab |
-| `pipeline: A, B, C in [dir]` | Runs sequential multi-step pipeline with per-step status |
-| `conflicts` | Cross-references `files_touched` across all sessions |
-| `spawn terminal in [dir]` | Opens a new interactive Claude Code terminal |
-| `kill worker [id]` | Terminates a running worker by PID |
-| `health check` | Validates all hooks, deps, settings, and MCP |
+| Command                         | What Happens                                                     |
+| ------------------------------- | ---------------------------------------------------------------- |
+| _(boot)_                        | Scans all sessions, shows live dashboard with W/E/B/R counters   |
+| `tell [session] to [task]`      | Sends a message to an active terminal (delivered via inbox hook) |
+| `wake [session] with [message]` | Wakes an idle terminal (AppleScript/TTY/SendKeys + inbox)        |
+| `run [task] in [dir]`           | Spawns an autonomous `claude -p` worker in a new terminal tab    |
+| `pipeline: A, B, C in [dir]`    | Runs sequential multi-step pipeline with per-step status         |
+| `conflicts`                     | Cross-references `files_touched` across all sessions             |
+| `spawn terminal in [dir]`       | Opens a new interactive Claude Code terminal                     |
+| `kill worker [id]`              | Terminates a running worker by PID                               |
+| `health check`                  | Validates all hooks, deps, settings, and MCP                     |
 
 ---
 
 ## Platform Support
 
-| Platform | Terminal Spawning | Session Waking | Messaging |
-|----------|-------------------|----------------|-----------|
-| **macOS — iTerm2** | Split panes + tabs | AppleScript | Inbox hooks |
-| **macOS — Terminal.app** | New windows | AppleScript | Inbox hooks |
-| **Windows — Windows Terminal** | Split panes (`wt`) | SendKeys + inbox | Inbox hooks |
-| **Linux — gnome-terminal / konsole / kitty** | New windows / tabs | TTY write + inbox | Inbox hooks |
-| **Cursor / VS Code** | Background `claude -p` | Inbox fallback | Inbox hooks |
+| Platform                                     | Terminal Spawning      | Session Waking    | Messaging   |
+| -------------------------------------------- | ---------------------- | ----------------- | ----------- |
+| **macOS — iTerm2**                           | Split panes + tabs     | AppleScript       | Inbox hooks |
+| **macOS — Terminal.app**                     | New windows            | AppleScript       | Inbox hooks |
+| **Windows — Windows Terminal**               | Split panes (`wt`)     | SendKeys + inbox  | Inbox hooks |
+| **Linux — gnome-terminal / konsole / kitty** | New windows / tabs     | TTY write + inbox | Inbox hooks |
+| **Cursor / VS Code**                         | Background `claude -p` | Inbox fallback    | Inbox hooks |
 
 Inbox messaging is **universal** — works on every platform regardless of terminal emulator.
 
@@ -282,46 +282,46 @@ bash ~/.claude/hooks/health-check.sh
 
 ### Components
 
-| Component | Lines | What It Does |
-|-----------|-------|-------------|
-| **MCP Coordinator** | 3,812 | 40+ tools: workers, tasks, teams, messaging, pipelines, conflicts |
-| **Shell Hooks** | 6,400 | Session tracking, inbox delivery, conflict detection, token enforcement |
-| **Sidecar** | 4,000+ | HTTP API, TUI dashboard, web dashboard, native bridge, recovery |
-| **Lead Tools** | 200 | Bash fallbacks for core coordinator operations |
+| Component           | Lines  | What It Does                                                            |
+| ------------------- | ------ | ----------------------------------------------------------------------- |
+| **MCP Coordinator** | 3,812  | 40+ tools: workers, tasks, teams, messaging, pipelines, conflicts       |
+| **Shell Hooks**     | 6,400  | Session tracking, inbox delivery, conflict detection, token enforcement |
+| **Sidecar**         | 4,000+ | HTTP API, TUI dashboard, web dashboard, native bridge, recovery         |
+| **Lead Tools**      | 200    | Bash fallbacks for core coordinator operations                          |
 
 ### MCP Coordinator Modules
 
-| Module | Lines | Purpose |
-|--------|-------|---------|
-| `workers.js` | 739 | Spawn (pipe/interactive), kill, resume, upgrade, multi-spawn. Role presets, budget gating, worktree isolation, codex runtime |
-| `team-tasking.js` | 697 | Queue task, assign next (load-aware scoring), rebalance, compact status |
-| `tasks.js` | 392 | CRUD with dependencies (blocked_by/blocks), audit trail, quality gates |
-| `platform/common.js` | 386 | Cross-platform terminal detection and launch commands |
-| `security.js` | 285 | Input validation, secure writes (0600), file locking, rate limiting |
-| `teams.js` | 272 | Team CRUD with presets (simple/strict/native-first), policy engine |
-| `platform/wake.js` | 250 | AppleScript (macOS), TTY write (Linux), SendKeys (Windows), inbox fallback |
-| `messaging.js` | 250 | Atomic inbox drain, send message, broadcast, send directive + auto-wake |
-| `shutdown.js` | 188 | Graceful shutdown request/response protocol |
-| `context-store.js` | 165 | Shared context write/read/export between sessions |
-| `pipelines.js` | 159 | Sequential pipeline runner with per-step status tracking |
-| `team-dispatch.js` | 152 | One-call: create task + spawn worker + link member |
-| `gc.js` | 124 | Garbage collection: stale sessions, old results, orphaned files |
-| `approval.js` | 111 | Plan approval/rejection workflow |
+| Module               | Lines | Purpose                                                                                                                      |
+| -------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `workers.js`         | 739   | Spawn (pipe/interactive), kill, resume, upgrade, multi-spawn. Role presets, budget gating, worktree isolation, codex runtime |
+| `team-tasking.js`    | 697   | Queue task, assign next (load-aware scoring), rebalance, compact status                                                      |
+| `tasks.js`           | 392   | CRUD with dependencies (blocked_by/blocks), audit trail, quality gates                                                       |
+| `platform/common.js` | 386   | Cross-platform terminal detection and launch commands                                                                        |
+| `security.js`        | 285   | Input validation, secure writes (0600), file locking, rate limiting                                                          |
+| `teams.js`           | 272   | Team CRUD with presets (simple/strict/native-first), policy engine                                                           |
+| `platform/wake.js`   | 250   | AppleScript (macOS), TTY write (Linux), SendKeys (Windows), inbox fallback                                                   |
+| `messaging.js`       | 250   | Atomic inbox drain, send message, broadcast, send directive + auto-wake                                                      |
+| `shutdown.js`        | 188   | Graceful shutdown request/response protocol                                                                                  |
+| `context-store.js`   | 165   | Shared context write/read/export between sessions                                                                            |
+| `pipelines.js`       | 159   | Sequential pipeline runner with per-step status tracking                                                                     |
+| `team-dispatch.js`   | 152   | One-call: create task + spawn worker + link member                                                                           |
+| `gc.js`              | 124   | Garbage collection: stale sessions, old results, orphaned files                                                              |
+| `approval.js`        | 111   | Plan approval/rejection workflow                                                                                             |
 
 ### Hook System
 
-| Hook | Event | Purpose |
-|------|-------|---------|
-| `token-guard.py` (1,546 lines) | PreToolUse → Task | 7-rule agent enforcement with audit trail |
-| `terminal-heartbeat.sh` | PostToolUse → Edit\|Write\|Bash\|Read | Rate-limited session enrichment (5s cooldown) |
-| `check-inbox.sh` | PreToolUse → * | Inbox delivery + permission mode enforcement |
-| `conflict-guard.sh` | PreToolUse → Edit\|Write | Cross-session file conflict detection |
-| `session-register.sh` | SessionStart | Creates session JSON, sets terminal tab title |
-| `session-end.sh` | SessionEnd | Marks session closed |
-| `health-check.sh` | Manual | Validates all hooks, deps, settings, MCP |
-| `self-heal.py` | PostToolUse | Auto-repairs corrupt files, stale locks, orphaned workers |
-| `agent-metrics.py` | SubagentStop | Extracts real token usage from agent transcripts |
-| `read-efficiency-guard.py` | PostToolUse → Read | Blocks wasteful sequential reads |
+| Hook                           | Event                                 | Purpose                                                   |
+| ------------------------------ | ------------------------------------- | --------------------------------------------------------- |
+| `token-guard.py` (1,546 lines) | PreToolUse → Task                     | 7-rule agent enforcement with audit trail                 |
+| `terminal-heartbeat.sh`        | PostToolUse → Edit\|Write\|Bash\|Read | Rate-limited session enrichment (5s cooldown)             |
+| `check-inbox.sh`               | PreToolUse → \*                       | Inbox delivery + permission mode enforcement              |
+| `conflict-guard.sh`            | PreToolUse → Edit\|Write              | Cross-session file conflict detection                     |
+| `session-register.sh`          | SessionStart                          | Creates session JSON, sets terminal tab title             |
+| `session-end.sh`               | SessionEnd                            | Marks session closed                                      |
+| `health-check.sh`              | Manual                                | Validates all hooks, deps, settings, MCP                  |
+| `self-heal.py`                 | PostToolUse                           | Auto-repairs corrupt files, stale locks, orphaned workers |
+| `agent-metrics.py`             | SubagentStop                          | Extracts real token usage from agent transcripts          |
+| `read-efficiency-guard.py`     | PostToolUse → Read                    | Blocks wasteful sequential reads                          |
 
 All hooks **fail-open** (exit 0 on error) except `token-guard.py` which is **fail-closed** by design.
 
@@ -344,12 +344,12 @@ The sidecar adds persistent state management:
 
 `token-guard.py` enforces a strict Tool Ladder via PreToolUse hooks:
 
-| Level | Tool | Cost | When |
-|-------|------|------|------|
-| 1 | Grep | ~1-2K tokens | Know what you're looking for |
-| 2 | Grep + Read | ~5-15K | Need context around matches |
-| 3 | Single Explore agent | ~40-60K | Need architecture understanding |
-| 4 | 2 Explores parallel | ~80-120K | Truly separate areas (rare) |
+| Level | Tool                 | Cost         | When                            |
+| ----- | -------------------- | ------------ | ------------------------------- |
+| 1     | Grep                 | ~1-2K tokens | Know what you're looking for    |
+| 2     | Grep + Read          | ~5-15K       | Need context around matches     |
+| 3     | Single Explore agent | ~40-60K      | Need architecture understanding |
+| 4     | 2 Explores parallel  | ~80-120K     | Truly separate areas (rare)     |
 
 Hard rules: configurable agent cap per session (default 5), no parallel same-type agents, blocks spawns when Grep/Read would suffice. All decisions logged to `audit.jsonl`.
 
@@ -357,18 +357,18 @@ Hard rules: configurable agent cap per session (default 5), no parallel same-typ
 
 ## Quality Gates
 
-| What | How |
-|------|-----|
-| Shell syntax | CI: `bash -n hooks/*.sh` |
-| Python validity | CI: `py_compile` + `ruff` |
-| Coordinator syntax | CI: `node --check` |
-| Validation rules | CI: unit tests |
-| Worker lifecycle | CI: e2e tests |
-| Pipeline lifecycle | CI: e2e tests |
-| Platform matrix | CI: ubuntu + macos + windows |
-| Hook behavior | CI: smoke tests + unit tests (57 tests) |
-| Sidecar core | CI: 67 tests (recovery, repair, health, metrics) |
-| Line coverage | CI: 81%+ enforced via `c8` |
+| What               | How                                              |
+| ------------------ | ------------------------------------------------ |
+| Shell syntax       | CI: `bash -n hooks/*.sh`                         |
+| Python validity    | CI: `py_compile` + `ruff`                        |
+| Coordinator syntax | CI: `node --check`                               |
+| Validation rules   | CI: unit tests                                   |
+| Worker lifecycle   | CI: e2e tests                                    |
+| Pipeline lifecycle | CI: e2e tests                                    |
+| Platform matrix    | CI: ubuntu + macos + windows                     |
+| Hook behavior      | CI: smoke tests + unit tests (57 tests)          |
+| Sidecar core       | CI: 67 tests (recovery, repair, health, metrics) |
+| Line coverage      | CI enforces 79%+ line coverage, currently ~79%   |
 
 ```bash
 # Run locally

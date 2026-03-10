@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${DEMO_PORT:-9901}"
 
 echo "==> Starting sidecar on port $PORT..."
-node "$SCRIPT_DIR/sidecar/server/index.js" --port "$PORT" &
+"$SCRIPT_DIR/node_modules/.bin/tsx" "$SCRIPT_DIR/sidecar/server/index.js" --port "$PORT" &
 SIDECAR_PID=$!
 
 cleanup() {
@@ -20,7 +20,7 @@ trap cleanup EXIT
 # Wait for sidecar to be ready
 READY=0
 for i in $(seq 1 30); do
-  if curl -sf "http://127.0.0.1:$PORT/health.json" >/dev/null 2>&1; then
+  if curl -sf "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
     echo "==> Sidecar ready after ${i}s"
     READY=1
     break
