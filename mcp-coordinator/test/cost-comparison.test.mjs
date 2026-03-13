@@ -10,6 +10,8 @@ async function loadForTest(home) {
     COORDINATOR_TEST_MODE: process.env.COORDINATOR_TEST_MODE,
     COORDINATOR_PLATFORM: process.env.COORDINATOR_PLATFORM,
     COORDINATOR_CLAUDE_BIN: process.env.COORDINATOR_CLAUDE_BIN,
+    LEAD_AB_HARNESS_SUMMARY: process.env.LEAD_AB_HARNESS_SUMMARY,
+    LEAD_AB_HARNESS_ROOT: process.env.LEAD_AB_HARNESS_ROOT,
   };
   process.env.HOME = home;
   process.env.COORDINATOR_TEST_MODE = "1";
@@ -39,135 +41,186 @@ function setupHome() {
   return { home, terminals, results };
 }
 
-test("handleCostComparison returns full cost table with no workers or sessions", async () => {
+/**
+ * Create a temp summary.json and return its path.
+ * LEAD_AB_HARNESS_SUMMARY is set to this path in each test.
+ */
+function makeSummaryFile(overrides = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "coord-ab-"));
+  const runDir = join(dir, "run-001");
+  mkdirSync(runDir, { recursive: true });
+  const summaryPath = join(runDir, "summary.json");
+  const summary = {
+    run_id: "test-run-001",
+    generated_at: "2026-03-12T00:00:00Z",
+    workload: { id: "test-workload" },
+    trials: 10,
+    baseline_path: "native",
+    summary: {
+      per_path: {},
+      comparisons_vs_baseline: {},
+    },
+    claim_safe_summary: {
+      statements: [],
+      policy: [],
+    },
+    ...overrides,
+  };
+  writeFileSync(summaryPath, JSON.stringify(summary));
+  return summaryPath;
+}
+
+test("handleCostComparison returns no-harness message when no summary found", async () => {
   const { home } = setupHome();
   const { api, restore } = await loadForTest(home);
+  // Route harness root to an empty dir so cwd-relative paths are not found
+  const emptyRoot = mkdtempSync(join(tmpdir(), "coord-ab-empty-"));
   try {
     api.ensureDirsOnce();
+    process.env.LEAD_AB_HARNESS_ROOT = emptyRoot;
+    delete process.env.LEAD_AB_HARNESS_SUMMARY;
     const result = api.handleToolCall("coord_cost_comparison", {});
     const txt = result?.content?.[0]?.text || "";
-    assert.match(txt, /Cost Comparison/);
-    assert.match(txt, /Lead System/);
-    assert.match(txt, /Agent Teams/);
-    assert.match(txt, /Savings/);
-    assert.match(txt, /Active sessions: 0/);
-    assert.match(txt, /Workers spawned: 0/);
-    assert.match(txt, /saved/);
+    assert.match(txt, /No measured A\/B harness summary found/);
+    assert.match(txt, /No cheaper-than-native claim is allowed/);
   } finally {
     restore();
   }
 });
 
-test("handleCostComparison includes sonnet worker from meta file", async () => {
-  const { home, results } = setupHome();
-  writeFileSync(
-    join(results, "W99.meta.json"),
-    JSON.stringify({
-      worker_id: "W99",
-      model: "sonnet",
-      estimated_tokens: 50000,
-    }),
-  );
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleToolCall("coord_cost_comparison", {});
-    const txt = result?.content?.[0]?.text || "";
-    assert.match(txt, /W99/);
-    assert.match(txt, /Workers spawned: 1/);
-    assert.match(txt, /50K/);
-  } finally {
-    restore();
-  }
-});
-
-test("handleCostComparison handles opus model worker with higher pricing", async () => {
-  const { home, results } = setupHome();
-  writeFileSync(
-    join(results, "OPUS1.meta.json"),
-    JSON.stringify({
-      worker_id: "OPUS1",
-      model: "opus",
-      estimated_tokens: 80000,
-    }),
-  );
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleToolCall("coord_cost_comparison", {});
-    const txt = result?.content?.[0]?.text || "";
-    assert.match(txt, /OPUS1/);
-    assert.match(txt, /saved/);
-    assert.match(txt, /reduction/);
-  } finally {
-    restore();
-  }
-});
-
-test("handleCostComparison handles haiku model worker", async () => {
-  const { home, results } = setupHome();
-  writeFileSync(
-    join(results, "HAI1.meta.json"),
-    JSON.stringify({ worker_id: "HAI1", model: "haiku", tokens: 30000 }),
-  );
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleToolCall("coord_cost_comparison", {});
-    const txt = result?.content?.[0]?.text || "";
-    assert.match(txt, /HAI1/);
-    assert.match(txt, /Workers spawned: 1/);
-  } finally {
-    restore();
-  }
-});
-
-test("handleCostComparison only counts open (non-closed) sessions", async () => {
-  const { home, terminals } = setupHome();
-  writeFileSync(
-    join(terminals, "session-abc12345.json"),
-    JSON.stringify({ status: "open", session_id: "abc12345" }),
-  );
-  writeFileSync(
-    join(terminals, "session-xyz67890.json"),
-    JSON.stringify({ status: "closed", session_id: "xyz67890" }),
-  );
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleToolCall("coord_cost_comparison", {});
-    const txt = result?.content?.[0]?.text || "";
-    assert.match(txt, /Active sessions: 1/);
-  } finally {
-    restore();
-  }
-});
-
-test("handleCostComparison uses default 80K tokens when meta has no token field", async () => {
-  const { home, results } = setupHome();
-  writeFileSync(
-    join(results, "NOTOKENS.meta.json"),
-    JSON.stringify({ worker_id: "NOTOKENS", model: "sonnet" }),
-  );
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleToolCall("coord_cost_comparison", {});
-    const txt = result?.content?.[0]?.text || "";
-    assert.match(txt, /80K/);
-  } finally {
-    restore();
-  }
-});
-
-test("handleCostComparison shows coordination cost is zero for Lead System", async () => {
+test("handleCostComparison renders measured report header with valid summary", async () => {
   const { home } = setupHome();
+  const summaryPath = makeSummaryFile();
   const { api, restore } = await loadForTest(home);
   try {
     api.ensureDirsOnce();
+    process.env.LEAD_AB_HARNESS_SUMMARY = summaryPath;
     const result = api.handleToolCall("coord_cost_comparison", {});
     const txt = result?.content?.[0]?.text || "";
-    assert.match(txt, /Coordination \(filesystem\).*\$0\.00/);
+    assert.match(txt, /Measured A\/B Comparison/);
+    assert.match(txt, /Harness Evidence/);
+    assert.match(txt, /test-run-001/);
+  } finally {
+    restore();
+  }
+});
+
+test("handleCostComparison renders path metrics when per_path data present", async () => {
+  const { home } = setupHome();
+  const summaryPath = makeSummaryFile({
+    summary: {
+      per_path: {
+        lead: {
+          completion_rate: {
+            mean: 0.9,
+            ci_low: 0.8,
+            ci_high: 1.0,
+            successes: 9,
+            total: 10,
+          },
+          latency_ms: { mean: 1200, ci_low: 1100, ci_high: 1300 },
+          tokens_total: { mean: 50000, ci_low: 45000, ci_high: 55000 },
+        },
+      },
+      comparisons_vs_baseline: {},
+    },
+  });
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    process.env.LEAD_AB_HARNESS_SUMMARY = summaryPath;
+    const result = api.handleToolCall("coord_cost_comparison", {});
+    const txt = result?.content?.[0]?.text || "";
+    assert.match(txt, /Path Metrics/);
+    assert.match(txt, /lead/);
+    assert.match(txt, /1200/);
+  } finally {
+    restore();
+  }
+});
+
+test("handleCostComparison renders claim-safe statements when present", async () => {
+  const { home } = setupHome();
+  const summaryPath = makeSummaryFile({
+    claim_safe_summary: {
+      statements: [
+        "Filesystem coordination overhead: verified zero API-token cost on coordination path.",
+      ],
+      policy: [],
+    },
+  });
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    process.env.LEAD_AB_HARNESS_SUMMARY = summaryPath;
+    const result = api.handleToolCall("coord_cost_comparison", {});
+    const txt = result?.content?.[0]?.text || "";
+    assert.match(txt, /Claim-safe Summary/);
+    assert.match(txt, /Filesystem coordination overhead/);
+  } finally {
+    restore();
+  }
+});
+
+test("handleCostComparison renders savings claim gate with policy block", async () => {
+  const { home } = setupHome();
+  const summaryPath = makeSummaryFile({
+    claim_safe_summary: {
+      statements: [],
+      policy: [
+        {
+          path_id: "lead",
+          savings_claim_allowed: false,
+          reason: "insufficient trials",
+        },
+      ],
+    },
+  });
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    process.env.LEAD_AB_HARNESS_SUMMARY = summaryPath;
+    const result = api.handleToolCall("coord_cost_comparison", {});
+    const txt = result?.content?.[0]?.text || "";
+    assert.match(txt, /Savings Claim Gate/);
+    assert.match(txt, /savings_claim_allowed=false/);
+    assert.match(txt, /insufficient trials/);
+  } finally {
+    restore();
+  }
+});
+
+test("handleCostComparison shows no-policy message when policy block is empty", async () => {
+  const { home } = setupHome();
+  const summaryPath = makeSummaryFile({
+    claim_safe_summary: { statements: [], policy: [] },
+  });
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    process.env.LEAD_AB_HARNESS_SUMMARY = summaryPath;
+    const result = api.handleToolCall("coord_cost_comparison", {});
+    const txt = result?.content?.[0]?.text || "";
+    assert.match(txt, /No policy block found/);
+    assert.match(txt, /Savings claims are not allowed/);
+  } finally {
+    restore();
+  }
+});
+
+test("handleCostComparison reports error for unreadable summary file", async () => {
+  const { home } = setupHome();
+  const dir = mkdtempSync(join(tmpdir(), "coord-ab-bad-"));
+  const badPath = join(dir, "summary.json");
+  writeFileSync(badPath, "not valid json {{{");
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    process.env.LEAD_AB_HARNESS_SUMMARY = badPath;
+    const result = api.handleToolCall("coord_cost_comparison", {});
+    const txt = result?.content?.[0]?.text || "";
+    assert.match(txt, /unreadable/);
+    assert.match(txt, /No cheaper-than-native claim is allowed/);
   } finally {
     restore();
   }

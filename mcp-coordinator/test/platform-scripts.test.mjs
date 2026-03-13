@@ -53,7 +53,11 @@ test("buildInteractiveWorkerScript darwin uses script without -c flag", () => {
     permissionMode: "acceptEdits",
   });
   assert.match(cmd, /script -q/);
-  assert.doesNotMatch(cmd, /script -q.*-c/);
+  // Verify -c is NOT used immediately after the transcript file (darwin syntax).
+  // Use a narrow regex: only check the script invocation itself, not the full
+  // script string. --claim-only elsewhere in the output contains "-c" as a
+  // substring but is not the script -c flag.
+  assert.doesNotMatch(cmd, /script -q '\/tmp\/result\.transcript' -c/);
 });
 
 test("buildInteractiveWorkerScript win32 falls back to pipe mode script", () => {
