@@ -12,19 +12,20 @@ EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT ...;
 ```
 
 **Key scan types (best → worst):**
+
 - Index Only Scan → Index Scan → Bitmap Index Scan → Seq Scan
 
 **Join types:** Nested Loop (small sets) → Hash Join (larger) → Merge Join (sorted data)
 
 ## Index Types & When to Use
 
-| Type | Use For | Operators |
-|------|---------|-----------|
-| B-tree | Equality, range, ORDER BY | `=`, `<`, `>`, `BETWEEN` |
-| Hash | Equality only | `=` |
-| GIN | JSONB, arrays, full-text | `@>`, `?`, `@@` |
-| GiST | Ranges, geometry | `&&`, `@>` (range overlap) |
-| BRIN | Very large ordered tables | Correlation-based |
+| Type   | Use For                   | Operators                  |
+| ------ | ------------------------- | -------------------------- |
+| B-tree | Equality, range, ORDER BY | `=`, `<`, `>`, `BETWEEN`   |
+| Hash   | Equality only             | `=`                        |
+| GIN    | JSONB, arrays, full-text  | `@>`, `?`, `@@`            |
+| GiST   | Ranges, geometry          | `&&`, `@>` (range overlap) |
+| BRIN   | Very large ordered tables | Correlation-based          |
 
 ## Index Patterns
 
@@ -44,16 +45,16 @@ CREATE INDEX ON users(email) INCLUDE (name, created_at);
 
 ## Query Anti-Patterns → Fixes
 
-| Anti-Pattern | Fix |
-|-------------|-----|
-| `SELECT *` | Select only needed columns |
-| Function in WHERE (`LOWER(email)`) | Expression index or store normalized |
-| `OFFSET 100000` | Cursor-based pagination |
-| N+1 queries (loop of SELECTs) | JOIN or batch `IN (...)` |
-| Correlated subquery | JOIN + GROUP BY or window function |
-| `COUNT(*)` on huge table | `pg_class.reltuples` for estimates |
-| `LIKE '%abc'` (leading wildcard) | `pg_trgm` GIN index or full-text search |
-| Implicit type conversion | Match types exactly |
+| Anti-Pattern                       | Fix                                     |
+| ---------------------------------- | --------------------------------------- |
+| `SELECT *`                         | Select only needed columns              |
+| Function in WHERE (`LOWER(email)`) | Expression index or store normalized    |
+| `OFFSET 100000`                    | Cursor-based pagination                 |
+| N+1 queries (loop of SELECTs)      | JOIN or batch `IN (...)`                |
+| Correlated subquery                | JOIN + GROUP BY or window function      |
+| `COUNT(*)` on huge table           | `pg_class.reltuples` for estimates      |
+| `LIKE '%abc'` (leading wildcard)   | `pg_trgm` GIN index or full-text search |
+| Implicit type conversion           | Match types exactly                     |
 
 ## Batch Operations
 
@@ -92,6 +93,7 @@ SELECT indexname, idx_scan FROM pg_stat_user_indexes WHERE idx_scan = 0;
 ```
 
 ## Maintenance
+
 - `ANALYZE` after bulk changes (updates statistics)
 - `VACUUM ANALYZE` regularly (reclaims dead tuples + stats)
 - `REINDEX` if index bloat suspected

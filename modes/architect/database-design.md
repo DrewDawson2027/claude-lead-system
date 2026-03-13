@@ -15,22 +15,23 @@ Capabilities (from: database-architect, sql-pro, postgresql skill)
 
 ## Technology Selection Framework
 
-| Need | Choose | Why |
-|------|--------|-----|
-| Relational + ACID | PostgreSQL (default) | Best open-source, extensible, JSONB |
-| High-write throughput | TimescaleDB (time-series), Cassandra (wide-column) | Optimized for append patterns |
-| Document store | MongoDB (flexible schema), Firestore (serverless) | Schema-on-read flexibility |
-| Key-value / cache | Redis | Sub-ms reads, pub/sub, data structures |
-| Search | Elasticsearch, Meilisearch (simpler) | Full-text, fuzzy, faceted |
-| Graph relationships | Neo4j | When JOINs become unmanageable |
-| Analytics/OLAP | ClickHouse, BigQuery, Snowflake | Columnar, aggregation-heavy |
-| Multi-model | Use polyglot persistence | Right tool per access pattern |
+| Need                  | Choose                                             | Why                                    |
+| --------------------- | -------------------------------------------------- | -------------------------------------- |
+| Relational + ACID     | PostgreSQL (default)                               | Best open-source, extensible, JSONB    |
+| High-write throughput | TimescaleDB (time-series), Cassandra (wide-column) | Optimized for append patterns          |
+| Document store        | MongoDB (flexible schema), Firestore (serverless)  | Schema-on-read flexibility             |
+| Key-value / cache     | Redis                                              | Sub-ms reads, pub/sub, data structures |
+| Search                | Elasticsearch, Meilisearch (simpler)               | Full-text, fuzzy, faceted              |
+| Graph relationships   | Neo4j                                              | When JOINs become unmanageable         |
+| Analytics/OLAP        | ClickHouse, BigQuery, Snowflake                    | Columnar, aggregation-heavy            |
+| Multi-model           | Use polyglot persistence                           | Right tool per access pattern          |
 
 **Decision drivers:** CAP theorem position, operational complexity, cost, team expertise, cloud provider alignment.
 
 ## PostgreSQL Design Rules (PRIMARY — use for most projects)
 
 ### Data Types (strict rules)
+
 - **IDs**: `BIGINT GENERATED ALWAYS AS IDENTITY` (default). `UUID` only for distributed/federated systems. Generate with `gen_random_uuid()`.
 - **Strings**: `TEXT` always. Never `VARCHAR(n)` or `CHAR(n)`. Use `CHECK (LENGTH(col) <= n)` if limit needed.
 - **Money**: `NUMERIC(p,s)` — never float, never `MONEY` type.
@@ -42,6 +43,7 @@ Capabilities (from: database-architect, sql-pro, postgresql skill)
 - **Ranges**: `daterange`, `numrange`, `tstzrange`. Index with GiST. Prefer `[)` bounds consistently.
 
 ### DO NOT USE
+
 - `timestamp` (without timezone) → use `timestamptz`
 - `char(n)` or `varchar(n)` → use `text`
 - `money` type → use `numeric`
@@ -49,6 +51,7 @@ Capabilities (from: database-architect, sql-pro, postgresql skill)
 - `timetz` → use `timestamptz`
 
 ### Constraints
+
 - **PK**: Always define. Implicit UNIQUE + NOT NULL + B-tree index.
 - **FK**: Always specify `ON DELETE` action. Always add explicit index on FK columns (PostgreSQL does NOT auto-index FKs).
 - **NOT NULL**: Add everywhere semantically required. Use `DEFAULT` for common values.
@@ -57,6 +60,7 @@ Capabilities (from: database-architect, sql-pro, postgresql skill)
 - **EXCLUDE**: For overlap prevention (e.g., room booking with GiST).
 
 ### Indexing Strategy
+
 - **B-tree** (default): Equality/range (`=`, `<`, `>`, `BETWEEN`, `ORDER BY`)
 - **Composite**: Column order matters — leftmost prefix matching. Most selective columns first.
 - **Covering**: `CREATE INDEX ON tbl (id) INCLUDE (name, email)` — index-only scans.
@@ -67,6 +71,7 @@ Capabilities (from: database-architect, sql-pro, postgresql skill)
 - **BRIN**: Very large, naturally ordered data (time-series). Minimal storage.
 
 ### Gotchas
+
 - Unquoted identifiers → lowercased. Use `snake_case` convention.
 - UNIQUE allows multiple NULLs (use `NULLS NOT DISTINCT` PG15+).
 - FK columns NOT auto-indexed — add them manually.
@@ -76,6 +81,7 @@ Capabilities (from: database-architect, sql-pro, postgresql skill)
 - MVCC: updates leave dead tuples — design to avoid hot wide-row churn.
 
 ### Partitioning (>100M rows or periodic data maintenance)
+
 - **RANGE**: Time-series — `PARTITION BY RANGE (created_at)`
 - **LIST**: Discrete values — `PARTITION BY LIST (region)`
 - **HASH**: Even distribution — `PARTITION BY HASH (user_id)`
@@ -84,6 +90,7 @@ Capabilities (from: database-architect, sql-pro, postgresql skill)
 - Consider TimescaleDB for automated time-based partitioning + compression.
 
 ### Performance Patterns
+
 - **Update-heavy**: Separate hot/cold columns, `fillfactor=90` for HOT updates, avoid updating indexed columns.
 - **Insert-heavy**: Minimize indexes, use `COPY`/multi-row INSERT, UNLOGGED for staging, defer index creation for bulk loads.
 - **Upsert**: Requires UNIQUE index on conflict target. Use `EXCLUDED.column`. `DO NOTHING` faster than `DO UPDATE`.
@@ -91,19 +98,22 @@ Capabilities (from: database-architect, sql-pro, postgresql skill)
 ## Schema Design Patterns
 
 ### Normalization Strategy
+
 - Start at 3NF always. Denormalize only for measured read performance gains.
 - **OLTP**: Normalize for write efficiency and consistency.
 - **OLAP**: Denormalize (star/snowflake schema) for read performance.
 - **Hybrid**: Materialized views for analytical queries on normalized data.
 
 ### Multi-Tenancy Approaches
-| Approach | Isolation | Complexity | Cost | Best For |
-|----------|-----------|------------|------|----------|
-| Shared schema + RLS | Low | Low | Low | Most SaaS |
-| Schema per tenant | Medium | Medium | Medium | Compliance-heavy |
-| DB per tenant | High | High | High | Enterprise/regulated |
+
+| Approach            | Isolation | Complexity | Cost   | Best For             |
+| ------------------- | --------- | ---------- | ------ | -------------------- |
+| Shared schema + RLS | Low       | Low        | Low    | Most SaaS            |
+| Schema per tenant   | Medium    | Medium     | Medium | Compliance-heavy     |
+| DB per tenant       | High      | High       | High   | Enterprise/regulated |
 
 ### Hierarchical Data
+
 - **Adjacency list**: Simple parent_id FK. Easy writes, recursive queries for reads.
 - **Materialized path**: Store full path (`/1/3/7/`). Fast reads, complex writes.
 - **Closure table**: All ancestor-descendant pairs. Fast reads + writes, more storage.
@@ -120,15 +130,16 @@ Capabilities (from: database-architect, sql-pro, postgresql skill)
 
 ## Cloud Database Selection
 
-| Cloud | Managed PostgreSQL | Serverless | NoSQL | Analytics |
-|-------|-------------------|------------|-------|-----------|
-| AWS | RDS/Aurora | Aurora Serverless | DynamoDB | Redshift/Athena |
-| GCP | Cloud SQL | Spanner | Firestore | BigQuery |
-| Azure | DB for PostgreSQL | Cosmos DB | Cosmos DB | Synapse |
+| Cloud | Managed PostgreSQL | Serverless        | NoSQL     | Analytics       |
+| ----- | ------------------ | ----------------- | --------- | --------------- |
+| AWS   | RDS/Aurora         | Aurora Serverless | DynamoDB  | Redshift/Athena |
+| GCP   | Cloud SQL          | Spanner           | Firestore | BigQuery        |
+| Azure | DB for PostgreSQL  | Cosmos DB         | Cosmos DB | Synapse         |
 
 Default recommendation: **PostgreSQL on Aurora** (AWS) or **Cloud SQL** (GCP) unless specific needs dictate otherwise.
 
 ## Extensions (PostgreSQL)
+
 - `pgcrypto`: Password hashing with `crypt()`
 - `pg_trgm`: Fuzzy text search (`%`, `similarity()`)
 - `timescaledb`: Time-series partitioning, compression, continuous aggregates
@@ -139,6 +150,7 @@ Default recommendation: **PostgreSQL on Aurora** (AWS) or **Cloud SQL** (GCP) un
 ## Output Format
 
 Always deliver:
+
 1. **Technology recommendation** with selection rationale
 2. **Schema DDL** with tables, constraints, indexes (not just descriptions)
 3. **Index strategy** tied to specific query patterns

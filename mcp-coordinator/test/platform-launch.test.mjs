@@ -190,6 +190,86 @@ test('interactive worker script on linux uses script -c wrapper and exports work
   assert.match(cmd, /rm -f '\/tmp\/pid\.txt'/);
 });
 
+test('interactive team worker script exports auto-claim helper env and invokes it on exit', () => {
+  const cmd = __test__.buildInteractiveWorkerScript({
+    taskId: 'W5_AUTO',
+    workDir: '/tmp/work',
+    defaultDirectory: '/tmp/work',
+    resultFile: '/tmp/result.txt',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    model: 'sonnet',
+    agent: '',
+    promptFile: '/tmp/prompt.txt',
+    workerName: 'ivy',
+    teamName: 'claimers',
+    mode: 'interactive',
+    runtime: 'claude',
+    layout: 'background',
+    permissionMode: 'acceptEdits',
+    platformName: 'linux',
+  });
+  assert.match(cmd, /CLAUDE_AUTOCLAIM_SCRIPT=/);
+  assert.match(cmd, /CLAUDE_AUTOCLAIM_ARGS_B64=/);
+  assert.match(cmd, /CLAUDE_AUTOCLAIM_NODE/);
+});
+
+test('interactive worker script exports parent-session env and probes for native flag', () => {
+  const parentSessionId = '11111111-2222-4333-8444-555555555555';
+  const cmd = __test__.buildInteractiveWorkerScript({
+    taskId: 'W5_PARENT',
+    workDir: '/tmp/work',
+    resultFile: '/tmp/result.txt',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    model: 'sonnet',
+    agent: '',
+    promptFile: '/tmp/prompt.txt',
+    permissionMode: 'acceptEdits',
+    platformName: 'linux',
+    parentSessionId,
+  });
+  assert.match(cmd, new RegExp(`export CLAUDE_PARENT_SESSION_ID='${parentSessionId}'`));
+  assert.match(cmd, /CLAUDE_PARENT_ARG=""/);
+  assert.match(cmd, /--parent-session-id/);
+});
+
+test('plain worker script without team auto-claim context does not emit malformed shell separators', () => {
+  const cmd = __test__.buildWorkerScript({
+    taskId: 'W_NO_AUTO',
+    workDir: '/tmp/work',
+    resultFile: '/tmp/result.txt',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    model: 'sonnet',
+    agent: '',
+    promptFile: '/tmp/prompt.txt',
+    workerPs1File: '',
+    platformName: 'linux',
+  });
+  assert.doesNotMatch(cmd, /&&\s*&&/);
+});
+
+test('plain worker script exports parent-session env and uses runtime-gated parent arg', () => {
+  const parentSessionId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  const cmd = __test__.buildWorkerScript({
+    taskId: 'W_PARENT_PIPE',
+    workDir: '/tmp/work',
+    resultFile: '/tmp/result.txt',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    model: 'sonnet',
+    agent: '',
+    promptFile: '/tmp/prompt.txt',
+    workerPs1File: '',
+    platformName: 'linux',
+    parentSessionId,
+  });
+  assert.match(cmd, new RegExp(`export CLAUDE_PARENT_SESSION_ID='${parentSessionId}'`));
+  assert.match(cmd, /CLAUDE_PARENT_ARG=""/);
+  assert.match(cmd, /\$CLAUDE_PARENT_ARG/);
+});
+
 test('interactive worker script on darwin uses script without -c wrapper', () => {
   const cmd = __test__.buildInteractiveWorkerScript({
     taskId: 'W6',
@@ -222,6 +302,22 @@ test('interactive worker script on windows falls back to pipe-mode worker script
     platformName: 'win32',
   });
   assert.match(cmd, /ExecutionPolicy Bypass -File/);
+});
+
+test('resume worker script exports parent-session env and uses runtime-gated parent arg', () => {
+  const parentSessionId = '99999999-8888-4777-8666-555555555555';
+  const cmd = __test__.buildResumeWorkerScript({
+    taskId: 'W_RESUME_PARENT',
+    sessionId: 'aaaabbbb-cccc-dddd-eeee-000011112222',
+    workDir: '/tmp/work',
+    pidFile: '/tmp/pid.txt',
+    metaFile: '/tmp/meta.json',
+    platformName: 'linux',
+    parentSessionId,
+  });
+  assert.match(cmd, new RegExp(`export CLAUDE_PARENT_SESSION_ID='${parentSessionId}'`));
+  assert.match(cmd, /CLAUDE_PARENT_ARG=""/);
+  assert.match(cmd, /\$CLAUDE_PARENT_ARG --resume/);
 });
 
 test('codex worker script supports model flag and cleanup', () => {

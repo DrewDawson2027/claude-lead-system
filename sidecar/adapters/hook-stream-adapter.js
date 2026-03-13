@@ -1,4 +1,4 @@
-import { existsSync, watch } from 'fs';
+import { existsSync, watch } from "fs";
 
 export class HookStreamAdapter {
   constructor(paths, onChange) {
@@ -10,18 +10,36 @@ export class HookStreamAdapter {
   }
 
   start() {
-    const dirs = [this.paths.terminalsDir, this.paths.teamsDir, this.paths.tasksDir, this.paths.resultsDir].filter(Boolean);
+    const dirs = [
+      this.paths.terminalsDir,
+      this.paths.teamsDir,
+      this.paths.tasksDir,
+      this.paths.resultsDir,
+    ].filter(Boolean);
+    let watcherCount = 0;
     for (const dir of dirs) {
       try {
         if (!existsSync(dir)) continue;
-        const w = watch(dir, { persistent: false }, () => this.bump('fs.watch'));
+        const w = watch(dir, { persistent: false }, () =>
+          this.bump("fs.watch"),
+        );
         this.watchers.push(w);
+        watcherCount += 1;
       } catch {
         // Fall back to polling only.
       }
     }
-    this.interval = setInterval(() => this.bump('poll'), 1000);
-    try { this.interval.unref(); } catch {}
+    const pollMs = Number(
+      process.env[
+        watcherCount > 0
+          ? "LEAD_SIDECAR_HOOK_POLL_MS"
+          : "LEAD_SIDECAR_HOOK_POLL_FALLBACK_MS"
+      ] || (watcherCount > 0 ? 30_000 : 1_000),
+    );
+    this.interval = setInterval(() => this.bump("poll"), pollMs);
+    try {
+      this.interval.unref();
+    } catch {}
   }
 
   bump(source) {
@@ -33,7 +51,9 @@ export class HookStreamAdapter {
 
   stop() {
     for (const w of this.watchers) {
-      try { w.close(); } catch {}
+      try {
+        w.close();
+      } catch {}
     }
     this.watchers = [];
     if (this.interval) clearInterval(this.interval);

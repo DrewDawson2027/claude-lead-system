@@ -1,0 +1,5 @@
+# GitHub Actions workflow files — auto-lint bot lacks workflows: write permission
+.github/workflows/
+hooks/.github/
+mcp-coordinator/.github/
+sidecar/.github/

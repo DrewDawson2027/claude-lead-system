@@ -8,14 +8,14 @@ function readJSON(path) {
 }
 
 function parseArgs(argv) {
-  const out = { mode: 'lite', write: true, verbose: true };
+  const out = { mode: 'full', write: true, verbose: true };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--mode' && argv[i + 1]) out.mode = argv[++i];
     else if (a === '--print') out.write = false;
     else if (a === '--quiet') out.verbose = false;
   }
-  if (!['lite', 'hybrid', 'full'].includes(out.mode)) out.mode = 'lite';
+  if (!['lite', 'hybrid', 'full'].includes(out.mode)) out.mode = 'full';
   return out;
 }
 
@@ -28,28 +28,79 @@ function mergeAllow(existing, extras) {
   return uniq([...current, ...extras]);
 }
 
+function mergeDeny(existing, extras) {
+  const current = Array.isArray(existing) ? existing : [];
+  const additions = Array.isArray(extras) ? extras : [];
+  return uniq([...current, ...additions]);
+}
+
+function normalizeHookEntry(entry = {}) {
+  return {
+    ...entry,
+    matcher: entry.matcher || '*',
+    hooks: Array.isArray(entry.hooks) ? entry.hooks.filter(Boolean).map((hook) => ({ ...hook })) : [],
+  };
+}
+
+function hookIdentity(hook = {}) {
+  return JSON.stringify({
+    type: hook.type || 'command',
+    command: hook.command || '',
+    timeout: hook.timeout ?? null,
+  });
+}
+
+function mergeHookEntries(existingEntries = [], templateEntries = []) {
+  const out = Array.isArray(existingEntries)
+    ? existingEntries.map((entry) => normalizeHookEntry(entry))
+    : [];
+
+  for (const templateEntryRaw of Array.isArray(templateEntries) ? templateEntries : []) {
+    const templateEntry = normalizeHookEntry(templateEntryRaw);
+    const existingIndex = out.findIndex((entry) => entry.matcher === templateEntry.matcher);
+    if (existingIndex === -1) {
+      out.push(templateEntry);
+      continue;
+    }
+
+    const existingEntry = out[existingIndex];
+    const seen = new Set(existingEntry.hooks.map((hook) => hookIdentity(hook)));
+    for (const hook of templateEntry.hooks) {
+      const id = hookIdentity(hook);
+      if (seen.has(id)) continue;
+      existingEntry.hooks.push(hook);
+      seen.add(id);
+    }
+  }
+
+  return out;
+}
+
+function mergeHookSections(existingHooks = {}, templateHooks = {}, sections = []) {
+  const out = { ...(existingHooks || {}) };
+  for (const section of sections) {
+    if (!templateHooks?.[section]) continue;
+    out[section] = mergeHookEntries(out[section], templateHooks[section]);
+  }
+  return out;
+}
+
 function mergeHooks(existingHooks = {}, fullTemplateHooks = {}, mode = 'lite') {
   const out = { ...(existingHooks || {}) };
   if (mode === 'lite') return out;
 
-  const copyHook = (hookName) => {
-    if (fullTemplateHooks?.[hookName]) out[hookName] = fullTemplateHooks[hookName];
-  };
-
   if (mode === 'hybrid') {
-    copyHook('SessionStart');
-    copyHook('SessionEnd');
-    copyHook('TeammateIdle');
-    copyHook('TaskCompleted');
-    // Minimal usefulness hooks for sidecar/live UX.
-    copyHook('PreToolUse');
-    copyHook('PostToolUse');
-    return out;
+    return mergeHookSections(out, fullTemplateHooks, [
+      'SessionStart',
+      'SessionEnd',
+      'TeammateIdle',
+      'TaskCompleted',
+      'PreToolUse',
+      'PostToolUse',
+    ]);
   }
 
-  // full mode = full template hooks override into existing
-  for (const [k, v] of Object.entries(fullTemplateHooks || {})) out[k] = v;
-  return out;
+  return mergeHookSections(out, fullTemplateHooks, Object.keys(fullTemplateHooks || {}));
 }
 
 function main() {
@@ -69,11 +120,16 @@ function main() {
 
   const out = { ...existing };
   out.permissions = out.permissions || {};
-  out.permissions.allow = mergeAllow(out.permissions.allow, liteTemplate.permissions?.allow || []);
-  if (!Array.isArray(out.permissions.deny)) out.permissions.deny = Array.isArray(existing.permissions?.deny) ? existing.permissions.deny : [];
+  const requiredAllow = mode === 'lite'
+    ? liteTemplate.permissions?.allow || []
+    : mergeAllow(liteTemplate.permissions?.allow || [], fullTemplate.permissions?.allow || []);
+  out.permissions.allow = mergeAllow(out.permissions.allow, requiredAllow);
+  out.permissions.deny = mergeDeny(existing.permissions?.deny, fullTemplate.permissions?.deny);
 
   out.mcpServers = out.mcpServers || {};
+  const existingCoordinator = out.mcpServers.coordinator || {};
   out.mcpServers.coordinator = {
+    ...existingCoordinator,
     command: 'node',
     args: [join(home, '.claude', 'mcp-coordinator', 'index.js')],
   };
@@ -84,8 +140,19 @@ function main() {
   if (!out.model && fullTemplate.model) out.model = fullTemplate.model;
   if (out.thinkingEnabled === undefined && fullTemplate.thinkingEnabled !== undefined) out.thinkingEnabled = fullTemplate.thinkingEnabled;
 
+  const nextJson = JSON.stringify(out, null, 2);
+
   if (!write) {
-    process.stdout.write(JSON.stringify(out, null, 2));
+    process.stdout.write(nextJson);
+    return;
+  }
+
+  const currentJson = existsSync(settingsPath)
+    ? readFileSync(settingsPath, 'utf-8')
+    : null;
+
+  if (currentJson === nextJson) {
+    if (verbose) console.log(`settings.local.json already up to date (${mode} mode)`);
     return;
   }
 
@@ -95,7 +162,7 @@ function main() {
     if (verbose) console.log(`Backed up settings to ${backup}`);
   }
 
-  writeFileSync(settingsPath, JSON.stringify(out, null, 2));
+  writeFileSync(settingsPath, nextJson);
   if (verbose) console.log(`Merged settings.local.json (${mode} mode)`);
 }
 

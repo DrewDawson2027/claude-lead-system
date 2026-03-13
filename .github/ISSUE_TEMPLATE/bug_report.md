@@ -1,9 +1,9 @@
 ---
 name: Bug report
 about: Something isn't working
-title: '[BUG] '
+title: "[BUG] "
 labels: bug
-assignees: ''
+assignees: ""
 ---
 
 **OS and terminal emulator**
@@ -19,6 +19,7 @@ A clear description of what went wrong.
 What should have happened instead.
 
 **Steps to reproduce**
+
 1. ...
 2. ...
 

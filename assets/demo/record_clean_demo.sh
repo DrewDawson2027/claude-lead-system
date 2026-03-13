@@ -224,7 +224,7 @@ sleep 7
 
 printf '  \033[1;33m╔════════════════════════════════════════════════════════╗\033[0m\n'
 printf '  \033[1;33m║           CLAUDE LEAD SYSTEM  ·  /lead                ║\033[0m\n'
-printf '  \033[1;33m║       Zero-Token Multi-Agent Orchestration            ║\033[0m\n'
+printf '  \033[1;33m║        Local Coordination Layer for Claude Code       ║\033[0m\n'
 printf '  \033[1;33m╚════════════════════════════════════════════════════════╝\033[0m\n\n'
 sleep 0.5
 
@@ -280,14 +280,14 @@ printf '    A: +4 integration tests (login pipeline)\n'
 printf '    B: +rate limiting (5/min/IP) + 2 tests\n\n'
 sleep 1
 
-# Cost
-printf '  \033[1;36m▸ cost\033[0m\n'
+# Coordination view
+printf '  \033[1;36m▸ coordination\033[0m\n'
 sleep 0.4
-printf '  Lead System: \033[1m$3.51\033[0m  (coordination: $0.00)\n'
-printf '  Agent Teams: \033[2m$8.10  (coordination: $0.90)\033[0m\n'
-printf '  \033[1;32mSaved 57%%\033[0m — $4.59 less per task\n\n'
+printf '  Path: \033[1mcoordinator\033[0m  |  local state + inbox files\n'
+printf '  Focus: \033[2mconflict detection, message delivery, worker control\033[0m\n'
+printf '  Posture: \033[1;32mmacOS demo path verified\033[0m  |  other launch claims should stay conditional\n\n'
 
-printf '  \033[1;33m── Zero tokens. Full autonomy. ──\033[0m\n'
+printf '  \033[1;33m── Local coordination, shown in coordinator mode. ──\033[0m\n'
 sleep 999
 LEAD
 

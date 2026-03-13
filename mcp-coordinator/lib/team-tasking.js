@@ -246,12 +246,15 @@ export function buildTeamOperationalSnapshot(teamNameRaw) {
       .map((m) => [m.task_id, m.name]),
   );
 
+  const workerByTaskId = new Map(workers.map((w) => [w.task_id, w]));
   const members = mapped.members.map((m) => {
     const { presence, risk_flags } = buildPresence(m, allTasks);
+    const worker = m.task_id ? workerByTaskId.get(m.task_id) || null : null;
     return {
       ...m,
       presence,
       risk_flags,
+      tmux_pane_id: worker?.tmux_pane_id || null,
       current_task_ref: m.task_id || m.session?.current_task || null,
       policy_state: {
         permission_mode: team.policy?.permission_mode || null,
@@ -382,6 +385,12 @@ export function handleTeamQueueTask(args) {
       : null,
     queued_at: new Date().toISOString(),
     created_by: "coord_team_queue_task",
+    notify_session_id: args.notify_session_id
+      ? String(args.notify_session_id).trim()
+      : null,
+    parent_session_id: args.parent_session_id
+      ? String(args.parent_session_id).trim()
+      : null,
   };
   if (
     Array.isArray(args.acceptance_criteria) &&
@@ -635,6 +644,209 @@ function patchTaskMetadata(taskId, mutateFn) {
   });
 }
 
+function sortQueuedTasks(a, b) {
+  const pri = { high: 0, normal: 1, low: 2 };
+  const ap = pri[a.priority] ?? 1;
+  const bp = pri[b.priority] ?? 1;
+  if (ap !== bp) return ap - bp;
+  return String(a.created || "").localeCompare(String(b.created || ""));
+}
+
+function teamTaskForWorker(teamTasks, workerTaskId) {
+  return (
+    teamTasks.find((task) => {
+      const dispatch = taskDispatchMeta(task);
+      return (
+        dispatch.worker_task_id === workerTaskId ||
+        task.metadata?.worker_task_id === workerTaskId
+      );
+    }) || null
+  );
+}
+
+export function handleClaimNextTask(args) {
+  const team_name = sanitizeName(args.team_name, "team_name");
+  const completedWorkerTaskId = args.completed_worker_task_id
+    ? sanitizeId(args.completed_worker_task_id, "completed_worker_task_id")
+    : null;
+  let teamTasks = getTeamTasks(team_name);
+  let completedTask = null;
+  let assignee = args.assignee ? sanitizeName(args.assignee, "assignee") : null;
+
+  if (completedWorkerTaskId) {
+    completedTask = teamTaskForWorker(teamTasks, completedWorkerTaskId);
+    if (completedTask) {
+      assignee = assignee || completedTask.assignee || null;
+      if (
+        completedTask.status !== "completed" &&
+        completedTask.status !== "cancelled"
+      ) {
+        const dispatch = taskDispatchMeta(completedTask);
+        handleUpdateTask({
+          task_id: completedTask.task_id,
+          status: "completed",
+          metadata: {
+            dispatch: {
+              ...dispatch,
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              completed_worker_task_id: completedWorkerTaskId,
+            },
+            worker_task_id: completedWorkerTaskId,
+          },
+        });
+        completedTask.status = "completed";
+        if (!completedTask.metadata) completedTask.metadata = {};
+        completedTask.metadata.dispatch = {
+          ...dispatch,
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          completed_worker_task_id: completedWorkerTaskId,
+        };
+        completedTask.metadata.worker_task_id = completedWorkerTaskId;
+      }
+    }
+  }
+
+  if (!assignee) {
+    return text(
+      `No assignee available to claim the next task for team ${team_name}.`,
+    );
+  }
+
+  handleCreateTeam({
+    team_name,
+    members: [{ name: assignee, task_id: null }],
+  });
+
+  const unresolvedBlockersByTaskId = new Map(
+    teamTasks.map((t) => [t.task_id, taskBlocked(t, teamTasks)]),
+  );
+  const nextTask = teamTasks
+    .filter((t) => t.status === "pending")
+    .filter((t) => (taskDispatchMeta(t).status || "queued") === "queued")
+    .filter(
+      (t) => (unresolvedBlockersByTaskId.get(t.task_id) || []).length === 0,
+    )
+    .filter((t) => !t.assignee || t.assignee === assignee)
+    .sort(sortQueuedTasks)[0];
+
+  if (!nextTask) {
+    let out = `## Claim Next Task (${team_name})\n\n`;
+    out += `- Assignee: ${assignee}\n`;
+    if (completedTask) {
+      out += `- Completed: ${completedTask.task_id}\n`;
+    } else if (completedWorkerTaskId) {
+      out += `- Completed Worker Task: ${completedWorkerTaskId}\n`;
+    }
+    out += `- Result: no claimable queued tasks\n`;
+    return text(out);
+  }
+
+  const snap = buildTeamOperationalSnapshot(team_name);
+  const dispatchRes = dispatchExistingQueuedTask(nextTask, snap, assignee, {
+    ...args,
+    assignee,
+    default_directory: args.directory,
+    worker_task_id: args.worker_task_id,
+    parent_session_id: args.parent_session_id,
+  });
+  // Record which worker claimed this task (native schema parity)
+  handleUpdateTask({ task_id: nextTask.task_id, claimed_by: assignee });
+  const dTxt = contentText(dispatchRes);
+  let out = `## Claim Next Task (${team_name})\n\n`;
+  out += `- Assignee: ${assignee}\n`;
+  if (completedTask) {
+    out += `- Completed: ${completedTask.task_id}\n`;
+  } else if (completedWorkerTaskId) {
+    out += `- Completed Worker Task: ${completedWorkerTaskId}\n`;
+  }
+  out += `- Claimed: ${nextTask.task_id} (${nextTask.subject})\n\n`;
+  out += dTxt;
+  return text(out);
+}
+
+/**
+ * Claim-only mode: find next task for a worker and return its data without
+ * dispatching a new process. Used by claim-next-task.mjs --claim-only so the
+ * existing worker shell can loop inline and re-invoke claude with the new prompt.
+ * @param {object} args - Same shape as handleClaimNextTask args
+ * @returns {{ found: boolean, task_id?: string, subject?: string, prompt?: string }}
+ */
+export function handleClaimNextTaskData(args) {
+  const team_name = sanitizeName(args.team_name, "team_name");
+  const completedWorkerTaskId = args.completed_worker_task_id
+    ? sanitizeId(args.completed_worker_task_id, "completed_worker_task_id")
+    : null;
+  let teamTasks = getTeamTasks(team_name);
+  let assignee = args.assignee ? sanitizeName(args.assignee, "assignee") : null;
+
+  if (completedWorkerTaskId) {
+    const completedTask = teamTaskForWorker(teamTasks, completedWorkerTaskId);
+    if (completedTask) {
+      assignee = assignee || completedTask.assignee || null;
+      if (
+        completedTask.status !== "completed" &&
+        completedTask.status !== "cancelled"
+      ) {
+        handleUpdateTask({
+          task_id: completedTask.task_id,
+          status: "completed",
+          metadata: {
+            dispatch: {
+              ...taskDispatchMeta(completedTask),
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              completed_worker_task_id: completedWorkerTaskId,
+            },
+            worker_task_id: completedWorkerTaskId,
+          },
+        });
+        teamTasks = getTeamTasks(team_name);
+      }
+    }
+  }
+
+  if (!assignee) return { found: false };
+
+  const unresolvedBlockersByTaskId = new Map(
+    teamTasks.map((t) => [t.task_id, taskBlocked(t, teamTasks)]),
+  );
+  const nextTask = teamTasks
+    .filter((t) => t.status === "pending")
+    .filter((t) => (taskDispatchMeta(t).status || "queued") === "queued")
+    .filter(
+      (t) => (unresolvedBlockersByTaskId.get(t.task_id) || []).length === 0,
+    )
+    .filter((t) => !t.assignee || t.assignee === assignee)
+    .sort(sortQueuedTasks)[0];
+
+  if (!nextTask) return { found: false };
+
+  const dispatch = taskDispatchMeta(nextTask);
+  const prompt = String(dispatch.prompt || "").trim();
+  if (!prompt) return { found: false };
+
+  patchTaskMetadata(nextTask.task_id, (t) => {
+    if (!t.metadata) t.metadata = {};
+    t.metadata.dispatch = {
+      ...taskDispatchMeta(t),
+      status: "dispatched",
+      dispatched_at: new Date().toISOString(),
+      assignee,
+    };
+    if (assignee) t.assignee = assignee;
+  });
+
+  return {
+    found: true,
+    task_id: nextTask.task_id,
+    subject: nextTask.subject,
+    prompt,
+    assignee,
+  };
+}
+
 function dispatchExistingQueuedTask(task, snap, assignee, args = {}) {
   const dispatch = taskDispatchMeta(task);
   const prompt = String(dispatch.prompt || "").trim();
@@ -663,7 +875,8 @@ function dispatchExistingQueuedTask(task, snap, assignee, args = {}) {
       args.role || dispatch.role_hint || dispatch.load_affinity || undefined,
     mode: args.mode,
     runtime: args.runtime,
-    notify_session_id: args.notify_session_id,
+    notify_session_id: args.notify_session_id || dispatch.notify_session_id,
+    parent_session_id: args.parent_session_id || dispatch.parent_session_id,
     model: args.model,
     agent: args.agent,
     layout: args.layout,
@@ -700,13 +913,7 @@ export function handleTeamAssignNext(args) {
     .filter(
       (t) => (unresolvedBlockersByTaskId.get(t.task_id) || []).length === 0,
     )
-    .sort((a, b) => {
-      const pri = { high: 0, normal: 1, low: 2 };
-      const ap = pri[a.priority] ?? 1;
-      const bp = pri[b.priority] ?? 1;
-      if (ap !== bp) return ap - bp;
-      return String(a.created || "").localeCompare(String(b.created || ""));
-    });
+    .sort(sortQueuedTasks);
   if (queued.length === 0) {
     const blockedQueuedCount = snap.task_queue
       .filter((t) => t.dispatch_status === "queued")

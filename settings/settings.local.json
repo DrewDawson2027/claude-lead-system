@@ -8,9 +8,12 @@
       "Write",
       "Edit",
       "Task",
+      "Grep",
+      "Glob",
       "TeamCreate",
       "TeamStatus",
       "SendMessage",
+      "AskUserQuestion",
       "mcp__coordinator__coord_list_sessions",
       "mcp__coordinator__coord_get_session",
       "mcp__coordinator__coord_check_inbox",
@@ -47,7 +50,15 @@
       "mcp__coordinator__coord_export_context",
       "mcp__coordinator__coord_broadcast",
       "mcp__coordinator__coord_send_message",
-      "mcp__coordinator__coord_send_directive"
+      "mcp__coordinator__coord_send_directive",
+      "mcp__coordinator__coord_boot_snapshot",
+      "mcp__coordinator__coord_worker_report",
+      "mcp__coordinator__coord_reassign_task",
+      "mcp__coordinator__coord_get_task_audit",
+      "mcp__coordinator__coord_check_quality_gates",
+      "mcp__coordinator__coord_delete_team",
+      "mcp__coordinator__coord_update_team_policy",
+      "mcp__coordinator__coord_cost_comparison"
     ],
     "deny": []
   },
@@ -69,6 +80,11 @@
           {
             "type": "command",
             "command": "python3 ~/.claude/hooks/token-guard.py",
+            "timeout": 1000
+          },
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/model-router.py",
             "timeout": 1000
           }
         ]
@@ -148,9 +164,7 @@
   "mcpServers": {
     "coordinator": {
       "command": "node",
-      "args": [
-        "__HOME__/.claude/mcp-coordinator/index.js"
-      ]
+      "args": ["__HOME__/.claude/mcp-coordinator/index.js"]
     }
   }
 }

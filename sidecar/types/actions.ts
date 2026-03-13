@@ -3,7 +3,8 @@ export interface ActionAuditRecord {
   action: string;
   team_name?: string | null;
   route_mode?: string;
-  state?: 'pending' | 'inflight' | 'done' | 'failed' | string;
+  route_reason?: string;
+  state?: "pending" | "inflight" | "done" | "failed" | string;
   created_at?: string;
   started_at?: string;
   completed_at?: string;
@@ -15,13 +16,15 @@ export interface ActionAuditRecord {
 
 export interface RoutedActionResult {
   ok: boolean;
-  adapter: 'native' | 'coordinator';
-  path_mode?: 'bridge' | 'ephemeral' | 'local-module' | string;
+  adapter: "native" | "coordinator";
+  path_mode?: "bridge" | "native-direct" | "local-module" | string;
+  route_mode?: string;
+  route_reason?: string;
   reason?: string;
   fallback_plan?: string[];
   fallback_used?: boolean;
   fallback_from?: string | null;
-  cost_estimate_class?: 'low' | 'medium' | 'high' | string;
+  cost_estimate_class?: "low" | "medium" | "high" | string;
   latency_ms?: number;
   action_id?: string;
   result?: unknown;

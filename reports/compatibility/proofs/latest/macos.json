@@ -1,0 +1,242 @@
+{
+  "schema_version": 2,
+  "capability_contract": [
+    {
+      "id": "install",
+      "description": "Install smoke"
+    },
+    {
+      "id": "launch",
+      "description": "Platform launch command proof"
+    },
+    {
+      "id": "lead_boot",
+      "description": "Lead boot snapshot semantics proof"
+    },
+    {
+      "id": "message_delivery",
+      "description": "Bidirectional message delivery proof"
+    },
+    {
+      "id": "task_dispatch",
+      "description": "Team task dispatch proof"
+    },
+    {
+      "id": "conflict_detection",
+      "description": "Conflict detection proof"
+    },
+    {
+      "id": "resume",
+      "description": "Worker resume path proof"
+    },
+    {
+      "id": "sidecar_health",
+      "description": "Sidecar health proof"
+    }
+  ],
+  "run_id": "2026-03-12T030253741Z-a7fa94c",
+  "started_at": "2026-03-12T03:02:53.755Z",
+  "ended_at": "2026-03-12T03:03:22.885Z",
+  "platform": {
+    "id": "macos",
+    "process_platform": "darwin",
+    "release": "25.3.0",
+    "arch": "arm64",
+    "node_version": "v25.6.1"
+  },
+  "git": {
+    "sha": "a7fa94c50ad4de66b10ee3cdc7b75cf08cc78961",
+    "branch": "codex/platform-proof-matrix-a-plus",
+    "dirty": true
+  },
+  "checks": [
+    {
+      "capability": "install",
+      "description": "Install smoke",
+      "status": "fail",
+      "started_at": "2026-03-12T03:02:53.756Z",
+      "ended_at": "2026-03-12T03:03:20.057Z",
+      "duration_ms": 26301,
+      "command": [
+        "bash",
+        "tests/smoke-install.sh",
+        "--ref",
+        "HEAD",
+        "--mode",
+        "full"
+      ],
+      "env_overrides": {},
+      "exit_status": 1,
+      "signal": null,
+      "error": null,
+      "log_file": "reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/install.log"
+    },
+    {
+      "capability": "launch",
+      "description": "Platform launch command proof",
+      "status": "pass",
+      "started_at": "2026-03-12T03:03:20.058Z",
+      "ended_at": "2026-03-12T03:03:20.464Z",
+      "duration_ms": 406,
+      "command": [
+        "npm",
+        "--workspace",
+        "mcp-coordinator",
+        "exec",
+        "--",
+        "node",
+        "--test",
+        "test/platform-launch.test.mjs"
+      ],
+      "env_overrides": {},
+      "exit_status": 0,
+      "signal": null,
+      "error": null,
+      "log_file": "reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/launch.log"
+    },
+    {
+      "capability": "lead_boot",
+      "description": "Lead boot snapshot semantics proof",
+      "status": "pass",
+      "started_at": "2026-03-12T03:03:20.464Z",
+      "ended_at": "2026-03-12T03:03:20.583Z",
+      "duration_ms": 119,
+      "command": ["node", "scripts/proof/check-lead-boot.mjs"],
+      "env_overrides": {},
+      "exit_status": 0,
+      "signal": null,
+      "error": null,
+      "log_file": "reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/lead_boot.log"
+    },
+    {
+      "capability": "message_delivery",
+      "description": "Bidirectional message delivery proof",
+      "status": "pass",
+      "started_at": "2026-03-12T03:03:20.583Z",
+      "ended_at": "2026-03-12T03:03:21.232Z",
+      "duration_ms": 649,
+      "command": [
+        "npm",
+        "--workspace",
+        "mcp-coordinator",
+        "exec",
+        "--",
+        "node",
+        "--test",
+        "test/e2e-bidirectional-comms.test.mjs"
+      ],
+      "env_overrides": {},
+      "exit_status": 0,
+      "signal": null,
+      "error": null,
+      "log_file": "reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/message_delivery.log"
+    },
+    {
+      "capability": "task_dispatch",
+      "description": "Team task dispatch proof",
+      "status": "pass",
+      "started_at": "2026-03-12T03:03:21.233Z",
+      "ended_at": "2026-03-12T03:03:21.650Z",
+      "duration_ms": 417,
+      "command": [
+        "npm",
+        "--workspace",
+        "mcp-coordinator",
+        "exec",
+        "--",
+        "node",
+        "--test",
+        "--test-name-pattern",
+        "coord_team_dispatch creates team task, spawns worker, and links live team state",
+        "test/e2e-worker-pipeline.test.mjs"
+      ],
+      "env_overrides": {
+        "COORDINATOR_FORCE_E2E": "1"
+      },
+      "exit_status": 0,
+      "signal": null,
+      "error": null,
+      "log_file": "reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/task_dispatch.log"
+    },
+    {
+      "capability": "conflict_detection",
+      "description": "Conflict detection proof",
+      "status": "pass",
+      "started_at": "2026-03-12T03:03:21.650Z",
+      "ended_at": "2026-03-12T03:03:22.025Z",
+      "duration_ms": 375,
+      "command": [
+        "npm",
+        "--workspace",
+        "mcp-coordinator",
+        "exec",
+        "--",
+        "node",
+        "--test",
+        "test/conflicts.test.mjs"
+      ],
+      "env_overrides": {},
+      "exit_status": 0,
+      "signal": null,
+      "error": null,
+      "log_file": "reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/conflict_detection.log"
+    },
+    {
+      "capability": "resume",
+      "description": "Worker resume path proof",
+      "status": "pass",
+      "started_at": "2026-03-12T03:03:22.025Z",
+      "ended_at": "2026-03-12T03:03:22.581Z",
+      "duration_ms": 556,
+      "command": [
+        "npm",
+        "--workspace",
+        "mcp-coordinator",
+        "exec",
+        "--",
+        "node",
+        "--test",
+        "test/e2e-agent-resume.test.mjs"
+      ],
+      "env_overrides": {},
+      "exit_status": 0,
+      "signal": null,
+      "error": null,
+      "log_file": "reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/resume.log"
+    },
+    {
+      "capability": "sidecar_health",
+      "description": "Sidecar health proof",
+      "status": "pass",
+      "started_at": "2026-03-12T03:03:22.582Z",
+      "ended_at": "2026-03-12T03:03:22.884Z",
+      "duration_ms": 302,
+      "command": [
+        "npm",
+        "--workspace",
+        "sidecar",
+        "exec",
+        "--",
+        "node",
+        "--test",
+        "test/terminal-health.test.mjs",
+        "test/bridge-health.test.mjs"
+      ],
+      "env_overrides": {},
+      "exit_status": 0,
+      "signal": null,
+      "error": null,
+      "log_file": "reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/sidecar_health.log"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "passed": 7,
+    "failed": 1,
+    "counts_by_status": {
+      "fail": 1,
+      "pass": 7
+    },
+    "status": "fail"
+  }
+}

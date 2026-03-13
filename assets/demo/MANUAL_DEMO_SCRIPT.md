@@ -1,103 +1,117 @@
 # Manual Demo Recording Script
 
-Record this with OBS or screen recording software. Total runtime: ~3 minutes.
+Record this with screen recording software. The target runtime is a **35-55 second** hero clip plus **one uncut proof take**.
 
-## Pre-recording Setup
+## Core thesis
 
-1. **Clean terminal prompt** — use a minimal PS1:
-   ```bash
-   export PS1="\w $ "
-   ```
+The clip proves one sentence:
 
-2. **Run the terminal layout script**:
-   ```bash
-   bash assets/demo/setup_demo_terminals.sh
-   ```
-   This opens 3 iTerm2 panes side by side.
+> When two active workers are converging on the same file, Claude Lead System detects the collision risk, lets the operator intervene immediately, and visibly clears the conflict before merge pain happens.
 
-3. **Clear all terminals** — `clear` in each pane
+## Pre-record setup
 
-4. **Set working directory** in all panes:
-   ```bash
-   cd ~/claude-lead-system/assets/demo/demo-project
-   ```
+Run from the repo root:
 
-5. **Remove personal info**: no browser tabs, no notifications, no dock items with personal data
-
-## Recording Flow
-
-### Terminal Layout
-```
-┌─────────────────┬─────────────────┬─────────────────┐
-│   Terminal A     │   Terminal B     │   Terminal C     │
-│   (Lead)         │   (Worker A)     │   (Worker B)     │
-└─────────────────┴─────────────────┴─────────────────┘
+```bash
+bash assets/demo/prepare_conflict_hero_demo.sh --force
+bash assets/demo/preflight_conflict_hero_demo.sh
+bash assets/demo/setup_conflict_hero_terminals.sh
 ```
 
-### Step 1: Boot Lead Dashboard (Terminal A) — 20 seconds
+Use the prepared workspace:
 
+```text
+${TMPDIR:-/tmp}/claude-lead-conflict-hero
 ```
+
+Use the generated bundle:
+
+```text
+${TMPDIR:-/tmp}/claude-lead-conflict-hero/.demo-artifacts/recording
+```
+
+Before you hit record:
+
+1. Paste `worker-a-prompt.txt` into the worker-a pane.
+2. Paste `worker-b-prompt.txt` into the worker-b pane.
+3. Wait until both workers have visibly inspected or touched `src/auth.ts`.
+4. Keep all three panes visible.
+5. Turn off notifications and hide personal information.
+6. Do not start recording until the overlap is already in motion.
+
+## Exact operator inputs
+
+Replace the session IDs with the real ones shown on screen.
+
+```text
 /lead
-```
-
-**What to show:** Dashboard with session table, W/E/B/R counters, status column.
-**Pause:** Let the viewer see the full dashboard render.
-
-### Step 2: Show Both Active Sessions (Terminal A) — 10 seconds
-
-Point out that Terminal B and Terminal C appear in the dashboard as active sessions.
-
-### Step 3: Spawn a Worker (Terminal A) — 30 seconds
-
-```
-run "write unit tests for src/auth.ts — cover login, register, and token generation" in ~/claude-lead-system/assets/demo/demo-project
-```
-
-**What to show:** Worker spawning in a new tab/split. Meta file creation. Worker prompt.
-**Switch to Worker tab:** Show it running autonomously.
-
-### Step 4: Send a Message (Terminal A) — 20 seconds
-
-```
-tell [session-id-of-terminal-B] to also add integration tests for the API routes in src/api.ts
-```
-
-**What to show:** Message sent confirmation. Switch to Terminal B — message appears on next tool call.
-
-### Step 5: Show Conflict Detection (Terminal A) — 20 seconds
-
-```
+conflicts
+tell <worker-b-session-id> stop editing src/auth.ts. worker <worker-a-session-id> owns that file. continue only in tests/auth.integration.test.ts. if auth.ts needs changes, report them instead of editing the file.
 conflicts
 ```
 
-**What to show:** Conflict warning when both sessions touch `src/auth.ts`.
+## What must be visible on screen
 
-### Step 6: Run a Pipeline (Terminal A) — 30 seconds
+- Three live panes in the same repo.
+- `src/auth.ts` visible as the overlapping file.
+- The first `conflicts` output showing both sessions.
+- The directive being sent to Worker B.
+- Worker B receiving the directive and pivoting.
+- The second `conflicts` output showing the cleared state.
 
-```
-pipeline: lint, test, build in ~/claude-lead-system/assets/demo/demo-project
-```
+## Timing and hold points
 
-**What to show:** Pipeline script creation, sequential execution, per-step status.
+- Hold 1-2 seconds on the first conflict output.
+- Do not cut between the first `conflicts` command and the second `conflicts` command.
+- Hold 2-3 seconds on the cleared conflict result.
 
-### Step 7: Check Worker Result (Terminal A) — 20 seconds
+## Narration script
 
-```
-check worker [worker-id] result
-```
+### Opening
 
-**What to show:** Worker output with files modified and test results.
+> The hard part of multi-agent coding is not spawning more agents. It is stopping them from colliding on the same file.
 
-### Step 8: Final Dashboard (Terminal A) — 10 seconds
+### While `/lead` renders
 
-```
-/lead
-```
+> Here I have two live workers in the same repo.
 
-**What to show:** Updated dashboard with all sessions, tool counts updated, conflict flags.
+### While the first `conflicts` output appears
+
+> Both are converging on `src/auth.ts`. Lead catches that before I end up in merge cleanup.
+
+### While sending the directive
+
+> I can re-route one worker live: one worker owns the auth file, the other stays in tests.
+
+### While Worker B pivots
+
+> The point is not more agent theater. The point is operator control at the moment coordination actually matters.
+
+### While the cleared output appears
+
+> Now the overlap is gone. That is the wedge: prevent the collision before the merge conflict.
 
 ## Post-recording
 
-1. Take screenshots at key moments (dashboard, conflict warning, worker spawn)
-2. Trim video to ~2-3 minutes
-3. Create GIF from the first 30 seconds (dashboard boot + worker spawn)
+If you are generating a fresh evidence bundle, save these support artifacts:
+
+- `uncut-proof-recording.mp4`
+- `screenshot-conflict-found.png`
+- `screenshot-directive-sent.png`
+- `screenshot-conflict-cleared.png`
+
+These are reproduction and evidence-bundle support artifacts, not part of the shipped public proof set unless you intentionally publish them.
+
+Then collect the evidence pack:
+
+```bash
+bash assets/demo/collect_conflict_hero_evidence.sh \
+  --project "${TMPDIR:-/tmp}/claude-lead-conflict-hero" \
+  --lead <lead-session-id> \
+  --worker-a <worker-a-session-id> \
+  --worker-b <worker-b-session-id> \
+  --recording uncut-proof-recording.mp4 \
+  --conflict-shot screenshot-conflict-found.png \
+  --directive-shot screenshot-directive-sent.png \
+  --cleared-shot screenshot-conflict-cleared.png
+```

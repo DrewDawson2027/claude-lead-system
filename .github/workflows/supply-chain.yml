@@ -50,7 +50,7 @@ jobs:
             sbom.spdx.json
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9 # v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
       - name: Sign release bundle (keyless)
         run: |
@@ -89,6 +89,6 @@ jobs:
             --clobber
 
       - name: Attest release bundle provenance
-        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: claude-lead-system.tar.gz

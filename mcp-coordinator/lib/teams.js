@@ -8,11 +8,64 @@ import { existsSync, readdirSync, mkdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { cfg } from "./constants.js";
 import {
+  sanitizeId,
   sanitizeName,
   writeFileSecure,
   ensureSecureDirectory,
 } from "./security.js";
 import { readJSON, text } from "./helpers.js";
+
+/** Ordered palette matching native Agent Teams colors. */
+const AGENT_COLORS = [
+  "purple",
+  "blue",
+  "green",
+  "red",
+  "yellow",
+  "cyan",
+  "white",
+];
+const ANSI = {
+  purple: "\x1b[35m",
+  blue: "\x1b[34m",
+  green: "\x1b[32m",
+  red: "\x1b[31m",
+  yellow: "\x1b[33m",
+  cyan: "\x1b[36m",
+  white: "\x1b[37m",
+  reset: "\x1b[0m",
+};
+/**
+ * Wrap a name in its ANSI color code for terminal display.
+ * Falls back to plain name if color is unknown or absent.
+ * @param {string} name
+ * @param {string|undefined} color
+ * @returns {string}
+ */
+export function colorName(name, color) {
+  return color && ANSI[color] ? `${ANSI[color]}${name}${ANSI.reset}` : name;
+}
+
+function normalizeMemberColor(color) {
+  if (typeof color !== "string") return null;
+  const normalized = color.trim().toLowerCase();
+  return AGENT_COLORS.includes(normalized) ? normalized : null;
+}
+
+// handleSpawnWorker is imported lazily inside handleCreateTeam to avoid
+// circular-dependency issues (workers.js imports teams.js).
+// We use a dynamic import shim stored here so tests can override it.
+/** @type {((args: object) => object) | null} */
+let _spawnWorkerFn = null;
+/** Override in tests to inject a mock spawn function. */
+export function _setSpawnWorkerFn(fn) {
+  _spawnWorkerFn = fn;
+}
+async function getSpawnWorker() {
+  if (_spawnWorkerFn) return _spawnWorkerFn;
+  const mod = await import("./workers.js");
+  return mod.handleSpawnWorker;
+}
 
 /**
  * Get the teams directory path, ensuring it exists.
@@ -39,7 +92,7 @@ function teamPreset(preset) {
           require_plan: false,
           default_mode: "pipe",
           default_runtime: "claude",
-          default_context_level: "minimal",
+          default_context_level: "standard",
           budget_policy: "warn",
           budget_tokens: 40000,
           global_budget_policy: "warn",
@@ -73,7 +126,7 @@ function teamPreset(preset) {
           require_plan: false,
           default_mode: "pipe",
           default_runtime: "claude",
-          default_context_level: "minimal",
+          default_context_level: "standard",
           budget_policy: "warn",
           budget_tokens: 50000,
           global_budget_policy: "warn",
@@ -145,6 +198,7 @@ function normalizeTeamPolicy(policy = {}) {
   };
   strEnum("permission_mode", [
     "acceptEdits",
+    "auto",
     "planOnly",
     "readOnly",
     "editOnly",
@@ -191,10 +245,21 @@ export function readTeamConfig(teamNameRaw) {
 /**
  * Handle coord_create_team tool call.
  * Creates or updates a team config with members, roles, and project info.
- * @param {object} args - { team_name, project, description, members }
- * @returns {object} MCP text response
+ * When `workers` is provided, spawns all workers atomically — rolls back on
+ * any failure (kills already-spawned workers and deletes the team config).
+ * @param {object} args - { team_name, project, description, members, workers? }
+ * @returns {object|Promise<object>} MCP text response
  */
 export function handleCreateTeam(args) {
+  // If workers array is supplied, delegate to the async atomic path.
+  if (Array.isArray(args.workers) && args.workers.length > 0) {
+    return _handleCreateTeamAtomic(args);
+  }
+  return _handleCreateTeamSync(args);
+}
+
+/** Synchronous (original) team-only creation. */
+function _handleCreateTeamSync(args) {
   const teamName = sanitizeName(args.team_name, "team_name");
   const dir = teamsDir();
   const teamFile = join(dir, `${teamName}.json`);
@@ -242,27 +307,56 @@ export function handleCreateTeam(args) {
   if (args.members?.length) {
     for (const m of args.members) {
       const name = sanitizeName(m.name || m, "member name");
-      const role = m.role ? String(m.role).trim() : "worker";
+      const hasRole =
+        typeof m === "object" &&
+        m !== null &&
+        Object.prototype.hasOwnProperty.call(m, "role");
+      const role = hasRole
+        ? m.role
+          ? String(m.role).trim()
+          : "worker"
+        : undefined;
       const session_id = m.session_id ? String(m.session_id).slice(0, 8) : null;
-      const task_id = m.task_id || null;
+      const hasTaskId =
+        typeof m === "object" &&
+        m !== null &&
+        Object.prototype.hasOwnProperty.call(m, "task_id");
+      const task_id = hasTaskId
+        ? m.task_id
+          ? sanitizeId(m.task_id, "task_id")
+          : null
+        : undefined;
 
       const agentId = m.agentId || null;
+      const hasColor =
+        typeof m === "object" &&
+        m !== null &&
+        Object.prototype.hasOwnProperty.call(m, "color");
+      const color =
+        normalizeMemberColor(hasColor ? m.color : null) ||
+        AGENT_COLORS[team.members.length % AGENT_COLORS.length];
 
       const idx = team.members.findIndex((x) => x.name === name);
       if (idx >= 0) {
         // Update existing member
-        if (role) team.members[idx].role = role;
+        if (hasRole && role) team.members[idx].role = role;
         if (session_id) team.members[idx].session_id = session_id;
-        if (task_id) team.members[idx].task_id = task_id;
+        if (hasColor && normalizeMemberColor(m.color)) {
+          team.members[idx].color = normalizeMemberColor(m.color);
+        } else if (!team.members[idx].color) {
+          team.members[idx].color = color;
+        }
+        if (hasTaskId) team.members[idx].task_id = task_id;
         if (agentId) team.members[idx].agentId = agentId;
         team.members[idx].updated = new Date().toISOString();
       } else {
         team.members.push({
           name,
-          role,
+          role: role || "worker",
           session_id,
-          task_id,
+          task_id: task_id ?? null,
           agentId,
+          color,
           joined: new Date().toISOString(),
           updated: new Date().toISOString(),
         });
@@ -287,6 +381,110 @@ export function handleCreateTeam(args) {
             `  - ${m.name} (${m.role})${m.task_id ? ` → ${m.task_id}` : ""}`,
         )
         .join("\n"),
+  );
+}
+
+/**
+ * Async atomic team creation with workers.
+ * Spawns every worker in `args.workers`; on any failure kills all already-
+ * spawned workers and removes the team config file, then rejects.
+ * @param {object} args
+ * @returns {Promise<object>}
+ */
+async function _handleCreateTeamAtomic(args) {
+  // 1. Create the team config first (synchronous path, workers omitted).
+  const teamResult = _handleCreateTeamSync({ ...args, workers: undefined });
+  const teamText = teamResult?.content?.[0]?.text || "";
+  // Propagate any unexpected team-config-level failure immediately.
+  if (/error|failed/i.test(teamText) && !/created|updated/i.test(teamText)) {
+    return teamResult;
+  }
+
+  // Resolve team name and config file path (same logic as _handleCreateTeamSync).
+  const resolvedTeamName = sanitizeName(args.team_name, "team_name");
+  const teamFile = join(teamsDir(), `${resolvedTeamName}.json`);
+
+  const spawnWorker = await getSpawnWorker();
+
+  const spawnedTaskIds = [];
+  const workerResults = [];
+
+  for (let i = 0; i < args.workers.length; i++) {
+    const w = args.workers[i];
+    // Build worker args, merging per-worker fields; team_name is always forced.
+    const workerArgs = {
+      directory: w.directory || args.directory || process.env.HOME,
+      prompt: w.task || w.prompt || "",
+      model: w.model || "sonnet",
+      worker_name: w.name || `worker-${i + 1}`,
+      layout: "background",
+      ...w,
+      // Overrides that must not be clobbered by spread:
+      team_name: resolvedTeamName,
+      prompt: w.task || w.prompt || "",
+    };
+
+    let result;
+    try {
+      result = spawnWorker(workerArgs);
+    } catch (err) {
+      result = {
+        content: [
+          { type: "text", text: `Failed to spawn worker: ${err.message}` },
+        ],
+      };
+    }
+
+    const resultText = result?.content?.[0]?.text || "";
+    // A spawn is considered failed when the result text signals an error AND
+    // does NOT contain the success phrase "Worker spawned:".
+    const failed =
+      /failed|error|blocked|conflict/i.test(resultText) &&
+      !/worker spawned:/i.test(resultText);
+
+    if (failed) {
+      // ── ROLLBACK ────────────────────────────────────────────────────────
+      // Kill workers that were already spawned successfully.
+      const { handleKillWorker } = await import("./workers.js");
+      for (const tid of spawnedTaskIds) {
+        try {
+          handleKillWorker({ task_id: tid });
+        } catch {
+          /* best-effort */
+        }
+      }
+      // Remove the partially-created team config.
+      try {
+        if (existsSync(teamFile)) unlinkSync(teamFile);
+      } catch {
+        /* best-effort */
+      }
+
+      return text(
+        `Atomic team creation FAILED and was rolled back.\n` +
+          `- Team config removed: ${resolvedTeamName}\n` +
+          `- Workers killed: ${spawnedTaskIds.length}\n` +
+          `- Failed worker: ${w.name || `worker-${i + 1}`} (index ${i})\n` +
+          `- Error: ${resultText}`,
+      );
+    }
+
+    // Parse task_id from the success text so we can roll back this worker if
+    // a later one fails.
+    const tidMatch =
+      resultText.match(/Worker spawned:\s+\*?\*?([^\s*\n]+)/i) ||
+      resultText.match(/task_id[=:\s"]+([A-Za-z0-9_-]+)/i);
+    if (tidMatch?.[1]) spawnedTaskIds.push(tidMatch[1]);
+    workerResults.push({ name: w.name || `worker-${i + 1}`, text: resultText });
+  }
+
+  // ── SUCCESS ─────────────────────────────────────────────────────────────
+  return text(
+    `${teamText}\n\n` +
+      `### Atomically Spawned Workers (${workerResults.length})\n` +
+      workerResults
+        .map((r, idx) => `#### Worker ${idx + 1}: ${r.name}\n${r.text}`)
+        .join("\n\n"),
   );
 }
 
@@ -364,7 +562,7 @@ export function handleGetTeam(args) {
   output += `\n### Members (${team.members.length})\n`;
   for (const m of team.members) {
     const session = readSessionById(m.session_id);
-    output += `- **${m.name}** — ${m.role}`;
+    output += `- **${colorName(m.name, m.color)}** — ${m.role}`;
     if (m.session_id) output += ` | session: ${m.session_id}`;
     if (m.task_id) output += ` | task: ${m.task_id}`;
     if (session) {
@@ -431,6 +629,42 @@ export function handleDeleteTeam(args) {
   const team = readJSON(teamFile);
   const memberCount = team?.members?.length || 0;
 
+  // Guard: refuse deletion if any teammate is active in the last 5 minutes
+  if (!args.force) {
+    const now = Date.now();
+    const activeMates = (team?.members || [])
+      .filter((m) => m.session_id)
+      .map((m) => ({
+        name: m.name,
+        session: readJSON(
+          join(
+            cfg().TERMINALS_DIR,
+            `session-${String(m.session_id).slice(0, 8)}.json`,
+          ),
+        ),
+      }))
+      .filter(({ session }) => {
+        if (
+          !session ||
+          session.status === "closed" ||
+          session.status === "stale"
+        )
+          return false;
+        const age = session.last_active
+          ? (now - new Date(session.last_active).getTime()) / 1000
+          : Infinity;
+        return age < 300; // active in last 5 minutes
+      });
+
+    if (activeMates.length > 0) {
+      const names = activeMates.map((m) => m.name).join(", ");
+      return text(
+        `Cannot delete team **${teamName}** — ${activeMates.length} active teammate(s): ${names}\n` +
+          `Use force: true to delete anyway.`,
+      );
+    }
+  }
+
   try {
     unlinkSync(teamFile);
   } catch (e) {
@@ -438,30 +672,43 @@ export function handleDeleteTeam(args) {
   }
 
   let tasksRemoved = 0;
-  if (args.clean_tasks) {
-    const tasksDir = join(cfg().TERMINALS_DIR, "tasks");
-    try {
-      const files = readdirSync(tasksDir).filter((f) => f.endsWith(".json"));
-      for (const f of files) {
-        const task = readJSON(join(tasksDir, f));
-        if (
-          task &&
-          (task.team_name === teamName || task.metadata?.team_name === teamName)
-        ) {
-          try {
-            unlinkSync(join(tasksDir, f));
-            tasksRemoved++;
-          } catch {}
-        }
+  const tasksDir = join(cfg().TERMINALS_DIR, "tasks");
+  try {
+    const files = readdirSync(tasksDir).filter((f) => f.endsWith(".json"));
+    for (const f of files) {
+      const task = readJSON(join(tasksDir, f));
+      if (
+        task &&
+        (task.team_name === teamName || task.metadata?.team_name === teamName)
+      ) {
+        try {
+          unlinkSync(join(tasksDir, f));
+          tasksRemoved++;
+        } catch {}
       }
-    } catch {}
-  }
+    }
+  } catch {}
+
+  let metasRemoved = 0;
+  try {
+    const metaFiles = readdirSync(cfg().RESULTS_DIR).filter((f) =>
+      f.endsWith(".meta.json"),
+    );
+    for (const f of metaFiles) {
+      const meta = readJSON(join(cfg().RESULTS_DIR, f));
+      if (meta && meta.team_name === teamName) {
+        try {
+          unlinkSync(join(cfg().RESULTS_DIR, f));
+          metasRemoved++;
+        } catch {}
+      }
+    }
+  } catch {}
 
   return text(
     `Team **${teamName}** deleted.\n` +
       `- Members removed: ${memberCount}\n` +
-      (args.clean_tasks
-        ? `- Tasks cleaned: ${tasksRemoved}\n`
-        : "- Tasks preserved (use clean_tasks: true to remove)\n"),
+      `- Tasks cleaned: ${tasksRemoved}\n` +
+      `- Worker meta files cleaned: ${metasRemoved}\n`,
   );
 }

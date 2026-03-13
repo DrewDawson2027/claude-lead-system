@@ -57,6 +57,7 @@ import {
   handleResumeWorker,
   handleUpgradeWorker,
   handleWorkerReport,
+  killAllWorkers,
 } from "./lib/workers.js";
 import { handleRunPipeline, handleGetPipeline } from "./lib/pipelines.js";
 import {
@@ -79,16 +80,27 @@ import {
   handleExportContext,
 } from "./lib/context-store.js";
 import {
+  handleListAgents,
+  handleGetAgent,
+  handleCreateAgent,
+  handleUpdateAgent,
+  handleDeleteAgent,
+  handleSyncAgentManifest,
+} from "./lib/agents.js";
+import {
   handleCreateTeam,
   handleGetTeam,
   handleListTeams,
   handleDeleteTeam,
   handleUpdateTeamPolicy,
+  _setSpawnWorkerFn,
 } from "./lib/teams.js";
 import { handleTeamDispatch } from "./lib/team-dispatch.js";
 import {
   handleTeamStatusCompact,
   handleTeamQueueTask,
+  handleClaimNextTask,
+  handleClaimNextTaskData,
   handleTeamAssignNext,
   handleTeamRebalance,
   handleSidecarStatus,
@@ -106,6 +118,7 @@ import {
   buildInteractiveWorkerScript,
   buildCodexWorkerScript,
   buildCodexInteractiveWorkerScript,
+  buildResumeWorkerScript,
 } from "./lib/platform/common.js";
 
 // Legacy cost MCP deprecation metadata (compat helpers for tests and envelope wrappers)
@@ -237,6 +250,12 @@ const CORE_TOOLS = new Set([
   "coord_drain_native_queue",
   "coord_discover_peers",
   "coord_boot_snapshot",
+  "coord_list_agents",
+  "coord_get_agent",
+  "coord_create_agent",
+  "coord_update_agent",
+  "coord_delete_agent",
+  "coord_sync_agent_manifest",
 ]);
 
 const TEAMS_TOOLS = new Set([
@@ -255,6 +274,7 @@ const TEAMS_TOOLS = new Set([
   "coord_team_dispatch",
   "coord_team_status_compact",
   "coord_team_queue_task",
+  "coord_claim_next_task",
   "coord_team_assign_next",
   "coord_team_rebalance",
 ]);
@@ -456,7 +476,7 @@ const ALL_TOOLS = [
           type: "string",
           enum: ["minimal", "standard", "full"],
           description:
-            "How much prior context to include: minimal (3KB), standard (10KB + lead files), full (30KB + plan + lead context). Default: minimal",
+            "How much prior context to include: minimal (3KB), standard (10KB + lead files), full (30KB + plan + lead context). Default: standard",
         },
         budget_policy: {
           type: "string",
@@ -504,6 +524,11 @@ const ALL_TOOLS = [
           description:
             "Lead's conversation context summary. Injected into worker prompt so worker inherits lead's knowledge. Use this to share decisions, requirements, and findings.",
         },
+        parent_session_id: {
+          type: "string",
+          description:
+            "Optional full Claude session UUID for native parent/child session linking when the local Claude CLI supports --parent-session-id.",
+        },
       },
       required: ["directory", "prompt"],
     },
@@ -538,6 +563,19 @@ const ALL_TOOLS = [
                 enum: ["researcher", "implementer", "reviewer", "planner"],
               },
               require_plan: { type: "boolean" },
+              permission_mode: {
+                type: "string",
+                enum: [
+                  "acceptEdits",
+                  "bypassPermissions",
+                  "default",
+                  "dontAsk",
+                  "plan",
+                  "planOnly",
+                  "readOnly",
+                  "editOnly",
+                ],
+              },
               context_level: {
                 type: "string",
                 enum: ["minimal", "standard", "full"],
@@ -554,6 +592,7 @@ const ALL_TOOLS = [
               global_budget_tokens: { type: "integer" },
               max_active_workers: { type: "integer" },
               team_name: { type: "string" },
+              parent_session_id: { type: "string" },
             },
             required: ["directory", "prompt"],
           },
@@ -632,6 +671,11 @@ const ALL_TOOLS = [
           enum: ["pipe", "interactive"],
           description:
             "Mode for the resumed worker (default: same as original)",
+        },
+        resume_agent_id: {
+          type: "string",
+          description:
+            "Optional native agent ID override. When present, resume-by-agentId is attempted before session/transcript fallback paths.",
         },
       },
       required: ["task_id"],
@@ -900,10 +944,47 @@ const ALL_TOOLS = [
               role: { type: "string" },
               session_id: { type: "string" },
               task_id: { type: "string" },
+              color: {
+                type: "string",
+                enum: [
+                  "red",
+                  "green",
+                  "blue",
+                  "yellow",
+                  "purple",
+                  "cyan",
+                  "white",
+                ],
+              },
             },
             required: ["name"],
           },
           description: "Team members to add/update",
+        },
+        workers: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Worker name" },
+              task: {
+                type: "string",
+                description: "Task prompt for the worker",
+              },
+              model: {
+                type: "string",
+                description: "Model to use (haiku/sonnet)",
+              },
+              directory: {
+                type: "string",
+                description: "Working directory for the worker",
+              },
+              parent_session_id: { type: "string" },
+            },
+            required: ["name", "task"],
+          },
+          description:
+            "Optional: spawn workers atomically with team creation. On any spawn failure, all spawned workers are killed and the team config is removed (full rollback).",
         },
       },
       required: ["team_name"],
@@ -1038,6 +1119,7 @@ const ALL_TOOLS = [
         max_active_workers: { type: "integer" },
         max_turns: { type: "integer" },
         context_summary: { type: "string" },
+        parent_session_id: { type: "string" },
       },
       required: ["team_name", "subject", "prompt", "directory"],
     },
@@ -1083,8 +1165,49 @@ const ALL_TOOLS = [
         },
         acceptance_criteria: { type: "array", items: { type: "string" } },
         metadata: { type: "object" },
+        notify_session_id: { type: "string" },
+        parent_session_id: { type: "string" },
       },
       required: ["team_name", "subject", "prompt"],
+    },
+  },
+  {
+    name: "coord_claim_next_task",
+    description:
+      "Mark a teammate's completed team task from its worker task ID, then let that same teammate claim the next unblocked queued task.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        team_name: { type: "string" },
+        completed_worker_task_id: { type: "string" },
+        assignee: {
+          type: "string",
+          description: "Specific teammate name to continue claiming work as",
+        },
+        directory: {
+          type: "string",
+          description:
+            "Default working directory for queued tasks missing dispatch.directory",
+        },
+        worker_task_id: { type: "string" },
+        model: { type: "string" },
+        agent: { type: "string" },
+        role: {
+          type: "string",
+          enum: ["researcher", "implementer", "reviewer", "planner"],
+        },
+        mode: { type: "string", enum: ["pipe", "interactive"] },
+        runtime: { type: "string", enum: ["claude", "codex"] },
+        layout: {
+          type: "string",
+          enum: ["tab", "split", "background", "tmux"],
+        },
+        isolate: { type: "boolean" },
+        notify_session_id: { type: "string" },
+        context_summary: { type: "string" },
+        parent_session_id: { type: "string" },
+      },
+      required: ["team_name"],
     },
   },
   {
@@ -1117,6 +1240,7 @@ const ALL_TOOLS = [
         isolate: { type: "boolean" },
         notify_session_id: { type: "string" },
         context_summary: { type: "string" },
+        parent_session_id: { type: "string" },
       },
       required: ["team_name"],
     },
@@ -1156,6 +1280,9 @@ const ALL_TOOLS = [
         runtime: { type: "string", enum: ["claude", "codex"] },
         layout: { type: "string", enum: ["tab", "split", "background"] },
         isolate: { type: "boolean" },
+        notify_session_id: { type: "string" },
+        context_summary: { type: "string" },
+        parent_session_id: { type: "string" },
       },
       required: ["team_name"],
     },
@@ -1172,7 +1299,7 @@ const ALL_TOOLS = [
   {
     name: "coord_cost_comparison",
     description:
-      "Compare estimated Lead System cost vs projected Agent Teams cost for current session's workers.",
+      "Report measured A/B harness evidence for native vs lead paths; suppress savings claims unless claim-safe policy allows them.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -1339,6 +1466,211 @@ const ALL_TOOLS = [
         },
       },
       required: ["session_id", "summary"],
+    },
+  },
+  // ── Agents ──
+  {
+    name: "coord_list_agents",
+    description:
+      "List custom agent files across user/project/local scopes with scope-resolution metadata and frontmatter validation results.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        scope: {
+          type: "string",
+          enum: ["all", "local", "project", "user"],
+          description: "Scope filter (default: all).",
+        },
+        include_invalid: {
+          type: "boolean",
+          description: "Include invalid agent files (default: true).",
+        },
+        include_shadowed: {
+          type: "boolean",
+          description:
+            "Include lower-precedence duplicates shadowed by higher scope agents (default: true).",
+        },
+        project_dir: {
+          type: "string",
+          description: "Project root override for scope resolution.",
+        },
+      },
+    },
+  },
+  {
+    name: "coord_get_agent",
+    description:
+      "Get a single agent with scope-aware resolution and optional prompt/frontmatter expansion. When scope is omitted, resolves by local->project->user precedence.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agent_name: {
+          type: "string",
+          description: "Agent name (or filename without .md).",
+        },
+        scope: {
+          type: "string",
+          enum: ["all", "local", "project", "user"],
+          description:
+            "Optional explicit scope. all resolves by local->project->user precedence.",
+        },
+        project_dir: {
+          type: "string",
+          description: "Project root override for scope resolution.",
+        },
+        include_prompt: {
+          type: "boolean",
+          description: "Include prompt body in response (default: true).",
+        },
+        include_frontmatter: {
+          type: "boolean",
+          description:
+            "Include parsed frontmatter in response (default: true).",
+        },
+      },
+      required: ["agent_name"],
+    },
+  },
+  {
+    name: "coord_create_agent",
+    description:
+      "Create an agent markdown file with validated YAML frontmatter fields: name, description, model, tools, memory, and skills.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agent_name: { type: "string", description: "Agent name." },
+        scope: {
+          type: "string",
+          enum: ["local", "project", "user"],
+          description: "Target scope (default: project).",
+        },
+        description: { type: "string", description: "Agent description." },
+        model: {
+          type: "string",
+          description: "Agent model (default: sonnet).",
+        },
+        tools: {
+          type: "array",
+          items: { type: "string" },
+          description: "Allowed tools list.",
+        },
+        memory: {
+          type: "string",
+          enum: ["user", "project", "local"],
+          description: "Optional memory scope.",
+        },
+        skills: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional skills list.",
+        },
+        prompt: { type: "string", description: "Agent prompt body." },
+        project_dir: { type: "string", description: "Project root override." },
+        overwrite: {
+          type: "boolean",
+          description: "Overwrite if file already exists (default: false).",
+        },
+      },
+      required: ["agent_name", "description"],
+    },
+  },
+  {
+    name: "coord_update_agent",
+    description:
+      "Update an existing agent file. Supports renaming and field patching with full frontmatter revalidation.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agent_name: {
+          type: "string",
+          description: "Existing agent name (or filename).",
+        },
+        scope: {
+          type: "string",
+          enum: ["all", "local", "project", "user"],
+          description:
+            "Optional explicit scope. all updates the effective local->project->user winner.",
+        },
+        new_name: { type: "string", description: "Optional rename target." },
+        description: { type: "string", description: "Updated description." },
+        model: { type: "string", description: "Updated model." },
+        tools: {
+          type: "array",
+          items: { type: "string" },
+          description: "Updated tools array.",
+        },
+        memory: {
+          type: "string",
+          enum: ["user", "project", "local"],
+          description:
+            "Updated memory scope. Set empty string/null via client to clear.",
+        },
+        skills: {
+          type: "array",
+          items: { type: "string" },
+          description: "Updated skills array.",
+        },
+        prompt: { type: "string", description: "Updated prompt body." },
+        project_dir: { type: "string", description: "Project root override." },
+        overwrite: {
+          type: "boolean",
+          description:
+            "Allow overwriting target if renamed to existing file (default: false).",
+        },
+      },
+      required: ["agent_name"],
+    },
+  },
+  {
+    name: "coord_delete_agent",
+    description:
+      "Delete an agent file from one scope or all scopes when duplicates exist.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agent_name: { type: "string", description: "Agent name." },
+        scope: {
+          type: "string",
+          enum: ["all", "local", "project", "user"],
+          description:
+            "Optional explicit scope. all deletes only the effective winner unless all_scopes=true.",
+        },
+        all_scopes: {
+          type: "boolean",
+          description: "Delete matching files from all scopes.",
+        },
+        project_dir: { type: "string", description: "Project root override." },
+      },
+      required: ["agent_name"],
+    },
+  },
+  {
+    name: "coord_sync_agent_manifest",
+    description:
+      "Regenerate the Agents table in MANIFEST.md from discovered agent files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        manifest_path: {
+          type: "string",
+          description:
+            "Optional manifest path (default: {project}/MANIFEST.md).",
+        },
+        scope: {
+          type: "string",
+          enum: ["all", "local", "project", "user"],
+          description: "Scope filter for synced agents (default: all).",
+        },
+        include_invalid: {
+          type: "boolean",
+          description: "Include invalid agent files in the generated table.",
+        },
+        include_shadowed: {
+          type: "boolean",
+          description: "Include shadowed lower-precedence duplicates.",
+        },
+        project_dir: { type: "string", description: "Project root override." },
+      },
     },
   },
   // ── Broadcast ──
@@ -1690,6 +2022,9 @@ function handleToolCall(name, args = {}) {
       case "coord_team_queue_task":
         result = handleTeamQueueTask(args);
         break;
+      case "coord_claim_next_task":
+        result = handleClaimNextTask(args);
+        break;
       case "coord_team_assign_next":
         result = handleTeamAssignNext(args);
         break;
@@ -1722,6 +2057,24 @@ function handleToolCall(name, args = {}) {
         break;
       case "coord_export_context":
         result = handleExportContext(args);
+        break;
+      case "coord_list_agents":
+        result = handleListAgents(args);
+        break;
+      case "coord_get_agent":
+        result = handleGetAgent(args);
+        break;
+      case "coord_create_agent":
+        result = handleCreateAgent(args);
+        break;
+      case "coord_update_agent":
+        result = handleUpdateAgent(args);
+        break;
+      case "coord_delete_agent":
+        result = handleDeleteAgent(args);
+        break;
+      case "coord_sync_agent_manifest":
+        result = handleSyncAgentManifest(args);
         break;
       case "coord_broadcast":
         result = handleBroadcast(args);
@@ -1785,6 +2138,16 @@ async function main() {
       /* swallow — non-critical */
     }
   }, 30_000).unref();
+
+  // Kill all spawned workers when the coordinator exits so they don't
+  // accumulate as orphaned processes and exhaust RAM over long sessions.
+  const cleanExit = (code = 0) => {
+    killAllWorkers();
+    process.exit(code);
+  };
+  process.on("SIGTERM", () => cleanExit(0));
+  process.on("SIGINT", () => cleanExit(0));
+  process.on("exit", () => killAllWorkers());
 }
 
 const isDirectRun =
@@ -1811,9 +2174,14 @@ export const __test__ = {
   ensureDirsOnce,
   handleToolCall,
   buildWorkerScript,
+  buildInteractiveWorkerScript,
+  buildCodexWorkerScript,
+  buildCodexInteractiveWorkerScript,
+  buildResumeWorkerScript,
   buildPlatformLaunchCommand,
   isProcessAlive,
   killProcess,
+  isSafeTTYPath,
   sanitizeId,
   sanitizeShortSessionId,
   sanitizeName,
@@ -1824,7 +2192,6 @@ export const __test__ = {
   readJSONLLimited,
   batQuote,
   runGC,
-  isSafeTTYPath,
   selectWakeText,
   applyLegacyDeprecationToOutput,
   LEGACY_COST_DEPRECATIONS,
@@ -1841,12 +2208,15 @@ export const __test__ = {
   handleGetTaskAudit,
   handleCheckQualityGates,
   handleCreateTeam,
+  _setSpawnWorkerFn,
   handleUpdateTeamPolicy,
   handleGetTeam,
   handleListTeams,
   handleTeamDispatch,
   handleTeamStatusCompact,
   handleTeamQueueTask,
+  handleClaimNextTask,
+  handleClaimNextTaskData,
   handleTeamAssignNext,
   handleTeamRebalance,
   handleSidecarStatus,
@@ -1854,9 +2224,6 @@ export const __test__ = {
   handleSendMessage,
   handleBroadcast,
   handleSendDirective,
-  buildInteractiveWorkerScript,
-  buildCodexWorkerScript,
-  buildCodexInteractiveWorkerScript,
   handleResumeWorker,
   handleUpgradeWorker,
   handleSpawnWorkers,
@@ -1867,6 +2234,12 @@ export const __test__ = {
   handleWriteContext,
   handleReadContext,
   handleExportContext,
+  handleListAgents,
+  handleGetAgent,
+  handleCreateAgent,
+  handleUpdateAgent,
+  handleDeleteAgent,
+  handleSyncAgentManifest,
   handleBootSnapshot,
   handleWorkerReport,
   PROFILE,

@@ -9,10 +9,7 @@
   "checks": [
     {
       "name": "hooks_pytests",
-      "cmd": [
-        "pytest",
-        "/Users/drewdawson/.claude/hooks/tests"
-      ],
+      "cmd": ["pytest", "/Users/drewdawson/.claude/hooks/tests"],
       "rc": 0,
       "seconds": 23.65,
       "stdout_tail": "============================= test session starts ==============================\nplatform darwin -- Python 3.13.11, pytest-9.0.2, pluggy-1.6.0\nbenchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: /Users/drewdawson/.claude/hooks\nconfigfile: pyproject.toml\nplugins: anyio-4.12.1, benchmark-5.2.3, hypothesis-6.151.9, typeguard-4.4.4\ncollected 220 items\n\n.claude/hooks/tests/test_direct_imports.py ............................. [ 13%]\n....                                                                     [ 15%]\n.claude/hooks/tests/test_guard_contracts.py ....                         [ 16%]\n.claude/hooks/tests/test_integration.py .........                        [ 20%]\n.claude/hooks/tests/test_packaging.py .........ss...                     [ 27%]\n.claude/hooks/tests/test_performance.py ...............                  [ 34%]\n.claude/hooks/tests/test_properties.py .....................ssssssssssss [ 49%]\nss                                                                       [ 50%]\n.claude/hooks/tests/test_read_efficiency_guard.py ...................... [ 60%]\n.....                                                                    [ 62%]\n.claude/hooks/tests/test_self_heal.py .................                  [ 70%]\n.claude/hooks/tests/test_token_guard.py ................................ [ 84%]\n..................................                                       [100%]\n\n======================= 204 passed, 16 skipped in 23.32s =======================\n",
@@ -20,10 +17,7 @@
     },
     {
       "name": "scripts_pytests",
-      "cmd": [
-        "pytest",
-        "/Users/drewdawson/.claude/scripts/tests"
-      ],
+      "cmd": ["pytest", "/Users/drewdawson/.claude/scripts/tests"],
       "rc": 0,
       "seconds": 101.5,
       "stdout_tail": "============================= test session starts ==============================\nplatform darwin -- Python 3.13.11, pytest-9.0.2, pluggy-1.6.0\nbenchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: /Users/drewdawson\nplugins: anyio-4.12.1, benchmark-5.2.3, hypothesis-6.151.9, typeguard-4.4.4\ncollected 82 items\n\n.claude/scripts/tests/test_cost_runtime.py ...................           [ 23%]\n.claude/scripts/tests/test_fuzz.py ..................                    [ 45%]\n.claude/scripts/tests/test_golden.py .....                               [ 51%]\n.claude/scripts/tests/test_messaging.py .......                          [ 59%]\n.claude/scripts/tests/test_tasks.py ........                             [ 69%]\n.claude/scripts/tests/test_team_lifecycle.py ..........                  [ 81%]\n.claude/scripts/tests/test_team_ops.py ..........                        [ 93%]\n.claude/scripts/tests/test_tmux_mock.py .....                            [100%]\n\n======================== 82 passed in 101.24s (0:01:41) ========================\n",

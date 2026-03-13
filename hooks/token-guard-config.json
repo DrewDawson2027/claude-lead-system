@@ -25,11 +25,7 @@
     "master-workflow",
     "Plan"
   ],
-  "always_allowed": [
-    "claude-code-guide",
-    "statusline-setup",
-    "haiku"
-  ],
+  "always_allowed": ["claude-code-guide", "statusline-setup", "haiku"],
   "state_backend": "file",
   "budget_guard": {
     "enabled": true,

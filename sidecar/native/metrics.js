@@ -1,5 +1,5 @@
-import { writeFileSync, readFileSync, readdirSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { writeFileSync, readFileSync, readdirSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 
 export class MetricsTracker {
   constructor(maxSamples = 500) {
@@ -14,13 +14,16 @@ export class MetricsTracker {
 
   _push(arr, value) {
     arr.push(value);
-    if (arr.length > this.maxSamples) arr.splice(0, arr.length - this.maxSamples);
+    if (arr.length > this.maxSamples)
+      arr.splice(0, arr.length - this.maxSamples);
   }
 
   observeAction({ latency_ms, path_key, ok = true, fallback_used = false }) {
     if (Number.isFinite(latency_ms) && latency_ms >= 0) {
       this._push(this.samples.action_latency_ms, latency_ms);
-      const bucket = this.samples.by_path[path_key || 'unknown'] || (this.samples.by_path[path_key || 'unknown'] = []);
+      const bucket =
+        this.samples.by_path[path_key || "unknown"] ||
+        (this.samples.by_path[path_key || "unknown"] = []);
       this._push(bucket, latency_ms);
     }
     if (ok) this.samples.counts.success += 1;
@@ -31,7 +34,10 @@ export class MetricsTracker {
   _percentile(values, p) {
     if (!values.length) return null;
     const sorted = [...values].sort((a, b) => a - b);
-    const idx = Math.max(0, Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1));
+    const idx = Math.max(
+      0,
+      Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1),
+    );
     return sorted[idx];
   }
 
@@ -66,24 +72,35 @@ export class MetricsTracker {
       const file = join(dir, `metrics-${now}.json`);
       writeFileSync(file, JSON.stringify(snap));
       return file;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 
   static loadHistory(dir, maxEntries = 100) {
     try {
       const files = readdirSync(dir)
-        .filter(f => f.startsWith('metrics-') && f.endsWith('.json'))
+        .filter((f) => f.startsWith("metrics-") && f.endsWith(".json"))
         .sort()
         .slice(-maxEntries);
-      return files.map(f => {
-        try { return JSON.parse(readFileSync(join(dir, f), 'utf-8')); } catch { return null; }
-      }).filter(Boolean);
-    } catch { return []; }
+      return files
+        .map((f) => {
+          try {
+            return JSON.parse(readFileSync(join(dir, f), "utf-8"));
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
   }
 
   static diffSnapshots(a, b) {
     if (!a || !b) return null;
-    const delta = (x, y) => y != null && x != null ? +(y - x).toFixed(4) : null;
+    const delta = (x, y) =>
+      y != null && x != null ? +(y - x).toFixed(4) : null;
     return {
       counts: {
         success: delta(a.counts?.success, b.counts?.success),

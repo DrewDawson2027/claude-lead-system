@@ -1,0 +1,38 @@
+capability: install
+description: Install smoke
+started_at: 2026-03-12T02:58:47.830Z
+ended_at: 2026-03-12T02:59:17.788Z
+duration_ms: 29958
+command: bash tests/smoke-install.sh --ref HEAD --mode full
+exit_status: 1
+signal: null
+error: null
+
+--- stdout ---
+  [smoke] Isolated HOME: /var/folders/jb/mm9lbqq9177bl5qcnvh56rhr0000gn/T//smoke-install-zgJgLc
+  [smoke] Mode: full | Ref: HEAD
+  [smoke] Building local tarball from working tree...
+  [smoke] Running install.sh --mode full --source-tarball /var/folders/jb/mm9lbqq9177bl5qcnvh56rhr0000gn/T//smoke-install-zgJgLc/local-source.tar.gz --checksum-file /var/folders/jb/mm9lbqq9177bl5qcnvh56rhr0000gn/T//smoke-install-zgJgLc/checksums.txt
+  PASS  model-router registered in local settings
+  PASS  read-efficiency-guard registered in local settings
+
+Master Agents:
+  PASS  master-coder.md
+  PASS  master-researcher.md
+  PASS  master-architect.md
+  PASS  master-workflow.md
+  PASS  MANIFEST.md
+  INFO  17 mode files found (expected 17)
+
+Session Files:
+  INFO  0 session file(s) on disk
+
+Activity Log:
+  WARN  no activity log yet
+
+─────────────────────────────────
+  Results: 29 passed, 1 failed, 1 warnings
+  STATUS: UNHEALTHY — fix the failures above
+
+
+--- stderr ---

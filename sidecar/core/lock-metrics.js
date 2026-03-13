@@ -16,7 +16,12 @@ export class LockMetrics {
    */
   recordAttempt(lockName, waitMs, acquired) {
     if (!this.locks[lockName]) {
-      this.locks[lockName] = { attempts: 0, acquisitions: 0, failures: 0, wait_times: [] };
+      this.locks[lockName] = {
+        attempts: 0,
+        acquisitions: 0,
+        failures: 0,
+        wait_times: [],
+      };
     }
     const entry = this.locks[lockName];
     entry.attempts++;
@@ -35,7 +40,7 @@ export class LockMetrics {
    */
   _percentile(sorted, p) {
     if (!sorted.length) return null;
-    const idx = Math.ceil(sorted.length * p / 100) - 1;
+    const idx = Math.ceil((sorted.length * p) / 100) - 1;
     return sorted[Math.max(0, Math.min(idx, sorted.length - 1))];
   }
 
@@ -49,7 +54,9 @@ export class LockMetrics {
 
     for (const [name, entry] of Object.entries(this.locks)) {
       const sorted = [...entry.wait_times].sort((a, b) => a - b);
-      const avg = sorted.length ? sorted.reduce((a, b) => a + b, 0) / sorted.length : 0;
+      const avg = sorted.length
+        ? sorted.reduce((a, b) => a + b, 0) / sorted.length
+        : 0;
       const stats = {
         attempts: entry.attempts,
         acquisitions: entry.acquisitions,
@@ -61,7 +68,11 @@ export class LockMetrics {
         sample_count: sorted.length,
       };
       lockStats[name] = stats;
-      summaries.push({ name, avg_wait_ms: stats.avg_wait_ms, max_wait_ms: stats.max_wait_ms });
+      summaries.push({
+        name,
+        avg_wait_ms: stats.avg_wait_ms,
+        max_wait_ms: stats.max_wait_ms,
+      });
     }
 
     // Top 3 by max wait time

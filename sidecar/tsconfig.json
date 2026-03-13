@@ -11,8 +11,5 @@
     "resolveJsonModule": true,
     "skipLibCheck": true
   },
-  "include": [
-    "server/**/*.ts",
-    "types/**/*.ts"
-  ]
+  "include": ["server/**/*.ts", "types/**/*.ts"]
 }

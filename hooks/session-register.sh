@@ -58,6 +58,7 @@ TTY=$(get_tty)
 SESSION_FILE=~/.claude/terminals/session-"${SESSION_ID}".json
 jq -n \
   --arg session "$SESSION_ID" \
+  --arg claude_session_id "$RAW_SESSION_ID" \
   --arg project "$PROJECT" \
   --arg branch "$BRANCH" \
   --arg cwd "$CWD" \
@@ -68,6 +69,7 @@ jq -n \
   '
   {
     session: $session,
+    claude_session_id: $claude_session_id,
     status: "active",
     project: $project,
     branch: $branch,

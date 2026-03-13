@@ -1,0 +1,5 @@
+{"ts":"2026-03-12T00:52:10.744Z","type":"workload_started","count":1,"detail":"path=lead_coordinator trial=4","run_id":"ab-final-validation","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
+{"ts":"2026-03-12T00:52:10.911Z","type":"human_intervention","count":1,"detail":"manual approvals","run_id":"ab-final-validation","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
+{"ts":"2026-03-12T00:52:10.934Z","type":"resume_attempt","count":1,"detail":"resume invoked","run_id":"ab-final-validation","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
+{"ts":"2026-03-12T00:52:10.955Z","type":"resume_success","count":1,"detail":"resume succeeded","run_id":"ab-final-validation","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
+{"ts":"2026-03-12T00:52:10.977Z","type":"workload_completed","count":1,"detail":"workload success","run_id":"ab-final-validation","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}

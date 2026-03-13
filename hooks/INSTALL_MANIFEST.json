@@ -16,9 +16,7 @@
     "guard_contracts.py",
     "guard_events.py"
   ],
-  "config": [
-    "token-guard-config.json"
-  ],
+  "config": ["token-guard-config.json"],
   "notes": [
     "token-guard and read-efficiency-guard dual-write v2+legacy records during compatibility window",
     "agent-metrics.jsonl contains tagged lifecycle and usage records"

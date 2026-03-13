@@ -1,0 +1,69 @@
+{
+  "workload": {
+    "id": "agent-teams-economics-ab-synthetic",
+    "description": "Synthetic-measured validation run for matched workload runner contract.",
+    "prompt_file": "../../bench/workloads/README-workload-prompt.md",
+    "comparison_target": "claude_agent_teams_subagent_workflow",
+    "evidence_tier": "synthetic_measured"
+  },
+  "trials": 6,
+  "timeout_seconds": 120,
+  "confidence_level": 0.95,
+  "bootstrap_iterations": 2000,
+  "seed": 20260312,
+  "usage_window_tokens": 220000,
+  "claim_policy": {
+    "min_trials_for_savings_claim": 5
+  },
+  "telemetry": {
+    "agent_metrics_jsonl": "synthetic-telemetry/agent-metrics.jsonl",
+    "activity_jsonl": "synthetic-telemetry/activity.jsonl",
+    "conflicts_jsonl": "synthetic-telemetry/conflicts.jsonl",
+    "results_dir": "synthetic-telemetry/results",
+    "transcript_roots": ["synthetic-telemetry/transcripts"],
+    "transcript_include_regex": "transcript.*\\.jsonl$",
+    "transcript_max_depth": 4
+  },
+  "paths": {
+    "native": {
+      "enabled": true,
+      "command": "bash bench/workloads/run-native-subagent-workflow.sh",
+      "extra_env": {
+        "AB_WORKLOAD_RUN_MODE": "mock",
+        "AB_WORKLOAD_ALLOW_MOCK_FALLBACK": "1",
+        "AB_MOCK_AGENT_METRICS_JSONL": "synthetic-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "synthetic-telemetry/transcripts/transcript-native.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "synthetic-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "synthetic-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "synthetic-telemetry/results"
+      }
+    },
+    "lead_coordinator": {
+      "enabled": true,
+      "command": "bash bench/workloads/run-lead-coordinator-workflow.sh",
+      "extra_env": {
+        "AB_WORKLOAD_RUN_MODE": "mock",
+        "AB_WORKLOAD_ALLOW_MOCK_FALLBACK": "1",
+        "AB_MOCK_AGENT_METRICS_JSONL": "synthetic-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "synthetic-telemetry/transcripts/transcript-lead-coordinator.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "synthetic-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "synthetic-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "synthetic-telemetry/results"
+      }
+    },
+    "lead_overlay": {
+      "enabled": true,
+      "command": "bash bench/workloads/run-lead-overlay-workflow.sh",
+      "extra_env": {
+        "AB_WORKLOAD_RUN_MODE": "mock",
+        "AB_WORKLOAD_ALLOW_MOCK_FALLBACK": "1",
+        "AB_MOCK_AGENT_METRICS_JSONL": "synthetic-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "synthetic-telemetry/transcripts/transcript-lead-overlay.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "synthetic-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "synthetic-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "synthetic-telemetry/results"
+      }
+    }
+  },
+  "output_root": "."
+}

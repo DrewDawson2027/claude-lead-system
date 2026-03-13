@@ -1,7 +1,7 @@
-import type { RequestContext } from './http.js';
+import type { RequestContext } from "./http.js";
 
 export interface RouteDefinition<TBody = unknown> {
-  method: RequestContext['method'];
+  method: RequestContext["method"];
   path: string;
   description?: string;
   handlerName?: string;
