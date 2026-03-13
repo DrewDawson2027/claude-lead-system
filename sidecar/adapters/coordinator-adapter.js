@@ -24,7 +24,16 @@ import {
 import {
   handleGetTeam,
   handleUpdateTeamPolicy,
+  handleCreateTeam,
 } from "../../mcp-coordinator/lib/teams.js";
+import {
+  handleListAgents,
+  handleGetAgent,
+  handleCreateAgent,
+  handleUpdateAgent,
+  handleDeleteAgent,
+  handleSyncAgentManifest,
+} from "../../mcp-coordinator/lib/agents.js";
 
 function toText(res) {
   return res?.content?.[0]?.text || "";
@@ -67,6 +76,16 @@ export class CoordinatorAdapter {
         return this.rebalanceExplain(payload.team_name, payload);
       case "dispatch":
         return { text: toText(handleTeamDispatch(payload)) };
+      case "team-create":
+        return { text: toText(handleCreateTeam(payload)) };
+      case "team-status":
+        return { text: toText(handleTeamStatusCompact(payload)) };
+      case "task":
+      case "native-task":
+        return { text: toText(handleSpawnWorker(payload)) };
+      case "send-message":
+      case "native-send-message":
+        return { text: toText(handleSendMessage(payload)) };
       case "message":
         return { text: toText(handleSendMessage(payload)) };
       case "directive":
@@ -85,6 +104,18 @@ export class CoordinatorAdapter {
         return { text: toText(handleWakeSession(payload)) };
       case "spawn-worker-raw":
         return { text: toText(handleSpawnWorker(payload)) };
+      case "agent-list":
+        return { text: toText(handleListAgents(payload)) };
+      case "agent-get":
+        return { text: toText(handleGetAgent(payload)) };
+      case "agent-create":
+        return { text: toText(handleCreateAgent(payload)) };
+      case "agent-update":
+        return { text: toText(handleUpdateAgent(payload)) };
+      case "agent-delete":
+        return { text: toText(handleDeleteAgent(payload)) };
+      case "agent-sync-manifest":
+        return { text: toText(handleSyncAgentManifest(payload)) };
       default:
         throw new Error(`Unsupported coordinator action: ${action}`);
     }

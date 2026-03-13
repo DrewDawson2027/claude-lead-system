@@ -19,6 +19,24 @@ const NATIVE_CAPABLE = new Set([
   "team-create",
   "native-team-create",
 ]);
+const NON_RETRYABLE_FALLBACK_TOKENS = [
+  "approval",
+  "plan_approval",
+  "waiting_for_plan",
+  "validation",
+  "invalid",
+  "bad_request",
+  "unauthorized",
+  "forbidden",
+  "permission",
+  "policy",
+  "operator_required",
+  "human_required",
+  "human_intervention",
+  "interrupt_required",
+  "unsupported",
+  "not_implemented",
+];
 
 export function classifyAction(action = "") {
   if (COORDINATOR_ONLY.has(action)) return "coordinator_only";
@@ -51,13 +69,16 @@ export function chooseExecutionPath(
   const costPolicy =
     policy.cost_policy || process.env.LEAD_SIDECAR_COST_POLICY || "cost_first";
   const forcePath = opts.force_path || opts.forcePath || null;
-  const forceMode = opts.force_path_mode || null;
+  const forceMode =
+    opts.force_path_mode === "ephemeral"
+      ? "native-direct"
+      : opts.force_path_mode || null;
 
   const nativeOk = Boolean(
     nativeHealth?.ok && nativeHealth?.capabilities?.available,
   );
   const bridgeHealthy = nativeHealth?.bridge?.bridge_status === "healthy";
-  const nativePathMode = forceMode || (bridgeHealthy ? "bridge" : "ephemeral");
+  const nativePathMode = forceMode || "native-direct";
   trace.push(
     `native health: ok=${nativeOk} bridge=${bridgeHealthy} path_mode=${nativePathMode}`,
   );
@@ -67,7 +88,7 @@ export function chooseExecutionPath(
     path_mode: "local-module",
     reason: "coordinator policy/default",
     fallback_plan: nativeOk
-      ? ["coordinator", "native-ephemeral"]
+      ? ["coordinator", "native-direct"]
       : ["coordinator"],
     cost_estimate_class: "low",
     semantic,
@@ -76,9 +97,9 @@ export function chooseExecutionPath(
     adapter: "native",
     path_mode: nativePathMode,
     reason: bridgeHealthy
-      ? "native bridge healthy"
-      : "native ephemeral fallback",
-    fallback_plan: ["native-bridge", "native-ephemeral", "coordinator"],
+      ? "native-direct primary; bridge available for fallback"
+      : "native-direct primary; bridge fallback may autostart",
+    fallback_plan: ["native-direct", "bridge", "coordinator"],
     cost_estimate_class: nativePathMode === "bridge" ? "medium" : "high",
     semantic,
   };
@@ -124,6 +145,14 @@ export function chooseExecutionPath(
       decision_trace: trace,
     };
   }
+  if (semantic === "prefer_native_for_ux" || semantic === "native_only") {
+    trace.push("semantic requires native execution engine -> native");
+    return {
+      ...nativeDecision,
+      reason: "native execution required for team semantics",
+      decision_trace: trace,
+    };
+  }
   if (preferred === "coordinator") {
     trace.push(`team preferred=${preferred} -> coordinator`);
     return {
@@ -160,28 +189,48 @@ export function chooseExecutionPath(
     };
   }
 
-  if (semantic === "prefer_native_for_ux") {
-    trace.push("semantic prefers native for UX -> native");
-    return {
-      ...nativeDecision,
-      reason: "cost-first hybrid but native improves teammate UX",
-      decision_trace: trace,
-    };
-  }
-  if (semantic === "native_only") {
-    trace.push("semantic=native_only -> native");
-    return {
-      ...nativeDecision,
-      reason: "native-only action",
-      decision_trace: trace,
-    };
-  }
   trace.push("cost-first default -> coordinator");
   return {
     ...coordinatorDecision,
     reason: "cost-first hybrid chose coordinator for equivalent action",
     decision_trace: trace,
   };
+}
+
+export function shouldAttemptCoordinatorFallback({
+  teamPolicy = {},
+  error = null,
+  fallbackAttempts = 0,
+} = {}) {
+  if (String(teamPolicy?.native_fallback_policy || "coordinator") === "error") {
+    return {
+      allow: false,
+      reason: "native_fallback_policy=error",
+      category: "policy",
+    };
+  }
+  if (Number(fallbackAttempts) >= 1) {
+    return {
+      allow: false,
+      reason: "fallback already attempted",
+      category: "loop_guard",
+    };
+  }
+
+  const code = String(error?.code || "").toLowerCase();
+  const message = String(error?.message || error || "").toLowerCase();
+  const tokenMatched = NON_RETRYABLE_FALLBACK_TOKENS.find(
+    (token) => code.includes(token) || message.includes(token),
+  );
+  if (tokenMatched) {
+    return {
+      allow: false,
+      reason: `non-retryable error token: ${tokenMatched}`,
+      category: "non_retryable",
+    };
+  }
+
+  return { allow: true, reason: "retryable failure", category: "retryable" };
 }
 
 // --- B2: Configurable interrupt priority ---

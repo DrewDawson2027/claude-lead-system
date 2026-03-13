@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 import http from "http";
 import https from "https";
 import crypto from "crypto";
@@ -127,6 +126,19 @@ import {
 } from "./runtime/actions.js";
 import { bootRuntime, startRuntimeLifecycle } from "./runtime/lifecycle.js";
 
+import type {
+  ParsedArgs,
+  TlsConfig,
+  SidecarServerInstance,
+  RouteContext,
+} from "./types.js";
+import { runRequestMiddleware } from "./middleware.js";
+import { createRouteContextFactory } from "./context-builder.js";
+
+// ---------------------------------------------------------------------------
+// Static assets (loaded once at module level)
+// ---------------------------------------------------------------------------
+
 const DASHBOARD_HTML = readFileSafe(
   readFileSync,
   new URL("../ui-web/index.html", import.meta.url),
@@ -136,8 +148,142 @@ const DASHBOARD_JS = readFileSafe(
   new URL("../ui-web/app.js", import.meta.url),
 );
 
-export async function startSidecarServer(options = {}) {
-  const args = { ...parseArgs(process.argv.slice(2)), ...options };
+// ---------------------------------------------------------------------------
+// Resolve TLS configuration from parsed args + env
+// ---------------------------------------------------------------------------
+
+function resolveTlsConfig(args: ParsedArgs): TlsConfig {
+  const keyFile = String(
+    args.tlsKeyFile || process.env.LEAD_SIDECAR_TLS_KEY_FILE || "",
+  ).trim();
+  const certFile = String(
+    args.tlsCertFile || process.env.LEAD_SIDECAR_TLS_CERT_FILE || "",
+  ).trim();
+  const caFile = String(
+    args.tlsCaFile || process.env.LEAD_SIDECAR_TLS_CA_FILE || "",
+  ).trim();
+  const mtlsRequired = Boolean(
+    args.mtls || process.env.LEAD_SIDECAR_MTLS_REQUIRE_CLIENT_CERT === "1",
+  );
+  return {
+    enabled: Boolean(keyFile && certFile),
+    keyFile,
+    certFile,
+    caFile,
+    mtlsRequired,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Server lifecycle helpers
+// ---------------------------------------------------------------------------
+
+function createHttpServer(
+  tls: TlsConfig,
+  handler: http.RequestListener,
+): http.Server | https.Server {
+  if (tls.enabled) {
+    const tlsOptions: https.ServerOptions = {
+      key: readFileSafe(readFileSync, tls.keyFile as unknown as URL),
+      cert: readFileSafe(readFileSync, tls.certFile as unknown as URL),
+      requestCert: tls.mtlsRequired,
+      rejectUnauthorized: tls.mtlsRequired,
+    };
+    if (tls.caFile) {
+      tlsOptions.ca = readFileSafe(readFileSync, tls.caFile as unknown as URL);
+    }
+    return https.createServer(tlsOptions, handler);
+  }
+  return http.createServer(handler);
+}
+
+async function bindServer(
+  server: http.Server | https.Server,
+  unixSocketPath: string | null,
+  port: number,
+): Promise<void> {
+  if (unixSocketPath) {
+    try {
+      unlinkSync(unixSocketPath);
+    } catch {
+      /* may not exist yet */
+    }
+    await new Promise<void>((resolve) =>
+      server.listen(unixSocketPath, resolve),
+    );
+    try {
+      chmodSync(unixSocketPath, 0o600);
+    } catch {
+      /* best effort */
+    }
+  } else {
+    await new Promise<void>((resolve) =>
+      server.listen(port || 0, "127.0.0.1", resolve),
+    );
+  }
+}
+
+function cleanupFactory(
+  server: http.Server | https.Server,
+  lifecycle: { stop(): void },
+  paths: Record<string, string>,
+  clients: Set<http.ServerResponse>,
+  unixSocketPath: string | null,
+) {
+  let shutdown: (() => void) | null = null;
+
+  const cleanup = (exitAfter = false): void => {
+    lifecycle.stop();
+    if (shutdown) {
+      process.off("SIGINT", shutdown);
+      process.off("SIGTERM", shutdown);
+    }
+    try {
+      unlinkSync(paths.lockFile);
+    } catch {
+      /* ignore */
+    }
+    try {
+      unlinkSync(paths.portFile);
+    } catch {
+      /* ignore */
+    }
+    if (unixSocketPath) {
+      try {
+        unlinkSync(unixSocketPath);
+      } catch {
+        /* ignore */
+      }
+    }
+    for (const clientRes of clients) {
+      try {
+        clientRes.end();
+      } catch {
+        /* ignore */
+      }
+    }
+    server.close(() => {
+      if (exitAfter) process.exit(0);
+    });
+    if (exitAfter) setTimeout(() => process.exit(0), 1000).unref();
+  };
+
+  shutdown = () => cleanup(true);
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
+  return cleanup;
+}
+
+// ---------------------------------------------------------------------------
+// Main entry point
+// ---------------------------------------------------------------------------
+
+export async function startSidecarServer(
+  options: Partial<ParsedArgs> = {},
+): Promise<SidecarServerInstance> {
+  // --- Parse CLI + merge options ---
+  const args: ParsedArgs = { ...parseArgs(process.argv.slice(2)), ...options };
   const paths = sidecarPaths();
   ensureDirs([
     paths.root,
@@ -155,9 +301,10 @@ export async function startSidecarServer(options = {}) {
     paths.diagnosticsDir,
   ]);
 
+  // --- Security setup ---
   const apiToken = ensureApiToken(paths, fileExists, readJSON, writeJsonFile);
-  let currentApiToken = apiToken;
-  const csrfToken = ensureCsrfToken(
+  let currentApiToken: string | null = apiToken;
+  const csrfToken: string = ensureCsrfToken(
     paths,
     fileExists,
     readJSON,
@@ -166,13 +313,15 @@ export async function startSidecarServer(options = {}) {
   );
   const SAFE_MODE = Boolean(args.safeMode);
   const log = createLogger({
-    format: (process.env.LOG_FORMAT || "text") as any,
+    format: (process.env.LOG_FORMAT || "text") as "text" | "json",
   });
   const securityAuditLog = new SecurityAuditLog();
   const requestAuditLog = new RequestAuditLog({
     auditAll: Boolean(process.env.LEAD_SIDECAR_AUDIT_ALL),
   });
-  const originAllowlist = (process.env.LEAD_SIDECAR_ORIGIN_ALLOWLIST || "")
+  const originAllowlist: string[] = (
+    process.env.LEAD_SIDECAR_ORIGIN_ALLOWLIST || ""
+  )
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
@@ -183,79 +332,107 @@ export async function startSidecarServer(options = {}) {
     }
   }
 
+  // --- Core services ---
   const store = new SidecarStateStore(paths);
   const actionQueue = new ActionQueue(paths);
   const metrics = new MetricsTracker();
   const coordinatorAdapter = new CoordinatorAdapter();
   const nativeAdapter = new NativeTeamAdapter({
     paths,
-    coordinatorAdapter,
-    store,
+    coordinatorAdapter: coordinatorAdapter as any,
+    store: store as any,
   });
-  const router = new ActionRouter({ coordinatorAdapter, nativeAdapter, store });
-  const clients = new Set();
+  const router = new ActionRouter({
+    coordinatorAdapter,
+    nativeAdapter,
+    store,
+  } as any);
+  const clients: Set<http.ServerResponse> = new Set();
+
+  // --- Rate limiter & replay protector ---
   const rateLimitMax = Number(process.env.LEAD_SIDECAR_RATE_LIMIT || 180);
   const rateLimiter = createRateLimiterRaw({
     windowMs: Number(process.env.LEAD_SIDECAR_RATE_WINDOW_MS || 60_000),
     max: rateLimitMax,
   });
   const replayProtector = createReplayProtectorRaw();
+
+  // --- Network config ---
   let allowedBrowserOrigin: string | null = null;
-  const unixSocketPath =
+  const unixSocketPath: string | null =
     String(
       args.unixSocket || process.env.LEAD_SIDECAR_UNIX_SOCKET || "",
     ).trim() || null;
-  const tlsKeyFile = String(
-    args.tlsKeyFile || process.env.LEAD_SIDECAR_TLS_KEY_FILE || "",
-  ).trim();
-  const tlsCertFile = String(
-    args.tlsCertFile || process.env.LEAD_SIDECAR_TLS_CERT_FILE || "",
-  ).trim();
-  const tlsCaFile = String(
-    args.tlsCaFile || process.env.LEAD_SIDECAR_TLS_CA_FILE || "",
-  ).trim();
-  const mtlsRequired = Boolean(
-    args.mtls || process.env.LEAD_SIDECAR_MTLS_REQUIRE_CLIENT_CERT === "1",
-  );
-  const tlsEnabled = Boolean(tlsKeyFile && tlsCertFile);
-  const isMutatingMethod = (method: string | undefined) =>
-    ["POST", "PUT", "PATCH", "DELETE"].includes(
-      String(method || "").toUpperCase(),
-    );
+  const tls = resolveTlsConfig(args);
 
-  const baseHeaders = (req = null) =>
+  // --- Bound response helpers ---
+  const baseHeaders = (req: http.IncomingMessage | null = null) =>
     createBaseHeaders(req, allowedBrowserOrigin, originAllowlist);
-  const sendJson = (res, status, payload, req = null) =>
-    sendJsonRaw(baseHeaders, res, status, payload, req);
-  const sendText = (res, status, body, req = null) =>
-    sendTextRaw(baseHeaders, res, status, body, req);
-  const sendHtml = (res, status, body, req = null) =>
-    sendHtmlRaw(baseHeaders, res, status, body, req);
-  const sendJs = (res, status, body, req = null) =>
-    sendJsRaw(baseHeaders, res, status, body, req);
-  const sendError = (res, status, errorCode, message, req = null, details?) =>
-    sendErrorRaw(baseHeaders, res, status, errorCode, message, req, details);
-  const readBody = (req, opts: any = {}) => {
+  const sendJson = (
+    res: http.ServerResponse,
+    status: number,
+    payload: unknown,
+    req: http.IncomingMessage | null = null,
+  ) => sendJsonRaw(baseHeaders, res, status, payload, req);
+  const sendText = (
+    res: http.ServerResponse,
+    status: number,
+    body: string,
+    req: http.IncomingMessage | null = null,
+  ) => sendTextRaw(baseHeaders, res, status, body, req);
+  const sendHtml = (
+    res: http.ServerResponse,
+    status: number,
+    body: string,
+    req: http.IncomingMessage | null = null,
+  ) => sendHtmlRaw(baseHeaders, res, status, body, req);
+  const sendJs = (
+    res: http.ServerResponse,
+    status: number,
+    body: string,
+    req: http.IncomingMessage | null = null,
+  ) => sendJsRaw(baseHeaders, res, status, body, req);
+  const sendError = (
+    res: http.ServerResponse,
+    status: number,
+    errorCode: string,
+    message: string,
+    req: http.IncomingMessage | null = null,
+    details?: unknown,
+  ) => sendErrorRaw(baseHeaders, res, status, errorCode, message, req, details);
+  const readBody = (
+    req: http.IncomingMessage,
+    opts: { limitBytes?: number } = {},
+  ) => {
     if (!opts.limitBytes) {
       const pathname =
-        req._routeMeta?.routePath ||
+        (req as any)._routeMeta?.routePath ||
         new URL(req.url || "/", "http://127.0.0.1").pathname;
       opts = { ...opts, limitBytes: bodyLimitForRoute(pathname) };
     }
     return readBodyRaw(req, opts);
   };
-  const validateBody = (pathname, body) => validateBodyRaw(pathname, body);
-  const requireApiAuth = (req, res) =>
+  const validateBody = (pathname: string, body: Record<string, unknown>) =>
+    validateBodyRaw(pathname, body);
+
+  // --- Bound security helpers ---
+  const requireApiAuth = (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): boolean =>
     requireApiAuthRaw(
       sendJson,
       req,
       res,
-      currentApiToken,
+      currentApiToken!,
       allowedBrowserOrigin,
       originAllowlist,
       securityAuditLog,
     );
-  const requireSameOrigin = (req, res) =>
+  const requireSameOrigin = (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): boolean =>
     requireSameOriginRaw(
       sendJson,
       req,
@@ -264,9 +441,12 @@ export async function startSidecarServer(options = {}) {
       originAllowlist,
       securityAuditLog,
     );
-  const requireCsrf = (req, res) =>
-    requireCsrfRaw(sendJson, req, res, csrfToken, securityAuditLog);
+  const requireCsrf = (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): boolean => requireCsrfRaw(sendJson, req, res, csrfToken, securityAuditLog);
 
+  // --- Operations factories ---
   const { rebuild } = createRebuildOps({
     store,
     nativeAdapter,
@@ -287,12 +467,17 @@ export async function startSidecarServer(options = {}) {
     sweepBridgeQueues,
     store,
     rateLimiter,
-    getAllTasksSnapshot: () => store.getSnapshot().tasks || [],
+    getAllTasksSnapshot: () =>
+      (
+        store as unknown as { getSnapshot(): Record<string, unknown> }
+      ).getSnapshot().tasks || [],
     applyPriorityAging,
     getTeamsSnapshot: (fresh = false) =>
       fresh
         ? buildSidecarSnapshot().teams || []
-        : store.getSnapshot().teams || [],
+        : (
+            store as unknown as { getSnapshot(): Record<string, unknown> }
+          ).getSnapshot().teams || [],
     shouldAutoRebalance,
     coordinatorAdapter,
     metrics,
@@ -332,107 +517,159 @@ export async function startSidecarServer(options = {}) {
     runTrackedAction,
   });
 
-  await bootRuntime({ rebuild, maintenanceSweep, SAFE_MODE, store });
-  const lifecycle = startRuntimeLifecycle({
-    HookStreamAdapter,
-    paths,
-    store,
-    rebuild,
-    maintenanceSweep,
-    clients,
-    sseBroadcast,
-  });
-
+  // --- Route registry ---
   const routeRegistry = buildServerRouter();
 
-  const requestHandler = async (req, res) => {
-    (req as any).__requestId = crypto.randomUUID();
+  // --- Build route context factory ---
+  const buildRouteContext = createRouteContextFactory({
+    paths,
+    store,
+    metrics,
+    actionQueue,
+    coordinatorAdapter,
+    nativeAdapter,
+    router,
+    SAFE_MODE,
+    getApiToken: () => currentApiToken,
+    csrfToken,
+    DASHBOARD_HTML,
+    DASHBOARD_JS,
+    securityAuditLog,
+    requestAuditLog,
+    rotateApiToken: () => {
+      const r = rotateApiToken(paths, writeJsonFile);
+      currentApiToken = r.new_token;
+      return r;
+    },
+    filePermissions: permCheck,
+    baseHeaders,
+    bodyLimitForRoute,
+    sendJson,
+    sendText,
+    sendHtml,
+    sendJs,
+    sendError,
+    readBody,
+    validateBody,
+    findTeam,
+    buildActionPayload,
+    buildTeamInterrupts:
+      buildTeamInterrupts as RouteContext["buildTeamInterrupts"],
+    mapNativeHttpAction,
+    maintenanceSweep,
+    diagnosticsBundle,
+    rebuild,
+    runTrackedAction,
+    runBatchTriage,
+    latestJsonFileName: (dir: string) => latestJsonFileName(dir, readdirSync),
+    pathResolve,
+    spawn,
+    writeFileSync,
+    writeJSON,
+    writeJsonFile,
+    readJSON,
+    readJSONL,
+    readFileSync: readFileSync as unknown as (
+      path: string | URL,
+      encoding?: string,
+    ) => string,
+    readdirSync: readdirSync as unknown as (path: string) => string[],
+    MetricsTracker,
+    CURRENT_SCHEMA_VERSION,
+    migrateBundle,
+    validateSchemaVersion,
+    currentApiVersion,
+    legacyDeprecationHeaders,
+    buildComparisonReport,
+    loadSnapshotHistory,
+    snapshotDiff,
+    replayTimeline,
+    buildTimelineReport,
+    createCheckpoint,
+    listCheckpoints,
+    restoreCheckpoint,
+    rebuildFromTimeline,
+    consistencyCheck,
+    scanForCorruption,
+    repairJSON,
+    repairJSONL,
+    dryRunMigration,
+    migrations,
+    lockMetrics,
+    checkTerminalHealth,
+    suggestRecovery,
+    validateHooks,
+    runHookSelftest,
+    listBackups,
+    restoreFromBackup,
+  });
+
+  // --- Middleware config ---
+  const middlewareConfig = {
+    rateLimitMax,
+    safeMode: SAFE_MODE,
+    requireSameOrigin,
+    requireApiAuth,
+    requireCsrf,
+    rateLimiter,
+    replayProtector,
+    securityAuditLog,
+    sendError,
+  };
+
+  // --- Lifecycle placeholder ---
+  let lifecycle = {
+    stop() {
+      /* no-op until boot completes */
+    },
+  };
+
+  // --- Request handler ---
+  let server: http.Server | https.Server;
+
+  const requestHandler: http.RequestListener = async (req, res) => {
+    (req as unknown as Record<string, unknown>).__requestId =
+      crypto.randomUUID();
     const __startMs = Date.now();
     const origEnd = res.end.bind(res);
-    res.end = function (...args: any[]) {
+    (res as unknown as Record<string, Function>).end = function (
+      ...args: unknown[]
+    ) {
       log.request(req, res.statusCode, __startMs);
       requestAuditLog.log({
         method: String(req.method || "GET"),
         path: String(req.url || "/"),
         status: res.statusCode,
-        request_id: String((req as any).__requestId || "-"),
+        request_id: String(
+          (req as unknown as Record<string, unknown>).__requestId || "-",
+        ),
         ip: String(req.socket?.remoteAddress || "unknown"),
         duration_ms: Date.now() - __startMs,
       });
-      return origEnd(...args);
+      return (origEnd as Function)(...args);
     };
     const url = new URL(req.url || "/", "http://127.0.0.1");
     const routeMeta = normalizeApiPath(url.pathname);
     attachRouteMeta(req, routeMeta);
     url.pathname = routeMeta.routePath;
-    const snapshot = store.getSnapshot();
+    const snapshot = (
+      store as unknown as { getSnapshot(): Record<string, unknown> }
+    ).getSnapshot();
 
+    // OPTIONS fast path
     if (req.method === "OPTIONS") {
       if (!requireSameOrigin(req, res)) return;
       res.writeHead(204, baseHeaders(req));
       res.end();
       return;
     }
-    if (!requireSameOrigin(req, res)) return;
 
-    if (isMutatingMethod(req.method)) {
-      const rlKey = `${req.socket?.remoteAddress || "local"}:${url.pathname}`;
-      const rl = rateLimiter.check(rlKey);
-      if (!rl.ok) {
-        securityAuditLog.log({
-          type: "rate_limit",
-          ip: req.socket?.remoteAddress || "unknown",
-          path: req.url || "",
-        });
-        res.setHeader(
-          "Retry-After",
-          String(Math.ceil((rl.retry_after_ms || 0) / 1000)),
-        );
-        return sendError(res, 429, "RATE_LIMITED", "Rate limit exceeded", req, {
-          retry_after_ms: rl.retry_after_ms,
-        });
-      }
-      res.setHeader("X-RateLimit-Limit", String(rateLimitMax));
-      res.setHeader("X-RateLimit-Remaining", String(rl.remaining ?? 0));
-      if (!requireApiAuth(req, res)) return;
-      if (!requireCsrf(req, res)) return;
-      const replayCheck = replayProtector.check(req, url.pathname);
-      if (!replayCheck.ok)
-        return sendError(
-          res,
-          409,
-          "REPLAY_DETECTED",
-          replayCheck.error || "Nonce already used",
-          req,
-        );
-      if (SAFE_MODE) {
-        const safeModeBlocked = [
-          /^\/dispatch$/,
-          /^\/teams\/[^/]+\/actions\//,
-          /^\/teams\/[^/]+\/batch-triage$/,
-          /^\/teams\/[^/]+\/rebalance$/,
-          /^\/native\/actions\//,
-          /^\/native\/bridge\/ensure$/,
-          /^\/native\/probe$/,
-          /^\/maintenance\/run$/,
-        ];
-        const isBlockedPost =
-          String(req.method).toUpperCase() === "POST" &&
-          safeModeBlocked.some((rx) => rx.test(url.pathname));
-        const isBlockedMutation = String(req.method).toUpperCase() !== "POST";
-        if (isBlockedPost || isBlockedMutation) {
-          return sendError(
-            res,
-            503,
-            "SAFE_MODE_ACTIVE",
-            "Server is in safe mode — mutation endpoints disabled",
-            req,
-          );
-        }
-      }
-    }
+    // Run full middleware chain (origin, rate-limit, auth, csrf, replay, safe-mode)
+    const verdict = runRequestMiddleware(req, res, url, middlewareConfig);
+    if (verdict === "handled") return;
 
-    const handled = await routeRegistry.handle({
+    // Route dispatch
+    const ctx = buildRouteContext({
       req,
       res,
       url,
@@ -440,86 +677,11 @@ export async function startSidecarServer(options = {}) {
       snapshot,
       server,
       clients,
-      paths,
-      store,
-      metrics,
-      actionQueue,
-      coordinatorAdapter,
-      nativeAdapter,
-      router,
-      SAFE_MODE,
-      apiToken: currentApiToken,
-      csrfToken,
-      DASHBOARD_HTML,
-      DASHBOARD_JS,
-      processInfo: { pid: process.pid },
-      securityAuditLog,
-      requestAuditLog,
-      rotateApiToken: () => {
-        const r = rotateApiToken(paths, writeJsonFile);
-        currentApiToken = r.new_token;
-        return r;
-      },
-      filePermissions: permCheck,
-      bodyLimitForRoute,
-      baseHeaders,
-      sendJson,
-      sendText,
-      sendHtml,
-      sendJs,
-      sendError,
-      readBody,
-      validateBody,
-      findTeam,
-      buildActionPayload,
-      buildTeamInterrupts,
-      mapNativeHttpAction,
-      maintenanceSweep,
-      diagnosticsBundle,
-      rebuild,
-      runTrackedAction,
-      runBatchTriage,
-      latestJsonFileName: (dir) => latestJsonFileName(dir, readdirSync),
-      pathResolve,
-      spawn,
-      writeFileSync,
-      writeJSON,
-      writeJsonFile,
-      readJSON,
-      readJSONL,
-      readFileSync,
-      readdirSync,
-      MetricsTracker,
-      CURRENT_SCHEMA_VERSION,
-      migrateBundle,
-      validateSchemaVersion,
-      currentApiVersion,
-      legacyDeprecationHeaders,
-      buildComparisonReport,
-      loadSnapshotHistory,
-      snapshotDiff,
-      replayTimeline,
-      buildTimelineReport,
-      createCheckpoint,
-      listCheckpoints,
-      restoreCheckpoint,
-      rebuildFromTimeline,
-      consistencyCheck,
-      scanForCorruption,
-      repairJSON,
-      repairJSONL,
-      dryRunMigration,
-      migrations,
-      lockMetrics,
-      checkTerminalHealth,
-      suggestRecovery,
-      validateHooks,
-      runHookSelftest,
-      listBackups,
-      restoreFromBackup,
     });
+    const handled = await routeRegistry.handle(ctx);
     if (handled) return;
-    return sendError(
+
+    sendError(
       res,
       404,
       "NOT_FOUND",
@@ -528,88 +690,85 @@ export async function startSidecarServer(options = {}) {
     );
   };
 
-  let server;
-  if (tlsEnabled) {
-    const tlsOptions: any = {
-      key: readFileSafe(readFileSync, tlsKeyFile as any),
-      cert: readFileSafe(readFileSync, tlsCertFile as any),
-      requestCert: mtlsRequired,
-      rejectUnauthorized: mtlsRequired,
-    };
-    if (tlsCaFile) tlsOptions.ca = readFileSafe(readFileSync, tlsCaFile as any);
-    server = https.createServer(tlsOptions, requestHandler);
-  } else {
-    server = http.createServer(requestHandler);
-  }
-
-  if (unixSocketPath) {
-    try {
-      unlinkSync(unixSocketPath);
-    } catch {}
-    await new Promise((resolve) => server.listen(unixSocketPath, resolve));
-    try {
-      chmodSync(unixSocketPath, 0o600);
-    } catch {}
-  } else {
-    await new Promise((resolve) =>
-      server.listen(args.port || 0, "127.0.0.1", resolve),
-    );
-  }
+  // --- Create & bind server ---
+  server = createHttpServer(tls, requestHandler);
+  await bindServer(server, unixSocketPath, args.port);
   const port = writeRuntimeFiles(paths, server, writeJSON);
   allowedBrowserOrigin = unixSocketPath
     ? null
-    : `${tlsEnabled ? "https" : "http"}://127.0.0.1:${port}`;
+    : `${tls.enabled ? "https" : "http"}://127.0.0.1:${port}`;
 
-  if (args.open && process.platform === "darwin") {
-    try {
-      spawn("open", [`${tlsEnabled ? "https" : "http"}://127.0.0.1:${port}/`], {
-        detached: true,
-        stdio: "ignore",
-      }).unref();
-    } catch {}
-  }
-
-  const cleanup = (exitAfter = false) => {
-    lifecycle.stop();
-    process.off("SIGINT", shutdown);
-    process.off("SIGTERM", shutdown);
+  // --- Boot runtime ---
+  try {
+    await bootRuntime({ rebuild, maintenanceSweep, SAFE_MODE, store });
+    lifecycle = startRuntimeLifecycle({
+      HookStreamAdapter,
+      paths,
+      store,
+      rebuild,
+      maintenanceSweep,
+      clients,
+      sseBroadcast,
+    });
+  } catch (err) {
     try {
       unlinkSync(paths.lockFile);
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     try {
       unlinkSync(paths.portFile);
-    } catch {}
-    if (unixSocketPath) {
-      try {
-        unlinkSync(unixSocketPath);
-      } catch {}
+    } catch {
+      /* ignore */
     }
-    for (const clientRes of clients) {
-      try {
-        clientRes.end();
-      } catch {}
+    try {
+      server.close();
+    } catch {
+      /* ignore */
     }
-    server.close(() => {
-      if (exitAfter) process.exit(0);
-    });
-    if (exitAfter) setTimeout(() => process.exit(0), 1000).unref();
-  };
-  const shutdown = () => cleanup(true);
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+    throw err;
+  }
 
+  // --- Auto-open on macOS ---
+  if (args.open && process.platform === "darwin") {
+    try {
+      spawn(
+        "open",
+        [`${tls.enabled ? "https" : "http"}://127.0.0.1:${port}/`],
+        {
+          detached: true,
+          stdio: "ignore",
+        },
+      ).unref();
+    } catch {
+      /* best effort */
+    }
+  }
+
+  // --- Cleanup / signal handling ---
+  const cleanup = cleanupFactory(
+    server,
+    lifecycle,
+    paths,
+    clients,
+    unixSocketPath,
+  );
+
+  // --- Log startup ---
   if (unixSocketPath) {
     log.info(`listening on unix socket ${unixSocketPath}`, {
       socket: unixSocketPath,
-      tls: tlsEnabled,
-      mtls_required: mtlsRequired,
+      tls: tls.enabled,
+      mtls_required: tls.mtlsRequired,
     });
   } else {
     log.info(
-      `listening on ${tlsEnabled ? "https" : "http"}://127.0.0.1:${port}`,
-      { port, tls: tlsEnabled, mtls_required: mtlsRequired },
+      `listening on ${tls.enabled ? "https" : "http"}://127.0.0.1:${port}`,
+      { port, tls: tls.enabled, mtls_required: tls.mtlsRequired },
     );
   }
+
+  // --- Return typed server instance ---
   return {
     server,
     port,

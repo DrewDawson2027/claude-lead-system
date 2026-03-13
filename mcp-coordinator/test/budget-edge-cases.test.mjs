@@ -56,21 +56,33 @@ function textOf(result) {
 // Token estimation
 // ═══════════════════════════════════════════════════════════════════════════════
 
-test('estimateWorkerTokens returns expected values for known models', async () => {
+test('estimateWorkerTokens returns expected values for supported worker shapes', async () => {
   const { home } = setupHome();
   const { api, restore } = await loadForTest(home);
   try {
-    const sonnet = api.estimateWorkerTokens?.('sonnet');
-    const haiku = api.estimateWorkerTokens?.('haiku');
-    const opus = api.estimateWorkerTokens?.('opus');
+    const baseline = api.estimateWorkerTokens?.({
+      promptText: 'baseline',
+      contextLevel: 'minimal',
+      mode: 'pipe',
+      requirePlan: false,
+    });
+    const standard = api.estimateWorkerTokens?.({
+      promptText: 'standard',
+      contextLevel: 'standard',
+      mode: 'pipe',
+      requirePlan: false,
+    });
+    const planned = api.estimateWorkerTokens?.({
+      promptText: 'planned',
+      contextLevel: 'standard',
+      mode: 'pipe',
+      requirePlan: true,
+    });
 
-    if (sonnet !== undefined) {
-      assert.ok(sonnet > 0, 'sonnet estimate should be positive');
-      assert.ok(haiku > 0, 'haiku estimate should be positive');
-      assert.ok(opus > 0, 'opus estimate should be positive');
-      // opus > sonnet > haiku (general expectation)
-      assert.ok(opus > sonnet, 'opus should cost more than sonnet');
-      assert.ok(sonnet > haiku, 'sonnet should cost more than haiku');
+    if (baseline !== undefined) {
+      assert.ok(baseline > 0, 'baseline estimate should be positive');
+      assert.ok(standard > baseline, 'standard context should cost more than minimal');
+      assert.ok(planned > standard, 'plan-required workers should cost more than standard workers');
     }
   } finally {
     restore();
@@ -218,7 +230,7 @@ test('per-worker budget enforce with very low tokens blocks spawn', async () => 
     const result = api.handleToolCall('coord_spawn_worker', {
       directory: projectDir,
       prompt: 'Should be blocked by per-worker budget',
-      model: 'opus', // opus uses the most tokens
+      model: 'sonnet',
       team_name: 'tight-budget',
       budget_policy: 'enforce',
       budget_tokens: 1,

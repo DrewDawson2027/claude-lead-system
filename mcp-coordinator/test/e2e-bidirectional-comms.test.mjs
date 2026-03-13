@@ -259,3 +259,284 @@ test('E2E Bidir: sending to unknown target_name returns graceful error without c
     restore();
   }
 });
+
+// ─── Lead ←→ Worker Messaging ─────────────────────────────────────────────────
+
+test('E2E Bidir: lead sends message to worker-a, worker-a receives it in inbox', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    registerWorker(terminals, inbox, results, 'aaaa0001', 'worker-a', 'task-lead-a', 'lead-team');
+
+    // Lead sends to worker-a by target_name
+    const sendResult = api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      target_name: 'worker-a',
+      content: 'please focus on the authentication module next',
+    });
+    assert.match(contentText(sendResult), /Message sent/i, 'lead send must confirm delivery');
+
+    // worker-a checks its inbox
+    const inboxResult = api.handleToolCall('coord_check_inbox', { session_id: 'aaaa0001' });
+    const inboxText = contentText(inboxResult);
+    assert.match(inboxText, /authentication module/i, 'worker-a must receive lead message');
+    assert.match(inboxText, /lead/i, 'from field must show lead');
+  } finally {
+    restore();
+  }
+});
+
+test('E2E Bidir: worker-b sends message back to lead session, lead receives it', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    // Register worker-b and a lead session
+    registerWorker(terminals, inbox, results, 'bbbb0002', 'worker-b', 'task-lead-b', 'lead-team');
+    // Register lead session (lead has its own inbox identified by its session ID)
+    const leadSessionId = 'lead0001';
+    writeFileSync(
+      join(terminals, `session-${leadSessionId}.json`),
+      JSON.stringify({
+        session: leadSessionId,
+        worker_name: 'lead',
+        status: 'active',
+        last_active: new Date().toISOString(),
+      }),
+    );
+    writeFileSync(join(inbox, `${leadSessionId}.jsonl`), '');
+
+    // Worker-b sends to lead by session ID
+    const sendResult = api.handleToolCall('coord_send_message', {
+      from: 'worker-b',
+      to: leadSessionId,
+      content: 'database migration complete, ready for review',
+    });
+    assert.match(contentText(sendResult), /Message sent/i, 'worker→lead send must confirm delivery');
+
+    // Lead checks its inbox
+    const inboxResult = api.handleToolCall('coord_check_inbox', { session_id: leadSessionId });
+    const inboxText = contentText(inboxResult);
+    assert.match(inboxText, /database migration complete/i, 'lead must receive worker-b message');
+    assert.match(inboxText, /worker-b/i, 'from field must show worker-b');
+  } finally {
+    restore();
+  }
+});
+
+// ─── Broadcast from Lead ──────────────────────────────────────────────────────
+
+test('E2E Bidir: broadcast from lead — both workers receive it', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    registerWorker(terminals, inbox, results, 'cccc0003', 'worker-a', 'task-bc-a', 'bc-team');
+    registerWorker(terminals, inbox, results, 'dddd0004', 'worker-b', 'task-bc-b', 'bc-team');
+
+    const bcastResult = api.handleToolCall('coord_broadcast', {
+      from: 'lead',
+      content: 'all workers: pause and checkpoint your current state',
+      priority: 'urgent',
+    });
+    assert.match(contentText(bcastResult), /Broadcast sent/i);
+    assert.match(contentText(bcastResult), /2/);
+
+    // Both workers must have the broadcast in their inboxes
+    const msgsA = readInbox(inbox, 'cccc0003');
+    const msgsB = readInbox(inbox, 'dddd0004');
+    assert.equal(msgsA.length, 1, 'worker-a must receive broadcast');
+    assert.equal(msgsB.length, 1, 'worker-b must receive broadcast');
+    assert.match(msgsA[0].content, /checkpoint/i);
+    assert.match(msgsB[0].content, /checkpoint/i);
+    assert.equal(msgsA[0].from, 'lead');
+    assert.equal(msgsB[0].from, 'lead');
+  } finally {
+    restore();
+  }
+});
+
+// ─── All 5 Native Protocol Message Types ──────────────────────────────────────
+
+test('E2E Bidir: protocol type=message (coord_send_message) — basic message delivery', async () => {
+  // coord_send_message covers the native "message" type.
+  // This test verifies the basic message type is delivered correctly with all required fields.
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    registerWorker(terminals, inbox, results, 'eeee0005', 'worker-c', 'task-msg', 'proto-team');
+
+    const result = api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      target_name: 'worker-c',
+      content: 'native message type: proceed to next phase',
+      priority: 'normal',
+    });
+    assert.match(contentText(result), /Message sent/i);
+
+    const msgs = readInbox(inbox, 'eeee0005');
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0].from, 'lead');
+    assert.equal(msgs[0].content, 'native message type: proceed to next phase');
+    assert.equal(msgs[0].priority, 'normal');
+    assert.ok(msgs[0].ts, 'message must have a timestamp');
+  } finally {
+    restore();
+  }
+});
+
+test('E2E Bidir: protocol type=broadcast — native broadcast type delivery', async () => {
+  // coord_broadcast covers the native "broadcast" type.
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    registerWorker(terminals, inbox, results, 'ffff0006', 'worker-d', 'task-bcast', 'proto-team');
+    registerWorker(terminals, inbox, results, 'gggg0007', 'worker-e', 'task-bcast2', 'proto-team');
+
+    const result = api.handleToolCall('coord_broadcast', {
+      from: 'lead',
+      content: 'native broadcast type: deploy window opens in 10 minutes',
+      priority: 'urgent',
+    });
+    assert.match(contentText(result), /Broadcast sent/i);
+
+    const msgsD = readInbox(inbox, 'ffff0006');
+    const msgsE = readInbox(inbox, 'gggg0007');
+    assert.equal(msgsD.length, 1, 'worker-d must receive broadcast');
+    assert.equal(msgsE.length, 1, 'worker-e must receive broadcast');
+    assert.equal(msgsD[0].priority, 'urgent');
+    assert.equal(msgsE[0].priority, 'urgent');
+  } finally {
+    restore();
+  }
+});
+
+test('E2E Bidir: protocol type=shutdown_request — worker receives shutdown request in inbox', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    registerWorker(terminals, inbox, results, 'hhhh0008', 'worker-f', 'task-shutdown', 'proto-team');
+
+    const result = api.handleToolCall('coord_send_protocol', {
+      type: 'shutdown_request',
+      from: 'lead',
+      recipient: 'worker-f',
+    });
+    const txt = contentText(result);
+    assert.match(txt, /Protocol message sent/i, 'shutdown_request must confirm delivery');
+    assert.match(txt, /shutdown_request/i, 'response must echo the type');
+
+    // Worker-f checks inbox — must contain the shutdown request
+    const inboxResult = api.handleToolCall('coord_check_inbox', { session_id: 'hhhh0008' });
+    const inboxText = contentText(inboxResult);
+    assert.match(inboxText, /SHUTDOWN_REQUEST/i, 'inbox must contain SHUTDOWN_REQUEST marker');
+    assert.match(inboxText, /lead/i, 'from must show lead');
+  } finally {
+    restore();
+  }
+});
+
+test('E2E Bidir: protocol type=shutdown_response — lead receives worker shutdown approval', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    registerWorker(terminals, inbox, results, 'iiii0009', 'worker-g', 'task-sdr', 'proto-team');
+    // Lead session must exist so worker-g can send to it
+    const leadSid = 'lead0002';
+    writeFileSync(
+      join(terminals, `session-${leadSid}.json`),
+      JSON.stringify({ session: leadSid, worker_name: 'lead', status: 'active', last_active: new Date().toISOString() }),
+    );
+    writeFileSync(join(inbox, `${leadSid}.jsonl`), '');
+
+    // Worker-g sends shutdown_response (approve=true) back to lead
+    const result = api.handleToolCall('coord_send_protocol', {
+      type: 'shutdown_response',
+      from: 'worker-g',
+      to: leadSid,
+      request_id: 'req-abc123',
+      approve: true,
+    });
+    assert.match(contentText(result), /Protocol message sent/i);
+    assert.match(contentText(result), /shutdown_response/i);
+
+    // Lead reads its inbox — must contain SHUTDOWN_RESPONSE approved=true
+    const inboxResult = api.handleToolCall('coord_check_inbox', { session_id: leadSid });
+    const inboxText = contentText(inboxResult);
+    assert.match(inboxText, /SHUTDOWN_RESPONSE/i, 'lead inbox must contain SHUTDOWN_RESPONSE');
+    assert.match(inboxText, /approved=true/i, 'response must indicate approval');
+  } finally {
+    restore();
+  }
+});
+
+test('E2E Bidir: protocol type=plan_approval_response (approve) — lead approves worker plan', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    registerWorker(terminals, inbox, results, 'jjjj0010', 'worker-h', 'task-plan', 'proto-team');
+
+    // Lead sends plan_approval_response approve=true to worker-h
+    const result = api.handleToolCall('coord_send_protocol', {
+      type: 'plan_approval_response',
+      from: 'lead',
+      recipient: 'worker-h',
+      request_id: 'plan-req-001',
+      approve: true,
+      content: 'approved — proceed with the refactor',
+    });
+    assert.match(contentText(result), /Protocol message sent/i);
+    assert.match(contentText(result), /plan_approval_response/i);
+
+    // Worker-h checks its inbox — must show APPROVED
+    const inboxResult = api.handleToolCall('coord_check_inbox', { session_id: 'jjjj0010' });
+    const inboxText = contentText(inboxResult);
+    assert.match(inboxText, /\[APPROVED\]/i, 'inbox must contain APPROVED marker');
+    assert.match(inboxText, /proceed with the refactor/i, 'approval feedback must be included');
+  } finally {
+    restore();
+  }
+});
+
+test('E2E Bidir: protocol type=plan_approval_response (reject) — lead sends revision request', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    registerWorker(terminals, inbox, results, 'kkkk0011', 'worker-i', 'task-plan-rej', 'proto-team');
+
+    // Lead sends plan_approval_response approve=false (revision) to worker-i
+    const result = api.handleToolCall('coord_send_protocol', {
+      type: 'plan_approval_response',
+      from: 'lead',
+      recipient: 'worker-i',
+      request_id: 'plan-req-002',
+      approve: false,
+      content: 'add error handling before proceeding',
+    });
+    assert.match(contentText(result), /Protocol message sent/i);
+
+    // Worker-i checks inbox — must show REVISION
+    const inboxResult = api.handleToolCall('coord_check_inbox', { session_id: 'kkkk0011' });
+    const inboxText = contentText(inboxResult);
+    assert.match(inboxText, /\[REVISION\]/i, 'inbox must contain REVISION marker for rejected plan');
+    assert.match(inboxText, /error handling/i, 'revision feedback must be included');
+  } finally {
+    restore();
+  }
+});

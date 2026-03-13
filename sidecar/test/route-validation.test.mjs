@@ -225,6 +225,74 @@ test('validateBody: accepts valid keys for /task-templates', async () => {
   assert.deepEqual(mod.validateBody('/task-templates', { name: 'tpl', subject_template: 'x', priority: 'high' }), { ok: true });
 });
 
+test('validateBody: rejects unexpected keys for /agents', async () => {
+  const mod = await import(`../server/http/validation.ts?t=${Date.now()}`);
+  const result = mod.validateBody('/agents', { agent_name: 'a', description: 'd', bad: true });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /bad/);
+});
+
+test('validateBody: accepts valid keys for /agents', async () => {
+  const mod = await import(`../server/http/validation.ts?t=${Date.now()}`);
+  assert.deepEqual(
+    mod.validateBody('/agents', {
+      agent_name: 'a',
+      scope: 'project',
+      description: 'desc',
+      tools: ['Read'],
+      skills: ['qa'],
+      model: 'sonnet',
+      memory: 'local',
+      prompt: 'x',
+      overwrite: true,
+    }),
+    { ok: true },
+  );
+});
+
+test('validateBody: rejects unexpected keys for /agents/{name}', async () => {
+  const mod = await import(`../server/http/validation.ts?t=${Date.now()}`);
+  const result = mod.validateBody('/agents/reviewer', { scope: 'project', hack: 1 });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /hack/);
+});
+
+test('validateBody: accepts valid keys for /agents/{name}', async () => {
+  const mod = await import(`../server/http/validation.ts?t=${Date.now()}`);
+  assert.deepEqual(
+    mod.validateBody('/agents/reviewer', {
+      scope: 'project',
+      new_name: 'reviewer-v2',
+      description: 'updated',
+      tools: ['Read', 'Edit'],
+      memory: 'project',
+      all_scopes: false,
+    }),
+    { ok: true },
+  );
+});
+
+test('validateBody: rejects unexpected keys for /agents/sync-manifest', async () => {
+  const mod = await import(`../server/http/validation.ts?t=${Date.now()}`);
+  const result = mod.validateBody('/agents/sync-manifest', { manifest_path: '/x', inject: true });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /inject/);
+});
+
+test('validateBody: accepts valid keys for /agents/sync-manifest', async () => {
+  const mod = await import(`../server/http/validation.ts?t=${Date.now()}`);
+  assert.deepEqual(
+    mod.validateBody('/agents/sync-manifest', {
+      manifest_path: '/tmp/MANIFEST.md',
+      scope: 'all',
+      include_invalid: false,
+      include_shadowed: true,
+      project_dir: '/tmp/project',
+    }),
+    { ok: true },
+  );
+});
+
 test('validateBody: rejects overly large string fields', async () => {
   const mod = await import(`../server/http/validation.ts?t=${Date.now()}`);
   const result = mod.validateBody('/dispatch', { team_name: 'x'.repeat(200_000) });

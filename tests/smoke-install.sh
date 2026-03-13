@@ -3,8 +3,8 @@
 # Runs install.sh in an isolated $HOME, verifies key files exist, cleans up.
 #
 # Usage:
-#   bash tests/smoke-install.sh --ref HEAD --mode lite
-#   bash tests/smoke-install.sh --source-tarball release.tar.gz --checksum-file checksums.txt --mode lite
+#   bash tests/smoke-install.sh --ref HEAD --mode full
+#   bash tests/smoke-install.sh --source-tarball release.tar.gz --checksum-file checksums.txt --mode full
 
 set -euo pipefail
 
@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Defaults
-MODE="lite"
+MODE="full"
 REF="HEAD"
 VERSION=""
 SOURCE_TARBALL=""
@@ -188,6 +188,7 @@ check_dir  "$CLAUDE_DIR/mcp-coordinator"
 check_file "$CLAUDE_DIR/mcp-coordinator/index.js"
 check_dir  "$CLAUDE_DIR/lead-sidecar"
 check_dir  "$CLAUDE_DIR/commands"
+check_file "$CLAUDE_DIR/commands/lead.md"
 check_dir  "$CLAUDE_DIR/agents"
 
 # Sidecar binaries
@@ -204,6 +205,21 @@ fi
 
 # Settings should have been merged
 check_file "$CLAUDE_DIR/settings.local.json"
+
+# First-run sidecar readiness
+TOTAL=$((TOTAL + 1))
+PORT_FILE="$CLAUDE_DIR/lead-sidecar/runtime/sidecar.port"
+if [ -f "$PORT_FILE" ] && python3 - <<PY >/dev/null 2>&1
+import json
+data = json.load(open("$PORT_FILE"))
+assert data.get("port") or data.get("socket")
+PY
+then
+  PASS=$((PASS + 1))
+  log "OK: sidecar first-run readiness file created"
+else
+  log "FAIL: sidecar first-run readiness file missing or invalid"
+fi
 
 # Coordinator syntax check
 TOTAL=$((TOTAL + 1))
@@ -225,6 +241,18 @@ elif [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && [ -e "$CLAUDEX_LINK" ];
   log "OK: claudex launcher exists in ~/.local/bin (Windows mode)"
 else
   log "MISSING: claudex launcher in ~/.local/bin"
+fi
+
+TOTAL=$((TOTAL + 1))
+SIDECARCTL_LINK="$FAKE_HOME/.local/bin/sidecarctl"
+if [ -L "$SIDECARCTL_LINK" ]; then
+  PASS=$((PASS + 1))
+  log "OK: sidecarctl symlink in ~/.local/bin"
+elif [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && [ -e "$SIDECARCTL_LINK" ]; then
+  PASS=$((PASS + 1))
+  log "OK: sidecarctl launcher exists in ~/.local/bin (Windows mode)"
+else
+  log "MISSING: sidecarctl launcher in ~/.local/bin"
 fi
 
 log ""

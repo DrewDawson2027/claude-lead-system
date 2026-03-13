@@ -268,3 +268,182 @@ test('E2E Plan: coord_send_protocol resolves worker by name when recipient= is u
     restore();
   }
 });
+
+// ─── File-Based Approval Gate Tests (coord_approve_plan / coord_reject_plan) ──
+
+test('Plan Approval Gate: coord_approve_plan writes approval file with status=approved', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    const taskId = 'task-appr-01';
+    // Write meta file so coord_approve_plan can find the task
+    writeFileSync(
+      join(results, `${taskId}.meta.json`),
+      JSON.stringify({ task_id: taskId, worker_name: 'plan-worker', team_name: 'test-team' }),
+    );
+
+    const result = api.handleToolCall('coord_approve_plan', {
+      task_id: taskId,
+      message: 'Looks great, proceed.',
+    });
+    assert.match(contentText(result), /Plan approved/i, 'must confirm approval');
+
+    const approvalFile = join(results, `${taskId}.approval`);
+    assert.ok(existsSync(approvalFile), 'approval file must exist after coord_approve_plan');
+    const approval = JSON.parse(readFileSync(approvalFile, 'utf8'));
+    assert.equal(approval.status, 'approved', 'approval file must record status=approved');
+    assert.match(approval.message, /Looks great/, 'approval file must include the message');
+    assert.ok(approval.ts, 'approval file must have a timestamp');
+  } finally {
+    restore();
+  }
+});
+
+test('Plan Approval Gate: coord_approve_plan delivers [APPROVED] to worker inbox via current_task', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    const taskId = 'task-appr-02';
+    const workerSid = 'wrkr8888';
+
+    // Write meta and session files; session must have current_task set so findWorkerSessionId resolves it
+    writeFileSync(
+      join(results, `${taskId}.meta.json`),
+      JSON.stringify({ task_id: taskId, worker_name: 'plan-worker-2' }),
+    );
+    writeFileSync(
+      join(terminals, `session-${workerSid}.json`),
+      JSON.stringify({
+        session: workerSid,
+        worker_name: 'plan-worker-2',
+        current_task: taskId,
+        status: 'active',
+        last_active: new Date().toISOString(),
+      }),
+    );
+    writeFileSync(join(inbox, `${workerSid}.jsonl`), '');
+
+    api.handleToolCall('coord_approve_plan', { task_id: taskId });
+
+    const msgs = readInbox(inbox, workerSid);
+    assert.equal(msgs.length, 1, 'worker inbox must have the approval notification');
+    assert.match(msgs[0].content, /\[APPROVED\]/, 'inbox message must contain [APPROVED]');
+    assert.ok(msgs[0].content.includes(taskId), 'inbox message must reference the task ID');
+  } finally {
+    restore();
+  }
+});
+
+test('Plan Approval Gate: coord_reject_plan writes revision file with feedback', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    const taskId = 'task-rej-01';
+    writeFileSync(
+      join(results, `${taskId}.meta.json`),
+      JSON.stringify({ task_id: taskId, worker_name: 'plan-worker-3' }),
+    );
+
+    const result = api.handleToolCall('coord_reject_plan', {
+      task_id: taskId,
+      feedback: 'Add error handling for the network timeout case.',
+    });
+    assert.match(contentText(result), /revision requested/i, 'must confirm revision request');
+
+    const revisionFile = join(results, `${taskId}.approval`);
+    assert.ok(existsSync(revisionFile), 'revision file must exist after coord_reject_plan');
+    const revision = JSON.parse(readFileSync(revisionFile, 'utf8'));
+    assert.equal(revision.status, 'revision_requested');
+    assert.match(revision.feedback, /network timeout/, 'feedback must appear verbatim in file');
+    assert.ok(revision.ts, 'revision file must have a timestamp');
+  } finally {
+    restore();
+  }
+});
+
+test('Plan Approval Gate: coord_reject_plan delivers [REVISION] to worker inbox', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    const taskId = 'task-rej-02';
+    const workerSid = 'wrkr9999';
+
+    writeFileSync(
+      join(results, `${taskId}.meta.json`),
+      JSON.stringify({ task_id: taskId, worker_name: 'plan-worker-4' }),
+    );
+    writeFileSync(
+      join(terminals, `session-${workerSid}.json`),
+      JSON.stringify({
+        session: workerSid,
+        current_task: taskId,
+        status: 'active',
+        last_active: new Date().toISOString(),
+      }),
+    );
+    writeFileSync(join(inbox, `${workerSid}.jsonl`), '');
+
+    api.handleToolCall('coord_reject_plan', {
+      task_id: taskId,
+      feedback: 'Must handle the rollback case.',
+    });
+
+    const msgs = readInbox(inbox, workerSid);
+    assert.equal(msgs.length, 1, 'worker inbox must have the revision notification');
+    assert.match(msgs[0].content, /\[REVISION\]/, 'inbox message must contain [REVISION]');
+    assert.match(msgs[0].content, /rollback/, 'feedback text must appear in the inbox message');
+  } finally {
+    restore();
+  }
+});
+
+test('Plan Approval Gate: no auto-approve — approval file absent before any lead action', async () => {
+  const { home, terminals, inbox, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    const taskId = 'task-noauto-01';
+    // Write meta file (simulating worker has written its plan) but take NO lead action
+    writeFileSync(
+      join(results, `${taskId}.meta.json`),
+      JSON.stringify({ task_id: taskId, worker_name: 'plan-worker-5' }),
+    );
+    writeFileSync(
+      join(results, `${taskId}.plan.md`),
+      '# Plan\n\nStep 1: do stuff\nStep 2: do more stuff',
+    );
+
+    const approvalFile = join(results, `${taskId}.approval`);
+    assert.ok(
+      !existsSync(approvalFile),
+      'approval file must NOT exist — no auto-approve should occur',
+    );
+  } finally {
+    restore();
+  }
+});
+
+test('Plan Approval Gate: coord_approve_plan returns error when task meta file not found', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    const result = api.handleToolCall('coord_approve_plan', {
+      task_id: 'nonexistent-task',
+    });
+    assert.match(contentText(result), /not found/i, 'must report task not found');
+    assert.doesNotMatch(contentText(result), /Plan approved/i, 'must not claim approval succeeded');
+  } finally {
+    restore();
+  }
+});

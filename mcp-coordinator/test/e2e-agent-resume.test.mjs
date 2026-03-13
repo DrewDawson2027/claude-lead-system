@@ -9,8 +9,9 @@
  * Coverage:
  *   1. True resume path: meta has claude_session_id → "Worker resumed (true resume)"
  *   2. New meta file records resumed_from_session = original claude_session_id
- *   3. Fallback continuation-spawn when no claude_session_id available
- *   4. Error path: task not found
+ *   3. Resume-by-agentId path when native identity exists
+ *   4. Summary fallback when native identity is absent
+ *   5. Error path: task not found
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,6 +24,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { upsertIdentityRecord } from '../lib/identity-map.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -77,6 +79,7 @@ function writeWorkerMeta(results, home, taskId, opts = {}) {
       task_id: taskId,
       worker_name: opts.workerName || 'worker-alpha',
       mode: opts.mode || 'interactive',
+      model: opts.model || 'sonnet',
       prompt: opts.prompt || 'Build the auth module',
       directory: home,
       original_directory: home,
@@ -113,6 +116,7 @@ test('E2E Resume: coord_resume_worker takes true-resume path when claude_session
     const txt = contentText(result);
 
     assert.match(txt, /Worker resumed \(true resume\)/i, 'must confirm true resume path');
+    assert.match(txt, /route_mode: claude-session-resume/i);
     assert.ok(txt.includes(claudeSessionId), 'must reference the original session_id');
     assert.match(txt, /Full conversation history preserved/i, 'must claim history preserved');
   } finally {
@@ -167,12 +171,97 @@ test('E2E Resume: fallback continuation-spawn when no claude_session_id', async 
     const result = api.handleToolCall('coord_resume_worker', { task_id: taskId });
     const txt = contentText(result);
 
-    // Fallback spawns a new worker — must NOT claim true resume
-    assert.ok(txt.length > 0, 'must return a non-empty response');
-    assert.ok(
-      !txt.includes('true resume'),
-      'must not claim true resume when no session_id is available',
-    );
+    assert.match(txt, /summary fallback/i, 'must make fallback mode explicit');
+    assert.match(txt, /route_mode: summary-fallback/i, 'must expose fallback route mode');
+    assert.match(txt, /route_reason:/i, 'must expose fallback reason');
+    assert.ok(!txt.includes('true resume'), 'must not claim true resume when no session_id is available');
+  } finally {
+    restore();
+  }
+});
+
+test('E2E Resume: resume-by-agentId when identity map has native agent_id', async () => {
+  const { home, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    const taskId = 'e2e-resume-agent-01';
+    writeWorkerMeta(results, home, taskId, {
+      mode: 'interactive',
+      output: 'partial output',
+      claudeSessionId: undefined,
+    });
+    upsertIdentityRecord({
+      team_name: 'agent-team',
+      task_id: taskId,
+      agent_id: 'agent-native-42',
+      session_id: 'facefeed',
+    });
+    const metaPath = join(results, `${taskId}.meta.json`);
+    const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
+    meta.team_name = 'agent-team';
+    writeFileSync(metaPath, JSON.stringify(meta));
+
+    const result = api.handleToolCall('coord_resume_worker', {
+      task_id: taskId,
+      mode: 'interactive',
+    });
+    const txt = contentText(result);
+    assert.match(txt, /native agentId/i, 'must prefer agentId resume when identity exists');
+    assert.match(txt, /route_mode: native-agent-resume/i);
+    assert.match(txt, /probe_source: identity-map/i);
+    assert.match(txt, /fallback_history: \[\]/i);
+    assert.match(txt, /agent-native-42/i);
+  } finally {
+    restore();
+  }
+});
+
+test('E2E Resume: resume-by-agentId wins when task identity is partial but session identity has agent_id', async () => {
+  const { home, results } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+
+    const taskId = 'e2e-resume-agent-02';
+    const claudeSessionId = 'd4e5f6a7-b8c9-0123-def0-1234567890ab';
+    writeWorkerMeta(results, home, taskId, {
+      workerName: 'worker-split',
+      claudeSessionId,
+      output: 'partial output',
+    });
+    const metaPath = join(results, `${taskId}.meta.json`);
+    const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
+    meta.team_name = 'agent-team';
+    writeFileSync(metaPath, JSON.stringify(meta));
+
+    // Partial task identity record (no agent_id).
+    upsertIdentityRecord({
+      team_name: 'agent-team',
+      task_id: taskId,
+      worker_name: 'worker-split',
+    });
+    // Session-linked identity record carries the native agent_id.
+    upsertIdentityRecord({
+      team_name: 'agent-team',
+      claude_session_id: claudeSessionId,
+      session_id: '11223344',
+      agent_id: 'agent-native-99',
+      agent_name: 'native-worker',
+      worker_name: 'worker-split',
+    });
+
+    const result = api.handleToolCall('coord_resume_worker', {
+      task_id: taskId,
+      mode: 'interactive',
+    });
+    const txt = contentText(result);
+    assert.match(txt, /route_mode: native-agent-resume/i);
+    assert.match(txt, /probe_source: identity-map/i);
+    assert.match(txt, /fallback_history: \[\]/i);
+    assert.match(txt, /agent-native-99/i);
+    assert.doesNotMatch(txt, /route_mode: claude-session-resume/i);
   } finally {
     restore();
   }

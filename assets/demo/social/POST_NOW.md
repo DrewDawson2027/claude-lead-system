@@ -8,13 +8,13 @@
 ## Tweet 1 (The Hook) — ATTACH: `demo.mp4` (native video upload)
 
 ```
-Running multiple Claude Code agents in parallel is a nightmare.
+I wanted a local coordination layer for Claude Code.
 
-They are completely blind to each other. They step on the same files. They duplicate work. And you spend your own API tokens just babysitting them.
+So I built one.
 
-I got sick of the chaos. So I built a fix.
+`/lead` turns one session into a local operator: it can see other sessions, send messages, detect file overlap, and manage coordinator-mode workers.
 
-Introducing the Claude Lead System.
+Here’s the demo.
 ```
 
 **Media:** Upload `assets/demo/demo.mp4` as native X video (NOT a link)
@@ -24,11 +24,11 @@ Introducing the Claude Lead System.
 ## Tweet 2 (The Core Problem) — no media
 
 ```
-The problem with multi-agent coding isn't the AI; it's the orchestration.
+Agent Teams is the right default if you want first-party collaboration inside Claude Code.
 
-If Terminal A is writing the backend and Terminal B is writing the frontend, they will inevitably cause a merge conflict in your types file.
+Lead is for a different job: heavier multi-terminal workflows where you want coordination state outside the model context.
 
-Standard agent frameworks solve this by dumping logs into the context window, burning massive API tokens.
+That means local session state, inbox files, conflict checks, and worker control without treating it like a native-team replacement.
 ```
 
 ---
@@ -36,13 +36,13 @@ Standard agent frameworks solve this by dumping logs into the context window, bu
 ## Tweet 3 (The Technical Flex) — ATTACH: `screenshots/screenshot_dashboard.png`
 
 ```
-I bypassed the context window entirely.
+The core idea is simple:
 
-The Claude Lead System wires every terminal together through native shell hooks (PostToolUse, PreToolUse) and a lightweight filesystem protocol.
+shell hooks write small JSON state files and inbox files on disk.
 
-It enriches a 3KB session JSON state on every tool invocation.
+`/lead` reads that local state instead of scanning transcripts for coordination metadata.
 
-Total cost for cross-terminal coordination? Exactly 0 API tokens.
+For the coordination path itself, that avoids pushing that coordination state through the API context.
 ```
 
 **Media:** Upload `assets/demo/screenshots/screenshot_dashboard.png`
@@ -52,14 +52,14 @@ Total cost for cross-terminal coordination? Exactly 0 API tokens.
 ## Tweet 4 (The Commands) — ATTACH: `screenshots/screenshot_conflicts.png`
 
 ```
-By typing /lead in any session, that terminal becomes the "Project Lead."
+Type `/lead` in a Claude Code session and that session becomes the local lead.
 
-It suddenly sees every other Claude terminal on your machine.
+In coordinator mode, it can inspect local session state and do things like:
 
 - tell [session] to [task] → sends messages via inbox hooks
 - conflicts → cross-references files_touched across all sessions
 - run [task] in [dir] → spawns autonomous workers
-- wake [session] → injects AppleScript to wake idle terminals
+- wake [session] → tries to wake an idle session, with inbox fallback
 ```
 
 **Media:** Upload `assets/demo/screenshots/screenshot_conflicts.png`
@@ -69,13 +69,13 @@ It suddenly sees every other Claude terminal on your machine.
 ## Tweet 5 (The Proof) — ATTACH: `screenshots/screenshot_messaging.png`
 
 ```
-Instead of parsing MBs of expensive transcripts, the Lead reads a few KB of JSON to build a live dashboard with active/stale sessions and W/E/B/R counters.
+Instead of parsing transcripts for coordination state, the lead reads small local state files to build a dashboard of active/stale sessions and recent activity.
 
-Messages are delivered via PreToolUse hooks — the recipient sees the message on their very next tool call.
+In coordinator mode, messages are delivered via hooks and the recipient sees them on the next tool call.
 
-Zero context window pollution. Zero API overhead.
+The point is not parity theater.
 
-The benchmarks? 207x faster than transcript scanning.
+It’s a practical local control layer for messaging, conflict checks, and worker coordination.
 ```
 
 **Media:** Upload `assets/demo/screenshots/screenshot_messaging.png`
@@ -85,13 +85,15 @@ The benchmarks? 207x faster than transcript scanning.
 ## Tweet 6 (Value Drop) — ATTACH: `screenshots/screenshot_worker.png`
 
 ```
-It works natively on macOS, Linux, and Windows.
-It supports Node 18+ and Python 3.10+.
-It operates independently of MCP (though it includes an MCP coordinator with 14 tools for power users).
+Current posture:
+
+- strongest verified path: macOS coordinator workflows
+- Linux/Windows: partial, should be treated cautiously in public copy
+- hybrid/native paths: experimental
 
 Spawn autonomous workers. Chain multi-step pipelines. Detect file conflicts before they become merge conflicts.
 
-Stop babysitting your AI agents. Let them coordinate themselves.
+If you live in heavier Claude Code workflows, that operator layer can be useful.
 ```
 
 **Media:** Upload `assets/demo/screenshots/screenshot_worker.png`
@@ -103,7 +105,7 @@ Stop babysitting your AI agents. Let them coordinate themselves.
 ```
 I just open-sourced the entire system.
 
-If you are building complex software and want your Claude Code sessions to actually talk to each other without burning your wallet, you can install it with one line.
+If you want a local coordination layer for Claude Code, the repo is here.
 
 What's the most painful multi-agent coordination problem you've hit?
 ```
@@ -113,13 +115,11 @@ What's the most painful multi-agent coordination problem you've hit?
 ## FIRST REPLY — post 2-3 minutes after thread ends
 
 ```
-The algorithm hates external links, so here is the repo.
+Here is the repo.
 
-One command to install. Star it if it saves your codebase from AI-induced merge conflicts:
+Install docs and demo assets are in the README:
 
 github.com/DrewDawson2027/claude-lead-system
-
-curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash
 
 @AnthropicAI
 ```
@@ -144,32 +144,32 @@ curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/m
 | `assets/demo/before-after.png`                       | Quote tweet / standalone post            |
 | `assets/demo/screenshots/screenshot_healthcheck.png` | Bonus tweet if thread gets traction      |
 | `assets/demo/social/carousel/slide_01-04.png`        | LinkedIn / carousel post alternative     |
-| `assets/demo/social/thumbnails/thumb_*.png`          | Cross-platform thumbnails                |
+| `assets/demo/social/thumbnails/thumb_*.png`          | Reusable post thumbnails                 |
 
 ---
 
-## Algorithm Optimizations Applied
+## Posting Notes
 
-- **No external links in main tweets** — GitHub link in first reply only (links reduce reach 40%)
-- **Native video on Tweet 1** — 10x engagement vs text-only, stops the scroll
-- **Images on Tweets 3-6** — visual dominance, each screenshot tells a story
-- **Question CTA on Tweet 7** — replies weighted 150x, sparks engagement loop
+- **No external links in main tweets** — keeps the thread cleaner; GitHub link can live in the first reply
+- **Native video on Tweet 1** — usually performs better than text-only for demo posts
+- **Images on Tweets 3-6** — each screenshot supports a concrete product claim
+- **Question CTA on Tweet 7** — invites replies from people with similar workflow pain
 - **"Contrarian problem" hook** — not clickbait, establishes technical authority
 - **No hashtags** — 2026 algorithm deprioritizes hashtag-heavy tech posts
 - **@AnthropicAI in reply only** — signals to algorithm without looking promotional
-- **Thread length: 7** — sweet spot (not too short to lack substance, not too long to lose readers)
-- **End with question** — drives reply velocity in first hour (need 50+ for broader distribution)
+- **Thread length: 7** — enough room for demo + positioning without dragging on
+- **End with question** — helps turn the post into a conversation instead of a broadcast
 
 ## Engagement Playbook (First Hour)
 
 1. Post thread at 9-10 AM PST
 2. Wait 2-3 min, post first reply with GitHub link
 3. Reply to every comment in first 30 min (this is critical for velocity)
-4. Quote-tweet your own Tweet 1 with a one-liner hot take: "Most 'agent frameworks' waste tokens coordinating inside the context window. Coordination should happen outside it."
+4. Quote-tweet your own Tweet 1 with a one-liner follow-up like: "I wanted coordination state outside the context window, not buried inside transcripts."
 5. If it picks up: post the `before-after.png` as a standalone tweet 2-3 hours later referencing the thread
 
 ## Cross-Posting (Same Day)
 
 - **LinkedIn:** Adapt Tweet 1-3 into a single long-form post, more professional tone, include the before-after image
-- **Reddit r/ClaudeAI:** Title: "I built a coordination layer for multiple Claude Code terminals — 0 API tokens, 207x faster than transcript scanning", link to GitHub
-- **Hacker News:** Title: "Show HN: Claude Lead System – Multi-agent Claude Code orchestration via filesystem hooks", link to GitHub
+- **Reddit r/ClaudeAI:** Title: "I built a local coordination layer for Claude Code terminals", link to GitHub
+- **Hacker News:** Title: "Show HN: Claude Lead System – Local coordination layer for Claude Code", link to GitHub

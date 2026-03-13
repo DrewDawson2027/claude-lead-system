@@ -56,7 +56,7 @@ done
 
 ```bash
 node bench/coord-benchmark.mjs
-cat bench/latest-results.json | jq '.results'
+cat bench/latest-results.json | jq '.coordinator_benchmark'
 ```
 
 ### Hook execution time

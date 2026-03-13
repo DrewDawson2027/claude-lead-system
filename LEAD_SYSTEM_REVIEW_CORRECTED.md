@@ -5,6 +5,7 @@
 - Repo scope reviewed: `@/Users/drewdawson/claude-lead-system/CLAUDE.md#1-61`, sidecar/coordinator runtime, and operational plane in `~/.claude`.
 - Operational plane evidence: hooks/config/agents/scripts under `~/.claude`.
 - **Native Agent Teams evidence** for grading is sourced from your provided known-facts set (file protocol, `flock()`, `_internal` shadow tasks, lazy dependency eval, worktree isolation, hook gates, known bug IDs, etc.).
+- This document is an internal evaluation artifact, not a public parity claim.
 
 ---
 
@@ -92,7 +93,7 @@ No native grade is assigned without explicit evidence support.
 
 ---
 
-## 5) Bidirectional feature parity matrix (34 rows) — **Grade: A-**
+## 5) Bidirectional capability overlap matrix (34 rows) — **Grade: A-**
 
 |   # | Capability                                                      | Native Agent Teams | Lead System | Notes                                                                                         |
 | --: | --------------------------------------------------------------- | :----------------: | :---------: | --------------------------------------------------------------------------------------------- |
@@ -187,7 +188,7 @@ You are already hybridized:
 
 - Integration surface:
   - Keep sidecar as **policy and observability shim** over native teams.
-  - Replace overlapping task queue internals where native parity is stable.
+  - Replace overlapping task queue internals where the native path is strong enough to retire the custom version.
 
 #### Phase 3 (90-180 days): reevaluate moat erosion
 

@@ -1,8 +1,10 @@
-export type RouteHandler = (ctx: any) => boolean | Promise<boolean>;
+import type { RouteContext } from "./types.js";
+
+export type RouteHandler = (ctx: RouteContext) => boolean | Promise<boolean>;
 
 export interface RouteRegistry {
   add(name: string, handler: RouteHandler): void;
-  handle(ctx: any): Promise<boolean>;
+  handle(ctx: RouteContext): Promise<boolean>;
   list(): string[];
 }
 
@@ -12,7 +14,7 @@ export function createRouteRegistry(): RouteRegistry {
     add(name: string, handler: RouteHandler) {
       routes.push({ name, handler });
     },
-    async handle(ctx: any) {
+    async handle(ctx: RouteContext) {
       for (const route of routes) {
         if (await route.handler(ctx)) return true;
       }

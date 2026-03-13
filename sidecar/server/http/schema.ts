@@ -100,6 +100,102 @@ export const API_SCHEMA = {
       response: "DiagnosticsLatestPayload",
     },
 
+    // Agents
+    {
+      method: "GET",
+      path: "/agents",
+      description: "List agents across scopes",
+      auth: "none",
+      params: {
+        scope: "all|local|project|user?",
+        include_invalid: "boolean?",
+        include_shadowed: "boolean?",
+        project_dir: "string?",
+      },
+      response: "AgentsListPayload",
+    },
+    {
+      method: "GET",
+      path: "/agents/:agent_name",
+      description: "Get a single agent summary (no prompt body)",
+      auth: "none",
+      params: { scope: "all|local|project|user?", project_dir: "string?" },
+      response: "AgentPayload",
+    },
+    {
+      method: "GET",
+      path: "/agents/:agent_name/full",
+      description: "Get full agent content including prompt and frontmatter",
+      auth: "bearer",
+      params: { scope: "all|local|project|user?", project_dir: "string?" },
+      response: "AgentPayload",
+    },
+    {
+      method: "POST",
+      path: "/agents",
+      description: "Create an agent",
+      auth: "bearer",
+      body: {
+        required: ["agent_name", "description"],
+        optional: [
+          "scope",
+          "model",
+          "tools",
+          "memory",
+          "skills",
+          "prompt",
+          "project_dir",
+          "overwrite",
+        ],
+      },
+      response: "AgentMutationPayload",
+    },
+    {
+      method: "PATCH",
+      path: "/agents/:agent_name",
+      description: "Update an agent",
+      auth: "bearer",
+      body: {
+        optional: [
+          "scope",
+          "new_name",
+          "description",
+          "model",
+          "tools",
+          "memory",
+          "skills",
+          "prompt",
+          "project_dir",
+          "overwrite",
+        ],
+      },
+      response: "AgentMutationPayload",
+    },
+    {
+      method: "DELETE",
+      path: "/agents/:agent_name",
+      description: "Delete an agent",
+      auth: "bearer",
+      body: { optional: ["scope", "project_dir", "all_scopes"] },
+      response: "AgentMutationPayload",
+    },
+    {
+      method: "POST",
+      path: "/agents/sync-manifest",
+      description: "Regenerate MANIFEST.md agents table",
+      auth: "bearer",
+      body: {
+        optional: [
+          "manifest_path",
+          "scope",
+          "include_invalid",
+          "include_shadowed",
+          "project_dir",
+        ],
+      },
+      response: "AgentMutationPayload",
+    },
+
     // Teams
     {
       method: "GET",
@@ -128,6 +224,13 @@ export const API_SCHEMA = {
       description: "Team pending approvals",
       auth: "none",
       response: "ApprovalsPayload",
+    },
+    {
+      method: "GET",
+      path: "/teams/:team_name/teammates/:id/mirror",
+      description: "Focused teammate tmux mirror fallback",
+      auth: "none",
+      response: "TeammateMirrorPayload",
     },
     {
       method: "GET",

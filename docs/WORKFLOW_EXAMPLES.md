@@ -168,8 +168,7 @@ Worker 1:     ~80K tokens (extract + test)            ≈ $0.72
 Worker 2:     ~70K tokens (middleware + test)          ≈ $0.63
 Coordination: 0 tokens                                = $0.00
 TOTAL: ~$2.25
-
-Agent Teams equivalent: ~$6-8 (3 full context windows + coordination tokens)
+Note: Native/Agent Teams dollar-equivalent comparisons are methodology-model outputs, not measured billing proof.
 ```
 
 ---

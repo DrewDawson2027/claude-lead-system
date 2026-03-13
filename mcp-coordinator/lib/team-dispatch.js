@@ -8,6 +8,7 @@ import { sanitizeName, sanitizeId } from "./security.js";
 import { readTeamConfig, handleCreateTeam } from "./teams.js";
 import { handleCreateTask, handleUpdateTask } from "./tasks.js";
 import { handleSpawnWorker } from "./workers.js";
+import { findIdentityRecord } from "./identity-map.js";
 
 function contentText(res) {
   return res?.content?.[0]?.text || "";
@@ -25,6 +26,41 @@ function pickAssignee(team, args) {
     if (byRole?.name) return byRole.name;
   }
   return members[0]?.name ? sanitizeName(members[0].name, "assignee") : null;
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function sanitizeContextSummary(summary, prompt) {
+  const raw = String(summary || "").trim();
+  if (!raw) return null;
+  const promptNorm = normalizeText(prompt);
+  const summaryNorm = normalizeText(raw);
+  if (
+    summaryNorm &&
+    promptNorm &&
+    (summaryNorm.includes(promptNorm) || promptNorm.includes(summaryNorm))
+  ) {
+    return null;
+  }
+  return raw;
+}
+
+function shouldUseLowOverheadDispatch(args, team) {
+  const explicitHeavy =
+    args.mode ||
+    args.context_level ||
+    args.require_plan !== undefined ||
+    (Array.isArray(args.files) && args.files.length > 0);
+  if (explicitHeavy) return false;
+  const teamMode = String(team?.low_overhead_mode || "").toLowerCase();
+  if (["minimal", "compact", "aggressive"].includes(teamMode)) return true;
+  const promptLength = String(args.prompt || "").trim().length;
+  return promptLength > 0 && promptLength <= 800;
 }
 
 /**
@@ -57,6 +93,11 @@ export function handleTeamDispatch(args) {
   const workerTaskId = args.worker_task_id
     ? sanitizeId(args.worker_task_id, "worker_task_id")
     : `W${Date.now()}`;
+  const lowOverheadDispatch = shouldUseLowOverheadDispatch(args, team);
+  const dispatchContextSummary = sanitizeContextSummary(
+    args.context_summary,
+    prompt,
+  );
 
   let createTaskRes = null;
   if (createTask) {
@@ -78,6 +119,7 @@ export function handleTeamDispatch(args) {
         dispatch: {
           via: "coord_team_dispatch",
           worker_task_id: workerTaskId,
+          profile: lowOverheadDispatch ? "low-overhead" : "standard",
         },
       },
     });
@@ -87,11 +129,34 @@ export function handleTeamDispatch(args) {
     }
   }
 
-  // Check if we can resume an existing member via native agentId
+  // Prefer native resume-by-agentId whenever a native identity exists.
   const existingMember = team.members?.find((m) => m.name === workerName);
-  const canNativeResume =
-    existingMember?.agentId &&
-    (team.execution_path === "native" || team.execution_path === "hybrid");
+  const teamUsesNativeEngine =
+    team.execution_path === "native" || team.execution_path === "hybrid";
+  const identityFromTask = existingMember?.task_id
+    ? findIdentityRecord({
+        team_name,
+        task_id: String(existingMember.task_id),
+      })
+    : null;
+  const identityFromSession = existingMember?.session_id
+    ? findIdentityRecord({
+        team_name,
+        session_id: String(existingMember.session_id),
+      })
+    : null;
+  const resolvedAgentId =
+    existingMember?.agentId ||
+    identityFromTask?.agent_id ||
+    identityFromSession?.agent_id ||
+    null;
+  const canNativeResume = Boolean(resolvedAgentId) && teamUsesNativeEngine;
+  if (canNativeResume && assignee && !existingMember?.agentId) {
+    handleCreateTeam({
+      team_name,
+      members: [{ name: assignee, agentId: resolvedAgentId }],
+    });
+  }
 
   const spawnRes = handleSpawnWorker({
     directory: args.directory,
@@ -99,16 +164,19 @@ export function handleTeamDispatch(args) {
     model: args.model,
     agent: args.agent,
     task_id: workerTaskId,
-    mode: args.mode,
+    mode: args.mode ?? (lowOverheadDispatch ? "pipe" : undefined),
     runtime: args.runtime,
     notify_session_id: args.notify_session_id,
+    parent_session_id: args.parent_session_id,
     files: args.files || [],
     layout: args.layout,
     isolate: args.isolate,
     role: args.role,
-    require_plan: args.require_plan,
+    require_plan:
+      args.require_plan ?? (lowOverheadDispatch ? false : undefined),
     permission_mode: args.permission_mode,
-    context_level: args.context_level,
+    context_level:
+      args.context_level ?? (lowOverheadDispatch ? "minimal" : undefined),
     budget_policy: args.budget_policy,
     budget_tokens: args.budget_tokens,
     global_budget_policy: args.global_budget_policy,
@@ -117,12 +185,16 @@ export function handleTeamDispatch(args) {
     team_name,
     worker_name: workerName,
     max_turns: args.max_turns,
-    context_summary: args.context_summary,
+    context_summary: dispatchContextSummary,
     // Pass resume hint for native agent resume (Step 6)
-    ...(canNativeResume && { resume_agent_id: existingMember.agentId }),
+    ...(canNativeResume && { resume_agent_id: resolvedAgentId }),
   });
   const spawnTxt = contentText(spawnRes);
   const spawned = /Worker spawned:/i.test(spawnTxt);
+  const resumedAgentId =
+    spawnTxt.match(/Resumed agentId:\s*([^\n]+)/i)?.[1]?.trim() ||
+    resolvedAgentId ||
+    null;
 
   if (createTask) {
     if (spawned) {
@@ -133,6 +205,7 @@ export function handleTeamDispatch(args) {
         metadata: {
           worker_task_id: workerTaskId,
           dispatch_status: "spawned",
+          dispatch_profile: lowOverheadDispatch ? "low-overhead" : "standard",
         },
       });
     } else {
@@ -142,6 +215,7 @@ export function handleTeamDispatch(args) {
         metadata: {
           worker_task_id: workerTaskId,
           dispatch_status: "spawn_failed",
+          dispatch_profile: lowOverheadDispatch ? "low-overhead" : "standard",
           dispatch_error: spawnTxt.slice(0, 500),
         },
       });
@@ -152,7 +226,13 @@ export function handleTeamDispatch(args) {
     // Link current worker task to the team member for live `coord_get_team` UX.
     handleCreateTeam({
       team_name,
-      members: [{ name: assignee, task_id: workerTaskId }],
+      members: [
+        {
+          name: assignee,
+          task_id: workerTaskId,
+          ...(resumedAgentId ? { agentId: resumedAgentId } : {}),
+        },
+      ],
     });
   }
 
@@ -161,6 +241,7 @@ export function handleTeamDispatch(args) {
       `- Subject: ${subject}\n` +
       `- Team Task: ${createTask ? taskId : "skipped"}\n` +
       `- Worker Task: ${workerTaskId}\n` +
+      `- Dispatch Profile: ${lowOverheadDispatch ? "low-overhead" : "standard"}\n` +
       `- Assignee: ${assignee || "auto:none"}\n` +
       `- Worker Name: ${workerName || "none"}\n` +
       `- Status: ${spawned ? "dispatched" : "worker spawn failed"}\n\n` +

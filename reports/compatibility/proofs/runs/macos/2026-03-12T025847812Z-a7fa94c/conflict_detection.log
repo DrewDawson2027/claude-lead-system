@@ -1,0 +1,29 @@
+capability: conflict_detection
+description: Conflict detection proof
+started_at: 2026-03-12T02:59:19.518Z
+ended_at: 2026-03-12T02:59:19.903Z
+duration_ms: 385
+command: npm --workspace mcp-coordinator exec -- node --test test/conflicts.test.mjs
+exit_status: 0
+signal: null
+error: null
+
+--- stdout ---
+✔ detect_conflicts finds overlapping files_touched (65.452875ms)
+✔ detect_conflicts returns safe when no overlaps (3.746333ms)
+✔ detect_conflicts prefers current_files over historical files_touched (3.686375ms)
+✔ detect_conflicts prefers recent activity over historical files_touched (3.466791ms)
+✔ detect_conflicts ignores single-session recent edits when overlap is gone (3.016458ms)
+✔ detect_conflicts excludes closed sessions (3.768917ms)
+✔ detect_conflicts rejects empty files array (3.092417ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 158.979375
+
+
+--- stderr ---

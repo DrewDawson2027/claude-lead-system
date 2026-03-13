@@ -78,6 +78,23 @@ test('bridge health reports degraded when process is alive but no freshness sign
   }
 });
 
+test('bridge health does not report healthy after a recent spawn failure without heartbeat/session', () => {
+  const { root, paths } = setupPaths();
+  try {
+    writeJSON(paths.nativeBridgeStatusFile, {
+      pid: null,
+      session_id: null,
+      note: 'bridge spawn failed',
+      updated_at: new Date().toISOString(),
+    });
+    const out = getBridgeHealth(paths, 1000);
+    assert.equal(out.bridge_status, 'down');
+    assert.equal(out.ok, false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('bridge controller heartbeat persists pid to heartbeat file', () => {
   const { root, paths } = setupPaths();
   try {

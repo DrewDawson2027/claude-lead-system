@@ -80,7 +80,7 @@ Common issues and solutions for the claude-lead-system.
 ### Windows: Hooks Not Running
 
 - Shell hooks require Git Bash or WSL. Stock cmd.exe cannot run `.sh` files.
-- Windows Terminal (`wt`) must be installed for tab/split support.
+- Windows Terminal (`wt`) must be installed for tab support.
 
 ### Linux: Terminal Not Opening
 
@@ -118,7 +118,9 @@ Common issues and solutions for the claude-lead-system.
 
 1. Check Node.js version: `node --version` (must be 18+)
 2. Clear npm cache: `npm cache clean --force`
-3. Try again: `bash install.sh --mode lite`
+3. Retry with a policy-valid installer command:
+   - Signed release path (recommended): run the full release command from the README Installation section (includes `--version`, `--source-tarball`, `--checksum-file`, `--checksum-signature`, `--checksum-cert`, `--release-manifest`, `--release-manifest-signature`, and `--release-manifest-cert`).
+   - Dev/nightly ref path (advanced): `bash install.sh --ref main --allow-unsigned-release`
 
 ## Sidecar Auth Issues
 

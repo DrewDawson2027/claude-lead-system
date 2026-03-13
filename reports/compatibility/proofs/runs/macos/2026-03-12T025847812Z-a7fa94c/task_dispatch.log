@@ -1,0 +1,23 @@
+capability: task_dispatch
+description: Team task dispatch proof
+started_at: 2026-03-12T02:59:19.086Z
+ended_at: 2026-03-12T02:59:19.517Z
+duration_ms: 431
+command: npm --workspace mcp-coordinator exec -- node --test --test-name-pattern "coord_team_dispatch creates team task, spawns worker, and links live team state" test/e2e-worker-pipeline.test.mjs
+exit_status: 0
+signal: null
+error: null
+
+--- stdout ---
+✔ coord_team_dispatch creates team task, spawns worker, and links live team state (124.907417ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 196.89725
+
+
+--- stderr ---

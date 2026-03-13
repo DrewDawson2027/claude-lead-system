@@ -6,7 +6,8 @@ export { startSidecarServer } from "./create-server.ts";
 const isDirect = Boolean(
   process.argv[1] && /(^|[\\/])server[\\/]index\.js$/.test(process.argv[1]),
 );
-if (isDirect) {
+const isAutostart = process.env.LEAD_SIDECAR_AUTOSTART === "1";
+if (isDirect || isAutostart) {
   startSidecarServer().catch((err) => {
     console.error("lead-sidecar failed:", err);
     process.exit(1);

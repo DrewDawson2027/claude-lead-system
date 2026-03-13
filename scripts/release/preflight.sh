@@ -23,6 +23,7 @@ done
 echo "Running hook tests..."
 bash tests/hooks-smoke.sh
 bash tests/health-check-regression.sh
+bash tests/smoke-install.sh --ref HEAD --mode full
 
 echo "Running syntax checks..."
 bash -n hooks/*.sh tests/*.sh install.sh
@@ -37,6 +38,10 @@ echo "Running coordinator tests..."
 
 echo "Running policy/docs audits..."
 npm run docs:audit
+
+echo "Running compatibility proof checks..."
+node scripts/proof/verify-proof-artifacts.mjs
+node scripts/proof/generate-compatibility-matrix.mjs --check
 
 echo "Running sidecar security smoke..."
 bash scripts/release/security-smoke.sh

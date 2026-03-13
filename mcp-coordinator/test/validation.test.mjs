@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { __test__ } from '../index.js';
 import { resolve, join } from 'node:path';
-import { writeFileSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 
@@ -25,6 +25,54 @@ test('sanitizeModel defaults to sonnet', () => {
 
 test('sanitizeModel rejects shell metacharacters', () => {
   assert.throws(() => __test__.sanitizeModel('sonnet;echo hacked'));
+});
+
+test('sanitizeModel normalizes supported full model aliases', () => {
+  assert.equal(__test__.sanitizeModel('claude-sonnet-4-5'), 'sonnet');
+  assert.equal(__test__.sanitizeModel('claude-sonnet-4-6'), 'sonnet');
+  assert.equal(__test__.sanitizeModel('claude-haiku-4-5'), 'haiku');
+  assert.equal(__test__.sanitizeModel('claude-haiku-4-6'), 'haiku');
+});
+
+test('sanitizeModel rejects unsupported models', () => {
+  assert.throws(() => __test__.sanitizeModel('opus'));
+  assert.throws(() => __test__.sanitizeModel('claude-opus-4-5'));
+  assert.throws(() => __test__.sanitizeModel('claude-opus-4-6'));
+});
+
+test('bundled model-router accepts modern sonnet aliases from settings defaults', () => {
+  const home = mkdtempSync(join(tmpdir(), 'model-router-'));
+  const claudeDir = join(home, '.claude');
+  const settingsPath = join(claudeDir, 'settings.local.json');
+  const scriptPath = join(process.cwd(), 'hooks', 'model-router.py');
+  mkdirSync(claudeDir, { recursive: true });
+  writeFileSync(settingsPath, JSON.stringify({ model: 'claude-sonnet-4-6' }, null, 2));
+  const payload = JSON.stringify({
+    tool_name: 'Task',
+    tool_input: { subagent_type: 'implementer', prompt: 'do work' },
+  });
+  const result = spawnSync('python3', [scriptPath], {
+    cwd: process.cwd(),
+    env: { ...process.env, HOME: home },
+    input: payload,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
+test('bundled model-router blocks unsupported explicit models', () => {
+  const scriptPath = join(process.cwd(), 'hooks', 'model-router.py');
+  const payload = JSON.stringify({
+    tool_name: 'Task',
+    tool_input: { subagent_type: 'implementer', prompt: 'do work', model: 'opus' },
+  });
+  const result = spawnSync('python3', [scriptPath], {
+    cwd: process.cwd(),
+    input: payload,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 2);
+  assert.match(result.stdout, /Only sonnet and haiku workers are allowed/);
 });
 
 test('sanitizeName accepts safe pipeline step names', () => {

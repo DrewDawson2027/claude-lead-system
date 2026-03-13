@@ -121,6 +121,8 @@ EDIT_COUNT=$(jq -r '.tool_counts.Edit // 0' "$TEST_HOME/.claude/terminals/sessio
 assert_eq "increments tool_counts.Edit" "1" "$EDIT_COUNT"
 TOUCHED=$(jq -r '.files_touched | length' "$TEST_HOME/.claude/terminals/session-hb123456.json" 2>/dev/null)
 assert_eq "adds to files_touched for Edit" "1" "$TOUCHED"
+CURRENT=$(jq -r '.current_files[0] // empty' "$TEST_HOME/.claude/terminals/session-hb123456.json" 2>/dev/null)
+assert_eq "tracks current_files for Edit" "/tmp/src/app.ts" "$CURRENT"
 assert_file_exists "appends to activity.jsonl" "$TEST_HOME/.claude/terminals/activity.jsonl"
 restore_home "$TEST_HOME"
 
@@ -133,6 +135,8 @@ echo '{"session_id":"new12345abcdef","tool_name":"Read","tool_input":{"file_path
 assert_file_exists "creates session via fallback" "$TEST_HOME/.claude/terminals/session-new12345.json"
 FB_SOURCE=$(jq -r '.source' "$TEST_HOME/.claude/terminals/session-new12345.json" 2>/dev/null)
 assert_eq "fallback source is heartbeat-fallback" "heartbeat-fallback" "$FB_SOURCE"
+FB_CURRENT=$(jq -r '.current_files[0] // empty' "$TEST_HOME/.claude/terminals/session-new12345.json" 2>/dev/null)
+assert_eq "fallback tracks current_files for Read" "/tmp/file.ts" "$FB_CURRENT"
 restore_home "$TEST_HOME"
 
 # Test: invalid session_id blocked
@@ -305,6 +309,35 @@ echo '{"session_id":"nod12345abcdefg","tool_name":"Read","tool_input":{}}' | \
   HOME="$TEST_HOME" bash "$HOOK_DIR/check-inbox.sh" 2>/dev/null || true
 
 assert_file_not_exists "no routing without .done" "$TEST_HOME/.claude/terminals/results/W_ND.reported"
+restore_home "$TEST_HOME"
+
+# Test: worker sessions skip global route scan to keep tool hot path light
+TEST_HOME=$(new_home)
+mkdir -p "$TEST_HOME/.claude/terminals/results"
+jq -n '{"task_id":"W_SKIP","notify_session_id":"skip1234","status":"running"}' > "$TEST_HOME/.claude/terminals/results/W_SKIP.meta.json"
+echo '{"status":"completed"}' > "$TEST_HOME/.claude/terminals/results/W_SKIP.meta.json.done"
+echo "Worker output here" > "$TEST_HOME/.claude/terminals/results/W_SKIP.txt"
+
+echo '{"session_id":"skip1234abcdefg","tool_name":"Read","tool_input":{}}' | \
+  HOME="$TEST_HOME" CLAUDE_WORKER_TASK_ID="W_SELF" bash "$HOOK_DIR/check-inbox.sh" 2>/dev/null || true
+
+assert_file_not_exists "worker session skips route scan" "$TEST_HOME/.claude/terminals/results/W_SKIP.reported"
+restore_home "$TEST_HOME"
+
+# Test: route scan is bounded per pass to avoid sweeping every completion at once
+TEST_HOME=$(new_home)
+mkdir -p "$TEST_HOME/.claude/terminals/results"
+for task in W_BND1 W_BND2 W_BND3; do
+  jq -n --arg task "$task" '{"task_id":$task,"notify_session_id":"bound123","status":"running"}' > "$TEST_HOME/.claude/terminals/results/${task}.meta.json"
+  echo '{"status":"completed"}' > "$TEST_HOME/.claude/terminals/results/${task}.meta.json.done"
+  echo "Worker output here" > "$TEST_HOME/.claude/terminals/results/${task}.txt"
+done
+
+echo '{"session_id":"bound123abcdef","tool_name":"Read","tool_input":{}}' | \
+  HOME="$TEST_HOME" CLAUDE_LEAD_ROUTE_SCAN_COOLDOWN="0" CLAUDE_LEAD_ROUTE_SCAN_MAX_PER_PASS="2" bash "$HOOK_DIR/check-inbox.sh" 2>/dev/null || true
+
+REPORTED_COUNT=$(find "$TEST_HOME/.claude/terminals/results" -name '*.reported' | wc -l | tr -d ' ')
+assert_eq "route scan limits completions per pass" "2" "$REPORTED_COUNT"
 restore_home "$TEST_HOME"
 
 # ─── terminal-heartbeat.sh auto-stale marking tests ───
