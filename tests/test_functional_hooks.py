@@ -50,6 +50,23 @@ def run_hook(hook_file, stdin_data, env, timeout=10):
     return result.returncode, result.stdout, result.stderr
 
 
+def run_shell_hook(hook_file, stdin_data, env, args=None, timeout=10):
+    """Run a shell hook subprocess. Returns (exit_code, stdout, stderr)."""
+    script = os.path.join(HOOKS_DIR, hook_file)
+    cmd = ["/bin/bash", script] + (args or [])
+    if isinstance(stdin_data, dict):
+        stdin_data = json.dumps(stdin_data)
+    result = subprocess.run(
+        cmd,
+        input=stdin_data,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=timeout,
+    )
+    return result.returncode, result.stdout, result.stderr
+
+
 @pytest.fixture
 def isolated_env(tmp_path):
     """Isolated environment for hook subprocesses."""
@@ -1019,3 +1036,181 @@ class TestTrustAudit:
         code, stdout, _ = run_script("trust_audit.py", ["--quiet"], env)
         lines = [l for l in stdout.strip().split("\n") if l.strip()]
         assert len(lines) == 0 or not lines[0].startswith("{")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. check-inbox.sh — PreToolUse inbox drain (Push Delivery, non-tmux)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestCheckInbox:
+    """check-inbox.sh: fires on every PreToolUse, drains inbox to stdout."""
+
+    def test_inbox_message_printed_to_stdout(self, isolated_env):
+        """Message written to inbox file is printed to stdout on PreToolUse."""
+        env, _, home = isolated_env
+        session_id = "abcd1234"
+        inbox_dir = home / ".claude" / "terminals" / "inbox"
+        inbox_dir.mkdir(parents=True, exist_ok=True)
+        inbox_file = inbox_dir / f"{session_id}.jsonl"
+        msg = json.dumps(
+            {
+                "ts": "2026-01-01T00:00:00Z",
+                "from": "coordinator",
+                "priority": "normal",
+                "content": "hello from lead",
+            }
+        )
+        inbox_file.write_text(msg + "\n")
+
+        payload = {
+            "session_id": f"{session_id}-xxxx-yyyy-zzzz-000011112222",
+            "tool_name": "Bash",
+        }
+        code, stdout, _ = run_shell_hook("check-inbox.sh", payload, env)
+        assert code == 0
+        assert "hello from lead" in stdout
+
+    def test_empty_inbox_exits_cleanly(self, isolated_env):
+        """No inbox file → exit 0, no INCOMING MESSAGES block in output."""
+        env, _, home = isolated_env
+        payload = {
+            "session_id": "zzzzzzzz-xxxx-yyyy-zzzz-000011112222",
+            "tool_name": "Read",
+        }
+        code, stdout, _ = run_shell_hook("check-inbox.sh", payload, env)
+        assert code == 0
+        assert "INCOMING MESSAGES" not in stdout
+
+    def test_fires_on_non_bash_tool_call(self, isolated_env):
+        """Inbox is drained even when tool_name is Read (not just Bash)."""
+        env, _, home = isolated_env
+        session_id = "feed1234"
+        inbox_dir = home / ".claude" / "terminals" / "inbox"
+        inbox_dir.mkdir(parents=True, exist_ok=True)
+        inbox_file = inbox_dir / f"{session_id}.jsonl"
+        inbox_file.write_text(
+            json.dumps(
+                {
+                    "ts": "2026-01-01T00:00:00Z",
+                    "from": "lead",
+                    "priority": "normal",
+                    "content": "task update",
+                }
+            )
+            + "\n"
+        )
+        payload = {
+            "session_id": f"{session_id}-aabb-ccdd-eeff-111122223333",
+            "tool_name": "Read",
+        }
+        code, stdout, _ = run_shell_hook("check-inbox.sh", payload, env)
+        assert code == 0
+        assert "task update" in stdout
+
+    def test_invalid_session_id_blocked(self, isolated_env):
+        """Malformed session_id (injection attempt) is rejected with exit 2."""
+        env, _, _ = isolated_env
+        payload = {"session_id": "../../etc/passwd", "tool_name": "Bash"}
+        code, _, stderr = run_shell_hook("check-inbox.sh", payload, env)
+        assert code == 2
+        assert "BLOCKED" in stderr or "Invalid" in stderr
+
+    def test_inbox_drained_after_delivery(self, isolated_env):
+        """After delivery, inbox file is removed so messages aren't re-delivered."""
+        env, _, home = isolated_env
+        session_id = "cafe1234"
+        inbox_dir = home / ".claude" / "terminals" / "inbox"
+        inbox_dir.mkdir(parents=True, exist_ok=True)
+        inbox_file = inbox_dir / f"{session_id}.jsonl"
+        inbox_file.write_text(
+            json.dumps(
+                {
+                    "ts": "2026-01-01T00:00:00Z",
+                    "from": "lead",
+                    "priority": "normal",
+                    "content": "once only",
+                }
+            )
+            + "\n"
+        )
+        payload = {
+            "session_id": f"{session_id}-1111-2222-3333-444455556666",
+            "tool_name": "Write",
+        }
+        run_shell_hook("check-inbox.sh", payload, env)
+        assert not inbox_file.exists(), "inbox file must be deleted after delivery"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. teammate-lifecycle.sh — quality gate integration (Change C)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestTeammateLifecycleQualityGate:
+    """teammate-lifecycle.sh: quality gate fires on TaskCompleted, exit-2 blocks."""
+
+    def test_task_completed_no_gate_exits_0(self, isolated_env):
+        """TaskCompleted with no quality gate configured → exit 0."""
+        env, _, home = isolated_env
+        env2 = dict(env)
+        env2.pop("CLAUDE_LEAD_QUALITY_GATE", None)
+        payload = {"session_id": "test1234", "task_id": "T1", "cwd": str(home)}
+        code, _, _ = run_shell_hook(
+            "teammate-lifecycle.sh", payload, env2, args=["TaskCompleted"]
+        )
+        assert code == 0
+
+    def test_quality_gate_pass_exits_0(self, isolated_env, tmp_path):
+        """Quality gate exits 0 → hook exits 0."""
+        env, _, home = isolated_env
+        gate_script = tmp_path / "gate-pass.sh"
+        gate_script.write_text("#!/bin/bash\nexit 0\n")
+        gate_script.chmod(0o755)
+
+        env2 = dict(env)
+        env2["CLAUDE_LEAD_QUALITY_GATE"] = str(gate_script)
+
+        payload = {"session_id": "test1234", "task_id": "T1", "cwd": str(home)}
+        code, _, _ = run_shell_hook(
+            "teammate-lifecycle.sh", payload, env2, args=["TaskCompleted"]
+        )
+        assert code == 0
+
+    def test_quality_gate_fail_exits_2_with_feedback_on_stderr(
+        self, isolated_env, tmp_path
+    ):
+        """Quality gate exits 2 → hook exits 2 with feedback message on stderr."""
+        env, _, home = isolated_env
+        gate_script = tmp_path / "gate-fail.sh"
+        gate_script.write_text(
+            '#!/bin/bash\necho "Tests not passing: 3 failures" >&2\nexit 2\n'
+        )
+        gate_script.chmod(0o755)
+
+        env2 = dict(env)
+        env2["CLAUDE_LEAD_QUALITY_GATE"] = str(gate_script)
+
+        payload = {"session_id": "test5678", "task_id": "T99", "cwd": str(home)}
+        code, _, stderr = run_shell_hook(
+            "teammate-lifecycle.sh", payload, env2, args=["TaskCompleted"]
+        )
+        assert code == 2
+        assert "FAILED" in stderr
+
+    def test_non_task_completed_skips_gate(self, isolated_env, tmp_path):
+        """Quality gate is NOT called for TeammateIdle events."""
+        env, _, home = isolated_env
+        gate_script = tmp_path / "gate-fail2.sh"
+        gate_script.write_text("#!/bin/bash\nexit 2\n")
+        gate_script.chmod(0o755)
+
+        env2 = dict(env)
+        env2["CLAUDE_LEAD_QUALITY_GATE"] = str(gate_script)
+
+        payload = {"session_id": "test1234", "task_id": "T2", "cwd": str(home)}
+        code, _, _ = run_shell_hook(
+            "teammate-lifecycle.sh", payload, env2, args=["TeammateIdle"]
+        )
+        # Gate should NOT fire for non-TaskCompleted events
+        assert code == 0
