@@ -1,0 +1,27 @@
+capability: worker_spawn
+description: Worker spawn lifecycle proof
+started_at: 2026-03-12T00:15:20.506Z
+ended_at: 2026-03-12T00:15:20.861Z
+duration_ms: 355
+command: npm --workspace mcp-coordinator exec -- node --test test/workers.test.mjs
+exit_status: 0
+signal: null
+error: null
+
+--- stdout ---
+✔ spawn_terminal requires valid directory (59.363125ms)
+✔ spawn_terminal succeeds with valid directory (4.962167ms)
+✔ get_result returns not found for missing task (3.029042ms)
+✔ kill_worker returns appropriate message for missing PID (2.904292ms)
+✔ kill_worker recognizes already completed tasks (2.573166ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 139.347459
+
+
+--- stderr ---

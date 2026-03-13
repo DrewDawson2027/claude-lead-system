@@ -29,6 +29,32 @@ export function requireApiAuth(
   return false;
 }
 
+export function requireExplicitBearerAuth(
+  sendJson: any,
+  req: any,
+  res: any,
+  apiToken: string | null,
+  auditLog?: SecurityAuditLog,
+  message = "Unauthorized",
+): boolean {
+  const auth = String(req.headers.authorization || "");
+  if (apiToken && auth === `Bearer ${apiToken}`) return true;
+  const origin = String(req.headers.origin || "");
+  auditLog?.log({
+    type: "auth_failure",
+    ip: req.socket?.remoteAddress || "unknown",
+    path: req.url || "",
+    origin: origin || undefined,
+  });
+  const payload: Record<string, unknown> = {
+    error_code: "AUTH_REQUIRED",
+    message,
+  };
+  if (req?.__requestId) payload.request_id = req.__requestId;
+  sendJson(res, 401, payload, req);
+  return false;
+}
+
 export function requireSameOrigin(
   sendJson: any,
   req: any,

@@ -219,6 +219,62 @@ test('Gap 2: pipe-mode worker has null claude_session_id in meta', async () => {
   }
 });
 
+test('Gap 2: worker spawn resolves lead Claude session UUID into meta.claude_parent_session_id', async () => {
+  const { home, results } = setupHome();
+  const projectDir = join(home, 'project');
+  const terminals = join(home, '.claude', 'terminals');
+  mkdirSync(projectDir, { recursive: true });
+  const parentSessionId = '11111111-2222-4333-8444-555555555555';
+  writeFileSync(
+    join(terminals, 'session-lead5678.json'),
+    JSON.stringify({
+      session: 'lead5678',
+      claude_session_id: parentSessionId,
+      status: 'active',
+      last_active: new Date().toISOString(),
+    }),
+  );
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const taskId = 'W_PARENT_FROM_LEAD';
+    api.handleToolCall('coord_spawn_worker', {
+      task_id: taskId,
+      directory: projectDir,
+      prompt: 'follow the delegated task',
+      mode: 'interactive',
+      notify_session_id: 'lead5678',
+    });
+    const meta = readJson(join(results, `${taskId}.meta.json`));
+    assert.equal(meta.claude_parent_session_id, parentSessionId);
+  } finally {
+    restore();
+  }
+});
+
+test('Gap 2: explicit parent_session_id override is preserved in worker meta', async () => {
+  const { home, results } = setupHome();
+  const projectDir = join(home, 'project');
+  mkdirSync(projectDir, { recursive: true });
+  const { api, restore } = await loadForTest(home);
+  const parentSessionId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  try {
+    api.ensureDirsOnce();
+    const taskId = 'W_PARENT_EXPLICIT';
+    api.handleToolCall('coord_spawn_worker', {
+      task_id: taskId,
+      directory: projectDir,
+      prompt: 'follow the delegated task',
+      mode: 'pipe',
+      parent_session_id: parentSessionId,
+    });
+    const meta = readJson(join(results, `${taskId}.meta.json`));
+    assert.equal(meta.claude_parent_session_id, parentSessionId);
+  } finally {
+    restore();
+  }
+});
+
 test('Gap 2: buildInteractiveWorkerScript includes --session-id when sessionId is provided', () => {
   const sessionId = 'aaaabbbb-cccc-dddd-eeee-000011112222';
   const cmd = __test__.buildInteractiveWorkerScript({

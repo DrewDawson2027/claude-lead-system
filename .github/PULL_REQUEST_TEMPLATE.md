@@ -5,7 +5,6 @@
 ## Test Plan
 
 <!-- How did you verify this works? -->
-
 - [ ] Tests added/updated for changed behavior
 - [ ] `npm run ci:local` passes locally
 - [ ] Tested on target platform (macOS/Linux/Windows)

@@ -41,6 +41,8 @@ mkdir -p "$INBOX_DIR"
 
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
+MAX_TURNS_MESSAGE=""
+
 # ─── ACTIVITY LOG (always fires, flock-protected for concurrent safety) ───
 ACTIVITY_FILE=~/.claude/terminals/activity.jsonl
 JSON_LINE=$(jq -n --arg ts "$NOW" --arg session "$SID8" --arg tool "$TOOL_NAME" \
@@ -69,6 +71,10 @@ touch "$LOCK_FILE"
 
 # Capture TTY (portable, walks process tree)
 CURR_TTY=$(get_tty)
+TRACK_CURRENT_FILE="no"
+if { [ "$TOOL_NAME" = "Read" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "Write" ]; } && [ "$FILE_PATH" != "unknown" ]; then
+  TRACK_CURRENT_FILE="yes"
+fi
 
 SESSION_FILE=~/.claude/terminals/session-${SID8}.json
 SCHEMA_VERSION=2  # Increment when adding new fields
@@ -87,14 +93,17 @@ if [ -f "$SESSION_FILE" ]; then
      --arg file_base "$FILE_BASE" \
      --arg file_path "$FILE_PATH" \
      --arg tty "$CURR_TTY" \
+     --arg raw_session_id "$RAW_SESSION_ID" \
      --argjson schema "$SCHEMA_VERSION" \
      --arg is_write_edit "$([ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] && echo "yes" || echo "no")" \
+     --arg track_current "$TRACK_CURRENT_FILE" \
      --arg worker_name "$WORKER_NAME" \
      --arg worker_task "$WORKER_TASK_ID" \
      '
      .last_active = $now |
      .last_tool = $tool |
      .last_file = $file_base |
+     .claude_session_id = $raw_session_id |
      .schema_version = $schema |
      (if $tty != "" then .tty = $tty else . end) |
      (if $worker_name != "" then .worker_name = $worker_name else . end) |
@@ -104,6 +113,7 @@ if [ -f "$SESSION_FILE" ]; then
      (if $is_write_edit == "yes" then
        .files_touched = (((.files_touched // []) | map(select(. != $file_path))) + [$file_path])[-30:]
      else . end) |
+     (if $track_current == "yes" then .current_files = [$file_path] else . end) |
      .recent_ops = (((.recent_ops // []) + [{"t": $now, "tool": $tool, "file": $file_base}])[-10:])
      ' "$SESSION_FILE" > "$TMP" 2>/dev/null && mv "$TMP" "$SESSION_FILE"
 
@@ -111,11 +121,10 @@ if [ -f "$SESSION_FILE" ]; then
   if [ -n "$WORKER_MAX_TURNS" ] && [ -n "$WORKER_TASK_ID" ]; then
     CURRENT_TURNS=$(jq -r '.turn_count // 0' "$SESSION_FILE" 2>/dev/null || echo "0")
     if [ "$CURRENT_TURNS" -ge "$WORKER_MAX_TURNS" ]; then
-      # Notify worker and lead
-      jq -n --arg ts "$NOW" --arg task "$WORKER_TASK_ID" --argjson max "$WORKER_MAX_TURNS" \
-        '{ts:$ts,from:"coordinator",priority:"urgent",content:("[MAX_TURNS_REACHED] Task " + $task + " hit limit of " + ($max|tostring) + " turns. Terminating.")}' \
+      MAX_TURNS_MESSAGE="[MAX_TURNS_REACHED] Task ${WORKER_TASK_ID} hit limit of ${WORKER_MAX_TURNS} turns. Terminating."
+      jq -n --arg ts "$NOW" --arg content "$MAX_TURNS_MESSAGE" \
+        '{ts:$ts,from:"coordinator",priority:"urgent",content:$content}' \
         >> "${INBOX_DIR}/${SID8}.jsonl" 2>/dev/null
-      # Notify lead if we know their session
       META_FILE=~/.claude/terminals/results/${WORKER_TASK_ID}.meta.json
       if [ -f "$META_FILE" ]; then
         LEAD_SID=$(jq -r '.notify_session_id // empty' "$META_FILE" 2>/dev/null || true)
@@ -124,7 +133,6 @@ if [ -f "$SESSION_FILE" ]; then
             '{ts:$ts,from:"coordinator",priority:"urgent",content:("[MAX_TURNS_REACHED] Worker " + $task + " hit " + ($max|tostring) + " turns. Auto-terminated.")}' \
             >> "${INBOX_DIR}/${LEAD_SID}.jsonl" 2>/dev/null
         fi
-        # Kill the worker process
         PID_FILE=~/.claude/terminals/results/${WORKER_TASK_ID}.pid
         if [ -f "$PID_FILE" ]; then
           WORKER_PID=$(cat "$PID_FILE" 2>/dev/null)
@@ -143,39 +151,44 @@ else
   WORKER_TASK_ID="${CLAUDE_WORKER_TASK_ID:-}"
 
   jq -n \
-     --arg session "$SID8" \
-     --arg project "$PROJECT" \
-     --arg branch "$BRANCH" \
-     --arg cwd "$CWD" \
-     --arg now "$NOW" \
-     --arg tool "$TOOL_NAME" \
-     --arg file_base "$FILE_BASE" \
-     --arg tty "$CURR_TTY" \
-     --argjson schema "$SCHEMA_VERSION" \
-     --arg worker_name "$WORKER_NAME" \
-     --arg worker_task "$WORKER_TASK_ID" \
-     '
-     {
-       session: $session,
-       status: "active",
-       project: $project,
-       branch: $branch,
-       cwd: $cwd,
-       started: $now,
-       last_active: $now,
-       last_tool: $tool,
-       last_file: $file_base,
-       source: "heartbeat-fallback",
-       schema_version: $schema,
-       tool_counts: {($tool): 1},
-       turn_count: 1,
-       files_touched: [],
-       recent_ops: [{"t": $now, "tool": $tool, "file": $file_base}]
-     } |
-     (if $tty != "" then .tty = $tty else . end) |
-     (if $worker_name != "" then .worker_name = $worker_name else . end) |
-     (if $worker_task != "" then .current_task = $worker_task else . end)
-     ' > "$SESSION_FILE"
+    --arg session "$SID8" \
+    --arg claude_session_id "$RAW_SESSION_ID" \
+    --arg project "$PROJECT" \
+    --arg branch "$BRANCH" \
+    --arg cwd "$CWD" \
+    --arg now "$NOW" \
+    --arg tool "$TOOL_NAME" \
+    --arg file_base "$FILE_BASE" \
+    --arg file_path "$FILE_PATH" \
+    --arg tty "$CURR_TTY" \
+    --argjson schema "$SCHEMA_VERSION" \
+    --arg track_current "$TRACK_CURRENT_FILE" \
+    --arg worker_name "$WORKER_NAME" \
+    --arg worker_task "$WORKER_TASK_ID" \
+    '
+    {
+      session: $session,
+      claude_session_id: $claude_session_id,
+      status: "active",
+      project: $project,
+      branch: $branch,
+      cwd: $cwd,
+      started: $now,
+      last_active: $now,
+      last_tool: $tool,
+      last_file: $file_base,
+      source: "heartbeat-fallback",
+      schema_version: $schema,
+      tool_counts: {($tool): 1},
+      turn_count: 1,
+      files_touched: [],
+      recent_ops: [{"t": $now, "tool": $tool, "file": $file_base}]
+    } |
+    (if $track_current == "yes" then .current_files = [$file_path] else . end) |
+    (if $tty != "" then .tty = $tty else . end) |
+    (if $worker_name != "" then .worker_name = $worker_name else . end) |
+    (if $worker_task != "" then .current_task = $worker_task else . end)
+    ' > "$SESSION_FILE"
 fi
 
 # Track plan file writes (using --arg for safe path handling)
@@ -258,18 +271,8 @@ portable_flock_append "${ACTIVITY_FILE}.lock" '
   fi
 '
 
-# ─── DUAL-HOOK INBOX DRAIN (PostToolUse delivery) ───
-# Same logic as check-inbox.sh — delivers messages AFTER tool calls too.
-# Combined with PreToolUse check, this gives sub-second delivery during active work.
-INBOX_DIR=~/.claude/terminals/inbox
-INBOX="${INBOX_DIR}/${SID8}.jsonl"
-if [ -f "$INBOX" ] && [ -s "$INBOX" ]; then
-  TMP_INBOX=$(mktemp)
-  cp "$INBOX" "$TMP_INBOX"
-  echo "--- INCOMING MESSAGES FROM COORDINATOR ---"
-  tr -d '\000-\010\013\014\016-\037\177\200-\237' < "$TMP_INBOX"
-  echo "--- END MESSAGES ---"
-  rm -f "$INBOX" "$TMP_INBOX"
+if [ -n "$MAX_TURNS_MESSAGE" ]; then
+  echo "$MAX_TURNS_MESSAGE"
 fi
 
 exit 0

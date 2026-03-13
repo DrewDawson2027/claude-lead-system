@@ -3,45 +3,45 @@
 
 hooks:
   - changed-files:
-      - any-glob-to-any-file: "hooks/**"
+    - any-glob-to-any-file: 'hooks/**'
 
 sidecar:
   - changed-files:
-      - any-glob-to-any-file: "sidecar/**"
+    - any-glob-to-any-file: 'sidecar/**'
 
 coordinator:
   - changed-files:
-      - any-glob-to-any-file: "mcp-coordinator/**"
+    - any-glob-to-any-file: 'mcp-coordinator/**'
 
 docs:
   - changed-files:
-      - any-glob-to-any-file:
-          - "docs/**"
-          - "*.md"
+    - any-glob-to-any-file:
+      - 'docs/**'
+      - '*.md'
 
 ci:
   - changed-files:
-      - any-glob-to-any-file: ".github/workflows/**"
+    - any-glob-to-any-file: '.github/workflows/**'
 
 security:
   - changed-files:
-      - any-glob-to-any-file:
-          - "hooks/token-guard.py"
-          - "hooks/conflict-guard.sh"
-          - "sidecar/server/http/security.ts"
-          - "sidecar/server/http/audit.ts"
-          - "docs/SECURITY.md"
-          - "install.sh"
+    - any-glob-to-any-file:
+      - 'hooks/token-guard.py'
+      - 'hooks/conflict-guard.sh'
+      - 'sidecar/server/http/security.ts'
+      - 'sidecar/server/http/audit.ts'
+      - 'docs/SECURITY.md'
+      - 'install.sh'
 
 installer:
   - changed-files:
-      - any-glob-to-any-file:
-          - "install.sh"
-          - "scripts/release/**"
+    - any-glob-to-any-file:
+      - 'install.sh'
+      - 'scripts/release/**'
 
 tests:
   - changed-files:
-      - any-glob-to-any-file:
-          - "tests/**"
-          - "sidecar/test/**"
-          - "mcp-coordinator/test/**"
+    - any-glob-to-any-file:
+      - 'tests/**'
+      - 'sidecar/test/**'
+      - 'mcp-coordinator/test/**'

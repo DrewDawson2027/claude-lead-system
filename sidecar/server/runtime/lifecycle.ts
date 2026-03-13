@@ -1,10 +1,11 @@
-// @ts-nocheck
+import type { BootRuntimeDeps, RuntimeLifecycleDeps } from "./types.js";
+
 export async function bootRuntime({
   rebuild,
   maintenanceSweep,
   SAFE_MODE,
   store,
-}) {
+}: BootRuntimeDeps): Promise<void> {
   await rebuild("boot");
   maintenanceSweep({ source: "startup" });
   if (SAFE_MODE)
@@ -22,10 +23,10 @@ export function startRuntimeLifecycle({
   maintenanceSweep,
   clients,
   sseBroadcast,
-}) {
+}: RuntimeLifecycleDeps) {
   const hookStream = new HookStreamAdapter(paths, (evt) => {
     store.emitTimeline({ type: "filesystem.change", ...evt });
-    rebuild(evt.source).catch(() => {});
+    rebuild(String(evt.source || "fs")).catch(() => {});
   });
   hookStream.start();
 
@@ -35,11 +36,11 @@ export function startRuntimeLifecycle({
         maintenanceSweep({ source: "interval" });
       } catch {}
     },
-    Number(process.env.LEAD_SIDECAR_MAINTENANCE_MS || 15_000),
+    Number(process.env.LEAD_SIDECAR_MAINTENANCE_MS || 60_000),
   );
   if (typeof maintenanceTimer.unref === "function") maintenanceTimer.unref();
 
-  store.on("snapshot", (snap) => {
+  store.on("snapshot", (snap: any) => {
     sseBroadcast(clients, "team.updated", {
       teams: snap.teams || [],
       generated_at: snap.generated_at,

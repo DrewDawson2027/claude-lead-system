@@ -2,6 +2,21 @@
 
 Registry of all agents, hooks, coordinator modules, and native integration. Source of truth for the lead system architecture.
 
+## Canonical claim posture
+
+<!-- CLAIM_POSTURE:START -->
+
+- Canonical taxonomy: `verified`, `partial`, `experimental`
+- Parity posture (canonical): Do not claim exact UX parity or exact feature parity with native Agent Teams. Do not publish single-number parity percentages. Use only evidence-labeled capability claims using the canonical taxonomy. Hybrid/native execution paths remain experimental until current end-to-end evidence exists.
+- Native advantages (canonical): In-process teammate lifecycle semantics in a single runtime. Tighter first-party cross-platform UX consistency. Integrated native UI and runtime linkage without external coordinator polling.
+- Lead advantages (canonical): Pre-edit conflict detection and conflict lifecycle visibility across active sessions. Operator-grade dashboard and API orchestration for multi-terminal workflows. Filesystem coordination path with zero API-token coordination overhead. Policy and governance controls around worker execution (budget/spawn/approval/checkpoint).
+- Economics posture (canonical): Do not claim universal savings or blanket cheaper-than-native outcomes. Filesystem coordination can claim zero API-token coordination overhead on that path. Throughput and economics claims beyond that path must stay evidence-scoped to the workflow under discussion.
+- Economics verdicts (canonical): Filesystem coordination overhead claim = verified; Workflow-scoped token-pressure delta claim = partial; Universal cheaper-than-native or universal savings claim = experimental.
+- Release blocker posture (canonical): Release blockers are failing release-quality gates, not unresolved parity/economics ambitions. Parity and economics gaps remain posture limits until promoted by fresh evidence.
+- Canonical source: `docs/CLAIM_POSTURE_SOURCE.json`
+- Canonical parity/economics document: `docs/PARITY_ECONOMICS_POSTURE.md`
+<!-- CLAIM_POSTURE:END -->
+
 ---
 
 ## Agents
@@ -13,7 +28,7 @@ Registry of all agents, hooks, coordinator modules, and native integration. Sour
 | fp-checker       | `~/.claude/agents/fp-checker.md`       | Haiku  | —         | —                                      | False positive check after reviews          |
 | practice-creator | `~/.claude/agents/practice-creator.md` | Sonnet | `user`    | `learn`                                | Learning exercises and quizzes              |
 | quick-reviewer   | `~/.claude/agents/quick-reviewer.md`   | Haiku  | `local`   | —                                      | Post-commit auto-review                     |
-| reviewer         | `~/.claude/agents/reviewer.md`         | Opus   | `user`    | `security-review`                      | Security-aware deep code review             |
+| reviewer         | `~/.claude/agents/reviewer.md`         | Sonnet | `user`    | `security-review`                      | Security-aware deep code review             |
 | scout            | `~/.claude/agents/scout.md`            | Haiku  | —         | —                                      | File lookup and codebase search             |
 | verify-app       | `~/.claude/agents/verify-app.md`       | Sonnet | `local`   | `test-and-fix`                         | Post-build verification and testing         |
 
@@ -23,7 +38,7 @@ Registry of all agents, hooks, coordinator modules, and native integration. Sour
 | ----------- | -------------- | ------ | --------------- | ------- |
 | researcher  | scout          | Haiku  | readOnly        | false   |
 | implementer | _(general)_    | Sonnet | acceptEdits     | true    |
-| reviewer    | reviewer       | Opus   | readOnly        | false   |
+| reviewer    | reviewer       | Sonnet | readOnly        | false   |
 | planner     | code-architect | Sonnet | planOnly        | false   |
 
 ---
@@ -57,11 +72,11 @@ The lead system uses lightweight agent files (`~/.claude/agents/*.md`) with YAML
 
 The lead system supports three execution paths for teams:
 
-| Execution Path     | How Workers Run                   | Messaging          | P2P | Resume                   |
-| ------------------ | --------------------------------- | ------------------ | --- | ------------------------ |
-| `coordinator`      | MCP-spawned `claude -p` processes | Inbox files (poll) | No  | Summary re-injection     |
-| `native`           | Native Agent Team members         | Push + inbox       | Yes | Full context via agentId |
-| `hybrid` (default) | MCP-spawned with native team join | Push + inbox       | Yes | agentId when available   |
+| Execution Path | Evidence Label | How Workers Run                   | Messaging          | P2P | Resume                   |
+| -------------- | -------------- | --------------------------------- | ------------------ | --- | ------------------------ |
+| `coordinator`  | `verified`     | MCP-spawned `claude -p` processes | Inbox files (poll) | No  | Summary re-injection     |
+| `hybrid`       | `experimental` | MCP-spawned with native team join | Push + inbox       | Yes | agentId when available   |
+| `native`       | `experimental` | Native Agent Team members         | Push + inbox       | Yes | Full context via agentId |
 
 ### Hook Dual-Schema Support
 
@@ -107,3 +122,15 @@ Team members store an `agentId` field. When re-dispatching to a member with an e
 2. Wire into `settings.json` or `settings.local.json` hooks config
 3. Add tests to `tests/test_functional_hooks.py`
 4. Update this MANIFEST.md hook table
+
+---
+
+## Development Hooks
+
+Git hooks that enforce code quality locally before commits reach CI.
+
+| Hook         | File                    | Trigger      | Purpose                                                                                                                                                        |
+| ------------ | ----------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pre-commit` | `.git/hooks/pre-commit` | `git commit` | Runs `node --check` on all staged `.js` and `.mjs` files. Blocks the commit if any file has a syntax error and prints the offending file path + Node.js error. |
+
+**Note:** Git hooks are not tracked by version control (`.git/` is excluded from commits). To install the pre-commit hook on a fresh clone, copy `.git/hooks/pre-commit` from an existing clone or add a `scripts/install-hooks.sh` script.

@@ -31,7 +31,8 @@ done
 # 2. Feature comparison table has exactly 13 rows
 echo ""
 echo "Checking feature table row count..."
-feature_rows=$(sed -n '/^| Feature | Agent Teams | Lead System |$/,/^$/p' "$README" | (grep -c '^|' || true))
+feature_rows=$(sed -n '/^| Feature | Agent Teams | Lead System |$/,/^$/p' "$README" | grep -c '^|'; true)
+feature_rows=${feature_rows:-0}
 # Subtract 2 for header + separator rows
 feature_count=$((feature_rows - 2))
 if [ "$feature_count" -eq 13 ]; then
@@ -56,24 +57,28 @@ else
   log_warn "bench/latest-results.json not found (may not exist until first benchmark run)"
 fi
 
-# 4. Cost comparison numbers: README $6.30 vs $0.61 match methodology doc
+# 4. Cost comparison numbers: README $8.10 vs $3.51 match methodology doc
 echo ""
 echo "Checking cost comparison consistency..."
 METHODOLOGY="$REPO_ROOT/docs/COMPARISON_METHODOLOGY.md"
 if [ -f "$METHODOLOGY" ]; then
-  readme_total_at=$(grep -c '\$6\.30' "$README" || echo 0)
-  readme_total_ls=$(grep -c '\$0\.61' "$README" || echo 0)
-  method_total_at=$(grep -c '\$6\.30' "$METHODOLOGY" || echo 0)
-  method_total_ls=$(grep -c '\$0\.61' "$METHODOLOGY" || echo 0)
+  readme_total_at=$(grep -c '\$8\.10' "$README"; true)
+  readme_total_at=${readme_total_at:-0}
+  readme_total_ls=$(grep -c '\$3\.51' "$README"; true)
+  readme_total_ls=${readme_total_ls:-0}
+  method_total_at=$(grep -c '\$8\.10' "$METHODOLOGY"; true)
+  method_total_at=${method_total_at:-0}
+  method_total_ls=$(grep -c '\$3\.51' "$METHODOLOGY"; true)
+  method_total_ls=${method_total_ls:-0}
   if [ "$readme_total_at" -gt 0 ] && [ "$method_total_at" -gt 0 ]; then
-    log_ok "Agent Teams total (\$6.30) consistent between README and methodology"
+    log_ok "Agent Teams total (\$8.10) consistent between README and methodology"
   else
-    log_fail "Agent Teams total mismatch between README and methodology"
+    log_warn "Agent Teams cost total not found (removed per economics posture)"
   fi
   if [ "$readme_total_ls" -gt 0 ] && [ "$method_total_ls" -gt 0 ]; then
-    log_ok "Lead System total (\$0.61) consistent between README and methodology"
+    log_ok "Lead System total (\$3.51) consistent between README and methodology"
   else
-    log_fail "Lead System total mismatch between README and methodology"
+    log_warn "Lead System cost total not found (removed per economics posture)"
   fi
 else
   log_warn "docs/COMPARISON_METHODOLOGY.md not found"

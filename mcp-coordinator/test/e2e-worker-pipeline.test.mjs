@@ -415,7 +415,7 @@ test('coord_team_dispatch creates team task, spawns worker, and links live team 
     const teamTxt = contentText(team);
     assert.match(teamTxt, /### Team Tasks/i);
     assert.match(teamTxt, /T_DISPATCH \| in_progress \| alice/i);
-    assert.match(teamTxt, /\*\*alice\*\*.*\| task: W_DISPATCH/i);
+    assert.match(teamTxt, /alice.*\| task: W_DISPATCH/i);
   } finally {
     restore();
   }
@@ -1253,6 +1253,48 @@ test('completing a task auto-unblocks its dependents (blocked_by cleared on comp
     // T_DEPENDENT's blocked_by should now be empty — no "Blocked By" section
     const after = await api.handleToolCall('coord_get_task', { task_id: 'T_DEPENDENT' });
     assert.doesNotMatch(contentText(after), /Blocked By/i);
+  } finally {
+    restore();
+  }
+});
+
+test('completing a task sends inbox notification to assigned worker of newly-unblocked task', async () => {
+  const { home, binDir } = setupTestHome();
+  const { api, restore } = await loadCoordinatorForTest({
+    HOME: home,
+    PATH: `${binDir}:${process.env.PATH}`,
+    COORDINATOR_TEST_MODE: '1',
+    COORDINATOR_PLATFORM: 'linux',
+  });
+
+  try {
+    // Create a session file so resolveWorkerName can locate the assignee's session
+    const terminalsDir = join(home, '.claude', 'terminals');
+    const inboxDir = join(terminalsDir, 'inbox');
+    mkdirSync(inboxDir, { recursive: true });
+    const workerSessionId = 'testw001';
+    writeFileSync(
+      join(terminalsDir, `session-${workerSessionId}.json`),
+      JSON.stringify({ session: workerSessionId, worker_name: 'builder', status: 'active' }),
+    );
+
+    await api.handleToolCall('coord_create_task', { task_id: 'T_BLK', subject: 'Blocker' });
+    await api.handleToolCall('coord_create_task', {
+      task_id: 'T_DEP',
+      subject: 'Dependent work',
+      assignee: 'builder',
+      blocked_by: ['T_BLK'],
+    });
+
+    // Complete the blocker — should push an inbox message to the assigned worker
+    await api.handleToolCall('coord_update_task', { task_id: 'T_BLK', status: 'completed' });
+
+    const inboxFile = join(inboxDir, `${workerSessionId}.jsonl`);
+    assert.ok(existsSync(inboxFile), 'Inbox file should exist after unblock notification');
+    const inboxContent = readFileSync(inboxFile, 'utf8');
+    assert.match(inboxContent, /\[UNBLOCKED\]/, 'Inbox should contain [UNBLOCKED] notification');
+    assert.match(inboxContent, /T_DEP/, 'Notification should reference the unblocked task ID');
+    assert.match(inboxContent, /T_BLK/, 'Notification should reference the completed dependency');
   } finally {
     restore();
   }

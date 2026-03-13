@@ -6,8 +6,8 @@ const root = resolve(process.cwd());
 const routesDir = resolve(root, 'sidecar/server/routes');
 const files = readdirSync(routesDir).filter((f) => f.endsWith('.ts') && f !== 'index.ts' && f !== 'shared.ts').sort();
 
-const exactRe = /req\.method\s*===\s*'([A-Z]+)'\s*&&\s*url\.pathname\s*===\s*'([^']+)'/g;
-const regexRe = /req\.method\s*===\s*'([A-Z]+)'\s*&&\s*\/(.+?)\/\.test\(url\.pathname\)/g;
+const exactRe = /req\.method\s*===\s*["']([A-Z]+)["']\s*&&\s*url\.pathname\s*===\s*["']([^"']+)["']/g;
+const regexRe = /req\.method\s*===\s*["']([A-Z]+)["']\s*&&\s*\/(.+?)\/\.test\(url\.pathname\)/g;
 
 const inventory = [];
 for (const file of files) {
@@ -19,6 +19,14 @@ for (const file of files) {
   for (const m of src.matchAll(regexRe)) {
     inventory.push({ file, method: m[1], kind: 'regex', path_pattern: `/${m[2]}/` });
   }
+}
+
+if (inventory.length === 0) {
+  process.stderr.write(
+    `Endpoint audit failed: no routes matched in ${routesDir}. ` +
+      'Expected patterns like req.method === "GET" && url.pathname === "/path" or /.../.test(url.pathname).\n',
+  );
+  process.exit(1);
 }
 
 const out = {

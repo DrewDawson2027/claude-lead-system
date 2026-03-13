@@ -9,6 +9,32 @@ import { execFileSync } from "child_process";
 import { cfg } from "./constants.js";
 import { sanitizeShortSessionId } from "./security.js";
 import { readJSON, readJSONLLimited, text, timeAgo } from "./helpers.js";
+import { colorName } from "./teams.js";
+
+/**
+ * Build a lookup map from session_id prefix → {name, color} by reading all
+ * team JSON files. Used to annotate coord_list_sessions with member identity.
+ * @returns {Record<string, {name: string, color: string}>}
+ */
+function buildSessionColorMap() {
+  const { TERMINALS_DIR } = cfg();
+  const teamsDir = join(TERMINALS_DIR, "teams");
+  if (!existsSync(teamsDir)) return {};
+  const map = {};
+  try {
+    const files = readdirSync(teamsDir).filter((f) => f.endsWith(".json"));
+    for (const file of files) {
+      const team = readJSON(join(teamsDir, file));
+      if (!team?.members) continue;
+      for (const m of team.members) {
+        if (m.session_id) map[m.session_id] = { name: m.name, color: m.color };
+      }
+    }
+  } catch {
+    /* best-effort — teams dir may not exist */
+  }
+  return map;
+}
 
 /**
  * Get all sessions from disk.
@@ -65,6 +91,7 @@ export function handleListSessions(args = {}) {
 
   if (filtered.length === 0) return text("No active sessions found.");
 
+  const sessionColorMap = buildSessionColorMap();
   const rows = filtered.map((s) => {
     const status = getSessionStatus(s);
     const lastActive = timeAgo(s.last_active);
@@ -78,11 +105,15 @@ export function handleListSessions(args = {}) {
     const lastOp = s.recent_ops?.length
       ? `${s.recent_ops[s.recent_ops.length - 1].tool} ${basename(s.recent_ops[s.recent_ops.length - 1].file || "")}`
       : "\u2014";
-    return `| ${s.session} | ${s.tty || "?"} | ${s.project || "?"} | ${status} | ${lastActive} | ${tools} | ${recentFiles} | ${lastOp} |`;
+    const memberInfo = sessionColorMap[s.session];
+    const memberCol = memberInfo
+      ? colorName(memberInfo.name, memberInfo.color)
+      : "\u2014";
+    return `| ${memberCol} | ${s.session} | ${s.tty || "?"} | ${s.project || "?"} | ${status} | ${lastActive} | ${tools} | ${recentFiles} | ${lastOp} |`;
   });
 
   const table =
-    `| Session | TTY | Project | Status | Last Active | W/E/B/R | Recent Files | Last Op |\n|---------|-----|---------|--------|-------------|---------|--------------|---------|` +
+    `| Member | Session | TTY | Project | Status | Last Active | W/E/B/R | Recent Files | Last Op |\n|--------|---------|-----|---------|--------|-------------|---------|--------------|---------|` +
     "\n" +
     rows.join("\n");
   return text(

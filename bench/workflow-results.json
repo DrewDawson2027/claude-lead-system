@@ -1,0 +1,1463 @@
+{
+  "schema": {
+    "harness_type": {
+      "classification": "assumed",
+      "value": "workflow_scenario_model_with_measured_latency",
+      "basis": "Harness intent: scenario economics + measured coordinator latency"
+    },
+    "data_classifications": {
+      "classification": "assumed",
+      "value": ["measured", "derived", "assumed", "speculative"],
+      "basis": "Allowed data classifications for every emitted datum"
+    },
+    "verdict_taxonomy": {
+      "classification": "assumed",
+      "value": ["proven", "plausible", "false"],
+      "basis": "Allowed verdict labels"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "classification": "measured",
+      "value": "2026-03-09T23:15:28.685Z",
+      "basis": "Wall-clock timestamp for this run"
+    },
+    "node": {
+      "classification": "measured",
+      "value": "v25.6.1",
+      "basis": "Node.js runtime version used for this run"
+    },
+    "platform": {
+      "classification": "measured",
+      "value": "darwin",
+      "basis": "OS platform used for this run"
+    },
+    "arch": {
+      "classification": "measured",
+      "value": "arm64",
+      "basis": "CPU architecture used for this run"
+    },
+    "iterations": {
+      "classification": "assumed",
+      "value": 50,
+      "basis": "Benchmark iteration count selected by operator"
+    }
+  },
+  "assumptions": {
+    "pricing_baseline": {
+      "sonnet_input_per_1m_usd": {
+        "classification": "assumed",
+        "value": 3,
+        "basis": "Assumed published API list price baseline"
+      },
+      "sonnet_output_per_1m_usd": {
+        "classification": "assumed",
+        "value": 15,
+        "basis": "Assumed published API list price baseline"
+      },
+      "opus_input_per_1m_usd": {
+        "classification": "assumed",
+        "value": 5,
+        "basis": "Assumed published API list price baseline"
+      },
+      "opus_output_per_1m_usd": {
+        "classification": "assumed",
+        "value": 25,
+        "basis": "Assumed published API list price baseline"
+      },
+      "haiku_input_per_1m_usd": {
+        "classification": "assumed",
+        "value": 1,
+        "basis": "Assumed published API list price baseline"
+      },
+      "haiku_output_per_1m_usd": {
+        "classification": "assumed",
+        "value": 5,
+        "basis": "Assumed published API list price baseline"
+      },
+      "source": {
+        "classification": "assumed",
+        "value": "Anthropic API pricing baseline (March 2026)",
+        "basis": "Normalization baseline for token-equivalent math"
+      }
+    },
+    "scenario_controls": {
+      "input_ratio": {
+        "classification": "assumed",
+        "value": 0.6,
+        "basis": "Cost normalization assumes 60% input / 40% output tokens"
+      },
+      "output_ratio": {
+        "classification": "assumed",
+        "value": 0.4,
+        "basis": "Cost normalization assumes 60% input / 40% output tokens"
+      },
+      "assumed_usage_window_tokens": {
+        "classification": "assumed",
+        "value": 220000,
+        "basis": "User-editable scenario control. Not a verified plan-enforcement fact."
+      },
+      "caveat": {
+        "classification": "speculative",
+        "value": "Max-plan window internals are not publicly specified in a way this harness can verify.",
+        "basis": "Any window-pressure interpretation is scenario-only"
+      }
+    }
+  },
+  "workflows": {
+    "small": {
+      "description": {
+        "classification": "assumed",
+        "value": "Single worker, one task, no conflict potential",
+        "basis": "Scenario archetype definition"
+      },
+      "scenario_inputs": {
+        "worker_count": {
+          "classification": "assumed",
+          "value": 1,
+          "basis": "Scenario configuration"
+        },
+        "task_count": {
+          "classification": "assumed",
+          "value": 1,
+          "basis": "Scenario configuration"
+        },
+        "per_worker_tokens": {
+          "classification": "assumed",
+          "value": 50000,
+          "basis": "Scenario workload input"
+        },
+        "lead_session_overhead_tokens": {
+          "classification": "assumed",
+          "value": 30000,
+          "basis": "Scenario workload input"
+        },
+        "native_coordination_overhead_tokens": {
+          "classification": "assumed",
+          "value": 10000,
+          "basis": "Scenario workload input"
+        }
+      },
+      "scenario_model": {
+        "token_equivalent_api": {
+          "lead_total_tokens": {
+            "classification": "derived",
+            "value": 80000,
+            "basis": "Scenario total derived from assumed workload inputs"
+          },
+          "native_total_tokens": {
+            "classification": "derived",
+            "value": 60000,
+            "basis": "Scenario total derived from assumed workload inputs"
+          },
+          "lead_cost_usd_equivalent": {
+            "classification": "derived",
+            "value": 0.624,
+            "basis": "Token-equivalent API normalization only; not billing telemetry"
+          },
+          "native_cost_usd_equivalent": {
+            "classification": "derived",
+            "value": 0.468,
+            "basis": "Token-equivalent API normalization only; not billing telemetry"
+          },
+          "lead_minus_native_usd_equivalent": {
+            "classification": "derived",
+            "value": 0.156,
+            "basis": "Difference between derived token-equivalent values"
+          },
+          "lead_minus_native_pct_equivalent": {
+            "classification": "derived",
+            "value": 33.3,
+            "basis": "Percent difference between derived token-equivalent values"
+          },
+          "caveat": {
+            "classification": "speculative",
+            "value": "Scenario model output only. This harness does not observe invoices, Max billing internals, or native in-process token telemetry.",
+            "basis": "Cannot be treated as empirical cost proof"
+          },
+          "rationale": {
+            "classification": "speculative",
+            "value": "Small workflows can be neutral or worse for Lead when orchestration overhead dominates.",
+            "basis": "Interpretation statement about this scenario model"
+          }
+        },
+        "usage_window_scenario": {
+          "assumed_window_tokens": {
+            "classification": "assumed",
+            "value": 220000,
+            "basis": "User-editable scenario control via ASSUMED_USAGE_WINDOW_TOKENS"
+          },
+          "lead_window_tokens": {
+            "classification": "derived",
+            "value": 30000,
+            "basis": "Scenario estimate for lead-session token window pressure"
+          },
+          "native_window_tokens": {
+            "classification": "derived",
+            "value": 60000,
+            "basis": "Scenario estimate for native shared-session token window pressure"
+          },
+          "lead_pct_of_assumed_window": {
+            "classification": "derived",
+            "value": 13.6,
+            "basis": "Derived from scenario tokens / assumed window tokens"
+          },
+          "native_pct_of_assumed_window": {
+            "classification": "derived",
+            "value": 27.3,
+            "basis": "Derived from scenario tokens / assumed window tokens"
+          },
+          "caveat": {
+            "classification": "speculative",
+            "value": "Usage-window behavior for subprocesses is opaque. Percentages are scenario pressure indicators, not measured enforcement outcomes.",
+            "basis": "Anthropic enforcement internals are not published"
+          }
+        }
+      },
+      "measured_latency": {
+        "spawn": {
+          "label": {
+            "classification": "derived",
+            "value": "small_spawn",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.1918,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.1558,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.4115,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.4493,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "message": {
+          "label": {
+            "classification": "derived",
+            "value": "small_message",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.0278,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0263,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.0434,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.0637,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "summary": {
+          "classification": "derived",
+          "value": "Coordinator filesystem operations remain sub-millisecond in this scenario.",
+          "basis": "Computed from measured latency outputs"
+        }
+      },
+      "operator_control": {
+        "features_present": {
+          "plan_approval_gate": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection and existing tests"
+          },
+          "conflict_detection": {
+            "classification": "derived",
+            "value": false,
+            "basis": "No overlap conflict exists in this 1-worker scenario"
+          },
+          "spawn_governance": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "audit_trail": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "idle_detection": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "resume_support": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          }
+        },
+        "value_assessment": {
+          "classification": "speculative",
+          "value": "Low in this scenario because governance features are rarely exercised.",
+          "basis": "Scenario interpretation"
+        }
+      }
+    },
+    "medium": {
+      "description": {
+        "classification": "assumed",
+        "value": "2-3 workers, shared context, light messaging, 5 tasks",
+        "basis": "Scenario archetype definition"
+      },
+      "scenario_inputs": {
+        "worker_count": {
+          "classification": "assumed",
+          "value": 3,
+          "basis": "Scenario configuration"
+        },
+        "task_count": {
+          "classification": "assumed",
+          "value": 5,
+          "basis": "Scenario configuration"
+        },
+        "per_worker_tokens": {
+          "classification": "assumed",
+          "value": 80000,
+          "basis": "Scenario workload input"
+        },
+        "lead_session_overhead_tokens": {
+          "classification": "assumed",
+          "value": 80000,
+          "basis": "Scenario workload input"
+        },
+        "native_coordination_per_worker_tokens": {
+          "classification": "assumed",
+          "value": 15000,
+          "basis": "Scenario workload input"
+        }
+      },
+      "scenario_model": {
+        "token_equivalent_api": {
+          "lead_total_tokens": {
+            "classification": "derived",
+            "value": 320000,
+            "basis": "Scenario total derived from assumed workload inputs"
+          },
+          "native_total_tokens": {
+            "classification": "derived",
+            "value": 285000,
+            "basis": "Scenario total derived from assumed workload inputs"
+          },
+          "lead_cost_usd_equivalent": {
+            "classification": "derived",
+            "value": 2.496,
+            "basis": "Token-equivalent API normalization only; not billing telemetry"
+          },
+          "native_cost_usd_equivalent": {
+            "classification": "derived",
+            "value": 2.223,
+            "basis": "Token-equivalent API normalization only; not billing telemetry"
+          },
+          "lead_minus_native_usd_equivalent": {
+            "classification": "derived",
+            "value": 0.273,
+            "basis": "Difference between derived token-equivalent values"
+          },
+          "lead_minus_native_pct_equivalent": {
+            "classification": "derived",
+            "value": 12.3,
+            "basis": "Percent difference between derived token-equivalent values"
+          },
+          "caveat": {
+            "classification": "speculative",
+            "value": "Scenario model output only. This harness does not observe invoices, Max billing internals, or native in-process token telemetry.",
+            "basis": "Cannot be treated as empirical cost proof"
+          },
+          "rationale": {
+            "classification": "speculative",
+            "value": "Model can indicate lower coordination token pressure at medium scale, but this remains unverified by billing telemetry.",
+            "basis": "Interpretation statement about this scenario model"
+          }
+        },
+        "usage_window_scenario": {
+          "assumed_window_tokens": {
+            "classification": "assumed",
+            "value": 220000,
+            "basis": "User-editable scenario control via ASSUMED_USAGE_WINDOW_TOKENS"
+          },
+          "lead_window_tokens": {
+            "classification": "derived",
+            "value": 80000,
+            "basis": "Scenario estimate for lead-session token window pressure"
+          },
+          "native_window_tokens": {
+            "classification": "derived",
+            "value": 285000,
+            "basis": "Scenario estimate for native shared-session token window pressure"
+          },
+          "lead_pct_of_assumed_window": {
+            "classification": "derived",
+            "value": 36.4,
+            "basis": "Derived from scenario tokens / assumed window tokens"
+          },
+          "native_pct_of_assumed_window": {
+            "classification": "derived",
+            "value": 129.5,
+            "basis": "Derived from scenario tokens / assumed window tokens"
+          },
+          "caveat": {
+            "classification": "speculative",
+            "value": "Usage-window behavior for subprocesses is opaque. Percentages are scenario pressure indicators, not measured enforcement outcomes.",
+            "basis": "Anthropic enforcement internals are not published"
+          }
+        }
+      },
+      "measured_latency": {
+        "conflict_detection": {
+          "label": {
+            "classification": "derived",
+            "value": "medium_conflict_detect",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.0298,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0009,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.0053,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 1.4268,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "broadcast": {
+          "label": {
+            "classification": "derived",
+            "value": "medium_broadcast",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.0834,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0739,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.1533,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.1864,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "task_dispatch": {
+          "label": {
+            "classification": "derived",
+            "value": "medium_task_dispatch",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.0006,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0003,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.0022,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.0063,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "summary": {
+          "classification": "derived",
+          "value": "Coordinator operations remain low-latency under medium concurrency.",
+          "basis": "Computed from measured latency outputs"
+        }
+      },
+      "operator_control": {
+        "features_present": {
+          "plan_approval_gate": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection and existing tests"
+          },
+          "conflict_detection": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "spawn_governance": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "audit_trail": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "idle_detection": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "resume_support": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "task_board": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          }
+        },
+        "value_assessment": {
+          "classification": "speculative",
+          "value": "Moderate. Governance and conflict controls become useful at this size.",
+          "basis": "Scenario interpretation"
+        }
+      }
+    },
+    "heavy": {
+      "description": {
+        "classification": "assumed",
+        "value": "6 workers, 20 tasks, pipeline orchestration, priority aging",
+        "basis": "Scenario archetype definition"
+      },
+      "scenario_inputs": {
+        "worker_count": {
+          "classification": "assumed",
+          "value": 6,
+          "basis": "Scenario configuration"
+        },
+        "task_count": {
+          "classification": "assumed",
+          "value": 20,
+          "basis": "Scenario configuration"
+        },
+        "per_worker_tokens": {
+          "classification": "assumed",
+          "value": 100000,
+          "basis": "Scenario workload input"
+        },
+        "lead_session_overhead_tokens": {
+          "classification": "assumed",
+          "value": 150000,
+          "basis": "Scenario workload input"
+        },
+        "native_coordination_per_worker_tokens": {
+          "classification": "assumed",
+          "value": 25000,
+          "basis": "Scenario workload input"
+        }
+      },
+      "scenario_model": {
+        "token_equivalent_api": {
+          "lead_total_tokens": {
+            "classification": "derived",
+            "value": 750000,
+            "basis": "Scenario total derived from assumed workload inputs"
+          },
+          "native_total_tokens": {
+            "classification": "derived",
+            "value": 750000,
+            "basis": "Scenario total derived from assumed workload inputs"
+          },
+          "lead_cost_usd_equivalent": {
+            "classification": "derived",
+            "value": 5.85,
+            "basis": "Token-equivalent API normalization only; not billing telemetry"
+          },
+          "native_cost_usd_equivalent": {
+            "classification": "derived",
+            "value": 5.85,
+            "basis": "Token-equivalent API normalization only; not billing telemetry"
+          },
+          "lead_minus_native_usd_equivalent": {
+            "classification": "derived",
+            "value": 0,
+            "basis": "Difference between derived token-equivalent values"
+          },
+          "lead_minus_native_pct_equivalent": {
+            "classification": "derived",
+            "value": 0,
+            "basis": "Percent difference between derived token-equivalent values"
+          },
+          "caveat": {
+            "classification": "speculative",
+            "value": "Scenario model output only. This harness does not observe invoices, Max billing internals, or native in-process token telemetry.",
+            "basis": "Cannot be treated as empirical cost proof"
+          },
+          "rationale": {
+            "classification": "speculative",
+            "value": "Heavy workflows are the strongest scenario for reduced coordination pressure, but economics remain modeled, not empirically billed.",
+            "basis": "Interpretation statement about this scenario model"
+          }
+        },
+        "usage_window_scenario": {
+          "assumed_window_tokens": {
+            "classification": "assumed",
+            "value": 220000,
+            "basis": "User-editable scenario control via ASSUMED_USAGE_WINDOW_TOKENS"
+          },
+          "lead_window_tokens": {
+            "classification": "derived",
+            "value": 150000,
+            "basis": "Scenario estimate for lead-session token window pressure"
+          },
+          "native_window_tokens": {
+            "classification": "derived",
+            "value": 750000,
+            "basis": "Scenario estimate for native shared-session token window pressure"
+          },
+          "lead_pct_of_assumed_window": {
+            "classification": "derived",
+            "value": 68.2,
+            "basis": "Derived from scenario tokens / assumed window tokens"
+          },
+          "native_pct_of_assumed_window": {
+            "classification": "derived",
+            "value": 340.9,
+            "basis": "Derived from scenario tokens / assumed window tokens"
+          },
+          "caveat": {
+            "classification": "speculative",
+            "value": "Usage-window behavior for subprocesses is opaque. Percentages are scenario pressure indicators, not measured enforcement outcomes.",
+            "basis": "Anthropic enforcement internals are not published"
+          }
+        }
+      },
+      "measured_latency": {
+        "conflict_scan": {
+          "label": {
+            "classification": "derived",
+            "value": "heavy_conflict_scan",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.0059,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0045,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.0144,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.035,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "snapshot_build": {
+          "label": {
+            "classification": "derived",
+            "value": "heavy_snapshot_build",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.0111,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0081,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.0323,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.034,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 30,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "rebalance": {
+          "label": {
+            "classification": "derived",
+            "value": "heavy_rebalance",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.0113,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0055,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.0115,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.2566,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "summary": {
+          "classification": "derived",
+          "value": "Coordinator operations stay low-latency at higher workflow volume.",
+          "basis": "Computed from measured latency outputs"
+        }
+      },
+      "operator_control": {
+        "features_present": {
+          "plan_approval_gate": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection and existing tests"
+          },
+          "conflict_detection": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "spawn_governance": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "max_workers_policy": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "audit_trail": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "idle_detection": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "resume_support": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "task_board": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "pipeline_orchestration": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "dashboard": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          }
+        },
+        "value_assessment": {
+          "classification": "speculative",
+          "value": "High. Governance and control-plane features are exercised frequently at this scale.",
+          "basis": "Scenario interpretation"
+        }
+      }
+    },
+    "conflict_heavy": {
+      "description": {
+        "classification": "assumed",
+        "value": "4 workers with deliberate file overlaps, conflict detection stress",
+        "basis": "Scenario archetype definition"
+      },
+      "scenario_inputs": {
+        "worker_count": {
+          "classification": "assumed",
+          "value": 4,
+          "basis": "Scenario configuration"
+        },
+        "per_worker_tokens": {
+          "classification": "assumed",
+          "value": 70000,
+          "basis": "Scenario workload input"
+        },
+        "lead_session_overhead_tokens": {
+          "classification": "assumed",
+          "value": 80000,
+          "basis": "Scenario workload input"
+        },
+        "native_coordination_per_worker_tokens": {
+          "classification": "assumed",
+          "value": 15000,
+          "basis": "Scenario workload input"
+        },
+        "shared_file_count": {
+          "classification": "assumed",
+          "value": 4,
+          "basis": "Scenario conflict pressure input"
+        }
+      },
+      "scenario_model": {
+        "token_equivalent_api": {
+          "lead_total_tokens": {
+            "classification": "derived",
+            "value": 360000,
+            "basis": "Scenario total derived from assumed workload inputs"
+          },
+          "native_total_tokens": {
+            "classification": "derived",
+            "value": 340000,
+            "basis": "Scenario total derived from assumed workload inputs"
+          },
+          "caveat": {
+            "classification": "speculative",
+            "value": "This workflow focuses on operator-control behavior, not reliable economic inference.",
+            "basis": "Scenario interpretation boundary"
+          }
+        }
+      },
+      "measured_latency": {
+        "conflict_detection": {
+          "label": {
+            "classification": "derived",
+            "value": "conflict_stress_detect",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.0018,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0015,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.0023,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.006,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "spawn_block_decision": {
+          "label": {
+            "classification": "derived",
+            "value": "conflict_spawn_block",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.0016,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0015,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.0019,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.009,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "summary": {
+          "classification": "derived",
+          "value": "Conflict checks and spawn-block decisions remain sub-millisecond.",
+          "basis": "Computed from measured latency outputs"
+        }
+      },
+      "operator_control": {
+        "features_present": {
+          "conflict_detection": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "spawn_block_on_overlap": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "file_scope_tracking": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "conflict_severity_rating": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "audit_trail": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          }
+        },
+        "value_assessment": {
+          "classification": "derived",
+          "value": "Critical differentiator: native Agent Teams does not provide equivalent conflict blocking.",
+          "basis": "Derived from architecture and feature inspection"
+        },
+        "native_alternative": {
+          "classification": "derived",
+          "value": "Manual operator coordination only; no native pre-spawn overlap block.",
+          "basis": "Derived from architecture and feature inspection"
+        }
+      }
+    },
+    "reassignment_heavy": {
+      "description": {
+        "classification": "assumed",
+        "value": "5 workers, 15 tasks, worker failures, reassignment, handoffs",
+        "basis": "Scenario archetype definition"
+      },
+      "scenario_inputs": {
+        "worker_count": {
+          "classification": "assumed",
+          "value": 5,
+          "basis": "Scenario configuration"
+        },
+        "task_count": {
+          "classification": "assumed",
+          "value": 15,
+          "basis": "Scenario configuration"
+        },
+        "native_reassignment_tokens_estimate": {
+          "classification": "assumed",
+          "value": 20000,
+          "basis": "Scenario estimate for native context reinjection during reassignment"
+        }
+      },
+      "scenario_model": {
+        "token_equivalent_api": {
+          "lead_reassignment_tokens": {
+            "classification": "derived",
+            "value": 0,
+            "basis": "Filesystem reassignment path in Lead does not invoke model tokens"
+          },
+          "native_reassignment_tokens_estimate": {
+            "classification": "derived",
+            "value": 20000,
+            "basis": "Derived from scenario assumption above; not measured native telemetry"
+          },
+          "caveat": {
+            "classification": "speculative",
+            "value": "Native reassignment token behavior is modeled, not empirically captured in this harness.",
+            "basis": "Scenario interpretation boundary"
+          }
+        }
+      },
+      "measured_latency": {
+        "reassignment_cycle": {
+          "label": {
+            "classification": "derived",
+            "value": "reassignment_cycle",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.0022,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0016,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.0067,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.008,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "handoff_snapshot": {
+          "label": {
+            "classification": "derived",
+            "value": "handoff_snapshot",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.001,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0008,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.0017,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.0034,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "rebalance_under_churn": {
+          "label": {
+            "classification": "derived",
+            "value": "rebalance_under_churn",
+            "basis": "Benchmark metric name"
+          },
+          "avg_ms": {
+            "classification": "measured",
+            "value": 0.0035,
+            "basis": "Average elapsed wall-clock milliseconds"
+          },
+          "p50_ms": {
+            "classification": "measured",
+            "value": 0.0034,
+            "basis": "Median elapsed wall-clock milliseconds"
+          },
+          "p95_ms": {
+            "classification": "measured",
+            "value": 0.0072,
+            "basis": "95th percentile elapsed wall-clock milliseconds"
+          },
+          "p99_ms": {
+            "classification": "measured",
+            "value": 0.0125,
+            "basis": "99th percentile elapsed wall-clock milliseconds"
+          },
+          "sample_size": {
+            "classification": "measured",
+            "value": 50,
+            "basis": "Number of measured iterations"
+          }
+        },
+        "summary": {
+          "classification": "derived",
+          "value": "Reassignment and handoff coordinator operations remain sub-millisecond.",
+          "basis": "Computed from measured latency outputs"
+        }
+      },
+      "operator_control": {
+        "features_present": {
+          "task_reassignment": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "handoff_context_capture": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "priority_aging": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "auto_rebalance": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "worker_health_monitoring": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "audit_trail": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          },
+          "resume_from_session_id": {
+            "classification": "derived",
+            "value": true,
+            "basis": "Verified by code inspection"
+          }
+        },
+        "value_assessment": {
+          "classification": "derived",
+          "value": "Very high in failure-prone workflows; native alternatives are largely manual.",
+          "basis": "Derived from architecture and feature inspection"
+        },
+        "native_alternative": {
+          "classification": "derived",
+          "value": "Manual re-create and context re-explanation.",
+          "basis": "Derived from architecture and feature inspection"
+        }
+      }
+    }
+  },
+  "verdicts": {
+    "filesystem_coordination_is_0_token": {
+      "verdict": {
+        "classification": "derived",
+        "value": "proven",
+        "basis": "Measured latency + code inspection"
+      },
+      "evidence": {
+        "classification": "derived",
+        "value": "Lead coordination (inbox JSONL, task JSON, approval files, heartbeats) is filesystem I/O; measured latency remains sub-millisecond.",
+        "basis": "Local benchmark + code inspection"
+      },
+      "claim_classification": {
+        "classification": "derived",
+        "value": "measured",
+        "basis": "Claim rests on locally measured behavior and verifiable implementation"
+      }
+    },
+    "messaging_is_O1_vs_ON": {
+      "verdict": {
+        "classification": "derived",
+        "value": "proven",
+        "basis": "Code inspection"
+      },
+      "evidence": {
+        "classification": "derived",
+        "value": "Lead uses appendFileSync O(1)-style append behavior; native sidecar path uses JSON array read-append-write.",
+        "basis": "Code inspection"
+      },
+      "claim_classification": {
+        "classification": "derived",
+        "value": "derived",
+        "basis": "Structural property derived from implementation shape"
+      }
+    },
+    "conflict_detection_exists_in_lead_not_native": {
+      "verdict": {
+        "classification": "derived",
+        "value": "proven",
+        "basis": "Code inspection"
+      },
+      "evidence": {
+        "classification": "derived",
+        "value": "Lead performs pre-spawn file overlap checks; native Agent Teams path does not provide equivalent file-scope conflict blocking.",
+        "basis": "Code inspection"
+      },
+      "claim_classification": {
+        "classification": "derived",
+        "value": "derived",
+        "basis": "Feature delta derived from implementation comparison"
+      }
+    },
+    "plan_approval_gate_is_real_in_lead": {
+      "verdict": {
+        "classification": "derived",
+        "value": "proven",
+        "basis": "Code inspection + existing tests"
+      },
+      "evidence": {
+        "classification": "derived",
+        "value": "Lead writes approval files and waits for approval acknowledgements; known native auto-approve issues are tracked separately.",
+        "basis": "Code inspection + tests"
+      },
+      "claim_classification": {
+        "classification": "derived",
+        "value": "derived",
+        "basis": "Behavioral claim derived from implementation and tests"
+      }
+    },
+    "resume_is_more_reliable_in_lead": {
+      "verdict": {
+        "classification": "derived",
+        "value": "plausible",
+        "basis": "Insufficient local end-to-end telemetry for definitive proof"
+      },
+      "evidence": {
+        "classification": "speculative",
+        "value": "Lead persists session IDs and supports resume by session id; native resume issues are reported but not fully reproducible in this harness.",
+        "basis": "Requires broader runtime validation"
+      },
+      "claim_classification": {
+        "classification": "speculative",
+        "value": "speculative",
+        "basis": "Outcome depends on runtime conditions outside this benchmark harness"
+      }
+    },
+    "lead_is_cheaper_for_small_workflows": {
+      "verdict": {
+        "classification": "derived",
+        "value": "false",
+        "basis": "Scenario model result only"
+      },
+      "evidence": {
+        "classification": "derived",
+        "value": "In the small scenario, lead orchestration overhead can outweigh native coordination overhead.",
+        "basis": "Derived from assumed token inputs and token-equivalent math"
+      },
+      "claim_classification": {
+        "classification": "speculative",
+        "value": "speculative",
+        "basis": "Economic statement is model-based, not measured billing proof"
+      }
+    },
+    "model_suggests_token_efficiency_for_medium_workflows": {
+      "verdict": {
+        "classification": "derived",
+        "value": "plausible",
+        "basis": "Scenario model result only"
+      },
+      "evidence": {
+        "classification": "speculative",
+        "value": "Medium scenario modeling can show lower coordination pressure for Lead, but this is not native-vs-Lead billing telemetry.",
+        "basis": "Modeling boundary"
+      },
+      "claim_classification": {
+        "classification": "speculative",
+        "value": "speculative",
+        "basis": "Economic statement is model-based, not measured billing proof"
+      }
+    },
+    "model_suggests_token_efficiency_for_heavy_workflows": {
+      "verdict": {
+        "classification": "derived",
+        "value": "plausible",
+        "basis": "Scenario model result only"
+      },
+      "evidence": {
+        "classification": "speculative",
+        "value": "Heavy scenario modeling is directionally favorable for coordination pressure, but still lacks empirical billing and native in-process telemetry.",
+        "basis": "Modeling boundary"
+      },
+      "claim_classification": {
+        "classification": "speculative",
+        "value": "speculative",
+        "basis": "Economic statement is model-based, not measured billing proof"
+      }
+    },
+    "lower_usage_window_pressure_than_native": {
+      "verdict": {
+        "classification": "derived",
+        "value": "false",
+        "basis": "Not supportable as a factual claim"
+      },
+      "evidence": {
+        "classification": "speculative",
+        "value": "Usage-window enforcement details are opaque; this harness cannot prove lower real plan pressure for Lead vs native.",
+        "basis": "Opaque provider internals"
+      },
+      "claim_classification": {
+        "classification": "speculative",
+        "value": "speculative",
+        "basis": "Cannot be elevated beyond speculative status without provider telemetry"
+      }
+    },
+    "operator_control_value_exceeds_native": {
+      "verdict": {
+        "classification": "derived",
+        "value": "proven",
+        "basis": "Feature comparison via code inspection"
+      },
+      "evidence": {
+        "classification": "derived",
+        "value": "Lead exposes conflict detection, governance controls, task board, priority aging, auto-rebalance, handoff snapshots, audit trail, and orchestration controls not present in native Agent Teams preview scope.",
+        "basis": "Code inspection and architecture comparison"
+      },
+      "claim_classification": {
+        "classification": "derived",
+        "value": "derived",
+        "basis": "Feature-delta claim derived from implementation comparison"
+      }
+    },
+    "any_cheaper_than_native_claim_unsupported": {
+      "verdict": {
+        "classification": "derived",
+        "value": "false",
+        "basis": "Methodology boundary"
+      },
+      "evidence": {
+        "classification": "derived",
+        "value": "This harness does not observe end-to-end billing, so blanket cheaper-than-native claims are unsupported.",
+        "basis": "Methodology constraint"
+      },
+      "claim_classification": {
+        "classification": "derived",
+        "value": "derived",
+        "basis": "Constraint derived from benchmark scope"
+      }
+    }
+  },
+  "evidence_chain": {
+    "code_inspection": {
+      "classification": "derived",
+      "value": [
+        "mcp-coordinator/lib/messaging.js — append-based JSONL messaging path",
+        "mcp-coordinator/lib/tasks.js — filesystem task board",
+        "mcp-coordinator/lib/workers.js — conflict checks and worker governance",
+        "docs/ARCHITECTURE-COMPARISON.md — architecture-level comparison context"
+      ],
+      "basis": "Local artifacts used to justify structural claims"
+    },
+    "benchmark_artifacts": {
+      "classification": "derived",
+      "value": [
+        "bench/coord-benchmark.mjs — coordinator latency benchmark",
+        "bench/workflow-benchmark.mjs — scenario model + measured latency harness",
+        "bench/latest-results.json — coordinator benchmark output"
+      ],
+      "basis": "Artifacts used by this benchmark lane"
+    },
+    "external_references": {
+      "classification": "speculative",
+      "value": [
+        "Anthropic pricing page (March 2026 baseline) for token-equivalent normalization",
+        "Anthropic Max documentation (window enforcement internals remain opaque)",
+        "Native issue references: #27265, #29548, #25135, #15837, #10856"
+      ],
+      "basis": "External context; not directly measured by this harness"
+    }
+  },
+  "strongest_truthful_claim": {
+    "claim": {
+      "classification": "derived",
+      "value": "Lead provides real operator-control features (including conflict detection and governance controls) and uses a filesystem coordination path with 0 API-token overhead on that path. Blanket cheaper-than-native claims remain unsupported without billing telemetry.",
+      "basis": "Best-supported public claim from measured + inspected evidence"
+    },
+    "supporting_verdicts": {
+      "classification": "derived",
+      "value": [
+        "filesystem_coordination_is_0_token",
+        "messaging_is_O1_vs_ON",
+        "conflict_detection_exists_in_lead_not_native",
+        "plan_approval_gate_is_real_in_lead",
+        "operator_control_value_exceeds_native",
+        "any_cheaper_than_native_claim_unsupported"
+      ],
+      "basis": "Most defensible verdict set"
+    },
+    "excluded_claims": {
+      "classification": "speculative",
+      "value": [
+        "Any blanket \"cheaper than native\" statement",
+        "Any empirical billing parity statement",
+        "Any claim that assumed window percentages reflect provider-enforced reality"
+      ],
+      "basis": "Outside measured evidence boundary"
+    }
+  }
+}

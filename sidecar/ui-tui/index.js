@@ -1,6 +1,17 @@
 #!/usr/bin/env node
 import http from "http";
 import readline from "readline";
+import { execFileSync } from "child_process";
+import { existsSync, readFileSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
+import {
+  cycleIndex,
+  classifySidecarFreshness,
+  DEFAULT_LIVE_STALE_AFTER_MS,
+  LIVE_FRESHNESS,
+  selectFocusedTeammateRoute,
+} from "../core/teammate-live.js";
 
 const host = process.env.LEAD_SIDECAR_HOST || "127.0.0.1";
 let sidecarPort =
@@ -39,10 +50,19 @@ const state = {
   forcePath: "",
   metrics: null,
   focusMode: "all",
-  viewMode: "main", // 'main' | 'approval' | 'action-detail'
+  viewMode: "main", // 'main' | 'approval' | 'teammate' | 'split'
   selectedApprovalIdx: 0,
+  selectedMemberIdx: 0,
+  selectedInterruptIdx: 0,
   autoRefreshInterval: 5000,
   autoRefreshTimer: null,
+  teammateRefreshTimer: null,
+  liveTeammatesById: new Map(),
+  liveTeammatesAtMs: 0,
+  focusedRoute: null,
+  sseConnected: false,
+  sseRequest: null,
+  sseReconnectTimer: null,
 };
 
 // ── HTTP Client ──
@@ -139,6 +159,188 @@ function selectedAction() {
   return state.actions[state.selectedActionIdx] || null;
 }
 
+function teammateKey(m) {
+  if (!m) return "";
+  return String(
+    m.id || `${m.team_name || teamName()}:${m.display_name || m.name || ""}`,
+  );
+}
+
+function cacheTeammates(teammates = [], atMs = Date.now()) {
+  for (const m of teammates) {
+    const key = teammateKey(m);
+    if (!key) continue;
+    state.liveTeammatesById.set(key, { teammate: m, updated_at_ms: atMs });
+  }
+  if (teammates.length) state.liveTeammatesAtMs = atMs;
+}
+
+function selectedTeammate() {
+  const teammates = state.detail?.teammates || [];
+  if (!teammates.length) return null;
+  if (state.selectedMemberIdx >= teammates.length) {
+    state.selectedMemberIdx = Math.max(0, teammates.length - 1);
+  }
+  return teammates[state.selectedMemberIdx] || null;
+}
+
+function isNativeAvailable() {
+  return Boolean(state.native?.adapter_ok ?? state.native?.native?.available);
+}
+
+function focusedFreshnessMeta(teammate) {
+  const key = teammateKey(teammate);
+  const live = key ? state.liveTeammatesById.get(key) : null;
+  return classifySidecarFreshness({
+    updatedAtMs: live?.updated_at_ms || 0,
+    nowMs: Date.now(),
+    staleAfterMs: DEFAULT_LIVE_STALE_AFTER_MS,
+  });
+}
+
+function formatFreshness(meta) {
+  if (!meta || meta.freshness === LIVE_FRESHNESS.NONE) return "no-live-signal";
+  const ageS = Math.max(0, Math.round((Number(meta.live_age_ms) || 0) / 1000));
+  return `${meta.freshness}:${ageS}s`;
+}
+
+function findFocusedInterruptIndex() {
+  const interrupts = state.interrupts || state.detail?.interrupts || [];
+  if (!interrupts.length) return -1;
+  const focused = selectedTeammate();
+  const focusedId = focused?.id || null;
+  if (!focusedId)
+    return Math.max(
+      0,
+      Math.min(state.selectedInterruptIdx, interrupts.length - 1),
+    );
+  const matchIdx = interrupts.findIndex(
+    (item) =>
+      item?.teammate_id && String(item.teammate_id) === String(focusedId),
+  );
+  if (matchIdx >= 0) return matchIdx;
+  return Math.max(
+    0,
+    Math.min(state.selectedInterruptIdx, interrupts.length - 1),
+  );
+}
+
+function findFocusedApprovalIndex() {
+  const approvals = state.approvals || [];
+  if (!approvals.length) return -1;
+  const focused = selectedTeammate();
+  const focusedId = focused?.id || null;
+  if (!focusedId)
+    return Math.max(
+      0,
+      Math.min(state.selectedApprovalIdx, approvals.length - 1),
+    );
+  const matchIdx = approvals.findIndex(
+    (item) =>
+      item?.teammate_id && String(item.teammate_id) === String(focusedId),
+  );
+  if (matchIdx >= 0) return matchIdx;
+  return Math.max(0, Math.min(state.selectedApprovalIdx, approvals.length - 1));
+}
+
+function syncFocusedSelections() {
+  const interruptIdx = findFocusedInterruptIndex();
+  if (interruptIdx >= 0) state.selectedInterruptIdx = interruptIdx;
+  const approvalIdx = findFocusedApprovalIndex();
+  if (approvalIdx >= 0) state.selectedApprovalIdx = approvalIdx;
+}
+
+function focusedInterruptRecord() {
+  const interrupts = state.interrupts || state.detail?.interrupts || [];
+  if (!interrupts.length) return null;
+  const idx = Math.max(
+    0,
+    Math.min(state.selectedInterruptIdx, interrupts.length - 1),
+  );
+  return interrupts[idx] || null;
+}
+
+function focusedApprovalRecord() {
+  const approvals = state.approvals || [];
+  if (!approvals.length) return null;
+  const idx = Math.max(
+    0,
+    Math.min(state.selectedApprovalIdx, approvals.length - 1),
+  );
+  return approvals[idx] || null;
+}
+
+function routeModeColor(routeMode = "") {
+  if (routeMode === "native-live") return C.green;
+  if (routeMode === "tmux-mirror") return C.yellow;
+  return C.cyan;
+}
+
+function applyFocusedTeammateCycle(delta, { enterFocusedView = true } = {}) {
+  const teammates = state.detail?.teammates || [];
+  if (!teammates.length) return false;
+  state.selectedMemberIdx = cycleIndex(
+    state.selectedMemberIdx,
+    delta,
+    teammates.length,
+  );
+  syncFocusedSelections();
+  if (enterFocusedView && state.viewMode !== "split") {
+    state.viewMode = "teammate";
+  }
+  const m = selectedTeammate();
+  const int = focusedInterruptRecord();
+  const ap = focusedApprovalRecord();
+  const name = m?.display_name || m?.name || m?.id || "-";
+  state.message = `focused=${name} interrupt=${int?.code || int?.kind || "none"} approval=${ap?.task_id || "none"}`;
+  startTeammateAutoRefresh();
+  return true;
+}
+
+function resolveFocusedRoute(teammate) {
+  const freshness = focusedFreshnessMeta(teammate);
+  const sidecarLiveAvailable = freshness.freshness === LIVE_FRESHNESS.FRESH;
+  return selectFocusedTeammateRoute({
+    nativeAvailable: isNativeAvailable(),
+    hasNativeIdentity: Boolean(
+      teammate?.native_agent_id || teammate?.claude_session_id,
+    ),
+    sidecarLiveAvailable,
+    sidecarFreshness: freshness.freshness,
+    liveAgeMs: freshness.live_age_ms,
+    staleAfterMs: freshness.stale_after_ms,
+    hasTmuxMirror: Boolean(
+      teammate?.tmux_pane_id ||
+      teammate?.current_task_ref ||
+      teammate?.worker_task_id,
+    ),
+  });
+}
+
+function focusedLiveText(teammate) {
+  if (!teammate) return "No teammate selected.";
+  const key = teammateKey(teammate);
+  const live = key
+    ? state.liveTeammatesById.get(key)?.teammate || teammate
+    : teammate;
+  return [
+    `presence=${live.presence || "-"}`,
+    `task=${live.current_task_ref || live.worker_task_id || "-"}`,
+    `session=${live.session_id || "-"}`,
+    `agent=${live.native_agent_id || "-"}`,
+    `last_tool=${live.last_tool || "-"}`,
+    `risk=${(live.risk_flags || []).join(",") || "none"}`,
+    `recent_ops=${
+      (live.recent_ops || [])
+        .slice(-8)
+        .map((x) => x.tool || x.file || "?")
+        .join(" | ") || "none"
+    }`,
+    `live_freshness=${formatFreshness(focusedFreshnessMeta(teammate))}`,
+    "Note: this is not in-process parity; it mirrors native/runtime state.",
+  ].join("\n");
+}
+
 function cols() {
   return process.stdout.columns || 80;
 }
@@ -197,11 +399,12 @@ function renderHeader() {
   const mode =
     state.focusMode === "all" ? "ALL" : state.focusMode.toUpperCase();
   const fp = state.forcePath || "auto";
+  const live = state.sseConnected ? "sse:live" : "sse:reconnect";
   line(
-    `${C.bold}Lead Sidecar TUI${C.reset}  ${C.dim}focus:${C.cyan}${mode}${C.reset}  ${C.dim}path:${fp}${C.reset}  ${C.dim}view:${state.viewMode}${C.reset}`,
+    `${C.bold}Lead Sidecar TUI${C.reset}  ${C.dim}focus:${C.cyan}${mode}${C.reset}  ${C.dim}path:${fp}${C.reset}  ${C.dim}view:${state.viewMode}${C.reset}  ${C.dim}${live}${C.reset}`,
   );
   line(
-    `${C.dim}[F]ocus [P]approvals [j/k]team [[]|[]]action [y]retry [c]coord [v]native [d]dispatch [q]queue [a]assign [r]rebalance [s]sim [SPACE]refresh [x]quit${C.reset}`,
+    `${C.dim}[F]ocus [Shift+P]approvals [j/k]team [h/l or [/] teammate] [,/.]interrupt [Enter]triage [y/n]approve/reject focused [y]retry(main) [c]coord [v]native [d]dispatch [q]queue [a]assign [r]rebalance [s]sim [{/}]action [Tab]split<->focus [SPACE]refresh [x]quit${C.reset}`,
   );
   hr();
 }
@@ -292,8 +495,14 @@ function renderInterrupts() {
   if (!focusVisible("interrupts")) return;
   const interrupts = state.interrupts || state.detail?.interrupts || [];
   if (interrupts.length === 0) return;
+  if (state.selectedInterruptIdx >= interrupts.length) {
+    state.selectedInterruptIdx = Math.max(0, interrupts.length - 1);
+  }
   box("Interrupts");
-  for (const int of interrupts.slice(0, 8)) {
+  for (let i = 0; i < interrupts.slice(0, 8).length; i++) {
+    const int = interrupts[i];
+    const sel =
+      i === state.selectedInterruptIdx ? `${C.bold}${C.cyan}> ` : "  ";
     const lvl = int.level || "info";
     const clr = lvl === "error" ? C.red : lvl === "warn" ? C.yellow : C.dim;
     const score =
@@ -301,9 +510,12 @@ function renderInterrupts() {
         ? ` ${C.dim}(score:${int.priority_score})${C.reset}`
         : "";
     line(
-      `  ${clr}[${lvl}]${C.reset} ${int.code || "alert"}: ${truncate(int.message, 60)}${score}`,
+      `${sel}${clr}[${lvl}]${C.reset} ${int.code || "alert"}: ${truncate(int.message, 60)}${score}`,
     );
   }
+  line(
+    `  ${C.dim}Use ,/. to select and Enter to triage selected interrupt.${C.reset}`,
+  );
 }
 
 function renderAlerts() {
@@ -360,7 +572,7 @@ function renderRebalanceExplain() {
   box("Rebalance Explain");
   for (const t of re.tasks.slice(0, 5)) {
     line(
-      `  ${C.bold}${t.task_id}${C.reset} ${t.subject} → ${C.cyan}${t.recommended_assignee || "?"}${C.reset} (score=${t.recommended_score ?? "-"})`,
+      `  ${C.bold}${t.task_id}${C.reset} ${t.subject} -> ${C.cyan}${t.recommended_assignee || "?"}${C.reset} (score=${t.recommended_score ?? "-"})`,
     );
     if (t.candidates?.length) {
       for (const c of t.candidates.slice(0, 3)) {
@@ -378,7 +590,7 @@ function renderRebalanceExplain() {
 function renderApprovalView() {
   clear();
   line(
-    `${C.bold}Approval Inbox${C.reset}  ${C.dim}[1-9]select [a]approve [r]reject [Esc]back${C.reset}`,
+    `${C.bold}Approval Inbox${C.reset}  ${C.dim}[j/k|1-9]select [y/Enter]approve [n]reject [Esc]back${C.reset}`,
   );
   hr();
   if (state.approvals.length === 0) {
@@ -402,10 +614,258 @@ function renderApprovalView() {
   line(state.message || "");
 }
 
+// ── Teammate Live View ──
+// This does not provide native in-process parity.
+// Route order is explicit: native live -> sidecar live -> tmux mirror fallback.
+// tmux capture is only used when native/runtime live streams are unavailable.
+
+// Shared output capture: tmux scrollback → script transcript → results JSON.
+// Used by both renderTeammateView (full-screen) and renderSplit (right panel).
+function getTeammateOutput(m) {
+  let output = null;
+  if (m.tmux_pane_id) {
+    try {
+      output = execFileSync(
+        "tmux",
+        ["capture-pane", "-t", m.tmux_pane_id, "-p", "-S", "-", "-e"],
+        { encoding: "utf8", timeout: 2000 },
+      );
+    } catch {
+      output = null;
+    }
+  }
+  if (!output) {
+    const taskId = m.current_task_ref || m.worker_task_id;
+    if (taskId) {
+      try {
+        const transcriptPath = join(
+          homedir(),
+          ".claude",
+          "terminals",
+          "results",
+          `${taskId}.transcript`,
+        );
+        if (existsSync(transcriptPath)) {
+          output = readFileSync(transcriptPath, "utf-8").slice(-4000);
+        }
+      } catch {
+        output = null;
+      }
+    }
+  }
+  if (!output) {
+    const taskId = m.current_task_ref || m.worker_task_id;
+    if (taskId) {
+      try {
+        const resultsPath = join(
+          homedir(),
+          ".claude",
+          "terminals",
+          "results",
+          `${taskId}.json`,
+        );
+        if (existsSync(resultsPath)) {
+          const data = JSON.parse(readFileSync(resultsPath, "utf-8"));
+          output =
+            typeof data.output === "string"
+              ? data.output.slice(-2000)
+              : JSON.stringify(data, null, 2).slice(-2000);
+        }
+      } catch {
+        output = null;
+      }
+    }
+  }
+  return output;
+}
+
+function renderTeammateView() {
+  const teammates = state.detail?.teammates || [];
+  const m = selectedTeammate();
+  if (!m) {
+    state.viewMode = "main";
+    return render();
+  }
+  const route = resolveFocusedRoute(m);
+  state.focusedRoute = route;
+  clear();
+  const total = teammates.length;
+  const idx = state.selectedMemberIdx;
+  const interrupt = focusedInterruptRecord();
+  const approval = focusedApprovalRecord();
+  line(
+    `${C.bold}Teammate View${C.reset}  ${C.dim}[${idx + 1}/${total}] [h/l|[/]]cycle [,/ .]interrupt [Enter]triage [y/n]approve [Tab]split [Esc]back${C.reset}`,
+  );
+  hr();
+  const pc = presenceColor(m.presence);
+  const routeClr = routeModeColor(route.route_mode);
+  line(
+    `${pc}o${C.reset} ${C.bold}${m.display_name || m.name || "?"}${C.reset}  ${C.dim}role=${m.role || "-"}${C.reset}  ${pc}${m.presence}${C.reset}  ${C.dim}task=${m.current_task_ref || m.worker_task_id || "-"}${C.reset}`,
+  );
+  const freshnessMeta = focusedFreshnessMeta(m);
+  line(
+    `  ${C.dim}route=${route.route_label}${C.reset} ${routeClr}(${route.route_mode})${C.reset}  ${C.dim}freshness=${formatFreshness(freshnessMeta)} age=${route.live_age_ms != null ? `${Math.round(route.live_age_ms / 1000)}s` : "n/a"} stale_after=${Math.round((route.stale_after_ms || DEFAULT_LIVE_STALE_AFTER_MS) / 1000)}s${C.reset}`,
+  );
+  line(`  ${C.dim}reason=${route.route_reason || "-"}${C.reset}`);
+  line(
+    route.fallback_reason
+      ? `  ${C.yellow}fallback_reason=${route.fallback_reason}${C.reset}`
+      : `  ${C.dim}fallback_reason=none${C.reset}`,
+  );
+  line(`  ${C.dim}source_truth=${route.source_truth || "-"}${C.reset}`);
+  line(
+    `  ${C.dim}preference=${(route.route_mode_preference || ["native-live", "sidecar-live", "tmux-mirror"]).join(" > ")}${C.reset}`,
+  );
+  line(
+    `  ${C.dim}selected_interrupt=${interrupt?.code || interrupt?.kind || "none"} selected_approval=${approval?.task_id || "none"}${C.reset}`,
+  );
+  line(
+    `  ${C.dim}load=${m.load_score ?? "-"}  ready=${m.dispatch_readiness ?? "-"}  session=${m.session_id || "-"}  pane=${m.tmux_pane_id || "-"}${C.reset}`,
+  );
+  hr();
+
+  const output =
+    route.route_mode === "tmux-mirror"
+      ? getTeammateOutput(m)
+      : focusedLiveText(m);
+  if (output) {
+    const maxLines = Math.max(10, (process.stdout.rows || 40) - 8);
+    const lines = output.split("\n");
+    const visible = lines.slice(-maxLines).join("\n");
+    w(visible);
+  } else {
+    line(
+      `${C.dim}[No live output -- teammate may be offline or not yet assigned a task]${C.reset}`,
+    );
+  }
+  line("");
+  line(state.message || `${C.dim}Ready.${C.reset}`);
+}
+
+// ── Split-Pane Layout ──
+// Renders two columns using ANSI cursor absolute positioning.
+// Left panel: team/member list (fixed ~42 cols wide)
+// Right panel: selected teammate's live output (remaining cols)
+
+const SPLIT_LEFT_WIDTH = 42;
+
+function moveTo(row, col) {
+  process.stdout.write(`\x1b[${row};${col}H`);
+}
+
+function renderSplit() {
+  const totalCols = process.stdout.columns || 120;
+  const rows = process.stdout.rows || 40;
+  const rightStart = SPLIT_LEFT_WIDTH + 2;
+  const rightWidth = Math.max(20, totalCols - rightStart);
+
+  readline.cursorTo(process.stdout, 0, 0);
+  readline.clearScreenDown(process.stdout);
+
+  // ── Left panel: member list ──
+  const teammates = state.detail?.teammates || [];
+  let row = 1;
+  moveTo(row++, 1);
+  process.stdout.write(
+    `${C.bold}Workers${C.reset}  ${C.dim}[j/k/h/l/[ ]]focus${C.reset}`,
+  );
+  moveTo(row++, 1);
+  process.stdout.write("─".repeat(SPLIT_LEFT_WIDTH));
+  for (let i = 0; i < teammates.length && row < rows - 2; i++) {
+    const m = teammates[i];
+    const sel = i === state.selectedMemberIdx;
+    const pc = presenceColor(m.presence);
+    const name = (m.display_name || m.name || "?").slice(0, 16).padEnd(16);
+    const task = (m.current_task_ref || "-").slice(0, 12).padEnd(12);
+    const prefix = sel ? `${C.cyan}▶${C.reset} ` : "  ";
+    moveTo(row++, 1);
+    process.stdout.write(
+      `${prefix}${pc}●${C.reset} ${name} ${C.dim}${task}${C.reset}`,
+    );
+  }
+
+  // ── Divider ──
+  for (let r = 1; r <= rows - 1; r++) {
+    moveTo(r, SPLIT_LEFT_WIDTH + 1);
+    process.stdout.write(`${C.dim}│${C.reset}`);
+  }
+
+  // ── Right panel: selected worker output ──
+  const m = teammates[state.selectedMemberIdx];
+  let rightRow = 1;
+  if (m) {
+    const route = resolveFocusedRoute(m);
+    const freshnessMeta = focusedFreshnessMeta(m);
+    const interrupt = focusedInterruptRecord();
+    const approval = focusedApprovalRecord();
+    const routeClr = routeModeColor(route.route_mode);
+    state.focusedRoute = route;
+    moveTo(rightRow++, rightStart);
+    process.stdout.write(
+      `${C.bold}${m.display_name || m.name}${C.reset}  ${presenceColor(m.presence)}${m.presence}${C.reset}  ${C.dim}${m.current_task_ref || "idle"}${C.reset}`,
+    );
+    moveTo(rightRow++, rightStart);
+    process.stdout.write(
+      `${route.route_label} ${routeClr}(${route.route_mode})${C.reset} · ${formatFreshness(freshnessMeta)} · age=${route.live_age_ms != null ? `${Math.round(route.live_age_ms / 1000)}s` : "n/a"}`,
+    );
+    moveTo(rightRow++, rightStart);
+    process.stdout.write(
+      `reason: ${route.route_reason || "-"}`.slice(0, rightWidth),
+    );
+    if (route.fallback_reason) {
+      moveTo(rightRow++, rightStart);
+      process.stdout.write(
+        `fallback: ${route.fallback_reason}`.slice(0, rightWidth),
+      );
+    } else {
+      moveTo(rightRow++, rightStart);
+      process.stdout.write("fallback: none".slice(0, rightWidth));
+    }
+    moveTo(rightRow++, rightStart);
+    process.stdout.write(
+      `source: ${route.source_truth || "-"}`.slice(0, rightWidth),
+    );
+    moveTo(rightRow++, rightStart);
+    process.stdout.write(
+      `focused interrupt=${interrupt?.code || interrupt?.kind || "none"} approval=${approval?.task_id || "none"}`.slice(
+        0,
+        rightWidth,
+      ),
+    );
+    moveTo(rightRow++, rightStart);
+    process.stdout.write("─".repeat(Math.min(rightWidth, 60)));
+
+    const output =
+      route.route_mode === "tmux-mirror"
+        ? getTeammateOutput(m)
+        : focusedLiveText(m);
+    if (output) {
+      const maxLines = Math.max(5, rows - rightRow - 2);
+      const outputLines = output.split("\n").slice(-maxLines);
+      for (const l of outputLines) {
+        if (rightRow >= rows - 1) break;
+        moveTo(rightRow++, rightStart);
+        process.stdout.write(l.slice(0, rightWidth));
+      }
+    } else {
+      moveTo(rightRow, rightStart);
+      process.stdout.write(`${C.dim}[no output]${C.reset}`);
+    }
+  }
+
+  // ── Status bar ──
+  moveTo(rows, 1);
+  process.stdout.write(
+    `${C.dim}[j/k or h/l or [/] teammate] [,/ .]interrupt [Enter]triage [y/n]approval [Tab]focus [SPACE]refresh [x]quit ${state.message || ""}${C.reset}`,
+  );
+}
+
 // ── Main Render ──
 
 function render() {
   if (state.viewMode === "approval") return renderApprovalView();
+  if (state.viewMode === "teammate") return renderTeammateView();
+  if (state.viewMode === "split") return renderSplit();
   clear();
   renderHeader();
   renderNative();
@@ -443,7 +903,24 @@ async function refresh() {
   const selected = teamName();
   if (selected) {
     state.detail = await request(`/teams/${encodeURIComponent(selected)}`);
-    state.interrupts = state.detail?.interrupts || [];
+    cacheTeammates(state.detail?.teammates || [], Date.now());
+    if (state.selectedMemberIdx >= (state.detail?.teammates || []).length) {
+      state.selectedMemberIdx = Math.max(
+        0,
+        (state.detail?.teammates || []).length - 1,
+      );
+    }
+    try {
+      const intr = await request(
+        `/teams/${encodeURIComponent(selected)}/interrupts`,
+      );
+      state.interrupts = intr.interrupts || [];
+    } catch {
+      state.interrupts = state.detail?.interrupts || [];
+    }
+    if (state.selectedInterruptIdx >= state.interrupts.length) {
+      state.selectedInterruptIdx = Math.max(0, state.interrupts.length - 1);
+    }
     state.alerts = state.detail?.alerts || [];
     try {
       const ap = await request(
@@ -453,11 +930,43 @@ async function refresh() {
     } catch {
       state.approvals = [];
     }
+    syncFocusedSelections();
   } else {
     state.detail = null;
     state.interrupts = [];
     state.approvals = [];
   }
+  render();
+}
+
+async function refreshFocusedContext() {
+  const selected = teamName();
+  if (!selected) {
+    await refresh();
+    return;
+  }
+  const [detail, intr, ap, actions] = await Promise.all([
+    request(`/teams/${encodeURIComponent(selected)}`),
+    request(`/teams/${encodeURIComponent(selected)}/interrupts`).catch(() => ({
+      interrupts: [],
+    })),
+    request(`/teams/${encodeURIComponent(selected)}/approvals`).catch(() => ({
+      approvals: [],
+    })),
+    request("/actions").catch(() => ({ actions: [] })),
+  ]);
+  state.detail = detail;
+  cacheTeammates(state.detail?.teammates || [], Date.now());
+  if (state.selectedMemberIdx >= (state.detail?.teammates || []).length) {
+    state.selectedMemberIdx = Math.max(
+      0,
+      (state.detail?.teammates || []).length - 1,
+    );
+  }
+  state.interrupts = intr.interrupts || state.detail?.interrupts || [];
+  state.approvals = ap.approvals || [];
+  state.actions = actions.actions || state.actions;
+  syncFocusedSelections();
   render();
 }
 
@@ -516,7 +1025,7 @@ function promptInput(prompt, cb) {
   });
 }
 
-async function doAction(action, body = {}) {
+async function doAction(action, body = {}, opts = {}) {
   const t = teamName();
   if (!t) {
     state.message = "No team selected";
@@ -555,7 +1064,8 @@ async function doAction(action, body = {}) {
       );
     }
     state.message = `${action}: ${res.adapter || "sidecar"} ${res.path_mode ? `(${res.path_mode})` : ""} - ${res.reason || "ok"}${res.action_id ? ` [${res.action_id}]` : ""}`;
-    await refresh();
+    if (opts.refreshMode === "focused") await refreshFocusedContext();
+    else await refresh();
   } catch (err) {
     state.message = `${action} failed: ${err.message}`;
     render();
@@ -581,7 +1091,7 @@ async function routeSim(action, payload = {}) {
     if (trace.length) {
       line("");
       box("Decision Trace");
-      for (const step of trace) line(`  ${C.dim}→${C.reset} ${step}`);
+      for (const step of trace) line(`  ${C.dim}-->${C.reset} ${step}`);
     }
   } catch (err) {
     state.message = `route-sim failed: ${err.message}`;
@@ -610,7 +1120,255 @@ async function batchTriage(op) {
   }
 }
 
+async function triageSelectedInterrupt() {
+  const interrupts = state.interrupts || state.detail?.interrupts || [];
+  if (!interrupts.length) {
+    state.message = "No interrupt selected";
+    render();
+    return;
+  }
+  const idx = Math.max(
+    0,
+    Math.min(state.selectedInterruptIdx, interrupts.length - 1),
+  );
+  if (idx < 0) {
+    state.message = "No interrupt selected";
+    render();
+    return;
+  }
+  state.selectedInterruptIdx = idx;
+  const selected = interrupts[idx];
+  try {
+    if (selected.kind === "approval" && selected.task_id) {
+      await doAction(
+        "approve-plan",
+        {
+          task_id: selected.task_id,
+          message: "Approved from interrupt triage",
+        },
+        { refreshMode: "focused" },
+      );
+      state.message = `Approved ${selected.task_id}`;
+      return;
+    }
+    if (selected.kind === "stale" && selected.session_id) {
+      await doAction(
+        "wake",
+        {
+          session_id: selected.session_id,
+          message: "Wake from interrupt triage",
+        },
+        { refreshMode: "focused" },
+      );
+      state.message = `Wake sent ${selected.session_id}`;
+      return;
+    }
+    if (selected.code === "bridge_stuck_request") {
+      const res = await request("/native/bridge/validate", "POST", {
+        team_name: teamName(),
+        timeout_ms: 10000,
+      });
+      state.message = `bridge validate: ${res.ok ? "PASS" : "FAIL"} ${res.latency_ms || "-"}ms`;
+      await refresh();
+      return;
+    }
+    state.message = `No triage handler for ${selected.kind || selected.code || "interrupt"}`;
+    render();
+  } catch (err) {
+    state.message = `triage failed: ${err.message}`;
+    render();
+  }
+}
+
+async function approveOrRejectFocused(mode = "approve") {
+  const approvals = state.approvals || [];
+  const idx = findFocusedApprovalIndex();
+  if (!approvals.length || idx < 0 || !approvals[idx]) {
+    state.message = "No focused approval";
+    render();
+    return;
+  }
+  state.selectedApprovalIdx = idx;
+  const ap = approvals[idx];
+  if (mode === "approve") {
+    await doAction(
+      "approve-plan",
+      {
+        task_id: ap.task_id || ap.worker,
+        message: "Approved from focused teammate controls",
+      },
+      { refreshMode: "focused" },
+    );
+    state.message = `Approved ${ap.task_id || ap.worker}`;
+    return;
+  }
+  return promptInput("Revision feedback", async (feedback) => {
+    await doAction(
+      "reject-plan",
+      {
+        task_id: ap.task_id || ap.worker,
+        feedback: feedback || "Needs revision",
+      },
+      { refreshMode: "focused" },
+    );
+    state.message = `Rejected ${ap.task_id || ap.worker}`;
+  });
+}
+
 // ── Auto-refresh ──
+
+function handleLiveEvent(eventName, data) {
+  if (!eventName) return;
+  if (eventName === "teammate.updated") {
+    const teammates = Array.isArray(data?.teammates) ? data.teammates : [];
+    cacheTeammates(teammates, Date.now());
+    const currentTeam = teamName();
+    if (state.detail && currentTeam) {
+      state.detail.teammates = teammates.filter(
+        (m) => m.team_name === currentTeam,
+      );
+      if (state.selectedMemberIdx >= state.detail.teammates.length) {
+        state.selectedMemberIdx = Math.max(
+          0,
+          state.detail.teammates.length - 1,
+        );
+      }
+      syncFocusedSelections();
+    }
+    if (state.viewMode === "teammate" || state.viewMode === "split") render();
+    return;
+  }
+  if (eventName === "task.updated") {
+    const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+    const currentTeam = teamName();
+    if (state.detail && currentTeam) {
+      state.detail.tasks = tasks.filter((t) => t.team_name === currentTeam);
+      if (state.viewMode === "main") render();
+    }
+    return;
+  }
+  if (eventName === "team.updated") {
+    if (Array.isArray(data?.teams)) {
+      state.teams = data.teams;
+      if (state.selectedTeamIdx >= state.teams.length) {
+        state.selectedTeamIdx = Math.max(0, state.teams.length - 1);
+      }
+      if (state.viewMode === "main") render();
+    }
+    return;
+  }
+  if (eventName === "native.capabilities.updated") {
+    state.native = {
+      ...(state.native || {}),
+      native: data || {},
+    };
+    if (state.viewMode === "teammate" || state.viewMode === "split") render();
+    return;
+  }
+  if (eventName === "native.bridge.status") {
+    state.native = {
+      ...(state.native || {}),
+      bridge: data || {},
+    };
+    if (state.viewMode === "teammate" || state.viewMode === "split") render();
+  }
+}
+
+function connectLiveEvents() {
+  if (!sidecarPort) return;
+  if (state.sseRequest) {
+    try {
+      state.sseRequest.destroy();
+    } catch {}
+    state.sseRequest = null;
+  }
+  const headers = { Accept: "text/event-stream" };
+  if (sidecarToken) headers.Authorization = `Bearer ${sidecarToken}`;
+  const req = http.request(
+    { host, port: sidecarPort, path: "/v1/events", method: "GET", headers },
+    (res) => {
+      state.sseConnected = true;
+      let buffer = "";
+      let eventName = "";
+      let dataParts = [];
+      res.on("data", (chunk) => {
+        buffer += chunk.toString("utf8");
+        while (buffer.includes("\n")) {
+          const idx = buffer.indexOf("\n");
+          const lineRaw = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 1);
+          const line = lineRaw.endsWith("\r") ? lineRaw.slice(0, -1) : lineRaw;
+          if (!line) {
+            if (eventName) {
+              const dataText = dataParts.join("\n");
+              let parsed = null;
+              try {
+                parsed = dataText ? JSON.parse(dataText) : null;
+              } catch {
+                parsed = null;
+              }
+              handleLiveEvent(eventName, parsed);
+            }
+            eventName = "";
+            dataParts = [];
+            continue;
+          }
+          if (line.startsWith(":")) continue;
+          if (line.startsWith("event:")) {
+            eventName = line.slice(6).trim();
+            continue;
+          }
+          if (line.startsWith("data:")) {
+            dataParts.push(line.slice(5).trimStart());
+          }
+        }
+      });
+      res.on("end", () => {
+        state.sseConnected = false;
+        state.sseRequest = null;
+        if (!state.sseReconnectTimer) {
+          state.sseReconnectTimer = setTimeout(() => {
+            state.sseReconnectTimer = null;
+            connectLiveEvents();
+          }, 1500);
+        }
+      });
+    },
+  );
+  req.on("error", () => {
+    state.sseConnected = false;
+    state.sseRequest = null;
+    if (!state.sseReconnectTimer) {
+      state.sseReconnectTimer = setTimeout(() => {
+        state.sseReconnectTimer = null;
+        connectLiveEvents();
+      }, 1500);
+    }
+  });
+  req.end();
+  state.sseRequest = req;
+}
+
+// Focus view refreshes frequently only for tmux mirror fallback.
+function startTeammateAutoRefresh() {
+  if (state.teammateRefreshTimer) clearInterval(state.teammateRefreshTimer);
+  state.teammateRefreshTimer = setInterval(() => {
+    if (state.viewMode === "teammate" || state.viewMode === "split") {
+      const m = selectedTeammate();
+      const route = m ? resolveFocusedRoute(m) : null;
+      if (
+        route &&
+        (route.route_mode === "tmux-mirror" ||
+          route.freshness !== LIVE_FRESHNESS.FRESH)
+      ) {
+        render();
+      }
+    } else {
+      clearInterval(state.teammateRefreshTimer);
+      state.teammateRefreshTimer = null;
+    }
+  }, 450);
+}
 
 function startAutoRefresh() {
   if (state.autoRefreshTimer) clearInterval(state.autoRefreshTimer);
@@ -634,6 +1392,29 @@ async function main() {
     process.exit(1);
   });
   startAutoRefresh();
+  connectLiveEvents();
+  const shutdown = () => {
+    try {
+      if (state.sseRequest) state.sseRequest.destroy();
+    } catch {}
+    try {
+      if (state.sseReconnectTimer) clearTimeout(state.sseReconnectTimer);
+    } catch {}
+    try {
+      if (state.autoRefreshTimer) clearInterval(state.autoRefreshTimer);
+    } catch {}
+    try {
+      if (state.teammateRefreshTimer) clearInterval(state.teammateRefreshTimer);
+    } catch {}
+  };
+  process.on("exit", shutdown);
+
+  // Auto-enable split pane if terminal is wide enough
+  if ((process.stdout.columns || 0) >= 100) {
+    state.viewMode = "split";
+    startTeammateAutoRefresh();
+    render();
+  }
 
   readline.emitKeypressEvents(process.stdin);
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
@@ -647,6 +1428,17 @@ async function main() {
         state.viewMode = "main";
         return render();
       }
+      if (key.name === "j") {
+        state.selectedApprovalIdx = Math.min(
+          state.selectedApprovalIdx + 1,
+          Math.max(0, state.approvals.length - 1),
+        );
+        return render();
+      }
+      if (key.name === "k") {
+        state.selectedApprovalIdx = Math.max(0, state.selectedApprovalIdx - 1);
+        return render();
+      }
       if (str >= "1" && str <= "9") {
         state.selectedApprovalIdx = Math.min(
           Number(str) - 1,
@@ -654,41 +1446,106 @@ async function main() {
         );
         return render();
       }
-      if (key.name === "a") {
+      if (key.name === "a" || key.name === "y" || key.name === "return") {
         const ap = state.approvals[state.selectedApprovalIdx];
         if (!ap) {
           state.message = "No approval selected";
           return render();
         }
         return promptInput("Approval note (optional)", async (message) => {
-          await doAction("approve-plan", {
-            task_id: ap.task_id || ap.worker,
-            message,
-          });
+          await doAction(
+            "approve-plan",
+            {
+              task_id: ap.task_id || ap.worker,
+              message,
+            },
+            { refreshMode: "focused" },
+          );
           state.message = `Approved ${ap.task_id || ap.worker}`;
-          await refresh();
         });
       }
-      if (key.name === "r") {
+      if (key.name === "r" || key.name === "n") {
         const ap = state.approvals[state.selectedApprovalIdx];
         if (!ap) {
           state.message = "No approval selected";
           return render();
         }
         return promptInput("Revision feedback", async (feedback) => {
-          await doAction("reject-plan", {
-            task_id: ap.task_id || ap.worker,
-            feedback,
-          });
+          await doAction(
+            "reject-plan",
+            {
+              task_id: ap.task_id || ap.worker,
+              feedback,
+            },
+            { refreshMode: "focused" },
+          );
           state.message = `Rejected ${ap.task_id || ap.worker}`;
-          await refresh();
         });
       }
       return;
     }
 
+    // Escape -- exit teammate or split view back to main
+    if (
+      key.name === "escape" &&
+      (state.viewMode === "teammate" || state.viewMode === "split")
+    ) {
+      state.viewMode = "main";
+      if (state.teammateRefreshTimer) {
+        clearInterval(state.teammateRefreshTimer);
+        state.teammateRefreshTimer = null;
+      }
+      return render();
+    }
+
+    // Tab -- toggle split pane on/off
+    if (key.name === "tab") {
+      if (state.viewMode === "split") {
+        state.viewMode = (state.detail?.teammates || []).length
+          ? "teammate"
+          : "main";
+        startTeammateAutoRefresh();
+      } else {
+        state.viewMode = "split";
+        startTeammateAutoRefresh();
+      }
+      return render();
+    }
+
+    // Focused teammate cycle keys.
+    if (
+      (key.shift && key.name === "up") ||
+      key.name === "h" ||
+      (key.shift && key.name === "left")
+    ) {
+      if (!applyFocusedTeammateCycle(-1)) return;
+      return render();
+    }
+
+    if (
+      (key.shift && key.name === "down") ||
+      key.name === "l" ||
+      (key.shift && key.name === "right")
+    ) {
+      if (!applyFocusedTeammateCycle(1)) return;
+      return render();
+    }
+
+    if (str === "[") {
+      if (!applyFocusedTeammateCycle(-1)) return;
+      return render();
+    }
+    if (str === "]") {
+      if (!applyFocusedTeammateCycle(1)) return;
+      return render();
+    }
+
     // Main view keys
     if (key.name === "j") {
+      if (state.viewMode === "split") {
+        if (!applyFocusedTeammateCycle(1, { enterFocusedView: false })) return;
+        return render();
+      }
       state.selectedTeamIdx = Math.min(
         state.selectedTeamIdx + 1,
         Math.max(0, state.teams.length - 1),
@@ -696,19 +1553,63 @@ async function main() {
       return refresh().catch(() => {});
     }
     if (key.name === "k") {
+      if (state.viewMode === "split") {
+        if (!applyFocusedTeammateCycle(-1, { enterFocusedView: false })) return;
+        return render();
+      }
       state.selectedTeamIdx = Math.max(0, state.selectedTeamIdx - 1);
       return refresh().catch(() => {});
     }
-    if (str === "[") {
+    if (str === "{") {
       state.selectedActionIdx = Math.max(0, state.selectedActionIdx - 1);
       return render();
     }
-    if (str === "]") {
+    if (str === "}") {
       state.selectedActionIdx = Math.min(
         state.selectedActionIdx + 1,
         Math.max(0, Math.min(7, state.actions.length - 1)),
       );
       return render();
+    }
+    if (str === ",") {
+      const interrupts = state.interrupts || state.detail?.interrupts || [];
+      if (!interrupts.length) return;
+      state.selectedInterruptIdx = cycleIndex(
+        state.selectedInterruptIdx,
+        -1,
+        interrupts.length,
+      );
+      return render();
+    }
+    if (str === ".") {
+      const interrupts = state.interrupts || state.detail?.interrupts || [];
+      if (!interrupts.length) return;
+      state.selectedInterruptIdx = cycleIndex(
+        state.selectedInterruptIdx,
+        1,
+        interrupts.length,
+      );
+      return render();
+    }
+    if (key.name === "return") return triageSelectedInterrupt();
+
+    if (
+      (state.viewMode === "teammate" || state.viewMode === "split") &&
+      key.name === "y"
+    ) {
+      return approveOrRejectFocused("approve").catch((err) => {
+        state.message = `approve failed: ${err.message}`;
+        render();
+      });
+    }
+    if (
+      (state.viewMode === "teammate" || state.viewMode === "split") &&
+      key.name === "n"
+    ) {
+      return approveOrRejectFocused("reject").catch((err) => {
+        state.message = `reject failed: ${err.message}`;
+        render();
+      });
     }
 
     // Focus mode cycling
@@ -803,11 +1704,19 @@ async function main() {
         promptInput("Approve or reject? (a/r)", (mode) => {
           if (String(mode).toLowerCase().startsWith("a")) {
             promptInput("Approval note (optional)", async (message) => {
-              await doAction("approve-plan", { task_id, message });
+              await doAction(
+                "approve-plan",
+                { task_id, message },
+                { refreshMode: "focused" },
+              );
             });
           } else {
             promptInput("Revision feedback", async (feedback) => {
-              await doAction("reject-plan", { task_id, feedback });
+              await doAction(
+                "reject-plan",
+                { task_id, feedback },
+                { refreshMode: "focused" },
+              );
             });
           }
         });
@@ -818,7 +1727,11 @@ async function main() {
     if (key.name === "w") {
       return promptInput("Session id", (session_id) => {
         promptInput("Wake message", async (message) => {
-          await doAction("wake", { session_id, message });
+          await doAction(
+            "wake",
+            { session_id, message },
+            { refreshMode: "focused" },
+          );
         });
       });
     }

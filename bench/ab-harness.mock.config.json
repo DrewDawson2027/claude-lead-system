@@ -1,0 +1,60 @@
+{
+  "workload": {
+    "id": "mock-ab-workload",
+    "description": "Deterministic mock workload that emits telemetry for harness validation.",
+    "prompt_file": "workloads/mock-workload-prompt.md"
+  },
+  "trials": 4,
+  "timeout_seconds": 120,
+  "confidence_level": 0.95,
+  "bootstrap_iterations": 2000,
+  "seed": 12345,
+  "usage_window_tokens": 220000,
+  "claim_policy": {
+    "min_trials_for_savings_claim": 5
+  },
+  "telemetry": {
+    "agent_metrics_jsonl": "reports/ab-harness/mock-telemetry/agent-metrics.jsonl",
+    "activity_jsonl": "reports/ab-harness/mock-telemetry/activity.jsonl",
+    "conflicts_jsonl": "reports/ab-harness/mock-telemetry/conflicts.jsonl",
+    "results_dir": "reports/ab-harness/mock-telemetry/results",
+    "transcript_roots": ["reports/ab-harness/mock-telemetry/transcripts"],
+    "transcript_include_regex": "transcript.*\\.jsonl$",
+    "transcript_max_depth": 4
+  },
+  "paths": {
+    "native": {
+      "enabled": true,
+      "command": "bash bench/workloads/ab-example-workload.sh",
+      "extra_env": {
+        "AB_MOCK_AGENT_METRICS_JSONL": "reports/ab-harness/mock-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "reports/ab-harness/mock-telemetry/transcripts/transcript-native.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "reports/ab-harness/mock-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "reports/ab-harness/mock-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "reports/ab-harness/mock-telemetry/results"
+      }
+    },
+    "lead_coordinator": {
+      "enabled": true,
+      "command": "bash bench/workloads/ab-example-workload.sh",
+      "extra_env": {
+        "AB_MOCK_AGENT_METRICS_JSONL": "reports/ab-harness/mock-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "reports/ab-harness/mock-telemetry/transcripts/transcript-lead-coordinator.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "reports/ab-harness/mock-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "reports/ab-harness/mock-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "reports/ab-harness/mock-telemetry/results"
+      }
+    },
+    "lead_overlay": {
+      "enabled": true,
+      "command": "bash bench/workloads/ab-example-workload.sh",
+      "extra_env": {
+        "AB_MOCK_AGENT_METRICS_JSONL": "reports/ab-harness/mock-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "reports/ab-harness/mock-telemetry/transcripts/transcript-lead-overlay.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "reports/ab-harness/mock-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "reports/ab-harness/mock-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "reports/ab-harness/mock-telemetry/results"
+      }
+    }
+  }
+}

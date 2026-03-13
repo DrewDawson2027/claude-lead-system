@@ -17,10 +17,12 @@ import {
   sanitizeId,
   sanitizeName,
   writeFileSecure,
+  appendJSONLineSecure,
   ensureSecureDirectory,
   acquireExclusiveFileLock,
 } from "./security.js";
 import { readJSON, text } from "./helpers.js";
+import { resolveWorkerName } from "./messaging.js";
 
 // ── C2: Audit Trail ──
 
@@ -235,6 +237,35 @@ function autoUnblockDependents(completedTaskId, dir) {
     appendAuditEntry(t.task_id, "unblocked", null, null, {
       cleared_dependency: completedTaskId,
     });
+    // Active notification: push inbox messages when a task becomes fully unblocked.
+    // Native parity: "blocked tasks unblock without manual intervention."
+    if (t.blocked_by.length === 0 && t.status === "pending") {
+      const { INBOX_DIR } = cfg();
+      const msg = {
+        ts: new Date().toISOString(),
+        from: "auto-unblock",
+        priority: "normal",
+        content: `[UNBLOCKED] Task ${t.task_id} "${t.subject}" is now ready — dependency ${completedTaskId} completed.`,
+      };
+      // Notify the assignee's worker if known
+      if (t.assignee) {
+        const sid = resolveWorkerName(t.assignee);
+        if (sid) {
+          appendJSONLineSecure(join(INBOX_DIR, `${sid}.jsonl`), msg);
+        }
+      }
+      // Also broadcast to any lead sessions so they can auto-dispatch
+      try {
+        const files = readdirSync(INBOX_DIR).filter((f) =>
+          f.endsWith(".jsonl"),
+        );
+        for (const f of files) {
+          try {
+            appendJSONLineSecure(join(INBOX_DIR, f), msg);
+          } catch {}
+        }
+      } catch {}
+    }
   }
 }
 
@@ -268,6 +299,7 @@ export function handleCreateTask(args) {
     }
 
     const task = {
+      id: taskId,
       task_id: taskId,
       subject,
       description: String(args.description || "").trim(),
@@ -276,6 +308,10 @@ export function handleCreateTask(args) {
         ? sanitizeName(args.team_name, "team_name")
         : null,
       assignee: args.assignee ? sanitizeName(args.assignee, "assignee") : null,
+      assigned_to: args.assignee
+        ? sanitizeName(args.assignee, "assignee")
+        : null,
+      claimed_by: null,
       priority:
         args.priority === "high"
           ? "high"
@@ -351,7 +387,14 @@ export function handleUpdateTask(args) {
       task.assignee = args.assignee
         ? sanitizeName(args.assignee, "assignee")
         : null;
+      task.assigned_to = task.assignee;
       changes.push(`assignee → ${task.assignee || "unassigned"}`);
+    }
+    if (args.claimed_by !== undefined) {
+      task.claimed_by = args.claimed_by
+        ? sanitizeName(args.claimed_by, "claimed_by")
+        : null;
+      changes.push(`claimed_by → ${task.claimed_by || "none"}`);
     }
     if (args.team_name !== undefined) {
       task.team_name = args.team_name

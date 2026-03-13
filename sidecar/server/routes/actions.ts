@@ -1,5 +1,19 @@
 import { actionIdFromPath } from "./shared.js";
 
+function withRouteSnapshot(record: any): any {
+  if (!record || typeof record !== "object") return record;
+  const routeMode =
+    record.route_mode || record.path_mode || record.adapter || "unknown";
+  const routeReason =
+    record.route_reason || record.reason || "route metadata unavailable";
+  return {
+    ...record,
+    route_mode: routeMode,
+    route_reason: routeReason,
+    reason: routeReason,
+  };
+}
+
 export function registerActionRoutes(registry: any): void {
   registry.add("actions:route-simulate", async (ctx: any) => {
     const { req, res, url, snapshot } = ctx;
@@ -40,7 +54,8 @@ export function registerActionRoutes(registry: any): void {
   registry.add("actions:list", (ctx: any) => {
     const { req, res, url } = ctx;
     if (!(req.method === "GET" && url.pathname === "/actions")) return false;
-    ctx.sendJson(res, 200, { actions: ctx.actionQueue.list(200) }, req);
+    const actions = (ctx.actionQueue.list(200) || []).map(withRouteSnapshot);
+    ctx.sendJson(res, 200, { actions }, req);
     return true;
   });
 
@@ -54,7 +69,7 @@ export function registerActionRoutes(registry: any): void {
       ctx.sendError(res, 404, "NOT_FOUND", "Action not found", req);
       return true;
     }
-    ctx.sendJson(res, 200, record, req);
+    ctx.sendJson(res, 200, withRouteSnapshot(record), req);
     return true;
   });
 

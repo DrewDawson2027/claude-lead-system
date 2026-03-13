@@ -33,6 +33,7 @@ function buildAutoClaimPayload(opts = {}) {
     runtime: opts.runtime,
     layout: opts.layout,
     notify_session_id: opts.leadSessionId,
+    parent_session_id: opts.parentSessionId,
     model: opts.model,
     agent: opts.agent,
     role: opts.role,
@@ -69,6 +70,19 @@ function buildAutoClaimEnvExports(opts = {}) {
 
 function autoClaimShellCommand() {
   return '([ -n "${CLAUDE_AUTOCLAIM_ARGS_B64:-}" ] && "$CLAUDE_AUTOCLAIM_NODE" "$CLAUDE_AUTOCLAIM_SCRIPT" >/dev/null 2>&1) || true';
+}
+
+function buildParentSessionEnvExports(parentSessionId = "") {
+  const normalized = String(parentSessionId || "").trim();
+  if (!normalized) return [];
+  return [`export CLAUDE_PARENT_SESSION_ID=${shellQuote(normalized)}`];
+}
+
+function buildParentSessionSetup(qClaudeBin) {
+  return [
+    'CLAUDE_PARENT_ARG=""',
+    `if [ -n "\${CLAUDE_PARENT_SESSION_ID:-}" ]; then _CLAUDE_HELP=$(${qClaudeBin} --help 2>&1 || true); case "$_CLAUDE_HELP" in *--parent-session-id*) CLAUDE_PARENT_ARG="--parent-session-id $CLAUDE_PARENT_SESSION_ID" ;; esac; fi`,
+  ].join(" && ");
 }
 
 /**
@@ -483,6 +497,7 @@ export function buildInteractiveWorkerScript(opts) {
   const sessionId = opts.sessionId || "";
   const leadSessionId = opts.leadSessionId || "";
   const leadPaneId = opts.leadPaneId || "";
+  const parentSessionId = opts.parentSessionId || "";
 
   if (platformName === "win32") {
     return buildWorkerScript(opts);
@@ -510,6 +525,7 @@ export function buildInteractiveWorkerScript(opts) {
       runtime,
       layout,
       leadSessionId,
+      parentSessionId,
       model,
       agent,
       role,
@@ -525,6 +541,7 @@ export function buildInteractiveWorkerScript(opts) {
       contextSummary,
       isolate: opts.isolate,
     }),
+    ...buildParentSessionEnvExports(parentSessionId),
     `export CLAUDE_WORKER_TASK_ID=${shellQuote(taskId)}`,
     workerName ? `export CLAUDE_WORKER_NAME=${shellQuote(workerName)}` : "",
     maxTurns
@@ -546,46 +563,69 @@ export function buildInteractiveWorkerScript(opts) {
   const isLinux = platformName === "linux";
   const qPermMode = shellQuote(permissionMode);
   const sessionIdArg = sessionId ? `--session-id ${shellQuote(sessionId)}` : "";
-  const claudeCmd = `${qClaudeBin} --prompt "$WORKER_PROMPT" --permission-mode ${qPermMode} --model ${qModel} ${sessionIdArg} ${agentArgs} ${settingsArgs}`;
+  const parentSessionSetup = buildParentSessionSetup(qClaudeBin);
+  const claudeCmd = `${qClaudeBin} --prompt "$WORKER_PROMPT" --permission-mode ${qPermMode} --model ${qModel} $CLAUDE_PARENT_ARG ${sessionIdArg} ${agentArgs} ${settingsArgs}`;
   const scriptWrapped = isLinux
     ? `script -q ${qTranscript} -c "${claudeCmd.replace(/"/g, '\\"')}"`
     : `script -q ${qTranscript} ${claudeCmd}`;
 
   const workerDisplay = workerName || taskId;
-  const trapParts = [
+  // Completion commands run inside the loop body after each claude invocation exits.
+  const completionCmds = [
     `printf '{"status":"completed","finished":"%s","task_id":"${taskId}"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ${qMetaDone}`,
     `rm -f ${qPid}`,
   ];
-  if (leadPaneId) {
-    trapParts.push(
-      `tmux send-keys -t "$CLAUDE_LEAD_PANE_ID" "[COMPLETED] ${workerDisplay}" Enter 2>/dev/null || true`,
-    );
-  }
+  // NOTE: tmux send-keys "[COMPLETED]" removed — it injects raw text as user input
+  // into the lead's terminal, causing Claude to treat it as a user message and respond.
+  // Inbox-only delivery (below) is the correct mechanism: controlled, session-scoped,
+  // and surfaced by check-inbox.sh on the next tool call.
   if (leadSessionId) {
-    trapParts.push(
+    completionCmds.push(
       `printf '{"ts":"%s","from":"coordinator","priority":"normal","content":"[COMPLETED] ${workerDisplay}"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
     );
   }
-  trapParts.push(autoClaimShellCommand());
-  trapParts.push(
-    '[ -n "${_IDLE_PID:-}" ] && kill "$_IDLE_PID" 2>/dev/null || true',
-  );
-  const exitTrapCmd = `trap '${trapParts.join("; ")}' EXIT`;
+
+  // Claim-next block: runs at end of each loop iteration.
+  // Uses --claim-only to get JSON task data without spawning a new process.
+  // Empty output signals no more tasks — breaks the loop.
+  const claimNextCmds = [
+    '[ -n "${CLAUDE_AUTOCLAIM_ARGS_B64:-}" ] || break',
+    '_CLAIM=$("$CLAUDE_AUTOCLAIM_NODE" "$CLAUDE_AUTOCLAIM_SCRIPT" --claim-only 2>/dev/null) || true',
+    '[ -z "$_CLAIM" ] && break',
+    `_TID=$("$CLAUDE_AUTOCLAIM_NODE" --input-type=commonjs -e "try{process.stdout.write(JSON.parse(process.argv[1]).task_id||'')}catch{}" "$_CLAIM" 2>/dev/null)`,
+    '[ -z "$_TID" ] && break',
+    `_NP=$("$CLAUDE_AUTOCLAIM_NODE" --input-type=commonjs -e "try{process.stdout.write(JSON.parse(process.argv[1]).prompt||'')}catch{}" "$_CLAIM" 2>/dev/null)`,
+    `printf '%s' "$_NP" > ${qPrompt}`,
+    'CLAUDE_WORKER_TASK_ID="$_TID" && export CLAUDE_WORKER_TASK_ID',
+    `echo $$ > ${qPid}`,
+  ].join("; ");
+
+  const loopBody = [
+    `WORKER_PROMPT=$(cat ${qPrompt})`,
+    `unset CLAUDECODE && ${scriptWrapped}`,
+    ...completionCmds,
+    claimNextCmds,
+  ].join("; ");
+
+  const persistentLoop = `while true; do ${loopBody}; done`;
+
+  // EXIT trap is now cleanup-only — completion and claim-next run inside the loop body
+  const exitTrapCmd = `trap '[ -n "\${_IDLE_PID:-}" ] && kill "$_IDLE_PID" 2>/dev/null || true' EXIT`;
 
   let idleDetectorCmd = null;
-  if (leadPaneId && sessionId) {
+  if (leadSessionId && sessionId) {
     const sid8 = sessionId.slice(0, 8);
     idleDetectorCmd = [
       `(IDLE_SENT=false`,
       `while kill -0 $$ 2>/dev/null`,
-      `do sleep 3`,
+      `do sleep 1`,
       `SF="$HOME/.claude/terminals/session-${sid8}.json"`,
       `[ ! -f "$SF" ] && continue`,
       `AGE=$(( $(date +%s) - $(stat -f %m "$SF" 2>/dev/null || stat -c %Y "$SF" 2>/dev/null || echo $(date +%s)) ))`,
-      `if [ "$AGE" -gt 5 ] && [ "$IDLE_SENT" = false ]`,
-      `then tmux send-keys -t "$CLAUDE_LEAD_PANE_ID" "[IDLE] ${workerDisplay} — no activity for \${AGE}s" Enter 2>/dev/null || true`,
+      `if [ "$AGE" -gt 30 ] && [ "$IDLE_SENT" = false ]`,
+      `then printf '{"ts":"%s","from":"idle-detector","priority":"normal","content":"[IDLE] ${workerDisplay} — no activity for '\''\${AGE}'\''s"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
       `IDLE_SENT=true`,
-      `elif [ "$AGE" -le 5 ]`,
+      `elif [ "$AGE" -le 30 ]`,
       `then IDLE_SENT=false`,
       `fi`,
       `done) & _IDLE_PID=$!`,
@@ -596,10 +636,10 @@ export function buildInteractiveWorkerScript(opts) {
     `cd ${qDir}`,
     `echo $$ > ${qPid}`,
     envExports,
-    `WORKER_PROMPT=$(cat ${qPrompt})`,
+    parentSessionSetup,
     exitTrapCmd,
     idleDetectorCmd,
-    `unset CLAUDECODE && ${scriptWrapped}`,
+    persistentLoop,
   ]
     .filter(Boolean)
     .join(" && ");
@@ -634,6 +674,7 @@ export function buildResumeWorkerScript(opts) {
   const settingsArgs = existsSync(SETTINGS_FILE)
     ? `--settings ${shellQuote(SETTINGS_FILE)}`
     : "";
+  const parentSessionSetup = buildParentSessionSetup(qClaudeBin);
 
   const envExports = [
     ...buildAutoClaimEnvExports({
@@ -646,6 +687,7 @@ export function buildResumeWorkerScript(opts) {
       runtime: opts.runtime || "claude",
       layout: opts.layout || "background",
       leadSessionId,
+      parentSessionId: opts.parentSessionId,
       model: opts.model,
       agent: opts.agent,
       role: opts.role,
@@ -661,6 +703,7 @@ export function buildResumeWorkerScript(opts) {
       contextSummary: opts.contextSummary,
       isolate: opts.isolate,
     }),
+    ...buildParentSessionEnvExports(opts.parentSessionId),
     `export CLAUDE_WORKER_TASK_ID=${shellQuote(taskId)}`,
     workerName ? `export CLAUDE_WORKER_NAME=${shellQuote(workerName)}` : "",
     leadSessionId
@@ -675,25 +718,49 @@ export function buildResumeWorkerScript(opts) {
     `printf '{"status":"completed","finished":"%s","task_id":"${taskId}"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ${qMetaDone}`,
     `rm -f ${qPid}`,
   ];
-  if (leadPaneId) {
-    trapParts.push(
-      `tmux send-keys -t "$CLAUDE_LEAD_PANE_ID" "[COMPLETED] ${workerName} (resumed)" Enter 2>/dev/null || true`,
-    );
-  }
+  // NOTE: tmux send-keys "[COMPLETED]" removed from resume script — same fix as
+  // buildInteractiveWorkerScript. It injects raw text as user input into the lead's
+  // terminal, causing Claude to treat it as a user message. Inbox-only delivery below.
   if (leadSessionId) {
     trapParts.push(
       `printf '{"ts":"%s","from":"coordinator","priority":"normal","content":"[COMPLETED] ${workerName} (resumed)"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
     );
   }
   trapParts.push(autoClaimShellCommand());
+  trapParts.push(
+    '[ -n "${_IDLE_PID:-}" ] && kill "$_IDLE_PID" 2>/dev/null || true',
+  );
   const exitTrapCmd = `trap '${trapParts.join("; ")}' EXIT`;
+
+  // Idle detector for resumed workers (same as interactive workers)
+  let idleDetectorCmd = null;
+  if (leadSessionId && sessionId) {
+    const sid8 = sessionId.slice(0, 8);
+    idleDetectorCmd = [
+      `(IDLE_SENT=false`,
+      `while kill -0 $$ 2>/dev/null`,
+      `do sleep 1`,
+      `SF="$HOME/.claude/terminals/session-${sid8}.json"`,
+      `[ ! -f "$SF" ] && continue`,
+      `AGE=$(( $(date +%s) - $(stat -f %m "$SF" 2>/dev/null || stat -c %Y "$SF" 2>/dev/null || echo $(date +%s)) ))`,
+      `if [ "$AGE" -gt 30 ] && [ "$IDLE_SENT" = false ]`,
+      `then printf '{"ts":"%s","from":"idle-detector","priority":"normal","content":"[IDLE] ${workerName} (resumed) — no activity for '\''\${AGE}'\''s"}\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$HOME/.claude/terminals/inbox/$CLAUDE_LEAD_SESSION_ID.jsonl" 2>/dev/null || true`,
+      `IDLE_SENT=true`,
+      `elif [ "$AGE" -le 30 ]`,
+      `then IDLE_SENT=false`,
+      `fi`,
+      `done) & _IDLE_PID=$!`,
+    ].join("; ");
+  }
 
   return [
     `cd ${qDir}`,
     `echo $$ > ${qPid}`,
     envExports,
+    parentSessionSetup,
     exitTrapCmd,
-    `unset CLAUDECODE && ${qClaudeBin} --resume ${qSessionId} ${settingsArgs}`,
+    idleDetectorCmd,
+    `unset CLAUDECODE && ${qClaudeBin} $CLAUDE_PARENT_ARG --resume ${qSessionId} ${settingsArgs}`,
   ]
     .filter(Boolean)
     .join(" && ");
@@ -730,6 +797,7 @@ export function buildCodexWorkerScript(opts) {
     runtime: opts.runtime || "codex",
     layout: opts.layout || "background",
     leadSessionId: opts.leadSessionId,
+    parentSessionId: opts.parentSessionId,
     model,
     agent: opts.agent,
     role: opts.role,
@@ -744,7 +812,9 @@ export function buildCodexWorkerScript(opts) {
     maxTurns: opts.maxTurns,
     contextSummary: opts.contextSummary,
     isolate: opts.isolate,
-  }).join(" && ");
+  })
+    .filter(Boolean)
+    .join(" && ");
   const modelArgs =
     model && model !== "sonnet" ? `-m ${shellQuote(model)}` : "";
 
@@ -793,6 +863,7 @@ export function buildCodexInteractiveWorkerScript(opts) {
     runtime: opts.runtime || "codex",
     layout: opts.layout || "background",
     leadSessionId: opts.leadSessionId,
+    parentSessionId: opts.parentSessionId,
     model,
     agent: opts.agent,
     role: opts.role,
@@ -880,40 +951,46 @@ export function buildWorkerScript(opts) {
       ? `--settings ${shellQuote(SETTINGS_FILE)}`
       : "";
     const qTaskId = shellQuote(taskId);
-    const autoClaimEnv = buildAutoClaimEnvExports({
-      taskId,
-      workDir,
-      defaultDirectory: opts.defaultDirectory || workDir,
-      teamName: opts.teamName,
-      workerName: opts.workerName || taskId,
-      mode: opts.mode || "pipe",
-      runtime: opts.runtime || "claude",
-      layout: opts.layout || "background",
-      leadSessionId: opts.leadSessionId,
-      model,
-      agent,
-      role: opts.role,
-      permissionMode: opts.permissionMode,
-      contextLevel: opts.contextLevel,
-      budgetPolicy: opts.budgetPolicy,
-      budgetTokens: opts.budgetTokens,
-      globalBudgetPolicy: opts.globalBudgetPolicy,
-      globalBudgetTokens: opts.globalBudgetTokens,
-      maxActiveWorkers: opts.maxActiveWorkers,
-      requirePlan: opts.requirePlan,
-      maxTurns: opts.maxTurns,
-      contextSummary: opts.contextSummary,
-      isolate: opts.isolate,
-    })
+    const autoClaimEnv = [
+      ...buildAutoClaimEnvExports({
+        taskId,
+        workDir,
+        defaultDirectory: opts.defaultDirectory || workDir,
+        teamName: opts.teamName,
+        workerName: opts.workerName || taskId,
+        mode: opts.mode || "pipe",
+        runtime: opts.runtime || "claude",
+        layout: opts.layout || "background",
+        leadSessionId: opts.leadSessionId,
+        parentSessionId: opts.parentSessionId,
+        model,
+        agent,
+        role: opts.role,
+        permissionMode: opts.permissionMode,
+        contextLevel: opts.contextLevel,
+        budgetPolicy: opts.budgetPolicy,
+        budgetTokens: opts.budgetTokens,
+        globalBudgetPolicy: opts.globalBudgetPolicy,
+        globalBudgetTokens: opts.globalBudgetTokens,
+        maxActiveWorkers: opts.maxActiveWorkers,
+        requirePlan: opts.requirePlan,
+        maxTurns: opts.maxTurns,
+        contextSummary: opts.contextSummary,
+        isolate: opts.isolate,
+      }),
+      ...buildParentSessionEnvExports(opts.parentSessionId),
+    ]
       .filter(Boolean)
       .join(" && ");
+    const parentSessionSetup = buildParentSessionSetup(qClaudeBin);
     return [
       `cd ${qDir}`,
       `echo "Worker ${qTaskId} starting at $(date)" > ${qResult}`,
       `echo $$ > ${qPid}`,
       autoClaimEnv,
+      parentSessionSetup,
       // unset CLAUDECODE: prevent child claude process from inheriting parent's session env
-      `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} ${agentArgs} ${settingsArgs} < ${qPrompt} >> ${qResult} 2>&1`,
+      `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} $CLAUDE_PARENT_ARG ${agentArgs} ${settingsArgs} < ${qPrompt} >> ${qResult} 2>&1`,
       `printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}`,
       `rm -f ${qPid}`,
       autoClaimShellCommand(),

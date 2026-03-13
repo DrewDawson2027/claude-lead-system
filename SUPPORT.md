@@ -2,30 +2,30 @@
 
 ## Supported Versions
 
-| Version          | Status                                 |
-| ---------------- | -------------------------------------- |
-| Latest release   | Supported                              |
+| Version | Status |
+|---------|--------|
+| Latest release | Supported |
 | Previous release | Critical security fixes only (90 days) |
-| Older            | Unsupported                            |
+| Older | Unsupported |
 
 Only the current release branch receives bug fixes, features, and security patches. Previous releases receive critical security fixes for 90 days after the next release.
 
 ## Getting Help
 
-| Channel                                                                                                  | Use For                                                                |
-| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [GitHub Issues](https://github.com/DrewDawson2027/claude-lead-system/issues)                             | Bug reports, install issues, feature requests, benchmark discrepancies |
-| [GitHub Discussions](https://github.com/DrewDawson2027/claude-lead-system/discussions)                   | Questions, ideas, general discussion                                   |
-| [GitHub Security Advisory](https://github.com/DrewDawson2027/claude-lead-system/security/advisories/new) | Security vulnerabilities (private)                                     |
+| Channel | Use For |
+|---------|---------|
+| [GitHub Issues](https://github.com/DrewDawson2027/claude-lead-system/issues) | Bug reports, install issues, feature requests, benchmark discrepancies |
+| [GitHub Discussions](https://github.com/DrewDawson2027/claude-lead-system/discussions) | Questions, ideas, general discussion |
+| [GitHub Security Advisory](https://github.com/DrewDawson2027/claude-lead-system/security/advisories/new) | Security vulnerabilities (private) |
 
 ## Response Expectations
 
-| Type                     | Target Response                |
-| ------------------------ | ------------------------------ |
-| Security vulnerabilities | Acknowledge within 72 hours    |
-| Bug reports              | Triaged within 7 days          |
-| Feature requests         | Reviewed within 14 days        |
-| Questions                | Best-effort community response |
+| Type | Target Response |
+|------|----------------|
+| Security vulnerabilities | Acknowledge within 72 hours |
+| Bug reports | Triaged within 7 days |
+| Feature requests | Reviewed within 14 days |
+| Questions | Best-effort community response |
 
 These are targets, not guarantees. This is a solo-maintained open source project.
 
