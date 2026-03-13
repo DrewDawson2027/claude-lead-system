@@ -182,15 +182,15 @@ Share this as a testimonial:
 
 ## What It Catches
 
-| Pattern                                                          | What Happens                                            | Tokens Saved |
-| ---------------------------------------------------------------- | ------------------------------------------------------- | ------------ |
-| 2nd Explore agent in same session                                | **BLOCKED** — "Max 1 per session. Merge queries."       | ~50,000      |
-| "Search for function X" as agent task                            | **BLOCKED** — "Use Grep directly."                      | ~48,000      |
-| Same file read 3+ times                                          | **BLOCKED** — "Trust your first read."                  | ~5,000/read  |
-| 15+ sequential reads in 120s                                     | **BLOCKED** — "Batch into parallel groups."             | ~20,000+     |
-| Type-switching evasion (Explore blocked → tries general-purpose) | **BLOCKED** — "Resembles a previously blocked attempt." | ~50,000      |
-| Rapid-fire agent spawns (<5s apart)                              | **BLOCKED** — "Wait between spawns."                    | ~50,000      |
-| Agent in Explore'd directory                                     | **WARNED** — "Already mapped by Explore."               | Advisory     |
+| Pattern                                                          | What Happens                                               | Tokens Saved |
+| ---------------------------------------------------------------- | ---------------------------------------------------------- | ------------ |
+| 2nd Explore agent in same session                                | **BLOCKED** — "Max 1 per session. Merge queries."          | ~50,000      |
+| "Search for function X" as agent task                            | **BLOCKED** — "Use Grep directly."                         | ~48,000      |
+| Same file read 3+ times                                          | **BLOCKED** — "Trust your first read."                     | ~5,000/read  |
+| 15+ sequential reads in 120s                                     | **BLOCKED** — "Batch into parallel groups."                | ~20,000+     |
+| Type-switching evasion (Explore blocked → tries general-purpose) | **BLOCKED** — "Resembles a previously blocked attempt."    | ~50,000      |
+| Rapid-fire agent spawns (<5s apart)                              | **BLOCKED** — "Wait between spawns."                       | ~50,000      |
+| Agent in Explore'd directory                                     | **WARNED** — "Already mapped by Explore."                  | Advisory     |
 | Unsupported model requested for agent                            | **BLOCKED** — "Only sonnet and haiku workers are allowed." | ~50,000      |
 
 ## Configuration

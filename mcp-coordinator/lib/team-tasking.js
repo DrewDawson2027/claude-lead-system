@@ -124,11 +124,11 @@ function mapTeamMembers(teamName) {
             : sessionStatus === "stale"
               ? 20
               : 5) +
-        Math.min(20, recentOps.length * 2) +
-        Math.min(
-          10,
-          (tc.Bash || 0) + (tc.Edit || 0) + (tc.Write || 0) > 0 ? 10 : 0,
-        ),
+          Math.min(20, recentOps.length * 2) +
+          Math.min(
+            10,
+            (tc.Bash || 0) + (tc.Edit || 0) + (tc.Write || 0) > 0 ? 10 : 0,
+          ),
       ),
     );
     const interruptibility = Math.max(
@@ -372,8 +372,8 @@ export function handleTeamQueueTask(args) {
 
   const metadata =
     args.metadata &&
-      typeof args.metadata === "object" &&
-      !Array.isArray(args.metadata)
+    typeof args.metadata === "object" &&
+    !Array.isArray(args.metadata)
       ? args.metadata
       : {};
   const dispatchMeta = {
@@ -766,7 +766,6 @@ export function handleClaimNextTask(args) {
   return text(out);
 }
 
-
 /**
  * Claim-only mode: find next task for a worker and return its data without
  * dispatching a new process. Used by claim-next-task.mjs --claim-only so the
@@ -877,8 +876,7 @@ function dispatchExistingQueuedTask(task, snap, assignee, args = {}) {
     mode: args.mode,
     runtime: args.runtime,
     notify_session_id: args.notify_session_id || dispatch.notify_session_id,
-    parent_session_id:
-      args.parent_session_id || dispatch.parent_session_id,
+    parent_session_id: args.parent_session_id || dispatch.parent_session_id,
     model: args.model,
     agent: args.agent,
     layout: args.layout,
@@ -995,17 +993,17 @@ export function handleTeamAssignNext(args) {
     };
     return text(
       `## No Eligible Candidate for ${task.task_id}\n\n` +
-      `**Members considered:** ${explanation.members_considered}\n\n` +
-      `### Rejections\n` +
-      rejections
-        .map(
-          (r) =>
-            `- **${r.name}** (${r.role || "no role"}): ${r.reason} — ${r.detail}`,
-        )
-        .join("\n") +
-      `\n\n### Suggestions\n` +
-      suggestions.map((s) => `- ${s}`).join("\n") +
-      `\n\n\`\`\`json\n${JSON.stringify(explanation, null, 2)}\n\`\`\``,
+        `**Members considered:** ${explanation.members_considered}\n\n` +
+        `### Rejections\n` +
+        rejections
+          .map(
+            (r) =>
+              `- **${r.name}** (${r.role || "no role"}): ${r.reason} — ${r.detail}`,
+          )
+          .join("\n") +
+        `\n\n### Suggestions\n` +
+        suggestions.map((s) => `- ${s}`).join("\n") +
+        `\n\n\`\`\`json\n${JSON.stringify(explanation, null, 2)}\n\`\`\``,
     );
   }
 
@@ -1022,11 +1020,11 @@ export function handleTeamAssignNext(args) {
   const dTxt = contentText(dispatchRes);
   return text(
     `## Team Assign Next (${team_name})\n\n` +
-    `- Task: ${task.task_id} (${task.subject})\n` +
-    `- Assignee: ${choice.member.name}\n` +
-    `- Score: ${choice.scored.score}\n` +
-    `- Reasons: ${choice.scored.reasons.join("; ")}\n\n` +
-    dTxt,
+      `- Task: ${task.task_id} (${task.subject})\n` +
+      `- Assignee: ${choice.member.name}\n` +
+      `- Score: ${choice.scored.score}\n` +
+      `- Reasons: ${choice.scored.reasons.join("; ")}\n\n` +
+      dTxt,
   );
 }
 

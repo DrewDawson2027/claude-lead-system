@@ -1,5 +1,10 @@
 import { createHash } from "crypto";
-import type { MaintenanceSweepDeps, MaintenanceSweepResult, DiagnosticsBundleDeps, DiagnosticsResult } from "./types.js";
+import type {
+  MaintenanceSweepDeps,
+  MaintenanceSweepResult,
+  DiagnosticsBundleDeps,
+  DiagnosticsResult,
+} from "./types.js";
 
 export function createMaintenanceSweep({
   actionQueue,
@@ -25,7 +30,9 @@ export function createMaintenanceSweep({
   let sweepCount = 0;
   const autoRebalanceTimes = new Map<string, number>();
 
-  return function maintenanceSweep({ source = "periodic" } = {}): MaintenanceSweepResult {
+  return function maintenanceSweep({
+    source = "periodic",
+  } = {}): MaintenanceSweepResult {
     const recovered = actionQueue.recoverStaleInflight(
       Number(process.env.LEAD_SIDECAR_INFLIGHT_STALE_MS || 5 * 60_000),
     );
@@ -93,7 +100,7 @@ export function createMaintenanceSweep({
             priority: task.priority,
             metadata: task.metadata,
           })
-          .catch(() => { });
+          .catch(() => {});
       }
       store.emitTimeline({ type: "priority.aged", task_ids: agingResult.aged });
     }
@@ -118,7 +125,7 @@ export function createMaintenanceSweep({
                 team_name: teamEntry.team_name,
                 apply: true,
               })
-              .catch(() => { });
+              .catch(() => {});
             store.emitTimeline({
               type: "auto_rebalance.triggered",
               team_name: teamEntry.team_name,
@@ -128,7 +135,7 @@ export function createMaintenanceSweep({
             autoRebalanced = true;
           }
         }
-      } catch { }
+      } catch {}
     }
 
     metrics.persistSnapshot(paths.metricsHistoryDir);
@@ -140,7 +147,7 @@ export function createMaintenanceSweep({
         rotateCheckpoints(paths);
         lastCheckpointTime = Date.now();
         checkpointed = true;
-      } catch { }
+      } catch {}
     }
 
     let terminalHealth: any = null;
@@ -160,7 +167,7 @@ export function createMaintenanceSweep({
           suggestions: suggestions.slice(0, 5),
         });
       }
-    } catch { }
+    } catch {}
 
     sweepCount += 1;
     if (sweepCount % 10 === 0) {
@@ -177,7 +184,7 @@ export function createMaintenanceSweep({
             findings: hookReport.hooks.filter((h) => h.issues.length),
           });
         }
-      } catch { }
+      } catch {}
     }
 
     return {
@@ -271,7 +278,9 @@ export function createDiagnosticsBundle({
     const redacted = redactSecrets(trimLongStrings(bundle, 2048));
 
     const manifest: Record<string, number> = {};
-    for (const [section, value] of Object.entries(redacted as Record<string, unknown>)) {
+    for (const [section, value] of Object.entries(
+      redacted as Record<string, unknown>,
+    )) {
       manifest[section] = JSON.stringify(value).length;
     }
     (redacted as any).manifest = manifest;
@@ -289,7 +298,7 @@ export function createDiagnosticsBundle({
         file,
         label,
       });
-    } catch { }
+    } catch {}
     return {
       ok: true,
       file,

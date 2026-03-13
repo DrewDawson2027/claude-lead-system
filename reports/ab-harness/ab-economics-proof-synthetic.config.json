@@ -20,9 +20,7 @@
     "activity_jsonl": "synthetic-telemetry/activity.jsonl",
     "conflicts_jsonl": "synthetic-telemetry/conflicts.jsonl",
     "results_dir": "synthetic-telemetry/results",
-    "transcript_roots": [
-      "synthetic-telemetry/transcripts"
-    ],
+    "transcript_roots": ["synthetic-telemetry/transcripts"],
     "transcript_include_regex": "transcript.*\\.jsonl$",
     "transcript_max_depth": 4
   },

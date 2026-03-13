@@ -5,6 +5,7 @@ Registry of all agents, hooks, coordinator modules, and native integration. Sour
 ## Canonical claim posture
 
 <!-- CLAIM_POSTURE:START -->
+
 - Canonical taxonomy: `verified`, `partial`, `experimental`
 - Parity posture (canonical): Do not claim exact UX parity or exact feature parity with native Agent Teams. Do not publish single-number parity percentages. Use only evidence-labeled capability claims using the canonical taxonomy. Hybrid/native execution paths remain experimental until current end-to-end evidence exists.
 - Native advantages (canonical): In-process teammate lifecycle semantics in a single runtime. Tighter first-party cross-platform UX consistency. Integrated native UI and runtime linkage without external coordinator polling.

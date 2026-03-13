@@ -25,6 +25,7 @@ Use it when you want more local control, visibility, and conflict prevention aro
 ## Canonical claim posture
 
 <!-- CLAIM_POSTURE:START -->
+
 - Canonical taxonomy: `verified`, `partial`, `experimental`
 - Parity posture (canonical): Do not claim exact UX parity or exact feature parity with native Agent Teams. Do not publish single-number parity percentages. Use only evidence-labeled capability claims using the canonical taxonomy. Hybrid/native execution paths remain experimental until current end-to-end evidence exists.
 - Native advantages (canonical): In-process teammate lifecycle semantics in a single runtime. Tighter first-party cross-platform UX consistency. Integrated native UI and runtime linkage without external coordinator polling.
@@ -195,6 +196,7 @@ bash install.sh --version "${VERSION}" \
 # 8. Run a pipeline:
 #    pipeline: lint, test, build in ~/my-app
 ```
+
 ## How It Works
 
 Think of Lead as a control room for Claude Code:
@@ -206,17 +208,17 @@ Think of Lead as a control room for Claude Code:
 
 ## What `/lead` Can Do
 
-| Command                         | What Happens                                                     |
-| ------------------------------- | ---------------------------------------------------------------- |
-| _(boot)_                        | Opens the dashboard and shows recommended next actions           |
-| `tell [session] to [task]`      | Sends instructions to an active terminal                         |
-| `wake [session] with [message]` | Brings an idle terminal back into the loop                       |
-| `run [task] in [dir]`           | Starts a worker in a new terminal                                |
-| `pipeline: A, B, C in [dir]`    | Runs a tracked multi-step flow                                   |
-| `conflicts`                     | Shows overlapping file work across active sessions               |
-| `spawn terminal in [dir]`       | Opens another interactive Claude Code terminal                   |
-| `kill worker [id]`              | Stops a running worker                                           |
-| `health check`                  | Runs advanced diagnostics if something looks broken              |
+| Command                         | What Happens                                           |
+| ------------------------------- | ------------------------------------------------------ |
+| _(boot)_                        | Opens the dashboard and shows recommended next actions |
+| `tell [session] to [task]`      | Sends instructions to an active terminal               |
+| `wake [session] with [message]` | Brings an idle terminal back into the loop             |
+| `run [task] in [dir]`           | Starts a worker in a new terminal                      |
+| `pipeline: A, B, C in [dir]`    | Runs a tracked multi-step flow                         |
+| `conflicts`                     | Shows overlapping file work across active sessions     |
+| `spawn terminal in [dir]`       | Opens another interactive Claude Code terminal         |
+| `kill worker [id]`              | Stops a running worker                                 |
+| `health check`                  | Runs advanced diagnostics if something looks broken    |
 
 <details><summary>Advanced platform notes</summary>
 

@@ -14,18 +14,18 @@ Confidence level: 0.95
 
 ## Path metrics (mean with confidence interval)
 
-| Path | Completion rate | Latency ms | Tokens | Human interventions | Conflict incidents | Throughput / usage window | Resume success rate |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| lead_coordinator | 1 [0.510109, 1] (4/4) | 263.25 [255.5, 271.25] | 15000 [15000, 15000] | 1 [1, 1] | 0 [0, 0] | 14.666667 [14.666667, 14.666667] | 1 [0.510109, 1] (4/4) |
-| lead_overlay | 1 [0.510109, 1] (4/4) | 268.75 [266.25, 270.5] | 15400 [15400, 15400] | 1 [1, 1] | 0 [0, 0] | 14.285714 [14.285714, 14.285714] | 1 [0.510109, 1] (4/4) |
-| native | 1 [0.510109, 1] (4/4) | 278.5 [276, 281.25] | 15900 [15900, 15900] | 1 [1, 1] | 2 [2, 2] | 13.836478 [13.836478, 13.836478] | 0 [0, 0.489891] (0/4) |
+| Path             | Completion rate       | Latency ms             | Tokens               | Human interventions | Conflict incidents | Throughput / usage window        | Resume success rate   |
+| ---------------- | --------------------- | ---------------------- | -------------------- | ------------------- | ------------------ | -------------------------------- | --------------------- |
+| lead_coordinator | 1 [0.510109, 1] (4/4) | 263.25 [255.5, 271.25] | 15000 [15000, 15000] | 1 [1, 1]            | 0 [0, 0]           | 14.666667 [14.666667, 14.666667] | 1 [0.510109, 1] (4/4) |
+| lead_overlay     | 1 [0.510109, 1] (4/4) | 268.75 [266.25, 270.5] | 15400 [15400, 15400] | 1 [1, 1]            | 0 [0, 0]           | 14.285714 [14.285714, 14.285714] | 1 [0.510109, 1] (4/4) |
+| native           | 1 [0.510109, 1] (4/4) | 278.5 [276, 281.25]    | 15900 [15900, 15900] | 1 [1, 1]            | 2 [2, 2]           | 13.836478 [13.836478, 13.836478] | 0 [0, 0.489891] (0/4) |
 
 ## Comparisons vs baseline (native)
 
-| Path | Tokens diff | Latency diff | Throughput diff |
-| --- | --- | --- | --- |
+| Path             | Tokens diff       | Latency diff        | Throughput diff               |
+| ---------------- | ----------------- | ------------------- | ----------------------------- |
 | lead_coordinator | -900 [-900, -900] | -15.25 [-23.75, -6] | 0.830189 [0.830189, 0.830189] |
-| lead_overlay | -500 [-500, -500] | -9.75 [-13.5, -6.5] | 0.449236 [0.449236, 0.449236] |
+| lead_overlay     | -500 [-500, -500] | -9.75 [-13.5, -6.5] | 0.449236 [0.449236, 0.449236] |
 
 ## Artifacts
 
@@ -36,4 +36,3 @@ Confidence level: 0.95
 ## Guardrail
 
 - No savings claim should be published unless `savings_claim_allowed` is true for the compared path in this run output.
-

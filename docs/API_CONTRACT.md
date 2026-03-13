@@ -70,31 +70,31 @@ Optional transports:
 
 ## Agents
 
-| Method | Path                         | Auth     | Body/Params                                                                                                             | Description                          |
-| ------ | ---------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| GET    | `/agents`                    | `none`   | `?scope=all\|local\|project\|user&include_invalid=<boolean>&include_shadowed=<boolean>&project_dir=<string>`         | List agents across scopes            |
-| GET    | `/agents/:agent_name`        | `none`   | `?scope=all\|local\|project\|user&project_dir=<string>`                                                                | Get safe agent summary (no prompt)   |
-| GET    | `/agents/:agent_name/full`   | `bearer` | `?scope=all\|local\|project\|user&project_dir=<string>`                                                                | Get full agent content (prompt body) |
-| POST   | `/agents`                    | `bearer` | `{ agent_name, description, scope?, model?, tools?, memory?, skills?, prompt?, project_dir?, overwrite? }`           | Create an agent                      |
-| PATCH  | `/agents/:agent_name`        | `bearer` | `{ scope?, new_name?, description?, model?, tools?, memory?, skills?, prompt?, project_dir?, overwrite? }`           | Update an agent                      |
-| DELETE | `/agents/:agent_name`        | `bearer` | `{ scope?, project_dir?, all_scopes? }`                                                                                | Delete an agent                      |
-| POST   | `/agents/sync-manifest`      | `bearer` | `{ manifest_path?, scope?, include_invalid?, include_shadowed?, project_dir? }`                                       | Regenerate MANIFEST.md agents table  |
+| Method | Path                       | Auth     | Body/Params                                                                                                  | Description                          |
+| ------ | -------------------------- | -------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| GET    | `/agents`                  | `none`   | `?scope=all\|local\|project\|user&include_invalid=<boolean>&include_shadowed=<boolean>&project_dir=<string>` | List agents across scopes            |
+| GET    | `/agents/:agent_name`      | `none`   | `?scope=all\|local\|project\|user&project_dir=<string>`                                                      | Get safe agent summary (no prompt)   |
+| GET    | `/agents/:agent_name/full` | `bearer` | `?scope=all\|local\|project\|user&project_dir=<string>`                                                      | Get full agent content (prompt body) |
+| POST   | `/agents`                  | `bearer` | `{ agent_name, description, scope?, model?, tools?, memory?, skills?, prompt?, project_dir?, overwrite? }`   | Create an agent                      |
+| PATCH  | `/agents/:agent_name`      | `bearer` | `{ scope?, new_name?, description?, model?, tools?, memory?, skills?, prompt?, project_dir?, overwrite? }`   | Update an agent                      |
+| DELETE | `/agents/:agent_name`      | `bearer` | `{ scope?, project_dir?, all_scopes? }`                                                                      | Delete an agent                      |
+| POST   | `/agents/sync-manifest`    | `bearer` | `{ manifest_path?, scope?, include_invalid?, include_shadowed?, project_dir? }`                              | Regenerate MANIFEST.md agents table  |
 
 ## Teams
 
-| Method | Path                                     | Description                          |
-| ------ | ---------------------------------------- | ------------------------------------ |
-| GET    | `/teams`                                 | List all teams                       |
-| GET    | `/teams/:team_name`                      | Team snapshot                        |
-| GET    | `/teams/:team_name/interrupts`           | Interrupt queue for team             |
-| GET    | `/teams/:team_name/approvals`            | Approval inbox (filtered interrupts) |
+| Method | Path                                     | Description                                    |
+| ------ | ---------------------------------------- | ---------------------------------------------- |
+| GET    | `/teams`                                 | List all teams                                 |
+| GET    | `/teams/:team_name`                      | Team snapshot                                  |
+| GET    | `/teams/:team_name/interrupts`           | Interrupt queue for team                       |
+| GET    | `/teams/:team_name/approvals`            | Approval inbox (filtered interrupts)           |
 | GET    | `/teams/:team_name/teammates/:id/mirror` | Fallback tmux mirror for focused teammate view |
-| PATCH  | `/teams/:team_name/interrupt-priorities` | Update interrupt priority weights    |
-| POST   | `/teams/:team_name/rebalance`            | Trigger team rebalance               |
-| GET    | `/teams/:team_name/rebalance-explain`    | Get rebalance explanation            |
-| POST   | `/teams/:team_name/rebalance-explain`    | Generate rebalance explanation       |
-| POST   | `/teams/:team_name/actions/:action`      | Execute team action via router       |
-| POST   | `/teams/:team_name/batch-triage`         | Batch triage ops                     |
+| PATCH  | `/teams/:team_name/interrupt-priorities` | Update interrupt priority weights              |
+| POST   | `/teams/:team_name/rebalance`            | Trigger team rebalance                         |
+| GET    | `/teams/:team_name/rebalance-explain`    | Get rebalance explanation                      |
+| POST   | `/teams/:team_name/rebalance-explain`    | Generate rebalance explanation                 |
+| POST   | `/teams/:team_name/actions/:action`      | Execute team action via router                 |
+| POST   | `/teams/:team_name/batch-triage`         | Batch triage ops                               |
 
 ## Tasks
 
@@ -113,8 +113,8 @@ Optional transports:
 
 ## Route Simulation
 
-| Method | Path              | Body                  | Description               |
-| ------ | ----------------- | --------------------- | ------------------------- |
+| Method | Path              | Body                              | Description               |
+| ------ | ----------------- | --------------------------------- | ------------------------- |
 | POST   | `/route/simulate` | `{ team_name, action, payload? }` | Simulate routing decision |
 
 ## Dispatch
@@ -148,6 +148,7 @@ Action snapshots (`/actions*` and embedded team snapshots) include explicit rout
 `route_mode` and `route_reason`.
 
 Focused teammate live view contract:
+
 - stream route order is `native live` -> `sidecar live` -> `tmux mirror` fallback
 - tmux mirror responses include `route_mode=tmux-mirror`, `route_label=tmux mirror`, and explicit `route_reason`
 - this is a mirrored stream, not in-process native rendering parity

@@ -31,16 +31,16 @@ function matchIdentity(identityRecords, member, teamName) {
     : null;
   if (byTask) return byTask;
   const sid = member.session_id ? String(member.session_id).slice(0, 8) : null;
-  const bySession = sid
-    ? teamScoped.find((r) => r.session_id === sid)
-    : null;
+  const bySession = sid ? teamScoped.find((r) => r.session_id === sid) : null;
   if (bySession) return bySession;
-  return teamScoped.find(
-    (r) =>
-      r.agent_id &&
-      String(r.agent_id).toLowerCase() ===
-      String(member.name || "").toLowerCase(),
-  ) || null;
+  return (
+    teamScoped.find(
+      (r) =>
+        r.agent_id &&
+        String(r.agent_id).toLowerCase() ===
+          String(member.name || "").toLowerCase(),
+    ) || null
+  );
 }
 
 function normalizeTeammates(teamSnap, identityRecords = []) {

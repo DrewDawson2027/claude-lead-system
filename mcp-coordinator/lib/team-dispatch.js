@@ -112,8 +112,8 @@ export function handleTeamDispatch(args) {
       blocked_by: args.blocked_by || [],
       metadata: {
         ...(args.metadata &&
-          typeof args.metadata === "object" &&
-          !Array.isArray(args.metadata)
+        typeof args.metadata === "object" &&
+        !Array.isArray(args.metadata)
           ? args.metadata
           : {}),
         dispatch: {
@@ -135,23 +135,22 @@ export function handleTeamDispatch(args) {
     team.execution_path === "native" || team.execution_path === "hybrid";
   const identityFromTask = existingMember?.task_id
     ? findIdentityRecord({
-      team_name,
-      task_id: String(existingMember.task_id),
-    })
+        team_name,
+        task_id: String(existingMember.task_id),
+      })
     : null;
   const identityFromSession = existingMember?.session_id
     ? findIdentityRecord({
-      team_name,
-      session_id: String(existingMember.session_id),
-    })
+        team_name,
+        session_id: String(existingMember.session_id),
+      })
     : null;
   const resolvedAgentId =
     existingMember?.agentId ||
     identityFromTask?.agent_id ||
     identityFromSession?.agent_id ||
     null;
-  const canNativeResume =
-    Boolean(resolvedAgentId) && teamUsesNativeEngine;
+  const canNativeResume = Boolean(resolvedAgentId) && teamUsesNativeEngine;
   if (canNativeResume && assignee && !existingMember?.agentId) {
     handleCreateTeam({
       team_name,
@@ -176,7 +175,8 @@ export function handleTeamDispatch(args) {
     require_plan:
       args.require_plan ?? (lowOverheadDispatch ? false : undefined),
     permission_mode: args.permission_mode,
-    context_level: args.context_level ?? (lowOverheadDispatch ? "minimal" : undefined),
+    context_level:
+      args.context_level ?? (lowOverheadDispatch ? "minimal" : undefined),
     budget_policy: args.budget_policy,
     budget_tokens: args.budget_tokens,
     global_budget_policy: args.global_budget_policy,
@@ -238,14 +238,14 @@ export function handleTeamDispatch(args) {
 
   return text(
     `## Team Dispatch (${team_name})\n\n` +
-    `- Subject: ${subject}\n` +
-    `- Team Task: ${createTask ? taskId : "skipped"}\n` +
-    `- Worker Task: ${workerTaskId}\n` +
-    `- Dispatch Profile: ${lowOverheadDispatch ? "low-overhead" : "standard"}\n` +
-    `- Assignee: ${assignee || "auto:none"}\n` +
-    `- Worker Name: ${workerName || "none"}\n` +
-    `- Status: ${spawned ? "dispatched" : "worker spawn failed"}\n\n` +
-    (createTaskRes ? `### Task\n${contentText(createTaskRes)}\n\n` : "") +
-    `### Worker\n${spawnTxt}`,
+      `- Subject: ${subject}\n` +
+      `- Team Task: ${createTask ? taskId : "skipped"}\n` +
+      `- Worker Task: ${workerTaskId}\n` +
+      `- Dispatch Profile: ${lowOverheadDispatch ? "low-overhead" : "standard"}\n` +
+      `- Assignee: ${assignee || "auto:none"}\n` +
+      `- Worker Name: ${workerName || "none"}\n` +
+      `- Status: ${spawned ? "dispatched" : "worker spawn failed"}\n\n` +
+      (createTaskRes ? `### Task\n${contentText(createTaskRes)}\n\n` : "") +
+      `### Worker\n${spawnTxt}`,
   );
 }

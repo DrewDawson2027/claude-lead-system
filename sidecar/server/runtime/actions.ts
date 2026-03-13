@@ -1,4 +1,9 @@
-import type { TrackedActionRunnerDeps, BatchTriageDeps, TrackedActionInput, BatchTriageInput } from "./types.js";
+import type {
+  TrackedActionRunnerDeps,
+  BatchTriageDeps,
+  TrackedActionInput,
+  BatchTriageInput,
+} from "./types.js";
 
 const COMPACT_LIFECYCLE_ACTIONS = new Set([
   "approve-plan",
@@ -63,7 +68,8 @@ function compactForPreview(value: unknown, depth = 0): unknown {
     PREVIEW_MAX_KEYS,
   );
   const out: Record<string, unknown> = {};
-  for (const [key, raw] of entries) out[key] = compactForPreview(raw, depth + 1);
+  for (const [key, raw] of entries)
+    out[key] = compactForPreview(raw, depth + 1);
   const allKeys = Object.keys(value as Record<string, unknown>);
   if (allKeys.length > PREVIEW_MAX_KEYS) {
     out.__trimmed_keys = allKeys.length - PREVIEW_MAX_KEYS;
@@ -204,24 +210,27 @@ export function createTrackedActionRunner({
         : "router policy dispatch";
     const record = trackedActionId
       ? {
-        ...(actionQueue.get(trackedActionId) || {}),
-        action_id: trackedActionId,
-        team_name: teamName,
-        action,
-        route_mode: routeMode,
-        route_reason: initialRouteReason,
-        payload_preview: payloadPreview,
-      }
+          ...(actionQueue.get(trackedActionId) || {}),
+          action_id: trackedActionId,
+          team_name: teamName,
+          action,
+          route_mode: routeMode,
+          route_reason: initialRouteReason,
+          payload_preview: payloadPreview,
+        }
       : actionQueue.create({
-        team_name: teamName,
-        action,
-        route_mode: routeMode,
-        route_reason: initialRouteReason,
-        payload_preview: payloadPreview,
-      });
+          team_name: teamName,
+          action,
+          route_mode: routeMode,
+          route_reason: initialRouteReason,
+          payload_preview: payloadPreview,
+        });
     if (trackedActionId && !record?.action_id)
       throw new Error(`Action ${trackedActionId} not found`);
-    const emitLifecycle = (event: "queued" | "started" | "completed" | "failed", data: Record<string, unknown>) => {
+    const emitLifecycle = (
+      event: "queued" | "started" | "completed" | "failed",
+      data: Record<string, unknown>,
+    ) => {
       actionOrchestration.lifecycle_events += 1;
       if (event === "queued") store.emitActionQueued(data);
       else if (event === "started") store.emitActionStarted(data);
@@ -263,106 +272,109 @@ export function createTrackedActionRunner({
       };
       const routed: any =
         routeMode === "native-direct"
-          ? await nativeAdapter.execute(
-            nativeHttpAction,
-            routedPayload,
-            { team, force_path_mode: payload?.force_path_mode || null },
-          )
-          : await router.route(team as Record<string, unknown>, action, routedPayload);
+          ? await nativeAdapter.execute(nativeHttpAction, routedPayload, {
+              team,
+              force_path_mode: payload?.force_path_mode || null,
+            })
+          : await router.route(
+              team as Record<string, unknown>,
+              action,
+              routedPayload,
+            );
       const latency_ms = Date.now() - start;
       const wrapper: any =
         routeMode === "native-direct"
           ? await (async () => {
-            const nativeOut = {
-              ok: routed?.ok !== false,
-              adapter: "native",
-              path_mode: routed.path_mode || "native-direct",
-              route_mode: routed.route_mode || routed.path_mode || "native-direct",
-              route_reason:
-                routed.route_reason || "native direct endpoint execution",
-              reason: routed.route_reason || "native direct endpoint execution",
-              fallback_plan: ["native-direct", "bridge", "coordinator"],
-              fallback_used: false,
-              cost_estimate_class:
-                routed.path_mode === "bridge" ? "medium" : "high",
-              latency_ms,
-              result: routed,
-              error: routed?.error || null,
-            };
-            if (nativeOut.ok) return nativeOut;
-            const teamPolicy = ((team as any)?.policy || {}) as Record<string, unknown>;
-            const fallbackPolicy = shouldAttemptFallback({
-              teamPolicy,
-              error: routed?.error || null,
-              fallbackAttempts: actionOrchestration.fallback_attempts,
-            });
-            if (!fallbackPolicy.allow) {
-              actionOrchestration.fallback_skipped += 1;
-              return {
-                ...nativeOut,
-                fallback_skipped: true,
-                fallback_skip_reason: fallbackPolicy.reason,
+              const nativeOut = {
+                ok: routed?.ok !== false,
+                adapter: "native",
+                path_mode: routed.path_mode || "native-direct",
+                route_mode:
+                  routed.route_mode || routed.path_mode || "native-direct",
                 route_reason:
-                  `${nativeOut.route_reason}; fallback skipped (${fallbackPolicy.reason})`,
+                  routed.route_reason || "native direct endpoint execution",
                 reason:
-                  `${nativeOut.route_reason}; fallback skipped (${fallbackPolicy.reason})`,
-              };
-            }
-            actionOrchestration.fallback_attempts += 1;
-            const fallbackAction = nativeHttpAction || action;
-            try {
-              const coordinatorFallback = await (router as any).coordinator.execute(
-                fallbackAction,
-                routedPayload,
-              );
-              const fallbackReason =
-                `native direct route failed (${routed?.error?.code || routed?.error?.message || "error"}); coordinator fallback`;
-              raiseIntervention({
-                level: "warn",
-                code: "native_direct_fallback_to_coordinator",
-                message: fallbackReason,
-                action_id: record.action_id as string,
-              });
-              return {
-                ok: coordinatorFallback?.ok !== false,
-                adapter: "coordinator",
-                path_mode: "local-module",
-                route_mode: "coordinator-fallback",
-                route_reason: fallbackReason,
-                reason: fallbackReason,
+                  routed.route_reason || "native direct endpoint execution",
                 fallback_plan: ["native-direct", "bridge", "coordinator"],
-                fallback_used: true,
-                fallback_from: {
-                  adapter: "native",
-                  route_mode: nativeOut.route_mode,
-                  error: routed?.error || null,
-                },
-                cost_estimate_class: "low",
-                latency_ms: Date.now() - start,
-                result: coordinatorFallback,
-                error: null,
+                fallback_used: false,
+                cost_estimate_class:
+                  routed.path_mode === "bridge" ? "medium" : "high",
+                latency_ms,
+                result: routed,
+                error: routed?.error || null,
               };
-            } catch (fallbackErr: any) {
-              const fallbackReason =
-                `native direct route failed and coordinator fallback failed (${fallbackErr.message})`;
-              raiseIntervention({
-                level: "error",
-                code: "native_direct_fallback_failed",
-                message: fallbackReason,
-                action_id: record.action_id as string,
+              if (nativeOut.ok) return nativeOut;
+              const teamPolicy = ((team as any)?.policy || {}) as Record<
+                string,
+                unknown
+              >;
+              const fallbackPolicy = shouldAttemptFallback({
+                teamPolicy,
+                error: routed?.error || null,
+                fallbackAttempts: actionOrchestration.fallback_attempts,
               });
-              return {
-                ...nativeOut,
-                route_reason: fallbackReason,
-                reason: fallbackReason,
-                latency_ms: Date.now() - start,
-                error: {
-                  native: routed?.error || null,
-                  coordinator: { message: fallbackErr.message },
-                },
-              };
-            }
-          })()
+              if (!fallbackPolicy.allow) {
+                actionOrchestration.fallback_skipped += 1;
+                return {
+                  ...nativeOut,
+                  fallback_skipped: true,
+                  fallback_skip_reason: fallbackPolicy.reason,
+                  route_reason: `${nativeOut.route_reason}; fallback skipped (${fallbackPolicy.reason})`,
+                  reason: `${nativeOut.route_reason}; fallback skipped (${fallbackPolicy.reason})`,
+                };
+              }
+              actionOrchestration.fallback_attempts += 1;
+              const fallbackAction = nativeHttpAction || action;
+              try {
+                const coordinatorFallback = await (
+                  router as any
+                ).coordinator.execute(fallbackAction, routedPayload);
+                const fallbackReason = `native direct route failed (${routed?.error?.code || routed?.error?.message || "error"}); coordinator fallback`;
+                raiseIntervention({
+                  level: "warn",
+                  code: "native_direct_fallback_to_coordinator",
+                  message: fallbackReason,
+                  action_id: record.action_id as string,
+                });
+                return {
+                  ok: coordinatorFallback?.ok !== false,
+                  adapter: "coordinator",
+                  path_mode: "local-module",
+                  route_mode: "coordinator-fallback",
+                  route_reason: fallbackReason,
+                  reason: fallbackReason,
+                  fallback_plan: ["native-direct", "bridge", "coordinator"],
+                  fallback_used: true,
+                  fallback_from: {
+                    adapter: "native",
+                    route_mode: nativeOut.route_mode,
+                    error: routed?.error || null,
+                  },
+                  cost_estimate_class: "low",
+                  latency_ms: Date.now() - start,
+                  result: coordinatorFallback,
+                  error: null,
+                };
+              } catch (fallbackErr: any) {
+                const fallbackReason = `native direct route failed and coordinator fallback failed (${fallbackErr.message})`;
+                raiseIntervention({
+                  level: "error",
+                  code: "native_direct_fallback_failed",
+                  message: fallbackReason,
+                  action_id: record.action_id as string,
+                });
+                return {
+                  ...nativeOut,
+                  route_reason: fallbackReason,
+                  reason: fallbackReason,
+                  latency_ms: Date.now() - start,
+                  error: {
+                    native: routed?.error || null,
+                    coordinator: { message: fallbackErr.message },
+                  },
+                };
+              }
+            })()
           : { ...routed, latency_ms: routed.latency_ms ?? latency_ms };
       wrapper.route_mode =
         wrapper.route_mode ||
@@ -593,7 +605,9 @@ export function createBatchTriageRunner({
       }
     } else if (op === "wake_all_stale") {
       const deduped = uniqueInterrupts(
-        interrupts.filter((i) => i.kind === "stale" && i.safe_auto && i.session_id),
+        interrupts.filter(
+          (i) => i.kind === "stale" && i.safe_auto && i.session_id,
+        ),
         (i: any) => `stale:${i.session_id || i.id || "unknown"}`,
         max,
       );
@@ -674,15 +688,17 @@ export function createBatchTriageRunner({
       });
       const currentIds = new Set(currentInterrupts.map((i) => i.id));
       let dismissed = 0;
-      const freshAlerts = ((store.getSnapshot().alerts as any[]) || []).filter((a: any) => {
-        if (a.team_name && a.team_name !== teamName) return true;
-        const matchId = `alert:${a.action_id || a.request_id || ""}`;
-        if (!currentIds.has(matchId)) {
-          dismissed += 1;
-          return false;
-        }
-        return true;
-      });
+      const freshAlerts = ((store.getSnapshot().alerts as any[]) || []).filter(
+        (a: any) => {
+          if (a.team_name && a.team_name !== teamName) return true;
+          const matchId = `alert:${a.action_id || a.request_id || ""}`;
+          if (!currentIds.has(matchId)) {
+            dismissed += 1;
+            return false;
+          }
+          return true;
+        },
+      );
       store.snapshot.alerts = freshAlerts;
       results.push({ ok: true, dismissed });
     } else {

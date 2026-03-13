@@ -57,7 +57,10 @@ export function registerAgentRoutes(registry: any): void {
       );
       return true;
     }
-    const out = await ctx.coordinatorAdapter.execute("agent-sync-manifest", body);
+    const out = await ctx.coordinatorAdapter.execute(
+      "agent-sync-manifest",
+      body,
+    );
     sendCoordinatorResult(ctx, res, req, out);
     return true;
   });
@@ -68,14 +71,17 @@ export function registerAgentRoutes(registry: any): void {
     const payload: Record<string, any> = {};
     const scope = url.searchParams.get("scope");
     const projectDir = url.searchParams.get("project_dir");
-    const includeInvalid = parseBooleanQuery(url.searchParams.get("include_invalid"));
+    const includeInvalid = parseBooleanQuery(
+      url.searchParams.get("include_invalid"),
+    );
     const includeShadowed = parseBooleanQuery(
       url.searchParams.get("include_shadowed"),
     );
     if (scope) payload.scope = scope;
     if (projectDir) payload.project_dir = projectDir;
     if (includeInvalid !== undefined) payload.include_invalid = includeInvalid;
-    if (includeShadowed !== undefined) payload.include_shadowed = includeShadowed;
+    if (includeShadowed !== undefined)
+      payload.include_shadowed = includeShadowed;
     const out = await ctx.coordinatorAdapter.execute("agent-list", payload);
     sendCoordinatorResult(ctx, res, req, out);
     return true;
@@ -207,7 +213,9 @@ export function registerAgentRoutes(registry: any): void {
       payload.all_scopes === undefined &&
       parseBooleanQuery(url.searchParams.get("all_scopes")) !== undefined
     ) {
-      payload.all_scopes = parseBooleanQuery(url.searchParams.get("all_scopes"));
+      payload.all_scopes = parseBooleanQuery(
+        url.searchParams.get("all_scopes"),
+      );
     }
     const out = await ctx.coordinatorAdapter.execute("agent-delete", payload);
     sendCoordinatorResult(ctx, res, req, out);

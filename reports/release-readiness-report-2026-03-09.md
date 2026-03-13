@@ -1,6 +1,7 @@
 # Claude Lead System Release Readiness Report (2026-03-09, updated 2026-03-12)
 
 ## Executive summary
+
 - Validation is broadly strong: coordinator tests, sidecar tests, hook tests, docs audits, perf gate, and smoke install all passed.
 - I fixed concrete release-quality drift in audit tooling and claim/provenance docs so evidence checks now run cleanly.
 - The current release gates are green: `npm run audit:api-contract`, `npm run docs:audit`, and `npm run ci:local` all passed on 2026-03-12.
@@ -10,6 +11,7 @@
 ## Canonical claim posture
 
 <!-- CLAIM_POSTURE:START -->
+
 - Canonical taxonomy: `verified`, `partial`, `experimental`
 - Parity posture (canonical): Do not claim exact UX parity or exact feature parity with native Agent Teams. Do not publish single-number parity percentages. Use only evidence-labeled capability claims using the canonical taxonomy. Hybrid/native execution paths remain experimental until current end-to-end evidence exists.
 - Native advantages (canonical): In-process teammate lifecycle semantics in a single runtime. Tighter first-party cross-platform UX consistency. Integrated native UI and runtime linkage without external coordinator polling.
@@ -24,40 +26,46 @@
 ## A+ gap register
 
 ### Release blockers
-| current behavior | claimed behavior | native target behavior | proof artifact | severity | fix owner | fix plan |
-|---|---|---|---|---|---|---|
-| No active release blockers. All required release gates are passing. | Local CI gate should be green for release preflight | n/a (release quality gate) | `npm run audit:api-contract`, `npm run docs:audit`, and `npm run ci:local` outputs on 2026-03-12 | Closed | Release owner | Keep release gate checks in preflight; block ship on first regression |
+
+| current behavior                                                    | claimed behavior                                    | native target behavior     | proof artifact                                                                                   | severity | fix owner     | fix plan                                                              |
+| ------------------------------------------------------------------- | --------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------ | -------- | ------------- | --------------------------------------------------------------------- |
+| No active release blockers. All required release gates are passing. | Local CI gate should be green for release preflight | n/a (release quality gate) | `npm run audit:api-contract`, `npm run docs:audit`, and `npm run ci:local` outputs on 2026-03-12 | Closed   | Release owner | Keep release gate checks in preflight; block ship on first regression |
 
 Release-blocker posture: parity/economics ambitions are tracked as evidence limits, but release blockers are failing release-quality gates.
 
 ### Parity gaps
-| current behavior | claimed behavior | native target behavior | proof artifact | severity | fix owner | fix plan |
-|---|---|---|---|---|---|---|
-| In-process display is `tmux capture-pane` polling | README/docs explicitly avoid parity claim | Native has in-process React state swap (`selectedTeammate`) | `docs/ARCHITECTURE-COMPARISON.md` table and architecture sections | Medium | Core architecture | Would require native in-process UI embedding semantics; not a short-term coordinator patch |
-| Cross-platform runtime maturity is intentionally uneven (macOS strongest, Linux/Windows partial) | Compatibility doc already scopes this down | Native target is consistent first-party UX on all supported OSes | `docs/COMPATIBILITY_MATRIX.md` notes and matrix | Medium | Platform maintainers | Expand runtime proofs per OS, then tighten matrix labels only when evidence is equivalent |
-| Team creation now atomic with rollback, but native still has tighter in-process lifecycle integration | Architecture doc now reflects overlap (not superiority) | Native’s single-runtime lifecycle linkage | `mcp-coordinator/test/atomic-team-create.test.mjs` + architecture doc update | Low | Coordinator team | Keep atomic flow; add more lifecycle parity tests if native behavior details are needed |
+
+| current behavior                                                                                      | claimed behavior                                        | native target behavior                                           | proof artifact                                                               | severity | fix owner            | fix plan                                                                                   |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | -------------------- | ------------------------------------------------------------------------------------------ |
+| In-process display is `tmux capture-pane` polling                                                     | README/docs explicitly avoid parity claim               | Native has in-process React state swap (`selectedTeammate`)      | `docs/ARCHITECTURE-COMPARISON.md` table and architecture sections            | Medium   | Core architecture    | Would require native in-process UI embedding semantics; not a short-term coordinator patch |
+| Cross-platform runtime maturity is intentionally uneven (macOS strongest, Linux/Windows partial)      | Compatibility doc already scopes this down              | Native target is consistent first-party UX on all supported OSes | `docs/COMPATIBILITY_MATRIX.md` notes and matrix                              | Medium   | Platform maintainers | Expand runtime proofs per OS, then tighten matrix labels only when evidence is equivalent  |
+| Team creation now atomic with rollback, but native still has tighter in-process lifecycle integration | Architecture doc now reflects overlap (not superiority) | Native’s single-runtime lifecycle linkage                        | `mcp-coordinator/test/atomic-team-create.test.mjs` + architecture doc update | Low      | Coordinator team     | Keep atomic flow; add more lifecycle parity tests if native behavior details are needed    |
 
 ### Economics-proof gaps
-| current behavior | claimed behavior | native target behavior | proof artifact | severity | fix owner | fix plan |
-|---|---|---|---|---|---|---|
-| Cost comparison is token-equivalent modeling with scenario bands; no live native-vs-lead telemetry harness | Docs now correctly avoid exact savings claims | Real workflow evidence of lower pressure/cost versus native | `docs/COMPARISON_METHODOLOGY.md`, `mcp-coordinator/lib/cost-comparison.js` | High | Perf/econ owner | Build A/B harness: same workload on native vs lead, collect token/latency/throughput traces, publish dataset + confidence bounds |
-| Max-plan billing impact is not directly measurable from current local metrics | Docs correctly frame Max as usage-window/headroom only | If claiming “cheaper”, must show real billed deltas or equivalent constrained experiments | `docs/COMPARISON_METHODOLOGY.md` canonical interpretation | High | Product/release owner | Keep claim downgraded until invoice-coupled or API-billed telemetry exists |
+
+| current behavior                                                                                           | claimed behavior                                       | native target behavior                                                                    | proof artifact                                                             | severity | fix owner             | fix plan                                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Cost comparison is token-equivalent modeling with scenario bands; no live native-vs-lead telemetry harness | Docs now correctly avoid exact savings claims          | Real workflow evidence of lower pressure/cost versus native                               | `docs/COMPARISON_METHODOLOGY.md`, `mcp-coordinator/lib/cost-comparison.js` | High     | Perf/econ owner       | Build A/B harness: same workload on native vs lead, collect token/latency/throughput traces, publish dataset + confidence bounds |
+| Max-plan billing impact is not directly measurable from current local metrics                              | Docs correctly frame Max as usage-window/headroom only | If claiming “cheaper”, must show real billed deltas or equivalent constrained experiments | `docs/COMPARISON_METHODOLOGY.md` canonical interpretation                  | High     | Product/release owner | Keep claim downgraded until invoice-coupled or API-billed telemetry exists                                                       |
 
 ### Docs/claim drift
-| current behavior | claimed behavior | native target behavior | proof artifact | severity | fix owner | fix plan |
-|---|---|---|---|---|---|---|
-| Coverage audit script hard-failed when README omitted explicit numeric coverage line | README no longer carries that numeric claim | n/a | `scripts/check-coverage-claim.mjs` updated and `npm run audit:coverage-claim` pass | Medium (closed) | Codex (this pass) | Fixed: audit now validates gate/measured coverage and supports README “not-claimed” mode |
-| API contract sync script regex only parsed single-quoted schema entries | Sidecar schema uses double-quoted entries | n/a | `scripts/policy/check-api-contract-sync.mjs` updated and `npm run audit:api-contract` pass | Medium (closed) | Codex (this pass) | Fixed: regex now supports single or double quotes |
-| Claim provenance had stale/overstated coverage and stale smoke-install mode command | Provenance should reflect real gates and commands | n/a | `docs/CLAIM_PROVENANCE.md` updates + docs audit pass | Medium (closed) | Codex (this pass) | Fixed: updated coverage claim, shell lint command, and smoke-install command |
-| Architecture comparison still said atomic team create was “in progress” | Code/tests already implement atomic create+rollback | n/a | `docs/ARCHITECTURE-COMPARISON.md` update + parity tests pass | Low (closed) | Codex (this pass) | Fixed: capability row now reflects implemented behavior |
+
+| current behavior                                                                     | claimed behavior                                    | native target behavior | proof artifact                                                                             | severity        | fix owner         | fix plan                                                                                 |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------ | --------------- | ----------------- | ---------------------------------------------------------------------------------------- |
+| Coverage audit script hard-failed when README omitted explicit numeric coverage line | README no longer carries that numeric claim         | n/a                    | `scripts/check-coverage-claim.mjs` updated and `npm run audit:coverage-claim` pass         | Medium (closed) | Codex (this pass) | Fixed: audit now validates gate/measured coverage and supports README “not-claimed” mode |
+| API contract sync script regex only parsed single-quoted schema entries              | Sidecar schema uses double-quoted entries           | n/a                    | `scripts/policy/check-api-contract-sync.mjs` updated and `npm run audit:api-contract` pass | Medium (closed) | Codex (this pass) | Fixed: regex now supports single or double quotes                                        |
+| Claim provenance had stale/overstated coverage and stale smoke-install mode command  | Provenance should reflect real gates and commands   | n/a                    | `docs/CLAIM_PROVENANCE.md` updates + docs audit pass                                       | Medium (closed) | Codex (this pass) | Fixed: updated coverage claim, shell lint command, and smoke-install command             |
+| Architecture comparison still said atomic team create was “in progress”              | Code/tests already implement atomic create+rollback | n/a                    | `docs/ARCHITECTURE-COMPARISON.md` update + parity tests pass                               | Low (closed)    | Codex (this pass) | Fixed: capability row now reflects implemented behavior                                  |
 
 ### Install/blessed-path gaps
-| current behavior | claimed behavior | native target behavior | proof artifact | severity | fix owner | fix plan |
-|---|---|---|---|---|---|---|
-| Blessed full-mode smoke install passes in isolated HOME locally | README says `install.sh -> claudex -> /lead` is mainstream path | n/a | `bash tests/smoke-install.sh --ref HEAD --mode full` pass | Low | Release owner | Keep smoke-install in preflight and include artifact logs in release evidence |
-| Local run does not prove all OS install/runtime parity | Docs already avoid claiming identical cross-platform maturity | Native first-party install/runtime consistency | Compatibility matrix + local-only smoke evidence | Medium | Platform maintainers | Keep CI matrix + add periodic manual evidence packs for Linux/Windows workflows |
+
+| current behavior                                                | claimed behavior                                                | native target behavior                         | proof artifact                                            | severity | fix owner            | fix plan                                                                        |
+| --------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------- | -------- | -------------------- | ------------------------------------------------------------------------------- |
+| Blessed full-mode smoke install passes in isolated HOME locally | README says `install.sh -> claudex -> /lead` is mainstream path | n/a                                            | `bash tests/smoke-install.sh --ref HEAD --mode full` pass | Low      | Release owner        | Keep smoke-install in preflight and include artifact logs in release evidence   |
+| Local run does not prove all OS install/runtime parity          | Docs already avoid claiming identical cross-platform maturity   | Native first-party install/runtime consistency | Compatibility matrix + local-only smoke evidence          | Medium   | Platform maintainers | Keep CI matrix + add periodic manual evidence packs for Linux/Windows workflows |
 
 ## Fixes made
+
 - Added missing `/agents` endpoint contract entries with schema-parity auth/body/description fields:
   - [docs/API_CONTRACT.md](/Users/drewdawson/claude-lead-system/docs/API_CONTRACT.md):71
 - Updated resume E2E fixture to include default model so policy-gated resume tests are valid:
@@ -73,6 +81,7 @@ Release-blocker posture: parity/economics ambitions are tracked as evidence limi
   - [docs/ARCHITECTURE-COMPARISON.md](/Users/drewdawson/claude-lead-system/docs/ARCHITECTURE-COMPARISON.md):73
 
 ## Tests run and results
+
 - `npm run audit:api-contract`
   - Result: **pass** (`api-contract sync check passed (73 schema routes checked)`)
 - `npm run docs:audit`
@@ -84,20 +93,24 @@ Release-blocker posture: parity/economics ambitions are tracked as evidence limi
   - `verify:hooks`: shell hooks **43 passed, 0 failed**; `pytest` **124 passed**
 
 ## Remaining risks
+
 - Economics claims remain model-derived, not experimentally proven against native real workflows.
 - Exact parity remains structurally limited by architecture differences (in-process native UI/lifecycle integration).
 
 ## Exact parity verdict
+
 - **Verdict: Not achieved, not proven.**
 - What is proven: specific functional parity slices (atomic create+rollback, recipient validation, self-claim loop behavior, bidirectional comms, plan approval gate) through passing E2E/unit tests.
 - What is not equivalent: native in-process teammate UI/lifecycle semantics and cross-platform maturity parity.
 
 ## Cheaper-than-native verdict
+
 - **Filesystem coordination overhead claim:** `verified` (coordination traffic on the filesystem path uses 0 API/model tokens).
 - **Workflow-scoped token-pressure delta claim:** `partial` (allowed only when tied to named measured artifacts and explicit workflow boundaries).
 - **Universal cheaper-than-native claim:** `experimental` (not claimable without production-measured, workflow-matched evidence across scenarios).
 
 ## Claims now provable vs still unprovable
+
 - Provable now:
   - 80%+ coordinator coverage gate is met (measured 86.75% on this validation run).
   - Atomic team create with rollback behavior works.

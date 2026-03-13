@@ -189,7 +189,7 @@ function applyLegacyDeprecationToOutput(toolName, data) {
         LEGACY_COST_DEPRECATIONS[toolName].canonical_command;
       return JSON.stringify(parsed, null, 2);
     }
-  } catch { }
+  } catch {}
   return `${raw}\n\n[DEPRECATED]\ncanonical_tool=${LEGACY_COST_DEPRECATIONS[toolName].canonical_tool}\ncanonical_command=${LEGACY_COST_DEPRECATIONS[toolName].canonical_command}\n`;
 }
 
@@ -1524,7 +1524,8 @@ const ALL_TOOLS = [
         },
         include_frontmatter: {
           type: "boolean",
-          description: "Include parsed frontmatter in response (default: true).",
+          description:
+            "Include parsed frontmatter in response (default: true).",
         },
       },
       required: ["agent_name"],
@@ -1544,7 +1545,10 @@ const ALL_TOOLS = [
           description: "Target scope (default: project).",
         },
         description: { type: "string", description: "Agent description." },
-        model: { type: "string", description: "Agent model (default: sonnet)." },
+        model: {
+          type: "string",
+          description: "Agent model (default: sonnet).",
+        },
         tools: {
           type: "array",
           items: { type: "string" },
@@ -1649,7 +1653,8 @@ const ALL_TOOLS = [
       properties: {
         manifest_path: {
           type: "string",
-          description: "Optional manifest path (default: {project}/MANIFEST.md).",
+          description:
+            "Optional manifest path (default: {project}/MANIFEST.md).",
         },
         scope: {
           type: "string",

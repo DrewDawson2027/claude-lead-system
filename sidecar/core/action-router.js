@@ -76,10 +76,7 @@ export class ActionRouter {
         result: primaryResult,
         orchestration,
       };
-      if (
-        !ok &&
-        decision.adapter === "native"
-      ) {
+      if (!ok && decision.adapter === "native") {
         const fallbackPolicy = shouldAttemptCoordinatorFallback({
           teamPolicy: team?.policy || {},
           error: primaryResult?.error || null,
@@ -142,7 +139,9 @@ export class ActionRouter {
             ok: false,
             adapter: decision.adapter,
             path_mode:
-              decision.adapter === "native" ? decision.path_mode : "local-module",
+              decision.adapter === "native"
+                ? decision.path_mode
+                : "local-module",
             route_mode:
               decision.adapter === "native"
                 ? decision.path_mode
@@ -199,7 +198,9 @@ export class ActionRouter {
         path_mode:
           decision.adapter === "native" ? decision.path_mode : "local-module",
         route_mode:
-          decision.adapter === "native" ? decision.path_mode : "coordinator-local",
+          decision.adapter === "native"
+            ? decision.path_mode
+            : "coordinator-local",
         route_reason: decision.reason,
         reason: decision.reason,
         fallback_plan: decision.fallback_plan,

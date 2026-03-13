@@ -110,10 +110,16 @@ function defaultHotkeys() {
 
 function teammateLiveKey(m) {
   if (!m) return "";
-  return String(m.id || `${m.team_name || ""}:${m.display_name || m.name || ""}`);
+  return String(
+    m.id || `${m.team_name || ""}:${m.display_name || m.name || ""}`,
+  );
 }
 
-function classifyFreshness(updatedAtMs, nowMs = Date.now(), staleAfterMs = LIVE_STALE_AFTER_MS) {
+function classifyFreshness(
+  updatedAtMs,
+  nowMs = Date.now(),
+  staleAfterMs = LIVE_STALE_AFTER_MS,
+) {
   const updated = Number(updatedAtMs) || 0;
   const threshold = Number(staleAfterMs) || LIVE_STALE_AFTER_MS;
   if (!updated) {
@@ -152,7 +158,8 @@ function focusedInterrupt(preferFocusedTeammate = true) {
     const teammateId = teammate?.id || null;
     if (teammateId) {
       const match = interrupts.find(
-        (item) => item?.teammate_id && String(item.teammate_id) === String(teammateId),
+        (item) =>
+          item?.teammate_id && String(item.teammate_id) === String(teammateId),
       );
       if (match) return match;
     }
@@ -174,14 +181,16 @@ function focusedApproval(preferFocusedTeammate = true) {
     const teammateId = teammate?.id || null;
     if (teammateId) {
       const match = approvals.find(
-        (item) => item?.teammate_id && String(item.teammate_id) === String(teammateId),
+        (item) =>
+          item?.teammate_id && String(item.teammate_id) === String(teammateId),
       );
       if (match) return match;
     }
   }
   if (state.selectedApprovalTaskId) {
     const byTask = approvals.find(
-      (item) => String(item.task_id || "") === String(state.selectedApprovalTaskId),
+      (item) =>
+        String(item.task_id || "") === String(state.selectedApprovalTaskId),
     );
     if (byTask) return byTask;
   }
@@ -193,17 +202,20 @@ function syncFocusSelections(preferFocusedTeammate = true) {
   state.selectedInterruptId = interrupt?.id || null;
   const approval = focusedApproval(preferFocusedTeammate);
   state.selectedApprovalTaskId = approval?.task_id || null;
-  if ($("approval-task-id")) $("approval-task-id").value = approval?.task_id || "";
+  if ($("approval-task-id"))
+    $("approval-task-id").value = approval?.task_id || "";
 }
 
 function focusedRouteModes() {
-  const fromSnapshot = state.detail?.focused_teammate_live?.route_mode_preference;
+  const fromSnapshot =
+    state.detail?.focused_teammate_live?.route_mode_preference;
   if (Array.isArray(fromSnapshot) && fromSnapshot.length) return fromSnapshot;
   return [...ROUTE_MODE_PREFERENCE];
 }
 
 function focusedRouteLabels() {
-  const fromSnapshot = state.detail?.focused_teammate_live?.stream_fallback_order;
+  const fromSnapshot =
+    state.detail?.focused_teammate_live?.stream_fallback_order;
   if (Array.isArray(fromSnapshot) && fromSnapshot.length) return fromSnapshot;
   return [...ROUTE_LABEL_PREFERENCE];
 }
@@ -211,8 +223,10 @@ function focusedRouteLabels() {
 function hydrateFocusTargets() {
   const teammate = selectedTeammate();
   if (teammate) {
-    if ($("target-agent")) $("target-agent").value = teammate.display_name || teammate.name || "";
-    if ($("target-session")) $("target-session").value = teammate.session_id || "";
+    if ($("target-agent"))
+      $("target-agent").value = teammate.display_name || teammate.name || "";
+    if ($("target-session"))
+      $("target-session").value = teammate.session_id || "";
   }
   const interrupt = focusedInterrupt(true);
   if (interrupt?.session_id && $("target-session")) {
@@ -256,7 +270,9 @@ function selectFocusedRoute(teammate) {
   const freshnessMeta = focusedFreshnessMeta(teammate);
   const sidecarLiveAvailable = freshnessMeta.freshness === LIVE_FRESHNESS.FRESH;
   const hasTmuxMirror = Boolean(
-    teammate?.tmux_pane_id || teammate?.current_task_ref || teammate?.worker_task_id,
+    teammate?.tmux_pane_id ||
+    teammate?.current_task_ref ||
+    teammate?.worker_task_id,
   );
   const base = {
     ...freshnessMeta,
@@ -271,7 +287,8 @@ function selectFocusedRoute(teammate) {
       route_label: "native live",
       route_reason: "native adapter available with teammate native identity",
       fallback_reason: null,
-      source_truth: "native adapter live state mirror (not in-process rendering)",
+      source_truth:
+        "native adapter live state mirror (not in-process rendering)",
     };
   }
   if (sidecarLiveAvailable) {
@@ -323,7 +340,9 @@ function cycleFocusedTeammate(delta) {
     state.selectedMember = teammateLiveKey(teammates[bootstrapIdx]);
     return teammates[bootstrapIdx];
   }
-  const nextIdx = ((currentIdx + delta) % teammates.length + teammates.length) % teammates.length;
+  const nextIdx =
+    (((currentIdx + delta) % teammates.length) + teammates.length) %
+    teammates.length;
   state.selectedMember = teammateLiveKey(teammates[nextIdx]);
   return teammates[nextIdx];
 }
@@ -366,14 +385,18 @@ function scheduleFocusedPanelRender() {
   }, 0);
 }
 
-function applyFocusedTeammateSelection(delta, statusPrefix = "Focused teammate") {
+function applyFocusedTeammateSelection(
+  delta,
+  statusPrefix = "Focused teammate",
+) {
   const m = cycleFocusedTeammate(delta);
   if (!m) return null;
   syncFocusSelections(true);
   hydrateFocusTargets();
   renderFocusedTeammate();
   scheduleFocusedPanelRender();
-  $("status").textContent = `${statusPrefix}: ${m.display_name || m.name || m.id || "-"}`;
+  $("status").textContent =
+    `${statusPrefix}: ${m.display_name || m.name || m.id || "-"}`;
   return m;
 }
 
@@ -630,10 +653,14 @@ function renderApprovalInbox() {
       state.selectedApprovalTaskId = taskId || null;
       try {
         if (op === "approve") {
-          await runTeamAction("approve-plan", {
-            task_id: taskId,
-            message: "Approved from inbox",
-          }, { refreshMode: "focused" });
+          await runTeamAction(
+            "approve-plan",
+            {
+              task_id: taskId,
+              message: "Approved from inbox",
+            },
+            { refreshMode: "focused" },
+          );
           await loadApprovals();
         } else if (op === "reject-toggle") {
           const fb = document.getElementById(`fb-${taskId}`);
@@ -641,7 +668,11 @@ function renderApprovalInbox() {
         } else if (op === "reject-confirm") {
           const textarea = node.querySelector(`[data-fb-text="${taskId}"]`);
           const feedback = textarea?.value || "Needs revision";
-          await runTeamAction("reject-plan", { task_id: taskId, feedback }, { refreshMode: "focused" });
+          await runTeamAction(
+            "reject-plan",
+            { task_id: taskId, feedback },
+            { refreshMode: "focused" },
+          );
           await loadApprovals();
         }
       } catch (err) {
@@ -975,7 +1006,8 @@ async function fetchTeammateMirror(teammate) {
       state.focusedTeammate.route_mode === "tmux-mirror"
     ) {
       state.focusedTeammate.mirror_output = out.output || null;
-      state.focusedTeammate.mirror_at = out.generated_at || new Date().toISOString();
+      state.focusedTeammate.mirror_at =
+        out.generated_at || new Date().toISOString();
       renderFocusedTeammate();
     }
   } catch {
@@ -997,21 +1029,30 @@ function renderFocusedTeammate() {
   if (!teammate) {
     stopFocusedMirrorPolling();
     state.focusedTeammate = null;
-    node.innerHTML = '<div class="mini">Select a teammate to start live focus.</div>';
+    node.innerHTML =
+      '<div class="mini">Select a teammate to start live focus.</div>';
     return;
   }
   const key = teammateLiveKey(teammate);
   const route = selectFocusedRoute(teammate);
   const live = state.liveTeammatesById[key]?.teammate || teammate;
-  const liveAge = route.live_age_ms != null ? `${Math.max(0, Math.round(route.live_age_ms / 1000))}s` : "n/a";
+  const liveAge =
+    route.live_age_ms != null
+      ? `${Math.max(0, Math.round(route.live_age_ms / 1000))}s`
+      : "n/a";
   const model = {
     key,
     teammate,
     live,
     ...route,
     mirror_output:
-      state.focusedTeammate?.key === key ? state.focusedTeammate?.mirror_output : null,
-    mirror_at: state.focusedTeammate?.key === key ? state.focusedTeammate?.mirror_at : null,
+      state.focusedTeammate?.key === key
+        ? state.focusedTeammate?.mirror_output
+        : null,
+    mirror_at:
+      state.focusedTeammate?.key === key
+        ? state.focusedTeammate?.mirror_at
+        : null,
   };
   state.focusedTeammate = model;
   ensureFocusedMirrorPolling(teammate, route.route_mode);
@@ -1023,8 +1064,12 @@ function renderFocusedTeammate() {
   }
   const interrupt = focusedInterrupt(true);
   const approval = focusedApproval(true);
-  const routePreference = (route.route_mode_preference || focusedRouteModes()).join(" > ");
-  const fallbackOrder = (route.stream_fallback_order || focusedRouteLabels()).join(" > ");
+  const routePreference = (
+    route.route_mode_preference || focusedRouteModes()
+  ).join(" > ");
+  const fallbackOrder = (
+    route.stream_fallback_order || focusedRouteLabels()
+  ).join(" > ");
 
   const output =
     route.route_mode === "tmux-mirror"
@@ -1036,10 +1081,12 @@ function renderFocusedTeammate() {
           `agent=${live.native_agent_id || "-"}`,
           `last_tool=${live.last_tool || "-"}`,
           `risk=${(live.risk_flags || []).join(",") || "none"}`,
-          `recent_ops=${(live.recent_ops || [])
-            .slice(-6)
-            .map((x) => x.tool || x.file || "?")
-            .join(" | ") || "none"}`,
+          `recent_ops=${
+            (live.recent_ops || [])
+              .slice(-6)
+              .map((x) => x.tool || x.file || "?")
+              .join(" | ") || "none"
+          }`,
           "Note: this is not in-process native rendering; it is live state mirrored by sidecar.",
         ].join("\n");
 
@@ -1151,9 +1198,13 @@ function renderAlerts() {
     el.onclick = () => {
       const id = el.getAttribute("data-int-id") || "";
       state.selectedInterruptId = id || null;
-      const selected = (state.interrupts || []).find((item) => String(item.id) === String(id));
-      if (selected?.task_id && $("approval-task-id")) $("approval-task-id").value = selected.task_id;
-      if (selected?.session_id && $("target-session")) $("target-session").value = selected.session_id;
+      const selected = (state.interrupts || []).find(
+        (item) => String(item.id) === String(id),
+      );
+      if (selected?.task_id && $("approval-task-id"))
+        $("approval-task-id").value = selected.task_id;
+      if (selected?.session_id && $("target-session"))
+        $("target-session").value = selected.session_id;
       renderAlerts();
       renderFocusedTeammate();
     };
@@ -1164,35 +1215,48 @@ function renderAlerts() {
       evt.stopPropagation();
       const op = el.getAttribute("data-int-op");
       const card = el.closest("[data-int-id]");
-      if (card) state.selectedInterruptId = card.getAttribute("data-int-id") || null;
+      if (card)
+        state.selectedInterruptId = card.getAttribute("data-int-id") || null;
       try {
         if (op === "approve") {
           const taskId = el.getAttribute("data-task-id");
           $("approval-task-id").value = taskId || "";
           $("approval-mode").value = "approve";
-          await runTeamAction("approve-plan", {
-            task_id: taskId,
-            message: "Approved from interrupt inbox",
-          }, { refreshMode: "focused" });
+          await runTeamAction(
+            "approve-plan",
+            {
+              task_id: taskId,
+              message: "Approved from interrupt inbox",
+            },
+            { refreshMode: "focused" },
+          );
           return;
         }
         if (op === "reject") {
           const taskId = el.getAttribute("data-task-id");
           $("approval-task-id").value = taskId || "";
           $("approval-mode").value = "reject";
-          await runTeamAction("reject-plan", {
-            task_id: taskId,
-            feedback: "Rejected from interrupt inbox",
-          }, { refreshMode: "focused" });
+          await runTeamAction(
+            "reject-plan",
+            {
+              task_id: taskId,
+              feedback: "Rejected from interrupt inbox",
+            },
+            { refreshMode: "focused" },
+          );
           return;
         }
         if (op === "wake") {
           const sid = el.getAttribute("data-session-id");
           $("target-session").value = sid || "";
-          await runTeamAction("wake", {
-            session_id: sid,
-            message: "Wake from interrupt inbox",
-          }, { refreshMode: "focused" });
+          await runTeamAction(
+            "wake",
+            {
+              session_id: sid,
+              message: "Wake from interrupt inbox",
+            },
+            { refreshMode: "focused" },
+          );
           return;
         }
         if (op === "bridge-validate") return $("btn-bridge-validate").click();
@@ -1884,21 +1948,29 @@ function bindActions() {
   };
   $("btn-directive").onclick = async () => {
     try {
-      await runTeamAction("directive", {
-        to: $("target-session").value,
-        content: $("message-content").value,
-        priority: "urgent",
-      }, { refreshMode: "focused" });
+      await runTeamAction(
+        "directive",
+        {
+          to: $("target-session").value,
+          content: $("message-content").value,
+          priority: "urgent",
+        },
+        { refreshMode: "focused" },
+      );
     } catch (err) {
       $("result").textContent = err.message;
     }
   };
   $("btn-wake").onclick = async () => {
     try {
-      await runTeamAction("wake", {
-        session_id: $("target-session").value,
-        message: $("message-content").value || "Lead sidecar wake",
-      }, { refreshMode: "focused" });
+      await runTeamAction(
+        "wake",
+        {
+          session_id: $("target-session").value,
+          message: $("message-content").value || "Lead sidecar wake",
+        },
+        { refreshMode: "focused" },
+      );
     } catch (err) {
       $("result").textContent = err.message;
     }
@@ -1908,15 +1980,23 @@ function bindActions() {
       const mode = $("approval-mode").value;
       const task_id = $("approval-task-id").value;
       if (mode === "approve")
-        await runTeamAction("approve-plan", {
-          task_id,
-          message: $("message-content").value || "Approved",
-        }, { refreshMode: "focused" });
+        await runTeamAction(
+          "approve-plan",
+          {
+            task_id,
+            message: $("message-content").value || "Approved",
+          },
+          { refreshMode: "focused" },
+        );
       else
-        await runTeamAction("reject-plan", {
-          task_id,
-          feedback: $("message-content").value || "Needs revision",
-        }, { refreshMode: "focused" });
+        await runTeamAction(
+          "reject-plan",
+          {
+            task_id,
+            feedback: $("message-content").value || "Needs revision",
+          },
+          { refreshMode: "focused" },
+        );
     } catch (err) {
       $("result").textContent = err.message;
     }
@@ -2017,19 +2097,28 @@ function bindActions() {
         $("target-session").value = interrupt.session_id;
       }
       if (interrupt.kind === "approval" && interrupt.task_id) {
-        await runTeamAction("approve-plan", {
-          task_id: interrupt.task_id,
-          message: "Approved from focused teammate triage",
-        }, { refreshMode: "focused" });
+        await runTeamAction(
+          "approve-plan",
+          {
+            task_id: interrupt.task_id,
+            message: "Approved from focused teammate triage",
+          },
+          { refreshMode: "focused" },
+        );
       } else if (interrupt.kind === "stale" && interrupt.session_id) {
-        await runTeamAction("wake", {
-          session_id: interrupt.session_id,
-          message: "Wake from focused teammate triage",
-        }, { refreshMode: "focused" });
+        await runTeamAction(
+          "wake",
+          {
+            session_id: interrupt.session_id,
+            message: "Wake from focused teammate triage",
+          },
+          { refreshMode: "focused" },
+        );
       } else if (interrupt.code === "bridge_stuck_request") {
         $("btn-bridge-validate").click();
       } else {
-        $("result").textContent = `No triage handler for interrupt kind=${interrupt.kind || "-"} code=${interrupt.code || "-"}`;
+        $("result").textContent =
+          `No triage handler for interrupt kind=${interrupt.kind || "-"} code=${interrupt.code || "-"}`;
       }
     } catch (err) {
       $("result").textContent = err.message;
@@ -2041,10 +2130,14 @@ function bindActions() {
       if (!ap?.task_id) throw new Error("No pending approval");
       state.selectedApprovalTaskId = ap.task_id;
       if ($("approval-task-id")) $("approval-task-id").value = ap.task_id;
-      await runTeamAction("approve-plan", {
-        task_id: ap.task_id,
-        message: "Approved from focused teammate controls",
-      }, { refreshMode: "focused" });
+      await runTeamAction(
+        "approve-plan",
+        {
+          task_id: ap.task_id,
+          message: "Approved from focused teammate controls",
+        },
+        { refreshMode: "focused" },
+      );
     } catch (err) {
       $("result").textContent = err.message;
     }
@@ -2057,10 +2150,14 @@ function bindActions() {
       if ($("approval-task-id")) $("approval-task-id").value = ap.task_id;
       const feedback = window.prompt("Revision feedback", "Needs revision");
       if (feedback === null) return;
-      await runTeamAction("reject-plan", {
-        task_id: ap.task_id,
-        feedback: feedback || "Needs revision",
-      }, { refreshMode: "focused" });
+      await runTeamAction(
+        "reject-plan",
+        {
+          task_id: ap.task_id,
+          feedback: feedback || "Needs revision",
+        },
+        { refreshMode: "focused" },
+      );
     } catch (err) {
       $("result").textContent = err.message;
     }
@@ -2277,7 +2374,9 @@ function setupEvents() {
   es.addEventListener("teammate.updated", (e) => {
     try {
       const payload = JSON.parse(e.data || "{}");
-      const teammates = Array.isArray(payload.teammates) ? payload.teammates : [];
+      const teammates = Array.isArray(payload.teammates)
+        ? payload.teammates
+        : [];
       cacheLiveTeammates(teammates, Date.now());
       if (state.selectedTeam && state.detail) {
         state.detail.teammates = teammates.filter(
@@ -2306,7 +2405,9 @@ function setupEvents() {
       const payload = JSON.parse(e.data || "{}");
       const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
       if (state.selectedTeam && state.detail) {
-        state.detail.tasks = tasks.filter((t) => t.team_name === state.selectedTeam);
+        state.detail.tasks = tasks.filter(
+          (t) => t.team_name === state.selectedTeam,
+        );
         renderDetail();
       }
     } catch {}

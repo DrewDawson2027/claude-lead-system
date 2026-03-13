@@ -11,7 +11,9 @@ const TOOL_BY_ACTION = {
 };
 
 function normalizeNativeModel(value) {
-  const raw = String(value || "sonnet").trim().toLowerCase();
+  const raw = String(value || "sonnet")
+    .trim()
+    .toLowerCase();
   if (!raw) return "sonnet";
   if (raw === "sonnet" || raw === "haiku") return raw;
   if (raw.startsWith("claude-sonnet-")) return "sonnet";
@@ -68,7 +70,9 @@ function withRouteMetadata(
   const fallback_history = Array.isArray(payload?.fallback_history)
     ? payload.fallback_history
     : [];
-  const probe_source = String(payload?.probe_source || probeSource || "").trim();
+  const probe_source = String(
+    payload?.probe_source || probeSource || "",
+  ).trim();
   return {
     ...payload,
     path_mode: payload?.path_mode || "native-direct",
@@ -157,32 +161,38 @@ export class NativeActionRunner {
     try {
       resolvedModel = normalizeNativeModel(model);
     } catch (err) {
-      return withRouteMetadata({
-        ok: false,
-        action,
-        native_tool: TOOL_BY_ACTION[action] || null,
-        error: { code: "unsupported_model", message: err.message },
-        tool_available: null,
-        notes: `Rejected model: ${String(model || "") || "(empty)"}`,
-        latency_ms: 0,
-      }, {
-        routeReason: "native execution blocked: unsupported model",
-      });
+      return withRouteMetadata(
+        {
+          ok: false,
+          action,
+          native_tool: TOOL_BY_ACTION[action] || null,
+          error: { code: "unsupported_model", message: err.message },
+          tool_available: null,
+          notes: `Rejected model: ${String(model || "") || "(empty)"}`,
+          latency_ms: 0,
+        },
+        {
+          routeReason: "native execution blocked: unsupported model",
+        },
+      );
     }
 
     if (process.env.LEAD_SIDECAR_NATIVE_RUNNER_MOCK) {
       const out = this._mockResponse(action, payload);
-      return withRouteMetadata({
-        ...out,
-        latency_ms: 1,
-      }, {
-        routeReason:
-          out.route_reason ||
-          (out.ok
-            ? "mock native execution succeeded"
-            : "mock native execution failed"),
-        probeSource: "native-runner-mock",
-      });
+      return withRouteMetadata(
+        {
+          ...out,
+          latency_ms: 1,
+        },
+        {
+          routeReason:
+            out.route_reason ||
+            (out.ok
+              ? "mock native execution succeeded"
+              : "mock native execution failed"),
+          probeSource: "native-runner-mock",
+        },
+      );
     }
 
     const templateMap = {
@@ -212,29 +222,35 @@ export class NativeActionRunner {
       });
       try {
         const parsed = parseStructuredJson(raw.stdout || raw.output || "");
-        return withRouteMetadata({
-          ...parsed,
-          latency_ms: raw.latency_ms ?? 0,
-        }, {
-          routeReason:
-            parsed?.ok === false
-              ? "native direct execution returned failure"
-              : "native direct execution succeeded",
-        });
+        return withRouteMetadata(
+          {
+            ...parsed,
+            latency_ms: raw.latency_ms ?? 0,
+          },
+          {
+            routeReason:
+              parsed?.ok === false
+                ? "native direct execution returned failure"
+                : "native direct execution succeeded",
+          },
+        );
       } catch (err) {
-        return withRouteMetadata({
-          ok: false,
-          action,
-          native_tool: TOOL_BY_ACTION[action] || null,
-          error: { code: "malformed_response", message: err.message },
-          tool_available: null,
-          notes: String(raw.stderr || raw.stdout || raw.output || "").slice(
-            -1000,
-          ),
-          latency_ms: raw.latency_ms ?? 0,
-        }, {
-          routeReason: "native direct execution returned malformed response",
-        });
+        return withRouteMetadata(
+          {
+            ok: false,
+            action,
+            native_tool: TOOL_BY_ACTION[action] || null,
+            error: { code: "malformed_response", message: err.message },
+            tool_available: null,
+            notes: String(raw.stderr || raw.stdout || raw.output || "").slice(
+              -1000,
+            ),
+            latency_ms: raw.latency_ms ?? 0,
+          },
+          {
+            routeReason: "native direct execution returned malformed response",
+          },
+        );
       }
     }
 
@@ -269,63 +285,75 @@ export class NativeActionRunner {
 
     const latency_ms = Date.now() - started;
     if (result.timeout) {
-      return withRouteMetadata({
-        ok: false,
-        action,
-        native_tool: TOOL_BY_ACTION[action] || null,
-        error: {
-          code: "native_execution_failed",
-          message: "timeout",
-          detail: "runner timed out",
+      return withRouteMetadata(
+        {
+          ok: false,
+          action,
+          native_tool: TOOL_BY_ACTION[action] || null,
+          error: {
+            code: "native_execution_failed",
+            message: "timeout",
+            detail: "runner timed out",
+          },
+          tool_available: null,
+          notes: stderr.slice(-500),
+          latency_ms,
         },
-        tool_available: null,
-        notes: stderr.slice(-500),
-        latency_ms,
-      }, {
-        routeReason: "native direct execution timed out",
-      });
+        {
+          routeReason: "native direct execution timed out",
+        },
+      );
     }
     if (result.error) {
-      return withRouteMetadata({
-        ok: false,
-        action,
-        native_tool: TOOL_BY_ACTION[action] || null,
-        error: {
-          code: "native_execution_failed",
-          message: result.error.message,
+      return withRouteMetadata(
+        {
+          ok: false,
+          action,
+          native_tool: TOOL_BY_ACTION[action] || null,
+          error: {
+            code: "native_execution_failed",
+            message: result.error.message,
+          },
+          tool_available: null,
+          notes: stderr.slice(-500),
+          latency_ms,
         },
-        tool_available: null,
-        notes: stderr.slice(-500),
-        latency_ms,
-      }, {
-        routeReason: "native direct execution failed to start",
-      });
+        {
+          routeReason: "native direct execution failed to start",
+        },
+      );
     }
 
     try {
       const parsed = parseStructuredJson(result.stdout);
-      return withRouteMetadata({
-        ...parsed,
-        latency_ms,
-        raw_code: result.code,
-      }, {
-        routeReason:
-          parsed?.ok === false
-            ? "native direct execution returned failure"
-            : "native direct execution succeeded",
-      });
+      return withRouteMetadata(
+        {
+          ...parsed,
+          latency_ms,
+          raw_code: result.code,
+        },
+        {
+          routeReason:
+            parsed?.ok === false
+              ? "native direct execution returned failure"
+              : "native direct execution succeeded",
+        },
+      );
     } catch (err) {
-      return withRouteMetadata({
-        ok: false,
-        action,
-        native_tool: TOOL_BY_ACTION[action] || null,
-        error: { code: "malformed_response", message: err.message },
-        tool_available: null,
-        notes: (result.stderr || result.stdout || "").slice(-1000),
-        latency_ms,
-      }, {
-        routeReason: "native direct execution returned malformed response",
-      });
+      return withRouteMetadata(
+        {
+          ok: false,
+          action,
+          native_tool: TOOL_BY_ACTION[action] || null,
+          error: { code: "malformed_response", message: err.message },
+          tool_available: null,
+          notes: (result.stderr || result.stdout || "").slice(-1000),
+          latency_ms,
+        },
+        {
+          routeReason: "native direct execution returned malformed response",
+        },
+      );
     }
   }
 }

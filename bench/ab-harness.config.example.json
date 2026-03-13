@@ -20,9 +20,7 @@
     "activity_jsonl": "~/.claude/terminals/activity.jsonl",
     "conflicts_jsonl": "~/.claude/terminals/conflicts.jsonl",
     "results_dir": "~/.claude/terminals/results",
-    "transcript_roots": [
-      "~/.claude"
-    ],
+    "transcript_roots": ["~/.claude"],
     "transcript_include_regex": "transcript.*\\.jsonl$",
     "transcript_max_depth": 10,
     "attribution_policy": "strict_run_trial_path"

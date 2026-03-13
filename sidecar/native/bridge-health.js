@@ -23,9 +23,12 @@ export function getBridgeHealth(paths, staleMs = 30000) {
       process_alive = false;
     }
   }
-  const last = heartbeat.ts
-    || (status.session_id ? status.updated_at || status.started_at || null : null)
-    || (status.starting ? status.updated_at || status.started_at || null : null);
+  const last =
+    heartbeat.ts ||
+    (status.session_id
+      ? status.updated_at || status.started_at || null
+      : null) ||
+    (status.starting ? status.updated_at || status.started_at || null : null);
   const ageMs = last ? Date.now() - new Date(last).getTime() : Infinity;
   const hasFreshnessSignal = Number.isFinite(ageMs) && ageMs >= 0;
   let bridge_status = "down";

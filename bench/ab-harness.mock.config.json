@@ -18,9 +18,7 @@
     "activity_jsonl": "reports/ab-harness/mock-telemetry/activity.jsonl",
     "conflicts_jsonl": "reports/ab-harness/mock-telemetry/conflicts.jsonl",
     "results_dir": "reports/ab-harness/mock-telemetry/results",
-    "transcript_roots": [
-      "reports/ab-harness/mock-telemetry/transcripts"
-    ],
+    "transcript_roots": ["reports/ab-harness/mock-telemetry/transcripts"],
     "transcript_include_regex": "transcript.*\\.jsonl$",
     "transcript_max_depth": 4
   },

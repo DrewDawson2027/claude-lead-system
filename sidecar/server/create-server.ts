@@ -126,7 +126,12 @@ import {
 } from "./runtime/actions.js";
 import { bootRuntime, startRuntimeLifecycle } from "./runtime/lifecycle.js";
 
-import type { ParsedArgs, TlsConfig, SidecarServerInstance, RouteContext } from "./types.js";
+import type {
+  ParsedArgs,
+  TlsConfig,
+  SidecarServerInstance,
+  RouteContext,
+} from "./types.js";
 import { runRequestMiddleware } from "./middleware.js";
 import { createRouteContextFactory } from "./context-builder.js";
 
@@ -200,11 +205,17 @@ async function bindServer(
   if (unixSocketPath) {
     try {
       unlinkSync(unixSocketPath);
-    } catch { /* may not exist yet */ }
-    await new Promise<void>((resolve) => server.listen(unixSocketPath, resolve));
+    } catch {
+      /* may not exist yet */
+    }
+    await new Promise<void>((resolve) =>
+      server.listen(unixSocketPath, resolve),
+    );
     try {
       chmodSync(unixSocketPath, 0o600);
-    } catch { /* best effort */ }
+    } catch {
+      /* best effort */
+    }
   } else {
     await new Promise<void>((resolve) =>
       server.listen(port || 0, "127.0.0.1", resolve),
@@ -227,13 +238,29 @@ function cleanupFactory(
       process.off("SIGINT", shutdown);
       process.off("SIGTERM", shutdown);
     }
-    try { unlinkSync(paths.lockFile); } catch { /* ignore */ }
-    try { unlinkSync(paths.portFile); } catch { /* ignore */ }
+    try {
+      unlinkSync(paths.lockFile);
+    } catch {
+      /* ignore */
+    }
+    try {
+      unlinkSync(paths.portFile);
+    } catch {
+      /* ignore */
+    }
     if (unixSocketPath) {
-      try { unlinkSync(unixSocketPath); } catch { /* ignore */ }
+      try {
+        unlinkSync(unixSocketPath);
+      } catch {
+        /* ignore */
+      }
     }
     for (const clientRes of clients) {
-      try { clientRes.end(); } catch { /* ignore */ }
+      try {
+        clientRes.end();
+      } catch {
+        /* ignore */
+      }
     }
     server.close(() => {
       if (exitAfter) process.exit(0);
@@ -315,7 +342,11 @@ export async function startSidecarServer(
     coordinatorAdapter: coordinatorAdapter as any,
     store: store as any,
   });
-  const router = new ActionRouter({ coordinatorAdapter, nativeAdapter, store } as any);
+  const router = new ActionRouter({
+    coordinatorAdapter,
+    nativeAdapter,
+    store,
+  } as any);
   const clients: Set<http.ServerResponse> = new Set();
 
   // --- Rate limiter & replay protector ---
@@ -337,14 +368,30 @@ export async function startSidecarServer(
   // --- Bound response helpers ---
   const baseHeaders = (req: http.IncomingMessage | null = null) =>
     createBaseHeaders(req, allowedBrowserOrigin, originAllowlist);
-  const sendJson = (res: http.ServerResponse, status: number, payload: unknown, req: http.IncomingMessage | null = null) =>
-    sendJsonRaw(baseHeaders, res, status, payload, req);
-  const sendText = (res: http.ServerResponse, status: number, body: string, req: http.IncomingMessage | null = null) =>
-    sendTextRaw(baseHeaders, res, status, body, req);
-  const sendHtml = (res: http.ServerResponse, status: number, body: string, req: http.IncomingMessage | null = null) =>
-    sendHtmlRaw(baseHeaders, res, status, body, req);
-  const sendJs = (res: http.ServerResponse, status: number, body: string, req: http.IncomingMessage | null = null) =>
-    sendJsRaw(baseHeaders, res, status, body, req);
+  const sendJson = (
+    res: http.ServerResponse,
+    status: number,
+    payload: unknown,
+    req: http.IncomingMessage | null = null,
+  ) => sendJsonRaw(baseHeaders, res, status, payload, req);
+  const sendText = (
+    res: http.ServerResponse,
+    status: number,
+    body: string,
+    req: http.IncomingMessage | null = null,
+  ) => sendTextRaw(baseHeaders, res, status, body, req);
+  const sendHtml = (
+    res: http.ServerResponse,
+    status: number,
+    body: string,
+    req: http.IncomingMessage | null = null,
+  ) => sendHtmlRaw(baseHeaders, res, status, body, req);
+  const sendJs = (
+    res: http.ServerResponse,
+    status: number,
+    body: string,
+    req: http.IncomingMessage | null = null,
+  ) => sendJsRaw(baseHeaders, res, status, body, req);
   const sendError = (
     res: http.ServerResponse,
     status: number,
@@ -353,7 +400,10 @@ export async function startSidecarServer(
     req: http.IncomingMessage | null = null,
     details?: unknown,
   ) => sendErrorRaw(baseHeaders, res, status, errorCode, message, req, details);
-  const readBody = (req: http.IncomingMessage, opts: { limitBytes?: number } = {}) => {
+  const readBody = (
+    req: http.IncomingMessage,
+    opts: { limitBytes?: number } = {},
+  ) => {
     if (!opts.limitBytes) {
       const pathname =
         (req as any)._routeMeta?.routePath ||
@@ -366,7 +416,10 @@ export async function startSidecarServer(
     validateBodyRaw(pathname, body);
 
   // --- Bound security helpers ---
-  const requireApiAuth = (req: http.IncomingMessage, res: http.ServerResponse): boolean =>
+  const requireApiAuth = (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): boolean =>
     requireApiAuthRaw(
       sendJson,
       req,
@@ -376,7 +429,10 @@ export async function startSidecarServer(
       originAllowlist,
       securityAuditLog,
     );
-  const requireSameOrigin = (req: http.IncomingMessage, res: http.ServerResponse): boolean =>
+  const requireSameOrigin = (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): boolean =>
     requireSameOriginRaw(
       sendJson,
       req,
@@ -385,8 +441,10 @@ export async function startSidecarServer(
       originAllowlist,
       securityAuditLog,
     );
-  const requireCsrf = (req: http.IncomingMessage, res: http.ServerResponse): boolean =>
-    requireCsrfRaw(sendJson, req, res, csrfToken, securityAuditLog);
+  const requireCsrf = (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): boolean => requireCsrfRaw(sendJson, req, res, csrfToken, securityAuditLog);
 
   // --- Operations factories ---
   const { rebuild } = createRebuildOps({
@@ -409,12 +467,17 @@ export async function startSidecarServer(
     sweepBridgeQueues,
     store,
     rateLimiter,
-    getAllTasksSnapshot: () => (store as unknown as { getSnapshot(): Record<string, unknown> }).getSnapshot().tasks || [],
+    getAllTasksSnapshot: () =>
+      (
+        store as unknown as { getSnapshot(): Record<string, unknown> }
+      ).getSnapshot().tasks || [],
     applyPriorityAging,
     getTeamsSnapshot: (fresh = false) =>
       fresh
         ? buildSidecarSnapshot().teams || []
-        : (store as unknown as { getSnapshot(): Record<string, unknown> }).getSnapshot().teams || [],
+        : (
+            store as unknown as { getSnapshot(): Record<string, unknown> }
+          ).getSnapshot().teams || [],
     shouldAutoRebalance,
     coordinatorAdapter,
     metrics,
@@ -490,7 +553,8 @@ export async function startSidecarServer(
     validateBody,
     findTeam,
     buildActionPayload,
-    buildTeamInterrupts: buildTeamInterrupts as RouteContext["buildTeamInterrupts"],
+    buildTeamInterrupts:
+      buildTeamInterrupts as RouteContext["buildTeamInterrupts"],
     mapNativeHttpAction,
     maintenanceSweep,
     diagnosticsBundle,
@@ -505,7 +569,10 @@ export async function startSidecarServer(
     writeJsonFile,
     readJSON,
     readJSONL,
-    readFileSync: readFileSync as unknown as (path: string | URL, encoding?: string) => string,
+    readFileSync: readFileSync as unknown as (
+      path: string | URL,
+      encoding?: string,
+    ) => string,
     readdirSync: readdirSync as unknown as (path: string) => string[],
     MetricsTracker,
     CURRENT_SCHEMA_VERSION,
@@ -551,22 +618,31 @@ export async function startSidecarServer(
   };
 
   // --- Lifecycle placeholder ---
-  let lifecycle = { stop() { /* no-op until boot completes */ } };
+  let lifecycle = {
+    stop() {
+      /* no-op until boot completes */
+    },
+  };
 
   // --- Request handler ---
   let server: http.Server | https.Server;
 
   const requestHandler: http.RequestListener = async (req, res) => {
-    (req as unknown as Record<string, unknown>).__requestId = crypto.randomUUID();
+    (req as unknown as Record<string, unknown>).__requestId =
+      crypto.randomUUID();
     const __startMs = Date.now();
     const origEnd = res.end.bind(res);
-    (res as unknown as Record<string, Function>).end = function (...args: unknown[]) {
+    (res as unknown as Record<string, Function>).end = function (
+      ...args: unknown[]
+    ) {
       log.request(req, res.statusCode, __startMs);
       requestAuditLog.log({
         method: String(req.method || "GET"),
         path: String(req.url || "/"),
         status: res.statusCode,
-        request_id: String((req as unknown as Record<string, unknown>).__requestId || "-"),
+        request_id: String(
+          (req as unknown as Record<string, unknown>).__requestId || "-",
+        ),
         ip: String(req.socket?.remoteAddress || "unknown"),
         duration_ms: Date.now() - __startMs,
       });
@@ -576,7 +652,9 @@ export async function startSidecarServer(
     const routeMeta = normalizeApiPath(url.pathname);
     attachRouteMeta(req, routeMeta);
     url.pathname = routeMeta.routePath;
-    const snapshot = (store as unknown as { getSnapshot(): Record<string, unknown> }).getSnapshot();
+    const snapshot = (
+      store as unknown as { getSnapshot(): Record<string, unknown> }
+    ).getSnapshot();
 
     // OPTIONS fast path
     if (req.method === "OPTIONS") {
@@ -633,24 +711,48 @@ export async function startSidecarServer(
       sseBroadcast,
     });
   } catch (err) {
-    try { unlinkSync(paths.lockFile); } catch { /* ignore */ }
-    try { unlinkSync(paths.portFile); } catch { /* ignore */ }
-    try { server.close(); } catch { /* ignore */ }
+    try {
+      unlinkSync(paths.lockFile);
+    } catch {
+      /* ignore */
+    }
+    try {
+      unlinkSync(paths.portFile);
+    } catch {
+      /* ignore */
+    }
+    try {
+      server.close();
+    } catch {
+      /* ignore */
+    }
     throw err;
   }
 
   // --- Auto-open on macOS ---
   if (args.open && process.platform === "darwin") {
     try {
-      spawn("open", [`${tls.enabled ? "https" : "http"}://127.0.0.1:${port}/`], {
-        detached: true,
-        stdio: "ignore",
-      }).unref();
-    } catch { /* best effort */ }
+      spawn(
+        "open",
+        [`${tls.enabled ? "https" : "http"}://127.0.0.1:${port}/`],
+        {
+          detached: true,
+          stdio: "ignore",
+        },
+      ).unref();
+    } catch {
+      /* best effort */
+    }
   }
 
   // --- Cleanup / signal handling ---
-  const cleanup = cleanupFactory(server, lifecycle, paths, clients, unixSocketPath);
+  const cleanup = cleanupFactory(
+    server,
+    lifecycle,
+    paths,
+    clients,
+    unixSocketPath,
+  );
 
   // --- Log startup ---
   if (unixSocketPath) {

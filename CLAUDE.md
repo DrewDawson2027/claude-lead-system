@@ -9,6 +9,7 @@ The user does not write code. Everything in this repo was built through Claude C
 ## Canonical claim posture
 
 <!-- CLAIM_POSTURE:START -->
+
 - Canonical taxonomy: `verified`, `partial`, `experimental`
 - Parity posture (canonical): Do not claim exact UX parity or exact feature parity with native Agent Teams. Do not publish single-number parity percentages. Use only evidence-labeled capability claims using the canonical taxonomy. Hybrid/native execution paths remain experimental until current end-to-end evidence exists.
 - Native advantages (canonical): In-process teammate lifecycle semantics in a single runtime. Tighter first-party cross-platform UX consistency. Integrated native UI and runtime linkage without external coordinator polling.
@@ -46,11 +47,11 @@ Do not surface `lite`, `hybrid`, `native`, or other non-default paths as peer ch
 
 ## Advanced / Experimental Paths
 
-| Path          | Status       | How to treat it in product copy                                           |
-| ------------- | ------------ | -------------------------------------------------------------------------- |
-| `coordinator` | Verified     | Blessed default runtime path                                               |
-| `hybrid`      | Experimental | Present in code, but not part of the mainstream user story                 |
-| `native`      | Experimental | Sidecar/native bridge code exists, but parity is not asserted here         |
+| Path          | Status       | How to treat it in product copy                                    |
+| ------------- | ------------ | ------------------------------------------------------------------ |
+| `coordinator` | Verified     | Blessed default runtime path                                       |
+| `hybrid`      | Experimental | Present in code, but not part of the mainstream user story         |
+| `native`      | Experimental | Sidecar/native bridge code exists, but parity is not asserted here |
 
 ---
 

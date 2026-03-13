@@ -12,12 +12,14 @@ import { join, resolve } from "path";
 import { text } from "./helpers.js";
 
 function formatMetric(metric) {
-  if (!metric || metric.mean === null || metric.mean === undefined) return "n/a";
+  if (!metric || metric.mean === null || metric.mean === undefined)
+    return "n/a";
   return `${metric.mean} [${metric.ci_low}, ${metric.ci_high}]`;
 }
 
 function formatCompletion(metric) {
-  if (!metric || metric.mean === null || metric.mean === undefined) return "n/a";
+  if (!metric || metric.mean === null || metric.mean === undefined)
+    return "n/a";
   return `${metric.mean} [${metric.ci_low}, ${metric.ci_high}] (${metric.successes}/${metric.total})`;
 }
 
@@ -108,7 +110,8 @@ function renderMeasuredReport(summary, summaryPath) {
   out += `- Baseline path: ${baseline}\n\n`;
 
   out += "### Path Metrics\n";
-  out += "| Path | Completion rate | Latency ms | Tokens | Human interventions | Conflict incidents | Throughput / usage window | Resume success rate |\n";
+  out +=
+    "| Path | Completion rate | Latency ms | Tokens | Human interventions | Conflict incidents | Throughput / usage window | Resume success rate |\n";
   out += "| --- | --- | --- | --- | --- | --- | --- | --- |\n";
   for (const [pathId, m] of Object.entries(perPath)) {
     const resume = m?.resume;
@@ -120,7 +123,8 @@ function renderMeasuredReport(summary, summaryPath) {
   out += "\n";
 
   out += "### Structural Overhead Metrics\n";
-  out += "| Path | Orchestration messages / completed task | Redundant prompt or summary events | Avoidable fallback loops | Intervention triggers |\n";
+  out +=
+    "| Path | Orchestration messages / completed task | Redundant prompt or summary events | Avoidable fallback loops | Intervention triggers |\n";
   out += "| --- | --- | --- | --- | --- |\n";
   for (const [pathId, m] of Object.entries(perPath)) {
     out += `| ${pathId} | ${formatStructuralMetric(m?.orchestration_messages_per_completed_task)} | ${formatStructuralMetric(m?.redundant_prompt_or_summary_events)} | ${formatStructuralMetric(m?.avoidable_fallback_loops)} | ${formatStructuralMetric(m?.intervention_triggers)} |\n`;
@@ -135,7 +139,10 @@ function renderMeasuredReport(summary, summaryPath) {
       const token = c?.tokens_total_minus_baseline;
       const latency = c?.latency_ms_minus_baseline;
       const throughput = c?.throughput_per_window_minus_baseline;
-      const fmt = (v) => (v && v.mean_diff !== null ? `${v.mean_diff} [${v.ci_low}, ${v.ci_high}]` : "n/a");
+      const fmt = (v) =>
+        v && v.mean_diff !== null
+          ? `${v.mean_diff} [${v.ci_low}, ${v.ci_high}]`
+          : "n/a";
       out += `| ${pathId} | ${fmt(token)} | ${fmt(latency)} | ${fmt(throughput)} |\n`;
     }
     out += "\n";
@@ -151,7 +158,8 @@ function renderMeasuredReport(summary, summaryPath) {
 
   out += "### Savings Claim Gate\n";
   if (claimPolicy.length === 0) {
-    out += "- No policy block found. Savings claims are not allowed without measured policy evidence.\n";
+    out +=
+      "- No policy block found. Savings claims are not allowed without measured policy evidence.\n";
   } else {
     for (const policy of claimPolicy) {
       out += `- ${policy.path_id}: savings_claim_allowed=${policy.savings_claim_allowed ? "true" : "false"} (${policy.reason || "no reason provided"})\n`;
@@ -159,7 +167,8 @@ function renderMeasuredReport(summary, summaryPath) {
   }
   out += "\n";
 
-  out += "Only measured harness evidence is reported here. If no measured advantage is proven, no cheaper-than-native claim is made.\n";
+  out +=
+    "Only measured harness evidence is reported here. If no measured advantage is proven, no cheaper-than-native claim is made.\n";
   return out;
 }
 
@@ -184,7 +193,7 @@ export function handleCostComparison() {
   if (!summary) {
     return text(
       `Measured harness summary exists but is unreadable: ${summaryPath}\n` +
-      "No cheaper-than-native claim is allowed without readable measured evidence."
+        "No cheaper-than-native claim is allowed without readable measured evidence.",
     );
   }
 

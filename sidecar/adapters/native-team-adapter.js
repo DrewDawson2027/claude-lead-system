@@ -251,9 +251,7 @@ export class NativeTeamAdapter {
       session_id: sessionId,
       task_id:
         pickIdentityField(result, ["task_id", "taskId"]) ||
-        (action === "task"
-          ? pickIdentityField(result, ["id", "task"])
-          : null),
+        (action === "task" ? pickIdentityField(result, ["id", "task"]) : null),
       pane_id:
         pickIdentityField(result, ["pane_id", "paneId", "tmux_pane_id"]) ||
         null,
@@ -324,8 +322,8 @@ export class NativeTeamAdapter {
         if (bridgeRes?.ok === false) {
           throw new Error(
             bridgeRes?.error?.code ||
-            bridgeRes?.error?.message ||
-            "bridge_execution_failed",
+              bridgeRes?.error?.message ||
+              "bridge_execution_failed",
           );
         }
         const resolvedFallbackHistory = [

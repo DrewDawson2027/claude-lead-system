@@ -11,7 +11,11 @@ const BUNDLED_HOOKS_DIR = join(
   "hooks",
 );
 
-function resolvePolicyScript(filename, overrideEnv, { allowBundled = false } = {}) {
+function resolvePolicyScript(
+  filename,
+  overrideEnv,
+  { allowBundled = false } = {},
+) {
   const { CLAUDE_DIR } = cfg();
   const override = String(process.env[overrideEnv] || "").trim();
   if (override) return override;
@@ -29,7 +33,7 @@ function normalizeHookLine(line) {
     if (parsed && typeof parsed.reason === "string" && parsed.reason.trim()) {
       return parsed.reason.trim();
     }
-  } catch { }
+  } catch {}
   return text;
 }
 
@@ -105,7 +109,8 @@ export function enforceWorkerPolicy({
     run_in_background: true,
   };
   if (model) toolInput.model = String(model);
-  if (maxTurns !== null && maxTurns !== undefined) toolInput.max_turns = maxTurns;
+  if (maxTurns !== null && maxTurns !== undefined)
+    toolInput.max_turns = maxTurns;
   if (resume) toolInput.resume = String(resume);
 
   const payload = {

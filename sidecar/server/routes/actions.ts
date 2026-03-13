@@ -5,9 +5,7 @@ function withRouteSnapshot(record: any): any {
   const routeMode =
     record.route_mode || record.path_mode || record.adapter || "unknown";
   const routeReason =
-    record.route_reason ||
-    record.reason ||
-    "route metadata unavailable";
+    record.route_reason || record.reason || "route metadata unavailable";
   return {
     ...record,
     route_mode: routeMode,

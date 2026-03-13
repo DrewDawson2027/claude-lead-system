@@ -32,18 +32,18 @@ Confidence level: 0.95
 
 ## Path metrics (mean with confidence interval)
 
-| Path | Completion rate | Latency ms | Tokens | Human interventions | Conflict incidents | Throughput / usage window | Resume success rate |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| lead_coordinator | 1 [0.206549, 1] (1/1) | 454 [454, 454] | n/a | 1 [1, 1] | 0 [0, 0] | n/a | 1 [0.206549, 1] (1/1) |
-| lead_overlay | 1 [0.206549, 1] (1/1) | 270 [270, 270] | n/a | 1 [1, 1] | 0 [0, 0] | n/a | 1 [0.206549, 1] (1/1) |
-| native | 1 [0.206549, 1] (1/1) | 277 [277, 277] | n/a | 1 [1, 1] | n/a | n/a | 0 [0, 0.793451] (0/1) |
+| Path             | Completion rate       | Latency ms     | Tokens | Human interventions | Conflict incidents | Throughput / usage window | Resume success rate   |
+| ---------------- | --------------------- | -------------- | ------ | ------------------- | ------------------ | ------------------------- | --------------------- |
+| lead_coordinator | 1 [0.206549, 1] (1/1) | 454 [454, 454] | n/a    | 1 [1, 1]            | 0 [0, 0]           | n/a                       | 1 [0.206549, 1] (1/1) |
+| lead_overlay     | 1 [0.206549, 1] (1/1) | 270 [270, 270] | n/a    | 1 [1, 1]            | 0 [0, 0]           | n/a                       | 1 [0.206549, 1] (1/1) |
+| native           | 1 [0.206549, 1] (1/1) | 277 [277, 277] | n/a    | 1 [1, 1]            | n/a                | n/a                       | 0 [0, 0.793451] (0/1) |
 
 ## Comparisons vs baseline (native)
 
-| Path | Tokens diff | Latency diff | Throughput diff |
-| --- | --- | --- | --- |
-| lead_coordinator | n/a | 177 [177, 177] | n/a |
-| lead_overlay | n/a | -7 [-7, -7] | n/a |
+| Path             | Tokens diff | Latency diff   | Throughput diff |
+| ---------------- | ----------- | -------------- | --------------- |
+| lead_coordinator | n/a         | 177 [177, 177] | n/a             |
+| lead_overlay     | n/a         | -7 [-7, -7]    | n/a             |
 
 ## Artifacts
 
@@ -54,4 +54,3 @@ Confidence level: 0.95
 ## Guardrail
 
 - No savings claim should be published unless `savings_claim_allowed` is true for the compared path in this run output.
-

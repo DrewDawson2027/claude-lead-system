@@ -14,18 +14,18 @@ Confidence level: 0.95
 
 ## Path metrics (mean with confidence interval)
 
-| Path | Completion rate | Latency ms | Tokens | Human interventions | Conflict incidents | Throughput / usage window | Resume success rate |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| lead_coordinator | 1 [0.510109, 1] (4/4) | 260.25 [253, 269.75] | 0 [0, 0] | 1 [1, 1] | 0 [0, 0] | n/a | 1 [0.510109, 1] (4/4) |
-| lead_overlay | 1 [0.510109, 1] (4/4) | 265.25 [259.5, 270.25] | 0 [0, 0] | 1 [1, 1] | 0 [0, 0] | n/a | 1 [0.510109, 1] (4/4) |
-| native | 1 [0.510109, 1] (4/4) | 273.5 [270, 278] | 0 [0, 0] | 1 [1, 1] | 1 [1, 1] | n/a | 0 [0, 0.489891] (0/4) |
+| Path             | Completion rate       | Latency ms             | Tokens   | Human interventions | Conflict incidents | Throughput / usage window | Resume success rate   |
+| ---------------- | --------------------- | ---------------------- | -------- | ------------------- | ------------------ | ------------------------- | --------------------- |
+| lead_coordinator | 1 [0.510109, 1] (4/4) | 260.25 [253, 269.75]   | 0 [0, 0] | 1 [1, 1]            | 0 [0, 0]           | n/a                       | 1 [0.510109, 1] (4/4) |
+| lead_overlay     | 1 [0.510109, 1] (4/4) | 265.25 [259.5, 270.25] | 0 [0, 0] | 1 [1, 1]            | 0 [0, 0]           | n/a                       | 1 [0.510109, 1] (4/4) |
+| native           | 1 [0.510109, 1] (4/4) | 273.5 [270, 278]       | 0 [0, 0] | 1 [1, 1]            | 1 [1, 1]           | n/a                       | 0 [0, 0.489891] (0/4) |
 
 ## Comparisons vs baseline (native)
 
-| Path | Tokens diff | Latency diff | Throughput diff |
-| --- | --- | --- | --- |
-| lead_coordinator | 0 [0, 0] | -13.25 [-21.75, -3.5] | n/a |
-| lead_overlay | 0 [0, 0] | -8.25 [-15, -2.24375] | n/a |
+| Path             | Tokens diff | Latency diff          | Throughput diff |
+| ---------------- | ----------- | --------------------- | --------------- |
+| lead_coordinator | 0 [0, 0]    | -13.25 [-21.75, -3.5] | n/a             |
+| lead_overlay     | 0 [0, 0]    | -8.25 [-15, -2.24375] | n/a             |
 
 ## Artifacts
 
@@ -36,4 +36,3 @@ Confidence level: 0.95
 ## Guardrail
 
 - No savings claim should be published unless `savings_claim_allowed` is true for the compared path in this run output.
-

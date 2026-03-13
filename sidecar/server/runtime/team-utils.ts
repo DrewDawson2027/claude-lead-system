@@ -18,7 +18,10 @@ export function trimLongStrings(obj: unknown, maxLen = 512): unknown {
   return obj;
 }
 
-export function latestJsonFileName(dir: string, readdirSync: ReaddirSyncFn): string | null {
+export function latestJsonFileName(
+  dir: string,
+  readdirSync: ReaddirSyncFn,
+): string | null {
   try {
     return (
       readdirSync(dir)
@@ -31,7 +34,10 @@ export function latestJsonFileName(dir: string, readdirSync: ReaddirSyncFn): str
   }
 }
 
-export function findTeam(snapshot: any, teamName: string): Record<string, unknown> {
+export function findTeam(
+  snapshot: any,
+  teamName: string,
+): Record<string, unknown> {
   return (
     (snapshot.teams || []).find((t: any) => t.team_name === teamName) || {
       team_name: teamName,
@@ -41,7 +47,11 @@ export function findTeam(snapshot: any, teamName: string): Record<string, unknow
   );
 }
 
-export function buildActionPayload(teamName: string, action: string, body: Record<string, any>): Record<string, unknown> {
+export function buildActionPayload(
+  teamName: string,
+  action: string,
+  body: Record<string, any>,
+): Record<string, unknown> {
   if (action === "dispatch") return { team_name: teamName, ...body };
   if (action === "queue-task") return { team_name: teamName, ...body };
   if (action === "assign-next") return { team_name: teamName, ...body };
@@ -84,7 +94,11 @@ export function buildActionPayload(teamName: string, action: string, body: Recor
   return { team_name: teamName, ...body };
 }
 
-function interruptPriority(code = "", severity = "info", weights: ReturnType<typeof getInterruptWeights> | null = null): number {
+function interruptPriority(
+  code = "",
+  severity = "info",
+  weights: ReturnType<typeof getInterruptWeights> | null = null,
+): number {
   if (weights) return interruptPriorityScored(code, severity, weights);
   const c = String(code || "");
   if (c.includes("waiting_for_plan_approval") || c.includes("approval"))
@@ -98,7 +112,15 @@ function interruptPriority(code = "", severity = "info", weights: ReturnType<typ
   return 10;
 }
 
-export function buildTeamInterrupts({ snapshot, teamName, teamPolicy = null }: { snapshot: any; teamName: string; teamPolicy?: any }): TeamInterrupt[] {
+export function buildTeamInterrupts({
+  snapshot,
+  teamName,
+  teamPolicy = null,
+}: {
+  snapshot: any;
+  teamName: string;
+  teamPolicy?: any;
+}): TeamInterrupt[] {
   const teammates = (snapshot.teammates || []).filter(
     (t: any) => t.team_name === teamName,
   );

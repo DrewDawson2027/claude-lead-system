@@ -119,6 +119,7 @@ If the default Lead tools (`coord_*`) are NOT available (check by trying to use 
 **Normal reply posture:** describe what Lead can do in user terms first. Only expose runtime names, MCP tool names, or implementation details if the user explicitly asks for advanced detail.
 
 **Platform posture:**
+
 - **macOS:** strongest verified mainstream path today on the macOS coordinator path
 - **Linux / Windows:** keep public language conditional until re-validated
 
@@ -163,49 +164,49 @@ Users can't see session IDs. Always describe terminals by:
 
 Use tool names for your own routing only. Do not expose them in normal replies unless the user asks for implementation detail.
 
-| Need                       | Tool                                                                  |
-| -------------------------- | --------------------------------------------------------------------- |
-| Dashboard (boot)           | `coord_boot_snapshot`                                                 |
-| Inspect session            | `coord_get_session`                                                   |
-| Refresh sessions           | `coord_list_sessions`                                                 |
-| Detect conflicts           | `coord_detect_conflicts`                                              |
-| Run task                   | `coord_spawn_worker`                                                  |
-| Run N tasks parallel       | `coord_spawn_workers`                                                 |
-| Run pipeline               | `coord_run_pipeline` / `coord_get_pipeline`                           |
-| Check worker output        | `coord_get_result`                                                    |
-| Check worker progress      | `coord_worker_report` (action=read)                                   |
-| Kill worker                | `coord_kill_worker`                                                   |
-| Resume failed worker       | `coord_resume_worker`                                                 |
-| Upgrade pipe→interactive   | `coord_upgrade_worker`                                                |
-| Wake idle session          | `coord_wake_session`                                                  |
-| Spawn interactive terminal | `coord_spawn_terminal`                                                |
-| Message session            | `coord_send_message`                                                  |
-| Directive to worker        | `coord_send_directive` (auto-wakes)                                   |
-| Broadcast all              | `coord_broadcast`                                                     |
-| Create task                | `coord_create_task`                                                   |
-| Update/assign task         | `coord_update_task`                                                   |
-| List tasks                 | `coord_list_tasks`                                                    |
-| Task details               | `coord_get_task`                                                      |
-| Reassign task              | `coord_reassign_task`                                                 |
-| Task audit trail           | `coord_get_task_audit`                                                |
-| Quality gates              | `coord_check_quality_gates`                                           |
-| Create team                | `coord_create_team`                                                   |
-| Team dispatch (1 call)     | `coord_team_dispatch`                                                 |
-| Queue team task            | `coord_team_queue_task`                                               |
-| Assign next queued         | `coord_team_assign_next`                                              |
-| Rebalance team             | `coord_team_rebalance`                                                |
-| Team status                | `coord_team_status_compact` / `coord_get_team`                        |
-| List teams                 | `coord_list_teams`                                                    |
-| Delete team                | `coord_delete_team`                                                   |
-| Update team policy         | `coord_update_team_policy`                                            |
-| Coordination comparison    | `coord_cost_comparison`                                               |
-| Sidecar status             | `coord_sidecar_status`                                                |
-| Approve/reject plan        | `coord_approve_plan` / `coord_reject_plan`                            |
-| Shutdown worker            | `coord_shutdown_request`                                              |
-| Shared context             | `coord_write_context` / `coord_read_context` / `coord_export_context` |
+| Need                       | Tool                                                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dashboard (boot)           | `coord_boot_snapshot`                                                                                                                      |
+| Inspect session            | `coord_get_session`                                                                                                                        |
+| Refresh sessions           | `coord_list_sessions`                                                                                                                      |
+| Detect conflicts           | `coord_detect_conflicts`                                                                                                                   |
+| Run task                   | `coord_spawn_worker`                                                                                                                       |
+| Run N tasks parallel       | `coord_spawn_workers`                                                                                                                      |
+| Run pipeline               | `coord_run_pipeline` / `coord_get_pipeline`                                                                                                |
+| Check worker output        | `coord_get_result`                                                                                                                         |
+| Check worker progress      | `coord_worker_report` (action=read)                                                                                                        |
+| Kill worker                | `coord_kill_worker`                                                                                                                        |
+| Resume failed worker       | `coord_resume_worker`                                                                                                                      |
+| Upgrade pipe→interactive   | `coord_upgrade_worker`                                                                                                                     |
+| Wake idle session          | `coord_wake_session`                                                                                                                       |
+| Spawn interactive terminal | `coord_spawn_terminal`                                                                                                                     |
+| Message session            | `coord_send_message`                                                                                                                       |
+| Directive to worker        | `coord_send_directive` (auto-wakes)                                                                                                        |
+| Broadcast all              | `coord_broadcast`                                                                                                                          |
+| Create task                | `coord_create_task`                                                                                                                        |
+| Update/assign task         | `coord_update_task`                                                                                                                        |
+| List tasks                 | `coord_list_tasks`                                                                                                                         |
+| Task details               | `coord_get_task`                                                                                                                           |
+| Reassign task              | `coord_reassign_task`                                                                                                                      |
+| Task audit trail           | `coord_get_task_audit`                                                                                                                     |
+| Quality gates              | `coord_check_quality_gates`                                                                                                                |
+| Create team                | `coord_create_team`                                                                                                                        |
+| Team dispatch (1 call)     | `coord_team_dispatch`                                                                                                                      |
+| Queue team task            | `coord_team_queue_task`                                                                                                                    |
+| Assign next queued         | `coord_team_assign_next`                                                                                                                   |
+| Rebalance team             | `coord_team_rebalance`                                                                                                                     |
+| Team status                | `coord_team_status_compact` / `coord_get_team`                                                                                             |
+| List teams                 | `coord_list_teams`                                                                                                                         |
+| Delete team                | `coord_delete_team`                                                                                                                        |
+| Update team policy         | `coord_update_team_policy`                                                                                                                 |
+| Coordination comparison    | `coord_cost_comparison`                                                                                                                    |
+| Sidecar status             | `coord_sidecar_status`                                                                                                                     |
+| Approve/reject plan        | `coord_approve_plan` / `coord_reject_plan`                                                                                                 |
+| Shutdown worker            | `coord_shutdown_request`                                                                                                                   |
+| Shared context             | `coord_write_context` / `coord_read_context` / `coord_export_context`                                                                      |
 | List/manage agents         | `coord_list_agents` / `coord_get_agent` / `coord_create_agent` / `coord_update_agent` / `coord_delete_agent` / `coord_sync_agent_manifest` |
-| Native team APIs           | `TeamCreate` / `TeamStatus` / `SendMessage` / `Task`                  |
-| Isolated worker            | `coord_spawn_worker` with `isolate=true` (git worktree)               |
+| Native team APIs           | `TeamCreate` / `TeamStatus` / `SendMessage` / `Task`                                                                                       |
+| Isolated worker            | `coord_spawn_worker` with `isolate=true` (git worktree)                                                                                    |
 
 Stay on the standard Lead path by default. Only use native or implementation-specific APIs when first-party collaboration UX is the explicit goal or the user asks for them.
 

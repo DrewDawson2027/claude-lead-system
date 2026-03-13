@@ -51,12 +51,12 @@ Canonical source: `docs/CLAIM_POSTURE_SOURCE.json`
 
 ## Current Economics Claim Status
 
-| Claim | Label | Notes |
-| --- | --- | --- |
-| A/B harness is the canonical economics evidence lane | `verified` | Runner + artifacts + claim-safe policy are implemented |
-| Runtime cost comparison is sourced only from harness artifacts | `verified` | `mcp-coordinator/lib/cost-comparison.js` reads measured summaries |
-| Savings claim can be published without `savings_claim_allowed=true` | `experimental` | Explicitly disallowed by harness policy guard |
-| Scenario model output can prove cheaper-than-native economics | `experimental` | Explicitly disallowed; scenario lane is non-claim |
+| Claim                                                               | Label          | Notes                                                             |
+| ------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------- |
+| A/B harness is the canonical economics evidence lane                | `verified`     | Runner + artifacts + claim-safe policy are implemented            |
+| Runtime cost comparison is sourced only from harness artifacts      | `verified`     | `mcp-coordinator/lib/cost-comparison.js` reads measured summaries |
+| Savings claim can be published without `savings_claim_allowed=true` | `experimental` | Explicitly disallowed by harness policy guard                     |
+| Scenario model output can prove cheaper-than-native economics       | `experimental` | Explicitly disallowed; scenario lane is non-claim                 |
 
 ## Running Locally
 

@@ -33,7 +33,7 @@ export function cycleIndex(current, delta, length) {
   if (size <= 0) return 0;
   const idx = Number(current) || 0;
   const shift = Number(delta) || 0;
-  return ((idx + shift) % size + size) % size;
+  return (((idx + shift) % size) + size) % size;
 }
 
 export function classifySidecarFreshness({
@@ -93,7 +93,8 @@ export function selectFocusedTeammateRoute({
       route_label: LIVE_ROUTE_LABEL[LIVE_ROUTE_MODE.NATIVE],
       route_reason: "native adapter available with teammate native identity",
       fallback_reason: null,
-      source_truth: "native adapter live state mirror (not in-process rendering)",
+      source_truth:
+        "native adapter live state mirror (not in-process rendering)",
     };
   }
   if (sidecarRouteEligible) {

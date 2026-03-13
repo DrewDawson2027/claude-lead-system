@@ -115,7 +115,8 @@ function stripWrappingQuotes(value) {
 
 function parseInlineArray(value) {
   const raw = String(value || "").trim();
-  if (!(raw.startsWith("[") && raw.endsWith("]"))) return [stripWrappingQuotes(raw)];
+  if (!(raw.startsWith("[") && raw.endsWith("]")))
+    return [stripWrappingQuotes(raw)];
   const body = raw.slice(1, -1).trim();
   if (!body) return [];
   const out = [];
@@ -156,7 +157,9 @@ function parseYamlFrontmatter(frontmatterRaw) {
     }
     const indent = line.match(/^(\s*)/)[1].length;
     if (indent !== 0)
-      throw new Error(`Unsupported indentation in frontmatter (line ${idx + 1}).`);
+      throw new Error(
+        `Unsupported indentation in frontmatter (line ${idx + 1}).`,
+      );
 
     const keyMatch = line.match(/^([A-Za-z_][A-Za-z0-9_-]*):(?:\s*(.*))?$/);
     if (!keyMatch)
@@ -264,7 +267,8 @@ function validateFrontmatter(frontmatter, fallbackName) {
   if (declaredName && !SAFE_AGENT_ID_RE.test(declaredName))
     errors.push("name must match [A-Za-z0-9._-]{1,64}.");
 
-  const description = fm.description !== undefined ? String(fm.description).trim() : "";
+  const description =
+    fm.description !== undefined ? String(fm.description).trim() : "";
   if (!description) errors.push("description is required in frontmatter.");
   if (description.length > MAX_DESCRIPTION_LENGTH) {
     errors.push(`description must be <= ${MAX_DESCRIPTION_LENGTH} chars.`);
@@ -284,7 +288,11 @@ function validateFrontmatter(frontmatter, fallbackName) {
   const skills = normalizeStringList(fm.skills, "skills", errors) || [];
 
   let memory = null;
-  if (fm.memory !== undefined && fm.memory !== null && String(fm.memory).trim() !== "") {
+  if (
+    fm.memory !== undefined &&
+    fm.memory !== null &&
+    String(fm.memory).trim() !== ""
+  ) {
     memory = String(fm.memory).trim().toLowerCase();
     if (!VALID_MEMORY_SCOPES.has(memory))
       errors.push("memory must be one of: user, project, local.");
@@ -406,7 +414,9 @@ function collectAgents({
   const normalizedScope = normalizeScope(scope, true);
   const { projectRoot, byScope } = scopePaths(projectDir);
   const scopes =
-    normalizedScope === "all" ? ["local", "project", "user"] : [normalizedScope];
+    normalizedScope === "all"
+      ? ["local", "project", "user"]
+      : [normalizedScope];
   const entries = [];
   const visited = new Set();
 
@@ -465,13 +475,16 @@ function collectAgents({
       ...entry,
       effective:
         entry.valid &&
-        winners.get(String(entry.name || entry.id).toLowerCase()) === entry.path,
+        winners.get(String(entry.name || entry.id).toLowerCase()) ===
+          entry.path,
     })),
   };
 }
 
 function findAgentEntriesByName(entries, requestedName) {
-  const token = String(requestedName || "").trim().toLowerCase();
+  const token = String(requestedName || "")
+    .trim()
+    .toLowerCase();
   return entries.filter((entry) => {
     const id = String(entry.id || "").toLowerCase();
     const name = String(entry.name || "").toLowerCase();
@@ -539,11 +552,12 @@ function normalizeListValue(raw, fieldName) {
   if (Array.isArray(raw)) values = raw;
   else if (typeof raw === "string") {
     const trimmed = raw.trim();
-    values = trimmed.startsWith("[") && trimmed.endsWith("]")
-      ? parseInlineArray(trimmed)
-      : trimmed
-        ? trimmed.split(",")
-        : [];
+    values =
+      trimmed.startsWith("[") && trimmed.endsWith("]")
+        ? parseInlineArray(trimmed)
+        : trimmed
+          ? trimmed.split(",")
+          : [];
   } else {
     throw new Error(`${fieldName} must be an array of strings`);
   }
@@ -599,7 +613,11 @@ function serializeAgentMarkdown({
   }
   lines.push("---");
   lines.push("");
-  lines.push(String(prompt || "").replace(/\r\n?/g, "\n").trimStart());
+  lines.push(
+    String(prompt || "")
+      .replace(/\r\n?/g, "\n")
+      .trimStart(),
+  );
   lines.push("");
   return lines.join("\n");
 }
@@ -862,8 +880,7 @@ export function handleCreateAgent(args = {}) {
     const agentName = sanitizeAgentId(args.agent_name, "agent_name");
     const scope = normalizeScope(args.scope || "project", false);
     const description = normalizeDescriptionValue(args.description);
-    if (description === undefined)
-      throw new Error("description is required");
+    if (description === undefined) throw new Error("description is required");
     const model = normalizeModelValue(args.model) || "sonnet";
     const tools = normalizeListValue(args.tools, "tools") || [];
     const skills = normalizeListValue(args.skills, "skills") || [];
@@ -940,7 +957,8 @@ export function handleUpdateAgent(args = {}) {
       return fail("NOT_FOUND", `Agent not found: ${requested}`, {
         agent_name: requested,
       });
-    const current = scope === "all" ? selectEffectiveAgent(matches) : matches[0];
+    const current =
+      scope === "all" ? selectEffectiveAgent(matches) : matches[0];
     if (!current.valid) {
       return fail(
         "INVALID_AGENT_FILE",
@@ -959,7 +977,8 @@ export function handleUpdateAgent(args = {}) {
     const nextSkills =
       normalizeListValue(args.skills, "skills") ?? current.skills;
     const memoryUpdate = normalizeMemoryValue(args.memory);
-    const nextMemory = memoryUpdate !== undefined ? memoryUpdate : current.memory;
+    const nextMemory =
+      memoryUpdate !== undefined ? memoryUpdate : current.memory;
     const nextPrompt = normalizePromptValue(args.prompt) ?? current.prompt;
     const draft = validateDraftAgent({
       name: nextName,
@@ -971,7 +990,10 @@ export function handleUpdateAgent(args = {}) {
       prompt: nextPrompt,
     });
 
-    const { projectRoot, dir } = getWriteDirectory(current.scope, args.project_dir);
+    const { projectRoot, dir } = getWriteDirectory(
+      current.scope,
+      args.project_dir,
+    );
     const targetPath = join(dir, `${draft.name}.md`);
     if (targetPath !== current.path && existsSync(targetPath) && !overwrite) {
       return fail(

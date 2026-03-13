@@ -6,10 +6,10 @@ Version: `2026-03-13`
 
 ## Claim Taxonomy
 
-| Label | Definition |
-| --- | --- |
-| `verified` | Code path plus current test or local operating evidence. |
-| `partial` | Code path exists with explicit scope limits or measured-but-narrow evidence. |
+| Label          | Definition                                                                     |
+| -------------- | ------------------------------------------------------------------------------ |
+| `verified`     | Code path plus current test or local operating evidence.                       |
+| `partial`      | Code path exists with explicit scope limits or measured-but-narrow evidence.   |
 | `experimental` | Present in code/config but not ready for parity or economics marketing claims. |
 
 ## Parity Posture
@@ -40,11 +40,11 @@ Version: `2026-03-13`
 
 ## Economics Verdicts (Canonical)
 
-| Claim | Label | Scope |
-| --- | --- | --- |
-| Filesystem coordination overhead claim | `verified` | Claim allowed for coordination traffic on the filesystem path only; excludes worker/model token usage. |
-| Workflow-scoped token-pressure delta claim | `partial` | Claim allowed only when tied to named measured artifacts and explicit workflow boundaries. |
-| Universal cheaper-than-native or universal savings claim | `experimental` | Not claimable without production-measured, workflow-matched evidence across scenarios. |
+| Claim                                                    | Label          | Scope                                                                                                  |
+| -------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------ |
+| Filesystem coordination overhead claim                   | `verified`     | Claim allowed for coordination traffic on the filesystem path only; excludes worker/model token usage. |
+| Workflow-scoped token-pressure delta claim               | `partial`      | Claim allowed only when tied to named measured artifacts and explicit workflow boundaries.             |
+| Universal cheaper-than-native or universal savings claim | `experimental` | Not claimable without production-measured, workflow-matched evidence across scenarios.                 |
 
 ## Release Blocker Posture
 
@@ -64,6 +64,7 @@ The following block must appear verbatim in every sync target:
 
 ```md
 <!-- CLAIM_POSTURE:START -->
+
 - Canonical taxonomy: `verified`, `partial`, `experimental`
 - Parity posture (canonical): Do not claim exact UX parity or exact feature parity with native Agent Teams. Do not publish single-number parity percentages. Use only evidence-labeled capability claims using the canonical taxonomy. Hybrid/native execution paths remain experimental until current end-to-end evidence exists.
 - Native advantages (canonical): In-process teammate lifecycle semantics in a single runtime. Tighter first-party cross-platform UX consistency. Integrated native UI and runtime linkage without external coordinator polling.

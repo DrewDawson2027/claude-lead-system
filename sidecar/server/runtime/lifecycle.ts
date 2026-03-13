@@ -26,7 +26,7 @@ export function startRuntimeLifecycle({
 }: RuntimeLifecycleDeps) {
   const hookStream = new HookStreamAdapter(paths, (evt) => {
     store.emitTimeline({ type: "filesystem.change", ...evt });
-    rebuild(String(evt.source || "fs")).catch(() => { });
+    rebuild(String(evt.source || "fs")).catch(() => {});
   });
   hookStream.start();
 
@@ -34,7 +34,7 @@ export function startRuntimeLifecycle({
     () => {
       try {
         maintenanceSweep({ source: "interval" });
-      } catch { }
+      } catch {}
     },
     Number(process.env.LEAD_SIDECAR_MAINTENANCE_MS || 60_000),
   );
@@ -81,7 +81,7 @@ export function startRuntimeLifecycle({
       hookStream.stop();
       try {
         clearInterval(maintenanceTimer);
-      } catch { }
+      } catch {}
     },
   };
 }

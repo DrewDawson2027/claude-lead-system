@@ -51,7 +51,8 @@ export function handleDetectConflicts(args) {
       sessionById.get(entry.session)?.cwd || detectorCwd,
     );
     if (!normalized) continue;
-    if (!liveFilesBySession.has(entry.session)) liveFilesBySession.set(entry.session, new Set());
+    if (!liveFilesBySession.has(entry.session))
+      liveFilesBySession.set(entry.session, new Set());
     liveFilesBySession.get(entry.session).add(normalized);
   }
   const conflicts = [];
@@ -59,8 +60,15 @@ export function handleDetectConflicts(args) {
   for (const s of sessions) {
     const liveFiles = [...(liveFilesBySession.get(s.session) || new Set())];
     const activeFiles = Array.isArray(s.current_files) ? s.current_files : [];
-    const historicalFiles = Array.isArray(s.files_touched) ? s.files_touched : [];
-    const theirFiles = liveFiles.length > 0 ? liveFiles : (activeFiles.length > 0 ? activeFiles : historicalFiles);
+    const historicalFiles = Array.isArray(s.files_touched)
+      ? s.files_touched
+      : [];
+    const theirFiles =
+      liveFiles.length > 0
+        ? liveFiles
+        : activeFiles.length > 0
+          ? activeFiles
+          : historicalFiles;
     if (!theirFiles.length) continue;
     const theirNormalized = new Set(
       theirFiles

@@ -28,7 +28,7 @@ Runs 9 scenarios measuring raw coordinator operation latency. Output is JSON com
 | `approval_throughput` | Task approval create/resolve cycles          |
 | `recovery_speed`      | Stale inflight detection + recovery          |
 | `rebalance_quality`   | Priority aging + queue ordering quality      |
-| `snapshot_build_time` | Snapshot normalization at varying team sizes  |
+| `snapshot_build_time` | Snapshot normalization at varying team sizes |
 | `transcript_scan`     | JSONL transcript parsing                     |
 
 ### 2. Measured A/B Harness (native vs lead paths)
@@ -38,11 +38,13 @@ node bench/ab-harness.mjs --config bench/ab-harness.config.example.json
 ```
 
 Runs the same workload through:
+
 - native Claude path
 - lead coordinator path
 - lead hybrid/native-overlay path (when enabled)
 
 Captures measured outcomes:
+
 - token usage from transcript JSONL and/or `agent-metrics.jsonl`
 - latency
 - completion rate
@@ -52,6 +54,7 @@ Captures measured outcomes:
 - throughput per usage window
 
 Outputs:
+
 - raw dataset JSONL
 - reproducible run manifest
 - run status (`running`, `completed`, `completed_partial`, `failed_partial`)
@@ -60,6 +63,7 @@ Outputs:
 - machine-readable economics certification (`certified`, `not_certified`, `blocked_by_evidence_quality`)
 
 Timeout behavior is hardened and deterministic per run:
+
 - send `SIGTERM` at `timeout_seconds`
 - wait bounded `timeout_grace_seconds`
 - force `SIGKILL` if still running
@@ -130,14 +134,14 @@ This harness verifies route reachability plus the listed scenario assertions; it
 
 ## Results Files
 
-| File | Contents |
-| ---- | -------- |
-| `bench/latest-results.json` | Latest coordinator benchmark snapshot |
-| `bench/workflow-results.json` | Latest workflow archetype results + verdicts |
-| `reports/ab-harness/<run-id>/raw-dataset.jsonl` | Per-run measured raw dataset |
-| `reports/ab-harness/<run-id>/run-status.json` | Run lifecycle + partial/failure diagnostics |
-| `reports/ab-harness/<run-id>/summary.json` | Confidence-bounded run summary + claim-safety flags |
-| `reports/ab-harness/<run-id>/report.md` | Markdown report with claim-safe summary |
+| File                                            | Contents                                            |
+| ----------------------------------------------- | --------------------------------------------------- |
+| `bench/latest-results.json`                     | Latest coordinator benchmark snapshot               |
+| `bench/workflow-results.json`                   | Latest workflow archetype results + verdicts        |
+| `reports/ab-harness/<run-id>/raw-dataset.jsonl` | Per-run measured raw dataset                        |
+| `reports/ab-harness/<run-id>/run-status.json`   | Run lifecycle + partial/failure diagnostics         |
+| `reports/ab-harness/<run-id>/summary.json`      | Confidence-bounded run summary + claim-safety flags |
+| `reports/ab-harness/<run-id>/report.md`         | Markdown report with claim-safe summary             |
 
 ## References
 

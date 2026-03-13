@@ -75,9 +75,7 @@ function autoClaimShellCommand() {
 function buildParentSessionEnvExports(parentSessionId = "") {
   const normalized = String(parentSessionId || "").trim();
   if (!normalized) return [];
-  return [
-    `export CLAUDE_PARENT_SESSION_ID=${shellQuote(normalized)}`,
-  ];
+  return [`export CLAUDE_PARENT_SESSION_ID=${shellQuote(normalized)}`];
 }
 
 function buildParentSessionSetup(qClaudeBin) {
@@ -223,7 +221,7 @@ export function getTerminalApp() {
       );
       if (wt.toLowerCase().includes("windowsterminal"))
         return "WindowsTerminal";
-    } catch { }
+    } catch {}
     try {
       const ps = execFileSync(
         "tasklist",
@@ -231,7 +229,7 @@ export function getTerminalApp() {
         { encoding: "utf-8" },
       );
       if (ps.toLowerCase().includes("powershell")) return "PowerShell";
-    } catch { }
+    } catch {}
     return "cmd";
   } else {
     for (const app of [
@@ -406,13 +404,13 @@ export function spawnBackgroundWorker(script, resultFile, pidFile) {
   const child =
     PLATFORM === "win32"
       ? spawn("cmd", ["/c", script], {
-        detached: true,
-        stdio: ["ignore", out, out],
-      })
+          detached: true,
+          stdio: ["ignore", out, out],
+        })
       : spawn("sh", ["-c", script], {
-        detached: true,
-        stdio: ["ignore", out, out],
-      });
+          detached: true,
+          stdio: ["ignore", out, out],
+        });
   writeFileSync(pidFile, String(child.pid));
   child.unref();
   closeSync(out);
@@ -827,9 +825,9 @@ export function buildCodexWorkerScript(opts) {
     autoClaimEnv,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     `codex exec "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs} >> ${qResult} 2>&1` +
-    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-    `; rm -f ${qPid}` +
-    `; ${autoClaimShellCommand()}`,
+      `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
+      `; rm -f ${qPid}` +
+      `; ${autoClaimShellCommand()}`,
   ]
     .filter(Boolean)
     .join(" && ");
@@ -892,9 +890,9 @@ export function buildCodexInteractiveWorkerScript(opts) {
     autoClaimEnv,
     `WORKER_PROMPT=$(cat ${qPrompt})`,
     `codex "$WORKER_PROMPT" --full-auto -C ${qDir} ${modelArgs}` +
-    `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
-    `; rm -f ${qPid}` +
-    `; ${autoClaimShellCommand()}`,
+      `; printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}` +
+      `; rm -f ${qPid}` +
+      `; ${autoClaimShellCommand()}`,
   ]
     .filter(Boolean)
     .join(" && ");

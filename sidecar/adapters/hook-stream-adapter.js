@@ -31,15 +31,15 @@ export class HookStreamAdapter {
     }
     const pollMs = Number(
       process.env[
-      watcherCount > 0
-        ? "LEAD_SIDECAR_HOOK_POLL_MS"
-        : "LEAD_SIDECAR_HOOK_POLL_FALLBACK_MS"
+        watcherCount > 0
+          ? "LEAD_SIDECAR_HOOK_POLL_MS"
+          : "LEAD_SIDECAR_HOOK_POLL_FALLBACK_MS"
       ] || (watcherCount > 0 ? 30_000 : 1_000),
     );
     this.interval = setInterval(() => this.bump("poll"), pollMs);
     try {
       this.interval.unref();
-    } catch { }
+    } catch {}
   }
 
   bump(source) {
@@ -53,7 +53,7 @@ export class HookStreamAdapter {
     for (const w of this.watchers) {
       try {
         w.close();
-      } catch { }
+      } catch {}
     }
     this.watchers = [];
     if (this.interval) clearInterval(this.interval);

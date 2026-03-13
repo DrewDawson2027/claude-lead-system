@@ -15,11 +15,13 @@ export function createRebuildOps({
   let rebuilding = false;
 
   async function enrichDynamicState() {
-    const nativeStatus: any = await nativeAdapter.getStatus().catch((err: any) => ({
-      adapter_ok: false,
-      mode: "unavailable",
-      error: err.message,
-    }));
+    const nativeStatus: any = await nativeAdapter
+      .getStatus()
+      .catch((err: any) => ({
+        adapter_ok: false,
+        mode: "unavailable",
+        error: err.message,
+      }));
     store.setNativeCapabilities({
       ...(nativeStatus.native || {
         available: false,
@@ -52,11 +54,7 @@ export function createRebuildOps({
             nativeSnapshot?.adapter_ok ?? nativeSnapshot?.native?.available,
           ),
           stream_fallback_order: ["native live", "sidecar live", "tmux mirror"],
-          route_mode_preference: [
-            "native-live",
-            "sidecar-live",
-            "tmux-mirror",
-          ],
+          route_mode_preference: ["native-live", "sidecar-live", "tmux-mirror"],
           stale_after_ms: 6000,
           source_truth:
             "focused teammate view mirrors adapter/runtime/terminal sources",
@@ -83,10 +81,10 @@ export function createRebuildOps({
           for (const f of histFiles.slice(0, histFiles.length - 50)) {
             try {
               unlinkSync(`${paths.snapshotHistoryDir}/${f}`);
-            } catch { }
+            } catch {}
           }
         }
-      } catch { }
+      } catch {}
     } finally {
       rebuilding = false;
     }

@@ -7,7 +7,7 @@ import type {
   PermissionIssue,
   ReadJSONFn,
   WriteJSONFn,
-  FileExistsFn
+  FileExistsFn,
 } from "./types.js";
 
 export function readFileSafe(readFileSync: any, url: URL): string {
@@ -45,7 +45,7 @@ export function ensureApiToken(
   paths: SidecarPaths,
   fileExists: FileExistsFn,
   readJSON: ReadJSONFn,
-  writeJsonFile: WriteJSONFn
+  writeJsonFile: WriteJSONFn,
 ): string | null {
   if (fileExists(paths.apiTokenFile)) {
     const data = readJSON(paths.apiTokenFile) as TokenFileData;
@@ -62,7 +62,7 @@ export function ensureApiToken(
 
 export function rotateApiToken(
   paths: SidecarPaths,
-  writeJsonFile: WriteJSONFn
+  writeJsonFile: WriteJSONFn,
 ): { new_token: string; rotated_at: string } {
   const token = randomBytes(24).toString("hex");
   writeJsonFile(paths.apiTokenFile, {
@@ -114,25 +114,25 @@ export function ensureCsrfToken(
 function tightenPermissions(filePath: string): void {
   try {
     chmodSync(filePath, 0o600);
-  } catch { }
+  } catch {}
 }
 
 function tightenDirPermissions(dirPath: string): void {
   try {
     chmodSync(dirPath, 0o700);
-  } catch { }
+  } catch {}
 }
 
 export function checkFilePermissions(
   paths: SidecarPaths,
-  fileExists: FileExistsFn
+  fileExists: FileExistsFn,
 ): { ok: boolean; issues: PermissionIssue[] } {
   const sensitiveDirs = [
-    { path: paths.root, name: 'lead-sidecar' },
-    { path: paths.runtimeDir, name: 'runtime/' },
-    { path: paths.stateDir, name: 'state/' },
-    { path: paths.logsDir, name: 'logs/' },
-    { path: paths.diagnosticsDir, name: 'logs/diagnostics/' },
+    { path: paths.root, name: "lead-sidecar" },
+    { path: paths.runtimeDir, name: "runtime/" },
+    { path: paths.stateDir, name: "state/" },
+    { path: paths.logsDir, name: "logs/" },
+    { path: paths.diagnosticsDir, name: "logs/diagnostics/" },
   ];
   const sensitiveFiles = [
     { path: paths.apiTokenFile, name: "api.token" },
@@ -150,12 +150,12 @@ export function checkFilePermissions(
       if (mode & 0o077) {
         try {
           tightenDirPermissions(path);
-        } catch { }
+        } catch {}
         issues.push({
           file: name,
-          expected: '0700',
+          expected: "0700",
           actual: `0${mode.toString(8)}`,
-          action: 'auto-fixed',
+          action: "auto-fixed",
         });
       }
       if (uid !== null && st.uid !== uid) {
@@ -163,10 +163,10 @@ export function checkFilePermissions(
           file: name,
           expected_uid: uid,
           actual_uid: st.uid,
-          action: 'warning',
+          action: "warning",
         });
       }
-    } catch { }
+    } catch {}
   }
   for (const { path, name } of sensitiveFiles) {
     if (!fileExists(path)) continue;
@@ -176,7 +176,7 @@ export function checkFilePermissions(
       if (mode & 0o077) {
         try {
           chmodSync(path, 0o600);
-        } catch { }
+        } catch {}
         issues.push({
           file: name,
           expected: "0600",
@@ -192,7 +192,7 @@ export function checkFilePermissions(
           action: "warning",
         });
       }
-    } catch { }
+    } catch {}
   }
   return { ok: issues.length === 0, issues };
 }
@@ -200,7 +200,7 @@ export function checkFilePermissions(
 export function writeRuntimeFiles(
   paths: SidecarPaths,
   server: any,
-  writeJSON: WriteJSONFn
+  writeJSON: WriteJSONFn,
 ): number | null {
   const addr = server.address();
   const isSocket = typeof addr === "string";

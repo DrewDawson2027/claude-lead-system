@@ -7,21 +7,12 @@
     },
     "data_classifications": {
       "classification": "assumed",
-      "value": [
-        "measured",
-        "derived",
-        "assumed",
-        "speculative"
-      ],
+      "value": ["measured", "derived", "assumed", "speculative"],
       "basis": "Allowed data classifications for every emitted datum"
     },
     "verdict_taxonomy": {
       "classification": "assumed",
-      "value": [
-        "proven",
-        "plausible",
-        "false"
-      ],
+      "value": ["proven", "plausible", "false"],
       "basis": "Allowed verdict labels"
     }
   },

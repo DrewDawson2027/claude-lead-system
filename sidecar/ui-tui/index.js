@@ -94,9 +94,9 @@ function request(path, method = "GET", body = null) {
               reject(
                 new Error(
                   parsed.error ||
-                  parsed.reason ||
-                  raw ||
-                  `HTTP ${res.statusCode}`,
+                    parsed.reason ||
+                    raw ||
+                    `HTTP ${res.statusCode}`,
                 ),
               );
             else resolve(parsed);
@@ -134,7 +134,7 @@ async function discoverPort() {
       sidecarToken =
         JSON.parse(fs.readFileSync(path.join(runtimeDir, "api.token"), "utf-8"))
           .token || sidecarToken;
-    } catch { }
+    } catch {}
     return sidecarPort;
   } catch {
     return null;
@@ -161,7 +161,9 @@ function selectedAction() {
 
 function teammateKey(m) {
   if (!m) return "";
-  return String(m.id || `${m.team_name || teamName()}:${m.display_name || m.name || ""}`);
+  return String(
+    m.id || `${m.team_name || teamName()}:${m.display_name || m.name || ""}`,
+  );
 }
 
 function cacheTeammates(teammates = [], atMs = Date.now()) {
@@ -207,12 +209,20 @@ function findFocusedInterruptIndex() {
   if (!interrupts.length) return -1;
   const focused = selectedTeammate();
   const focusedId = focused?.id || null;
-  if (!focusedId) return Math.max(0, Math.min(state.selectedInterruptIdx, interrupts.length - 1));
+  if (!focusedId)
+    return Math.max(
+      0,
+      Math.min(state.selectedInterruptIdx, interrupts.length - 1),
+    );
   const matchIdx = interrupts.findIndex(
-    (item) => item?.teammate_id && String(item.teammate_id) === String(focusedId),
+    (item) =>
+      item?.teammate_id && String(item.teammate_id) === String(focusedId),
   );
   if (matchIdx >= 0) return matchIdx;
-  return Math.max(0, Math.min(state.selectedInterruptIdx, interrupts.length - 1));
+  return Math.max(
+    0,
+    Math.min(state.selectedInterruptIdx, interrupts.length - 1),
+  );
 }
 
 function findFocusedApprovalIndex() {
@@ -220,9 +230,14 @@ function findFocusedApprovalIndex() {
   if (!approvals.length) return -1;
   const focused = selectedTeammate();
   const focusedId = focused?.id || null;
-  if (!focusedId) return Math.max(0, Math.min(state.selectedApprovalIdx, approvals.length - 1));
+  if (!focusedId)
+    return Math.max(
+      0,
+      Math.min(state.selectedApprovalIdx, approvals.length - 1),
+    );
   const matchIdx = approvals.findIndex(
-    (item) => item?.teammate_id && String(item.teammate_id) === String(focusedId),
+    (item) =>
+      item?.teammate_id && String(item.teammate_id) === String(focusedId),
   );
   if (matchIdx >= 0) return matchIdx;
   return Math.max(0, Math.min(state.selectedApprovalIdx, approvals.length - 1));
@@ -248,7 +263,10 @@ function focusedInterruptRecord() {
 function focusedApprovalRecord() {
   const approvals = state.approvals || [];
   if (!approvals.length) return null;
-  const idx = Math.max(0, Math.min(state.selectedApprovalIdx, approvals.length - 1));
+  const idx = Math.max(
+    0,
+    Math.min(state.selectedApprovalIdx, approvals.length - 1),
+  );
   return approvals[idx] || null;
 }
 
@@ -292,7 +310,9 @@ function resolveFocusedRoute(teammate) {
     liveAgeMs: freshness.live_age_ms,
     staleAfterMs: freshness.stale_after_ms,
     hasTmuxMirror: Boolean(
-      teammate?.tmux_pane_id || teammate?.current_task_ref || teammate?.worker_task_id,
+      teammate?.tmux_pane_id ||
+      teammate?.current_task_ref ||
+      teammate?.worker_task_id,
     ),
   });
 }
@@ -300,7 +320,9 @@ function resolveFocusedRoute(teammate) {
 function focusedLiveText(teammate) {
   if (!teammate) return "No teammate selected.";
   const key = teammateKey(teammate);
-  const live = key ? state.liveTeammatesById.get(key)?.teammate || teammate : teammate;
+  const live = key
+    ? state.liveTeammatesById.get(key)?.teammate || teammate
+    : teammate;
   return [
     `presence=${live.presence || "-"}`,
     `task=${live.current_task_ref || live.worker_task_id || "-"}`,
@@ -308,10 +330,12 @@ function focusedLiveText(teammate) {
     `agent=${live.native_agent_id || "-"}`,
     `last_tool=${live.last_tool || "-"}`,
     `risk=${(live.risk_flags || []).join(",") || "none"}`,
-    `recent_ops=${(live.recent_ops || [])
-      .slice(-8)
-      .map((x) => x.tool || x.file || "?")
-      .join(" | ") || "none"}`,
+    `recent_ops=${
+      (live.recent_ops || [])
+        .slice(-8)
+        .map((x) => x.tool || x.file || "?")
+        .join(" | ") || "none"
+    }`,
     `live_freshness=${formatFreshness(focusedFreshnessMeta(teammate))}`,
     "Note: this is not in-process parity; it mirrors native/runtime state.",
   ].join("\n");
@@ -477,7 +501,8 @@ function renderInterrupts() {
   box("Interrupts");
   for (let i = 0; i < interrupts.slice(0, 8).length; i++) {
     const int = interrupts[i];
-    const sel = i === state.selectedInterruptIdx ? `${C.bold}${C.cyan}> ` : "  ";
+    const sel =
+      i === state.selectedInterruptIdx ? `${C.bold}${C.cyan}> ` : "  ";
     const lvl = int.level || "info";
     const clr = lvl === "error" ? C.red : lvl === "warn" ? C.yellow : C.dim;
     const score =
@@ -488,7 +513,9 @@ function renderInterrupts() {
       `${sel}${clr}[${lvl}]${C.reset} ${int.code || "alert"}: ${truncate(int.message, 60)}${score}`,
     );
   }
-  line(`  ${C.dim}Use ,/. to select and Enter to triage selected interrupt.${C.reset}`);
+  line(
+    `  ${C.dim}Use ,/. to select and Enter to triage selected interrupt.${C.reset}`,
+  );
 }
 
 function renderAlerts() {
@@ -698,7 +725,9 @@ function renderTeammateView() {
   hr();
 
   const output =
-    route.route_mode === "tmux-mirror" ? getTeammateOutput(m) : focusedLiveText(m);
+    route.route_mode === "tmux-mirror"
+      ? getTeammateOutput(m)
+      : focusedLiveText(m);
   if (output) {
     const maxLines = Math.max(10, (process.stdout.rows || 40) - 8);
     const lines = output.split("\n");
@@ -785,7 +814,9 @@ function renderSplit() {
     );
     if (route.fallback_reason) {
       moveTo(rightRow++, rightStart);
-      process.stdout.write(`fallback: ${route.fallback_reason}`.slice(0, rightWidth));
+      process.stdout.write(
+        `fallback: ${route.fallback_reason}`.slice(0, rightWidth),
+      );
     } else {
       moveTo(rightRow++, rightStart);
       process.stdout.write("fallback: none".slice(0, rightWidth));
@@ -805,7 +836,9 @@ function renderSplit() {
     process.stdout.write("─".repeat(Math.min(rightWidth, 60)));
 
     const output =
-      route.route_mode === "tmux-mirror" ? getTeammateOutput(m) : focusedLiveText(m);
+      route.route_mode === "tmux-mirror"
+        ? getTeammateOutput(m)
+        : focusedLiveText(m);
     if (output) {
       const maxLines = Math.max(5, rows - rightRow - 2);
       const outputLines = output.split("\n").slice(-maxLines);
@@ -857,14 +890,14 @@ async function refresh() {
   state.native = teams.native || state.native;
   try {
     state.native = await request("/native/status");
-  } catch { }
+  } catch {}
   try {
     const actions = await request("/actions");
     state.actions = actions.actions || [];
-  } catch { }
+  } catch {}
   try {
     state.metrics = await request("/metrics.json");
-  } catch { }
+  } catch {}
   if (state.selectedTeamIdx >= state.teams.length)
     state.selectedTeamIdx = Math.max(0, state.teams.length - 1);
   const selected = teamName();
@@ -878,7 +911,9 @@ async function refresh() {
       );
     }
     try {
-      const intr = await request(`/teams/${encodeURIComponent(selected)}/interrupts`);
+      const intr = await request(
+        `/teams/${encodeURIComponent(selected)}/interrupts`,
+      );
       state.interrupts = intr.interrupts || [];
     } catch {
       state.interrupts = state.detail?.interrupts || [];
@@ -923,7 +958,10 @@ async function refreshFocusedContext() {
   state.detail = detail;
   cacheTeammates(state.detail?.teammates || [], Date.now());
   if (state.selectedMemberIdx >= (state.detail?.teammates || []).length) {
-    state.selectedMemberIdx = Math.max(0, (state.detail?.teammates || []).length - 1);
+    state.selectedMemberIdx = Math.max(
+      0,
+      (state.detail?.teammates || []).length - 1,
+    );
   }
   state.interrupts = intr.interrupts || state.detail?.interrupts || [];
   state.approvals = ap.approvals || [];
@@ -1102,18 +1140,26 @@ async function triageSelectedInterrupt() {
   const selected = interrupts[idx];
   try {
     if (selected.kind === "approval" && selected.task_id) {
-      await doAction("approve-plan", {
-        task_id: selected.task_id,
-        message: "Approved from interrupt triage",
-      }, { refreshMode: "focused" });
+      await doAction(
+        "approve-plan",
+        {
+          task_id: selected.task_id,
+          message: "Approved from interrupt triage",
+        },
+        { refreshMode: "focused" },
+      );
       state.message = `Approved ${selected.task_id}`;
       return;
     }
     if (selected.kind === "stale" && selected.session_id) {
-      await doAction("wake", {
-        session_id: selected.session_id,
-        message: "Wake from interrupt triage",
-      }, { refreshMode: "focused" });
+      await doAction(
+        "wake",
+        {
+          session_id: selected.session_id,
+          message: "Wake from interrupt triage",
+        },
+        { refreshMode: "focused" },
+      );
       state.message = `Wake sent ${selected.session_id}`;
       return;
     }
@@ -1145,18 +1191,26 @@ async function approveOrRejectFocused(mode = "approve") {
   state.selectedApprovalIdx = idx;
   const ap = approvals[idx];
   if (mode === "approve") {
-    await doAction("approve-plan", {
-      task_id: ap.task_id || ap.worker,
-      message: "Approved from focused teammate controls",
-    }, { refreshMode: "focused" });
+    await doAction(
+      "approve-plan",
+      {
+        task_id: ap.task_id || ap.worker,
+        message: "Approved from focused teammate controls",
+      },
+      { refreshMode: "focused" },
+    );
     state.message = `Approved ${ap.task_id || ap.worker}`;
     return;
   }
   return promptInput("Revision feedback", async (feedback) => {
-    await doAction("reject-plan", {
-      task_id: ap.task_id || ap.worker,
-      feedback: feedback || "Needs revision",
-    }, { refreshMode: "focused" });
+    await doAction(
+      "reject-plan",
+      {
+        task_id: ap.task_id || ap.worker,
+        feedback: feedback || "Needs revision",
+      },
+      { refreshMode: "focused" },
+    );
     state.message = `Rejected ${ap.task_id || ap.worker}`;
   });
 }
@@ -1170,9 +1224,14 @@ function handleLiveEvent(eventName, data) {
     cacheTeammates(teammates, Date.now());
     const currentTeam = teamName();
     if (state.detail && currentTeam) {
-      state.detail.teammates = teammates.filter((m) => m.team_name === currentTeam);
+      state.detail.teammates = teammates.filter(
+        (m) => m.team_name === currentTeam,
+      );
       if (state.selectedMemberIdx >= state.detail.teammates.length) {
-        state.selectedMemberIdx = Math.max(0, state.detail.teammates.length - 1);
+        state.selectedMemberIdx = Math.max(
+          0,
+          state.detail.teammates.length - 1,
+        );
       }
       syncFocusedSelections();
     }
@@ -1220,7 +1279,7 @@ function connectLiveEvents() {
   if (state.sseRequest) {
     try {
       state.sseRequest.destroy();
-    } catch { }
+    } catch {}
     state.sseRequest = null;
   }
   const headers = { Accept: "text/event-stream" };
@@ -1238,9 +1297,7 @@ function connectLiveEvents() {
           const idx = buffer.indexOf("\n");
           const lineRaw = buffer.slice(0, idx);
           buffer = buffer.slice(idx + 1);
-          const line = lineRaw.endsWith("\r")
-            ? lineRaw.slice(0, -1)
-            : lineRaw;
+          const line = lineRaw.endsWith("\r") ? lineRaw.slice(0, -1) : lineRaw;
           if (!line) {
             if (eventName) {
               const dataText = dataParts.join("\n");
@@ -1316,7 +1373,7 @@ function startTeammateAutoRefresh() {
 function startAutoRefresh() {
   if (state.autoRefreshTimer) clearInterval(state.autoRefreshTimer);
   state.autoRefreshTimer = setInterval(() => {
-    refresh().catch(() => { });
+    refresh().catch(() => {});
   }, state.autoRefreshInterval);
 }
 
@@ -1339,16 +1396,16 @@ async function main() {
   const shutdown = () => {
     try {
       if (state.sseRequest) state.sseRequest.destroy();
-    } catch { }
+    } catch {}
     try {
       if (state.sseReconnectTimer) clearTimeout(state.sseReconnectTimer);
-    } catch { }
+    } catch {}
     try {
       if (state.autoRefreshTimer) clearInterval(state.autoRefreshTimer);
-    } catch { }
+    } catch {}
     try {
       if (state.teammateRefreshTimer) clearInterval(state.teammateRefreshTimer);
-    } catch { }
+    } catch {}
   };
   process.on("exit", shutdown);
 
@@ -1396,10 +1453,14 @@ async function main() {
           return render();
         }
         return promptInput("Approval note (optional)", async (message) => {
-          await doAction("approve-plan", {
-            task_id: ap.task_id || ap.worker,
-            message,
-          }, { refreshMode: "focused" });
+          await doAction(
+            "approve-plan",
+            {
+              task_id: ap.task_id || ap.worker,
+              message,
+            },
+            { refreshMode: "focused" },
+          );
           state.message = `Approved ${ap.task_id || ap.worker}`;
         });
       }
@@ -1410,10 +1471,14 @@ async function main() {
           return render();
         }
         return promptInput("Revision feedback", async (feedback) => {
-          await doAction("reject-plan", {
-            task_id: ap.task_id || ap.worker,
-            feedback,
-          }, { refreshMode: "focused" });
+          await doAction(
+            "reject-plan",
+            {
+              task_id: ap.task_id || ap.worker,
+              feedback,
+            },
+            { refreshMode: "focused" },
+          );
           state.message = `Rejected ${ap.task_id || ap.worker}`;
         });
       }
@@ -1485,7 +1550,7 @@ async function main() {
         state.selectedTeamIdx + 1,
         Math.max(0, state.teams.length - 1),
       );
-      return refresh().catch(() => { });
+      return refresh().catch(() => {});
     }
     if (key.name === "k") {
       if (state.viewMode === "split") {
@@ -1493,7 +1558,7 @@ async function main() {
         return render();
       }
       state.selectedTeamIdx = Math.max(0, state.selectedTeamIdx - 1);
-      return refresh().catch(() => { });
+      return refresh().catch(() => {});
     }
     if (str === "{") {
       state.selectedActionIdx = Math.max(0, state.selectedActionIdx - 1);
@@ -1639,11 +1704,19 @@ async function main() {
         promptInput("Approve or reject? (a/r)", (mode) => {
           if (String(mode).toLowerCase().startsWith("a")) {
             promptInput("Approval note (optional)", async (message) => {
-              await doAction("approve-plan", { task_id, message }, { refreshMode: "focused" });
+              await doAction(
+                "approve-plan",
+                { task_id, message },
+                { refreshMode: "focused" },
+              );
             });
           } else {
             promptInput("Revision feedback", async (feedback) => {
-              await doAction("reject-plan", { task_id, feedback }, { refreshMode: "focused" });
+              await doAction(
+                "reject-plan",
+                { task_id, feedback },
+                { refreshMode: "focused" },
+              );
             });
           }
         });
@@ -1654,7 +1727,11 @@ async function main() {
     if (key.name === "w") {
       return promptInput("Session id", (session_id) => {
         promptInput("Wake message", async (message) => {
-          await doAction("wake", { session_id, message }, { refreshMode: "focused" });
+          await doAction(
+            "wake",
+            { session_id, message },
+            { refreshMode: "focused" },
+          );
         });
       });
     }
@@ -1696,7 +1773,7 @@ async function main() {
     }
 
     // Refresh
-    if (key.name === "space") return refresh().catch(() => { });
+    if (key.name === "space") return refresh().catch(() => {});
   });
 }
 

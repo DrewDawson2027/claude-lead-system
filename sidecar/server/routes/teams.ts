@@ -159,9 +159,9 @@ export function registerTeamRoutes(registry: any): void {
       try {
         const transcriptPath = join(paths.resultsDir, `${taskId}.transcript`);
         if (existsSync(transcriptPath))
-          output = String(ctx.readFileSync(transcriptPath, "utf-8") || "").slice(
-            -6000,
-          );
+          output = String(
+            ctx.readFileSync(transcriptPath, "utf-8") || "",
+          ).slice(-6000);
       } catch {
         output = null;
       }
@@ -171,8 +171,10 @@ export function registerTeamRoutes(registry: any): void {
         const resultPath = join(paths.resultsDir, `${taskId}.json`);
         if (existsSync(resultPath)) {
           const result = ctx.readJSON(resultPath);
-          if (typeof result?.output === "string") output = result.output.slice(-4000);
-          else if (result) output = JSON.stringify(result, null, 2).slice(-4000);
+          if (typeof result?.output === "string")
+            output = result.output.slice(-4000);
+          else if (result)
+            output = JSON.stringify(result, null, 2).slice(-4000);
         }
       } catch {
         output = null;
@@ -196,7 +198,8 @@ export function registerTeamRoutes(registry: any): void {
         stale_after_ms: 6000,
         route_mode_preference: [...CANONICAL_ROUTE_MODE_PREFERENCE],
         stream_fallback_order: [...CANONICAL_STREAM_FALLBACK_ORDER],
-        source_truth: "tmux terminal mirror fallback (not native in-process rendering)",
+        source_truth:
+          "tmux terminal mirror fallback (not native in-process rendering)",
         output: output || null,
         generated_at: new Date().toISOString(),
       },

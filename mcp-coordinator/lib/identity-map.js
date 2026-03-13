@@ -240,8 +240,7 @@ function scoreMatch(record, query) {
       else if (field === "claude_session_id") score += 9;
       else if (field === "agent_name" || field === "worker_name") score += 7;
       else score += 6;
-    }
-    else score -= 2;
+    } else score -= 2;
   }
   return score;
 }

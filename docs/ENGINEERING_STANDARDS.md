@@ -4,13 +4,13 @@ Living checklist tracking adherence to "top tier" open source engineering standa
 
 ## Code Quality
 
-| Standard                                                 | Status | Evidence                                                                            |
-| -------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------- |
-| All public mutations validated server-side               | Done   | `BODY_ALLOWLISTS` in `sidecar/server/http/validation.ts`                            |
-| Consistent error envelopes                               | Done   | All routes use `sendError()` with `{ error_code, message, request_id }`             |
-| Claim-doc drift checks automated for governed claims     | Done   | `scripts/check-claim-drift.sh` is part of `npm run docs:audit` in CI + local verification |
-| TODO/HACK/FIXME markers absent in coordinator/sidecar runtime code | Done   | `rg -n "TODO|HACK|FIXME" mcp-coordinator/lib sidecar/server` returns no matches; `hooks/teammate-idle.py` intentionally contains TODO/FIXME scanner patterns |
-| High-risk code paths have direct tests                   | Done   | `auth-matrix.test.mjs`, `security-hardening.test.mjs`, `resilience-http.test.mjs`   |
+| Standard                                                           | Status | Evidence                                                                                  |
+| ------------------------------------------------------------------ | ------ | ----------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| All public mutations validated server-side                         | Done   | `BODY_ALLOWLISTS` in `sidecar/server/http/validation.ts`                                  |
+| Consistent error envelopes                                         | Done   | All routes use `sendError()` with `{ error_code, message, request_id }`                   |
+| Claim-doc drift checks automated for governed claims               | Done   | `scripts/check-claim-drift.sh` is part of `npm run docs:audit` in CI + local verification |
+| TODO/HACK/FIXME markers absent in coordinator/sidecar runtime code | Done   | `rg -n "TODO                                                                              | HACK | FIXME" mcp-coordinator/lib sidecar/server`returns no matches;`hooks/teammate-idle.py` intentionally contains TODO/FIXME scanner patterns |
+| High-risk code paths have direct tests                             | Done   | `auth-matrix.test.mjs`, `security-hardening.test.mjs`, `resilience-http.test.mjs`         |
 
 ## Security
 
@@ -25,15 +25,15 @@ Living checklist tracking adherence to "top tier" open source engineering standa
 
 ## Reliability
 
-| Standard                                  | Status | Evidence                                                             |
-| ----------------------------------------- | ------ | -------------------------------------------------------------------- |
-| Core local gate reproducible              | Done   | `npm run ci:local`                                                   |
+| Standard                                  | Status | Evidence                                                                                          |
+| ----------------------------------------- | ------ | ------------------------------------------------------------------------------------------------- |
+| Core local gate reproducible              | Done   | `npm run ci:local`                                                                                |
 | Fresh-checkout certification reproducible | Done   | `npm run cert:a-plus:fresh` (single 8-step cert flow, deterministic literal output + JSON report) |
-| Installed runtime health audited          | Done   | `bash ~/.claude/hooks/health-check.sh` (installed/blessed-path runtime only) |
-| Hook tests and regressions pass           | Done   | `tests/hooks-smoke.sh`, `tests/test-hooks.sh`, pytest in CI          |
-| Crash/restart/repair tested               | Done   | `repair.test.mjs`, `checkpoint.test.mjs`, `resilience-http.test.mjs` |
-| Limits and quotas documented and enforced | Done   | `docs/OPERATIONAL_SLOS.md`, rate limiter, body size caps             |
-| Upgrade compatibility tested              | Done   | `compatibility-matrix` CI job (Node 18/20, Python 3.10/3.11)         |
+| Installed runtime health audited          | Done   | `bash ~/.claude/hooks/health-check.sh` (installed/blessed-path runtime only)                      |
+| Hook tests and regressions pass           | Done   | `tests/hooks-smoke.sh`, `tests/test-hooks.sh`, pytest in CI                                       |
+| Crash/restart/repair tested               | Done   | `repair.test.mjs`, `checkpoint.test.mjs`, `resilience-http.test.mjs`                              |
+| Limits and quotas documented and enforced | Done   | `docs/OPERATIONAL_SLOS.md`, rate limiter, body size caps                                          |
+| Upgrade compatibility tested              | Done   | `compatibility-matrix` CI job (Node 18/20, Python 3.10/3.11)                                      |
 
 ## Release Trust
 

@@ -101,10 +101,7 @@
       "started_at": "2026-03-12T02:59:18.252Z",
       "ended_at": "2026-03-12T02:59:18.388Z",
       "duration_ms": 136,
-      "command": [
-        "node",
-        "scripts/proof/check-lead-boot.mjs"
-      ],
+      "command": ["node", "scripts/proof/check-lead-boot.mjs"],
       "env_overrides": {},
       "exit_status": 0,
       "signal": null,

@@ -16,82 +16,56 @@
     {
       "name": "lint:shell",
       "command": "npm",
-      "args": [
-        "run",
-        "lint:shell"
-      ],
+      "args": ["run", "lint:shell"],
       "result": "PASS",
       "exit_code": 0
     },
     {
       "name": "lint:python",
       "command": "npm",
-      "args": [
-        "run",
-        "lint:python"
-      ],
+      "args": ["run", "lint:python"],
       "result": "PASS",
       "exit_code": 0
     },
     {
       "name": "lint:coordinator",
       "command": "npm",
-      "args": [
-        "run",
-        "lint:coordinator"
-      ],
+      "args": ["run", "lint:coordinator"],
       "result": "PASS",
       "exit_code": 0
     },
     {
       "name": "test:coverage",
       "command": "npm",
-      "args": [
-        "--workspace",
-        "mcp-coordinator",
-        "run",
-        "test:coverage"
-      ],
+      "args": ["--workspace", "mcp-coordinator", "run", "test:coverage"],
       "result": "FAIL",
       "exit_code": 1
     },
     {
       "name": "docs:audit",
       "command": "npm",
-      "args": [
-        "run",
-        "docs:audit"
-      ],
+      "args": ["run", "docs:audit"],
       "result": "PASS",
       "exit_code": 0
     },
     {
       "name": "typecheck:sidecar",
       "command": "npm",
-      "args": [
-        "run",
-        "typecheck:sidecar"
-      ],
+      "args": ["run", "typecheck:sidecar"],
       "result": "PASS",
       "exit_code": 0
     },
     {
       "name": "test:sidecar",
       "command": "npm",
-      "args": [
-        "run",
-        "test:sidecar"
-      ],
+      "args": ["run", "test:sidecar"],
       "result": "PASS",
       "exit_code": 0
     },
     {
       "name": "verify:hooks",
       "command": "npm",
-      "args": [
-        "run",
-        "verify:hooks"
-      ],
+      "args": ["run", "verify:hooks"],
       "result": "PASS",
       "exit_code": 0
     }
