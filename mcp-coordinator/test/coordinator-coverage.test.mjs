@@ -225,6 +225,34 @@ test('handleSpawnWorkers rejects empty workers array', async () => {
   }
 });
 
+test('handleSpawnWorker reviewer role uses lower-cost default model and context', async () => {
+  const { home } = setupHome();
+  const projectDir = join(home, 'project');
+  mkdirSync(projectDir, { recursive: true });
+
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const taskId = 'W_REVIEWER_PRESET';
+    const result = api.handleToolCall('coord_spawn_worker', {
+      task_id: taskId,
+      directory: projectDir,
+      prompt: 'Review the proposed changes and identify risks.',
+      role: 'reviewer',
+      isolate: false,
+    });
+    assert.match(textOf(result), /Worker spawned/i);
+
+    const meta = readJson(join(home, '.claude', 'terminals', 'results', `${taskId}.meta.json`));
+    assert.equal(meta.model, 'sonnet');
+    assert.equal(meta.context_level, 'standard');
+    assert.equal(meta.permission_mode, 'readOnly');
+    assert.equal(meta.require_plan, true);
+  } finally {
+    restore();
+  }
+});
+
 test('handleSpawnWorkers rejects more than 10 workers', async () => {
   const { home } = setupHome();
   const { api, restore } = await loadForTest(home);

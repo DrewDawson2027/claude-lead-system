@@ -1,8 +1,9 @@
-# 2-Min Demo Script (Narration)
+# Conflict Hero Demo Script
 
-- "I have two Claude terminals in one repo. Normally they conflict."
-- "I run `/lead` and instantly see all sessions."
-- "I send work to another session with `tell` and it receives inbox instructions."
-- "I run `conflicts` and catch file overlap before merge pain."
-- "I spawn an autonomous worker and get output/status without manual babysitting."
-- "Coordination happened outside the context window with zero API-token orchestration overhead."
+ - "The hard part of multi-agent coding is not spawning more agents. It is stopping them from colliding on the same file."
+ - "Here I have two live workers in the same repo."
+ - "Both are converging on `src/auth.ts`."
+ - "Lead catches the overlap before I end up in merge cleanup."
+ - "I can reroute one worker live: one owns the auth file, the other stays in tests."
+ - "The point is operator control at the moment coordination actually matters."
+ - "Now the overlap is gone. Prevent the collision before the merge conflict."

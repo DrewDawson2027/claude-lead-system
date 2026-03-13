@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { createHash } from "crypto";
+import type { MaintenanceSweepDeps, MaintenanceSweepResult, DiagnosticsBundleDeps, DiagnosticsResult } from "./types.js";
 
 export function createMaintenanceSweep({
   actionQueue,
@@ -19,13 +19,13 @@ export function createMaintenanceSweep({
   checkTerminalHealth,
   suggestRecovery,
   validateHooks,
-}) {
-  const seenBridgeStuck = new Set();
+}: MaintenanceSweepDeps) {
+  const seenBridgeStuck = new Set<string>();
   let lastCheckpointTime = 0;
   let sweepCount = 0;
-  const autoRebalanceTimes = new Map();
+  const autoRebalanceTimes = new Map<string, number>();
 
-  return function maintenanceSweep({ source = "periodic" } = {}) {
+  return function maintenanceSweep({ source = "periodic" } = {}): MaintenanceSweepResult {
     const recovered = actionQueue.recoverStaleInflight(
       Number(process.env.LEAD_SIDECAR_INFLIGHT_STALE_MS || 5 * 60_000),
     );
@@ -93,18 +93,18 @@ export function createMaintenanceSweep({
             priority: task.priority,
             metadata: task.metadata,
           })
-          .catch(() => {});
+          .catch(() => { });
       }
       store.emitTimeline({ type: "priority.aged", task_ids: agingResult.aged });
     }
 
     let autoRebalanced = false;
     for (const teamEntry of getTeamsSnapshot()) {
-      const autoConfig = teamEntry.policy?.auto_rebalance;
+      const autoConfig = teamEntry.policy?.auto_rebalance as any;
       if (!autoConfig?.enabled) continue;
       try {
         const teamSnap = getTeamsSnapshot(true)?.find(
-          (t) => t.team_name === teamEntry.team_name,
+          (t: any) => t.team_name === teamEntry.team_name,
         );
         if (!teamSnap) continue;
         const check = shouldAutoRebalance(teamSnap, autoConfig);
@@ -118,7 +118,7 @@ export function createMaintenanceSweep({
                 team_name: teamEntry.team_name,
                 apply: true,
               })
-              .catch(() => {});
+              .catch(() => { });
             store.emitTimeline({
               type: "auto_rebalance.triggered",
               team_name: teamEntry.team_name,
@@ -128,7 +128,7 @@ export function createMaintenanceSweep({
             autoRebalanced = true;
           }
         }
-      } catch {}
+      } catch { }
     }
 
     metrics.persistSnapshot(paths.metricsHistoryDir);
@@ -140,10 +140,10 @@ export function createMaintenanceSweep({
         rotateCheckpoints(paths);
         lastCheckpointTime = Date.now();
         checkpointed = true;
-      } catch {}
+      } catch { }
     }
 
-    let terminalHealth = null;
+    let terminalHealth: any = null;
     try {
       terminalHealth = checkTerminalHealth(paths);
       if (terminalHealth.zombies.length || terminalHealth.dead_shells.length) {
@@ -160,7 +160,7 @@ export function createMaintenanceSweep({
           suggestions: suggestions.slice(0, 5),
         });
       }
-    } catch {}
+    } catch { }
 
     sweepCount += 1;
     if (sweepCount % 10 === 0) {
@@ -177,7 +177,7 @@ export function createMaintenanceSweep({
             findings: hookReport.hooks.filter((h) => h.issues.length),
           });
         }
-      } catch {}
+      } catch { }
     }
 
     return {
@@ -199,11 +199,11 @@ const REDACT_SAFE_KEYS = new Set([
   "action_counts",
 ]);
 
-function redactSecrets(obj, depth = 0) {
+function redactSecrets(obj: unknown, depth = 0): unknown {
   if (depth > 20 || !obj || typeof obj !== "object") return obj;
   if (Array.isArray(obj)) return obj.map((v) => redactSecrets(v, depth + 1));
-  const out = {};
-  for (const [k, v] of Object.entries(obj)) {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
     if (REDACT_SAFE_KEYS.has(k)) {
       out[k] = v;
     } else if (
@@ -238,8 +238,8 @@ export function createDiagnosticsBundle({
   writeJSON,
   trimLongStrings,
   appendJSONL,
-}) {
-  return function diagnosticsBundle(label = "manual") {
+}: DiagnosticsBundleDeps) {
+  return function diagnosticsBundle(label = "manual"): DiagnosticsResult {
     const snapshot = store.getSnapshot();
     const nativeBridgeStatus = readJSON(paths.nativeBridgeStatusFile);
     const nativeBridgeHeartbeat = readJSON(paths.nativeBridgeHeartbeatFile);
@@ -271,7 +271,7 @@ export function createDiagnosticsBundle({
     const redacted = redactSecrets(trimLongStrings(bundle, 2048));
 
     const manifest: Record<string, number> = {};
-    for (const [section, value] of Object.entries(redacted)) {
+    for (const [section, value] of Object.entries(redacted as Record<string, unknown>)) {
       manifest[section] = JSON.stringify(value).length;
     }
     (redacted as any).manifest = manifest;
@@ -289,12 +289,12 @@ export function createDiagnosticsBundle({
         file,
         label,
       });
-    } catch {}
+    } catch { }
     return {
       ok: true,
       file,
       generated_at: bundle.generated_at,
-      counts: bundle.runtime.action_counts,
+      counts: bundle.runtime.action_counts as Record<string, number>,
       checksum,
     };
   };

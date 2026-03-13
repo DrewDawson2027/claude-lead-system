@@ -1,0 +1,5 @@
+{"ts":"2026-03-12T00:50:40.137Z","type":"workload_started","count":1,"detail":"path=lead_coordinator trial=4","run_id":"ab-smoke-rootout","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
+{"ts":"2026-03-12T00:50:40.305Z","type":"human_intervention","count":1,"detail":"manual approvals","run_id":"ab-smoke-rootout","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
+{"ts":"2026-03-12T00:50:40.327Z","type":"resume_attempt","count":1,"detail":"resume invoked","run_id":"ab-smoke-rootout","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
+{"ts":"2026-03-12T00:50:40.348Z","type":"resume_success","count":1,"detail":"resume succeeded","run_id":"ab-smoke-rootout","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
+{"ts":"2026-03-12T00:50:40.368Z","type":"workload_completed","count":1,"detail":"workload success","run_id":"ab-smoke-rootout","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}

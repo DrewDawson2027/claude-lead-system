@@ -71,20 +71,20 @@ export function writeFileSecure(pathValue, data) {
       } finally {
         closeSync(fd);
       }
-    } catch {}
+    } catch { }
     renameSync(tempPath, pathValue);
     renamed = true;
   } finally {
     if (!renamed) {
       try {
         unlinkSync(tempPath);
-      } catch {}
+      } catch { }
     }
   }
   if (PLATFORM !== "win32") {
     try {
       chmodSync(pathValue, 0o600);
-    } catch {}
+    } catch { }
   } else {
     enforceWindowsAcl(pathValue, false);
   }
@@ -101,7 +101,7 @@ export function appendJSONLineSecure(pathValue, value) {
   if (PLATFORM !== "win32") {
     try {
       chmodSync(pathValue, 0o600);
-    } catch {}
+    } catch { }
   } else {
     enforceWindowsAcl(pathValue, false);
   }
@@ -225,10 +225,10 @@ export function acquireExclusiveFileLock(
   return () => {
     try {
       if (lockFd !== undefined) closeSync(lockFd);
-    } catch {}
+    } catch { }
     try {
       unlinkSync(lockPath);
-    } catch {}
+    } catch { }
   };
 }
 
@@ -321,9 +321,14 @@ export function sanitizeName(input, label = "name") {
  * @returns {string} Validated model name (defaults to "sonnet")
  */
 export function sanitizeModel(input) {
-  const model = String(input ?? "sonnet").trim();
+  const model = String(input ?? "sonnet")
+    .trim()
+    .toLowerCase();
   if (!SAFE_MODEL_RE.test(model)) throw new Error("Invalid model name.");
-  return model;
+  if (model === "sonnet" || model === "haiku") return model;
+  if (model.startsWith("claude-sonnet-")) return "sonnet";
+  if (model.startsWith("claude-haiku-")) return "haiku";
+  throw new Error("Only sonnet and haiku models are allowed.");
 }
 
 /**
@@ -369,7 +374,7 @@ export function normalizeFilePath(filePath, cwd = "") {
     if (existsSync(candidate)) {
       candidate = realpathSync(candidate);
     }
-  } catch {}
+  } catch { }
   let normalized = candidate.replace(/\\/g, "/");
   if (PLATFORM === "win32") normalized = normalized.toLowerCase();
   return normalized;

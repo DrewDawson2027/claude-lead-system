@@ -171,7 +171,7 @@ test('Gap 6: coord_discover_peers table has correct column headers', async () =>
       team_name: 'charlie',
       worker_name: 'reviewer',
       role: 'reviewer',
-      model: 'opus',
+      model: 'sonnet',
       permission_mode: 'readOnly',
       status: 'running',
       tmux_pane_id: '%9',

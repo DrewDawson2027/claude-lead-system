@@ -1,8 +1,16 @@
-// @ts-nocheck
 import { randomBytes } from "crypto";
 import { statSync, chmodSync } from "fs";
+import type {
+  ParseArgsResult,
+  SidecarPaths,
+  TokenFileData,
+  PermissionIssue,
+  ReadJSONFn,
+  WriteJSONFn,
+  FileExistsFn
+} from "./types.js";
 
-export function readFileSafe(readFileSync, url) {
+export function readFileSafe(readFileSync: any, url: URL): string {
   try {
     return readFileSync(url, "utf-8");
   } catch {
@@ -10,8 +18,8 @@ export function readFileSafe(readFileSync, url) {
   }
 }
 
-export function parseArgs(argv) {
-  const out = {
+export function parseArgs(argv: string[]): ParseArgsResult {
+  const out: ParseArgsResult = {
     port: Number(process.env.LEAD_SIDECAR_PORT || 0) || 0,
     open: false,
   };
@@ -33,9 +41,15 @@ export function parseArgs(argv) {
   return out;
 }
 
-export function ensureApiToken(paths, fileExists, readJSON, writeJsonFile) {
+export function ensureApiToken(
+  paths: SidecarPaths,
+  fileExists: FileExistsFn,
+  readJSON: ReadJSONFn,
+  writeJsonFile: WriteJSONFn
+): string | null {
   if (fileExists(paths.apiTokenFile)) {
-    return String(readJSON(paths.apiTokenFile)?.token || "").trim() || null;
+    const data = readJSON(paths.apiTokenFile) as TokenFileData;
+    return String(data?.token || "").trim() || null;
   }
   const token = randomBytes(24).toString("hex");
   writeJsonFile(paths.apiTokenFile, {
@@ -46,7 +60,10 @@ export function ensureApiToken(paths, fileExists, readJSON, writeJsonFile) {
   return token;
 }
 
-export function rotateApiToken(paths, writeJsonFile) {
+export function rotateApiToken(
+  paths: SidecarPaths,
+  writeJsonFile: WriteJSONFn
+): { new_token: string; rotated_at: string } {
   const token = randomBytes(24).toString("hex");
   writeJsonFile(paths.apiTokenFile, {
     token,
@@ -58,14 +75,14 @@ export function rotateApiToken(paths, writeJsonFile) {
 }
 
 export function ensureCsrfToken(
-  paths,
-  fileExists,
-  readJSON,
-  writeJsonFile,
-  { rotateCsrf = false } = {},
-) {
+  paths: SidecarPaths,
+  fileExists: FileExistsFn,
+  readJSON: ReadJSONFn,
+  writeJsonFile: WriteJSONFn,
+  { rotateCsrf = false }: { rotateCsrf?: boolean } = {},
+): string {
   if (fileExists(paths.csrfTokenFile) && !rotateCsrf) {
-    const existing = readJSON(paths.csrfTokenFile);
+    const existing = readJSON(paths.csrfTokenFile) as TokenFileData;
     const existingToken = String(existing?.token || "").trim();
     if (existingToken) {
       const ttlHours = Number(process.env.LEAD_SIDECAR_CSRF_TTL_HOURS || 0);
@@ -94,21 +111,63 @@ export function ensureCsrfToken(
   return token;
 }
 
-function tightenPermissions(filePath) {
+function tightenPermissions(filePath: string): void {
   try {
     chmodSync(filePath, 0o600);
-  } catch {}
+  } catch { }
 }
 
-export function checkFilePermissions(paths, fileExists) {
+function tightenDirPermissions(dirPath: string): void {
+  try {
+    chmodSync(dirPath, 0o700);
+  } catch { }
+}
+
+export function checkFilePermissions(
+  paths: SidecarPaths,
+  fileExists: FileExistsFn
+): { ok: boolean; issues: PermissionIssue[] } {
+  const sensitiveDirs = [
+    { path: paths.root, name: 'lead-sidecar' },
+    { path: paths.runtimeDir, name: 'runtime/' },
+    { path: paths.stateDir, name: 'state/' },
+    { path: paths.logsDir, name: 'logs/' },
+    { path: paths.diagnosticsDir, name: 'logs/diagnostics/' },
+  ];
   const sensitiveFiles = [
     { path: paths.apiTokenFile, name: "api.token" },
     { path: paths.csrfTokenFile, name: "csrf.token" },
     { path: paths.lockFile, name: "sidecar.lock" },
     { path: paths.portFile, name: "sidecar.port" },
   ];
-  const issues = [];
+  const issues: PermissionIssue[] = [];
   const uid = typeof process.getuid === "function" ? process.getuid() : null;
+  for (const { path, name } of sensitiveDirs) {
+    if (!fileExists(path)) continue;
+    try {
+      const st = statSync(path);
+      const mode = st.mode & 0o777;
+      if (mode & 0o077) {
+        try {
+          tightenDirPermissions(path);
+        } catch { }
+        issues.push({
+          file: name,
+          expected: '0700',
+          actual: `0${mode.toString(8)}`,
+          action: 'auto-fixed',
+        });
+      }
+      if (uid !== null && st.uid !== uid) {
+        issues.push({
+          file: name,
+          expected_uid: uid,
+          actual_uid: st.uid,
+          action: 'warning',
+        });
+      }
+    } catch { }
+  }
   for (const { path, name } of sensitiveFiles) {
     if (!fileExists(path)) continue;
     try {
@@ -117,7 +176,7 @@ export function checkFilePermissions(paths, fileExists) {
       if (mode & 0o077) {
         try {
           chmodSync(path, 0o600);
-        } catch {}
+        } catch { }
         issues.push({
           file: name,
           expected: "0600",
@@ -133,15 +192,24 @@ export function checkFilePermissions(paths, fileExists) {
           action: "warning",
         });
       }
-    } catch {}
+    } catch { }
   }
   return { ok: issues.length === 0, issues };
 }
 
-export function writeRuntimeFiles(paths, server, writeJSON) {
+export function writeRuntimeFiles(
+  paths: SidecarPaths,
+  server: any,
+  writeJSON: WriteJSONFn
+): number | null {
   const addr = server.address();
   const isSocket = typeof addr === "string";
   const port = typeof addr === "object" && addr ? addr.port : null;
+  tightenDirPermissions(paths.root);
+  tightenDirPermissions(paths.runtimeDir);
+  tightenDirPermissions(paths.stateDir);
+  tightenDirPermissions(paths.logsDir);
+  tightenDirPermissions(paths.diagnosticsDir);
   writeJSON(paths.lockFile, {
     pid: process.pid,
     started_at: new Date().toISOString(),

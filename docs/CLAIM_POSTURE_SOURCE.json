@@ -1,0 +1,108 @@
+{
+  "version": "2026-03-13",
+  "title": "Canonical Parity Economics And Posture Source",
+  "taxonomy": [
+    {
+      "label": "verified",
+      "definition": "Code path plus current test or local operating evidence."
+    },
+    {
+      "label": "partial",
+      "definition": "Code path exists with explicit scope limits or measured-but-narrow evidence."
+    },
+    {
+      "label": "experimental",
+      "definition": "Present in code/config but not ready for parity or economics marketing claims."
+    }
+  ],
+  "parity_posture": [
+    "Do not claim exact UX parity or exact feature parity with native Agent Teams.",
+    "Do not publish single-number parity percentages.",
+    "Use only evidence-labeled capability claims using the canonical taxonomy.",
+    "Hybrid/native execution paths remain experimental until current end-to-end evidence exists."
+  ],
+  "native_advantages": [
+    "In-process teammate lifecycle semantics in a single runtime.",
+    "Tighter first-party cross-platform UX consistency.",
+    "Integrated native UI and runtime linkage without external coordinator polling."
+  ],
+  "lead_advantages": [
+    "Pre-edit conflict detection and conflict lifecycle visibility across active sessions.",
+    "Operator-grade dashboard and API orchestration for multi-terminal workflows.",
+    "Filesystem coordination path with zero API-token coordination overhead.",
+    "Policy and governance controls around worker execution (budget/spawn/approval/checkpoint)."
+  ],
+  "economics_posture": [
+    "Do not claim universal savings or blanket cheaper-than-native outcomes.",
+    "Filesystem coordination can claim zero API-token coordination overhead on that path.",
+    "Throughput and economics claims beyond that path must stay evidence-scoped to the workflow under discussion."
+  ],
+  "economics_certification_policy": {
+    "target_claim": "essentially_same_workload_at_1_5th_price",
+    "target_price_ratio_max": 0.2,
+    "result_states": [
+      "certified",
+      "not_certified",
+      "blocked_by_evidence_quality"
+    ],
+    "required_gates": [
+      "same_workload_comparison_valid",
+      "completion_quality_non_inferior",
+      "intervention_failure_cost_not_materially_worse",
+      "token_cost_reduction_supports_target_threshold"
+    ]
+  },
+  "economics_verdicts": [
+    {
+      "claim": "Filesystem coordination overhead claim",
+      "label": "verified",
+      "scope": "Claim allowed for coordination traffic on the filesystem path only; excludes worker/model token usage."
+    },
+    {
+      "claim": "Workflow-scoped token-pressure delta claim",
+      "label": "partial",
+      "scope": "Claim allowed only when tied to named measured artifacts and explicit workflow boundaries."
+    },
+    {
+      "claim": "Universal cheaper-than-native or universal savings claim",
+      "label": "experimental",
+      "scope": "Not claimable without production-measured, workflow-matched evidence across scenarios."
+    }
+  ],
+  "release_blocker_posture": [
+    "Release blockers are failing release-quality gates, not unresolved parity/economics ambitions.",
+    "Parity and economics gaps remain posture limits until promoted by fresh evidence."
+  ],
+  "posture_sync_targets": [
+    "README.md",
+    "CLAUDE.md",
+    "MANIFEST.md",
+    "reports/release-readiness-report-2026-03-09.md"
+  ],
+  "forbidden_claim_patterns": [
+    {
+      "description": "Exact native parity mission statement",
+      "pattern": "Replicate Claude Code's native Agent Teams exactly"
+    },
+    {
+      "description": "Same UX and feature language",
+      "pattern": "same UX, same features"
+    },
+    {
+      "description": "Universal savings percentage target",
+      "pattern": "75[\\u2013-]90% cheaper"
+    },
+    {
+      "description": "Unqualified universal cheaper claim",
+      "pattern": "cheaper than native Agent Teams"
+    },
+    {
+      "description": "Total parity assertion",
+      "pattern": "Everything Agent Teams can do, the Lead System can do too"
+    },
+    {
+      "description": "Single-number parity percentage claim",
+      "pattern": "\\b\\d{1,3}%\\s*parity\\b"
+    }
+  ]
+}

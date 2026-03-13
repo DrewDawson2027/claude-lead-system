@@ -1,0 +1,64 @@
+{
+  "run_id": "ab-20260312T004942Z",
+  "generated_at": "2026-03-12T00:49:42.661Z",
+  "config_path": "/Users/drewdawson/claude-lead-system/bench/ab-harness.mock.config.json",
+  "trials": 4,
+  "timeout_seconds": 120,
+  "seed": 12345,
+  "confidence": 0.95,
+  "bootstrap_iterations": 2000,
+  "usage_window_tokens": 220000,
+  "workload": {
+    "id": "mock-ab-workload",
+    "description": "Deterministic mock workload that emits telemetry for harness validation.",
+    "prompt_file": "/Users/drewdawson/claude-lead-system/bench/bench/workloads/mock-workload-prompt.md"
+  },
+  "baseline_path": "native",
+  "active_paths": [
+    {
+      "path_id": "native",
+      "command": "bash bench/workloads/ab-example-workload.sh",
+      "extra_env": {
+        "AB_MOCK_AGENT_METRICS_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/transcripts/transcript-native.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/results"
+      }
+    },
+    {
+      "path_id": "lead_coordinator",
+      "command": "bash bench/workloads/ab-example-workload.sh",
+      "extra_env": {
+        "AB_MOCK_AGENT_METRICS_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/transcripts/transcript-lead-coordinator.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/results"
+      }
+    },
+    {
+      "path_id": "lead_overlay",
+      "command": "bash bench/workloads/ab-example-workload.sh",
+      "extra_env": {
+        "AB_MOCK_AGENT_METRICS_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/transcripts/transcript-lead-overlay.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/results"
+      }
+    }
+  ],
+  "telemetry": {
+    "agent_metrics_jsonl": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/agent-metrics.jsonl",
+    "activity_jsonl": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/activity.jsonl",
+    "conflicts_jsonl": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/conflicts.jsonl",
+    "results_dir": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/results",
+    "transcript_roots": [
+      "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/mock-telemetry/transcripts"
+    ],
+    "transcript_include_regex": "transcript.*\\.jsonl$",
+    "transcript_max_depth": 4
+  },
+  "min_trials_for_savings_claim": 5
+}

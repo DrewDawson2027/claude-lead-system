@@ -21,6 +21,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { upsertIdentityRecord } from '../lib/identity-map.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -234,6 +235,77 @@ test('recipient-validation: handleSendMessage succeeds when session found via me
       /Message sent/i,
       'session found via meta file must still receive message',
     );
+  } finally {
+    restore();
+  }
+});
+
+test('recipient-validation: target_name resolves through identity map native agent identity', async () => {
+  const { home, inbox } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    upsertIdentityRecord({
+      team_name: 'alpha',
+      agent_id: 'agent-native-77',
+      agent_name: 'native-alpha',
+      worker_name: 'worker-alpha',
+      session_id: 'nativ777',
+      task_id: 'W-native-77',
+    });
+    const result = api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      target_name: 'agent-native-77',
+      team_name: 'alpha',
+      content: 'hello via identity map',
+    });
+    assert.match(textOf(result), /Message sent/i);
+    const msgs = readInbox(inbox, 'nativ777');
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0].content, 'hello via identity map');
+  } finally {
+    restore();
+  }
+});
+
+test('recipient-validation: target_name uses native identity before legacy worker-name session match', async () => {
+  const { home, inbox } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    writeFileSync(
+      join(home, '.claude', 'terminals', 'session-legacy88.json'),
+      JSON.stringify({
+        session: 'legacy88',
+        worker_name: 'worker-alpha',
+        status: 'active',
+        last_active: new Date().toISOString(),
+      }),
+    );
+    upsertIdentityRecord({
+      team_name: 'alpha',
+      agent_id: 'agent-native-alpha',
+      agent_name: 'worker-alpha',
+      worker_name: 'native-alpha',
+      session_id: 'nativ888',
+      task_id: 'W-native-alpha',
+    });
+
+    const result = api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      target_name: 'worker-alpha',
+      team_name: 'alpha',
+      content: 'identity-first routing',
+    });
+    assert.match(textOf(result), /Message sent/i);
+    assert.match(textOf(result), /nativ888/i);
+    assert.doesNotMatch(textOf(result), /legacy88/i);
+
+    const nativeMsgs = readInbox(inbox, 'nativ888');
+    assert.equal(nativeMsgs.length, 1);
+    assert.equal(nativeMsgs[0].content, 'identity-first routing');
+    const legacyMsgs = readInbox(inbox, 'legacy88');
+    assert.equal(legacyMsgs.length, 0);
   } finally {
     restore();
   }

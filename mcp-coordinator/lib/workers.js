@@ -29,6 +29,7 @@ import {
 } from "./security.js";
 import { readJSON, shellQuote, text } from "./helpers.js";
 import { readTeamConfig } from "./teams.js";
+import { enforceWorkerPolicy } from "./worker-policy.js";
 import {
   isProcessAlive,
   killProcess,
@@ -43,6 +44,11 @@ import {
   getCurrentTmuxPane,
   spawnTmuxPaneWorker,
 } from "./platform/common.js";
+import {
+  findIdentityByToken,
+  findIdentityRecord,
+  upsertIdentityRecord,
+} from "./identity-map.js";
 
 const ROLE_PRESETS = {
   researcher: {
@@ -62,10 +68,10 @@ const ROLE_PRESETS = {
     requirePlan: false,
   },
   reviewer: {
-    model: "opus",
+    model: "sonnet",
     agent: "reviewer",
     permissionMode: "readOnly",
-    contextLevel: "full",
+    contextLevel: "standard",
     isolate: true,
     requirePlan: true,
   },
@@ -127,6 +133,14 @@ function resolveLeadParentSessionId(explicitParentSessionId, leadSession) {
   );
 }
 
+function upsertWorkerIdentity(record, source) {
+  try {
+    upsertIdentityRecord({ ...record, source });
+  } catch {
+    // Identity map should never block worker control flow.
+  }
+}
+
 function getActiveWorkerUsage(resultsDir) {
   let activeWorkers = 0;
   let activeEstimatedTokens = 0;
@@ -154,6 +168,104 @@ function getActiveWorkerUsage(resultsDir) {
     return { activeWorkers: 0, activeEstimatedTokens: 0 };
   }
   return { activeWorkers, activeEstimatedTokens };
+}
+
+const CONTEXT_LIMITS = {
+  minimal: 1200,
+  standard: 5000,
+  full: 12000,
+};
+
+function normalizePromptText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function maybePushContextSection(sections, title, body, priority = 50) {
+  const normalizedBody = String(body || "").trim();
+  if (!normalizedBody) return;
+  sections.push({ title, body: normalizedBody, priority });
+}
+
+function composeContextPreamble({ contextLevel, compactMode = false, sections }) {
+  const level = ["minimal", "standard", "full"].includes(contextLevel)
+    ? contextLevel
+    : "minimal";
+  const maxSections = compactMode
+    ? level === "minimal"
+      ? 2
+      : 3
+    : level === "full"
+      ? 7
+      : level === "standard"
+        ? 5
+        : 3;
+  const deduped = [];
+  let duplicateSectionsDropped = 0;
+  let bytesBefore = 0;
+
+  for (const section of sections || []) {
+    bytesBefore += String(section?.body || "").length;
+    const fp = normalizePromptText(section?.body || "");
+    if (!fp) continue;
+    const duplicate = deduped.some((existing) => {
+      if (existing.fp === fp) return true;
+      if (fp.length > 80 && existing.fp.includes(fp)) return true;
+      if (existing.fp.length > 80 && fp.includes(existing.fp)) return true;
+      return false;
+    });
+    if (duplicate) {
+      duplicateSectionsDropped += 1;
+      continue;
+    }
+    deduped.push({ ...section, fp });
+  }
+
+  let sectionsDroppedForBudget = 0;
+  let selected = deduped;
+  if (deduped.length > maxSections) {
+    const ranked = deduped
+      .map((item, index) => ({ ...item, index }))
+      .sort(
+        (a, b) =>
+          (b.priority || 0) - (a.priority || 0) || a.index - b.index,
+      );
+    selected = ranked
+      .slice(0, maxSections)
+      .sort((a, b) => a.index - b.index);
+    sectionsDroppedForBudget = deduped.length - selected.length;
+  }
+
+  const rendered = selected
+    .map((section) => `## ${section.title}\n${section.body}\n\n---\n\n`)
+    .join("");
+  const bytesAfter = rendered.length;
+  return {
+    preamble: rendered,
+    stats: {
+      candidate_sections: sections.length,
+      included_sections: selected.length,
+      duplicate_sections_dropped: duplicateSectionsDropped,
+      sections_dropped_for_budget: sectionsDroppedForBudget,
+      compact_mode: compactMode,
+      bytes_before: bytesBefore,
+      bytes_after: bytesAfter,
+      bytes_saved: Math.max(0, bytesBefore - bytesAfter),
+    },
+  };
+}
+
+function extractTaskPrompt(promptText) {
+  const raw = String(promptText || "").trim();
+  if (!raw) return "";
+  const marker = "## Your Task";
+  const idx = raw.indexOf(marker);
+  if (idx >= 0) {
+    return raw.slice(idx + marker.length).trim();
+  }
+  return raw;
 }
 
 /**
@@ -231,8 +343,8 @@ export function handleSpawnWorker(args) {
   const teamName = requestedTeamName;
   const workerName = args.worker_name
     ? String(args.worker_name)
-        .trim()
-        .replace(/[^A-Za-z0-9._-]/g, "")
+      .trim()
+      .replace(/[^A-Za-z0-9._-]/g, "")
     : null;
   const maxTurns = args.max_turns
     ? Math.max(1, Math.min(10000, parseInt(args.max_turns, 10) || 0))
@@ -240,6 +352,18 @@ export function handleSpawnWorker(args) {
   const contextSummary = args.context_summary
     ? String(args.context_summary).trim()
     : null;
+  const resumeAgentId = args.resume_agent_id
+    ? String(args.resume_agent_id).trim()
+    : null;
+  const policySubagentType = agent || role || "unknown";
+  const policyDescription = String(
+    args.description ||
+    contextSummary ||
+    prompt.split(/\r?\n/).find((line) => line.trim()) ||
+    prompt,
+  )
+    .trim()
+    .slice(0, 500);
   // All 5 native modes + 2 coordinator extras + auto. planOnly maps to plan for CLI.
   const validModes = [
     "acceptEdits",
@@ -296,12 +420,39 @@ export function handleSpawnWorker(args) {
     typeof teamPolicy.require_plan === "boolean"
       ? teamPolicy.require_plan || cliPermissionMode === "plan"
       : Boolean(
-          args.require_plan ||
-          rolePreset?.requirePlan ||
-          cliPermissionMode === "plan",
-        );
+        args.require_plan ||
+        rolePreset?.requirePlan ||
+        cliPermissionMode === "plan",
+      );
   if (!prompt) return text("Prompt is required.");
   if (!existsSync(directory)) return text(`Directory not found: ${directory}`);
+
+  // Resolve lead session linkage before policy enforcement so coordinator and native
+  // Task spawns share the same session-level caps when parent_session_id is known.
+  let leadPaneId = null;
+  const leadSession = readLeadSessionRecord(TERMINALS_DIR, notify_session_id);
+  const leadParentSessionId = resolveLeadParentSessionId(
+    parentSessionRaw,
+    leadSession,
+  );
+  if (leadSession) {
+    const pane = String(leadSession?.tmux_pane_id || "").trim();
+    if (pane.startsWith("%")) leadPaneId = pane;
+  }
+  if (!leadPaneId && isInsideTmux()) {
+    leadPaneId = getCurrentTmuxPane();
+  }
+
+  const policy = enforceWorkerPolicy({
+    sessionId: leadParentSessionId || notify_session_id || task_id || workerName,
+    subagentType: policySubagentType,
+    description: policyDescription,
+    prompt,
+    model,
+    maxTurns,
+  });
+  if (!policy.ok) return text(policy.blockMessage);
+
   const estimatedTokens = estimateWorkerTokens({
     promptText: prompt + (contextSummary || ""),
     contextLevel,
@@ -311,10 +462,10 @@ export function handleSpawnWorker(args) {
   if (budgetPolicy === "enforce" && estimatedTokens > budgetTokens) {
     return text(
       `Budget policy blocked spawn.\n` +
-        `- Estimated tokens: ${estimatedTokens}\n` +
-        `- Budget tokens: ${budgetTokens}\n` +
-        `- Policy: enforce\n` +
-        `Reduce context_level, disable plan mode, or increase budget_tokens.`,
+      `- Estimated tokens: ${estimatedTokens}\n` +
+      `- Budget tokens: ${budgetTokens}\n` +
+      `- Policy: enforce\n` +
+      `Reduce context_level, disable plan mode, or increase budget_tokens.`,
     );
   }
   const { activeWorkers, activeEstimatedTokens } =
@@ -326,10 +477,10 @@ export function handleSpawnWorker(args) {
       if (globalBudgetPolicy === "enforce") {
         return text(
           `Global concurrency policy blocked spawn.\n` +
-            `- Active workers: ${activeWorkers}\n` +
-            `- Max active workers: ${maxActiveWorkers}\n` +
-            `- Policy: enforce\n` +
-            `Wait for workers to finish or increase max_active_workers.`,
+          `- Active workers: ${activeWorkers}\n` +
+          `- Max active workers: ${maxActiveWorkers}\n` +
+          `- Policy: enforce\n` +
+          `Wait for workers to finish or increase max_active_workers.`,
         );
       }
       globalWarnings.push(
@@ -340,12 +491,12 @@ export function handleSpawnWorker(args) {
       if (globalBudgetPolicy === "enforce") {
         return text(
           `Global budget policy blocked spawn.\n` +
-            `- Active estimated tokens: ${activeEstimatedTokens}\n` +
-            `- New worker estimate: ${estimatedTokens}\n` +
-            `- Projected total: ${projectedGlobalTokens}\n` +
-            `- Global budget tokens: ${globalBudgetTokens}\n` +
-            `- Policy: enforce\n` +
-            `Wait for active workers to complete or increase global_budget_tokens.`,
+          `- Active estimated tokens: ${activeEstimatedTokens}\n` +
+          `- New worker estimate: ${estimatedTokens}\n` +
+          `- Projected total: ${projectedGlobalTokens}\n` +
+          `- Global budget tokens: ${globalBudgetTokens}\n` +
+          `- Policy: enforce\n` +
+          `Wait for active workers to complete or increase global_budget_tokens.`,
         );
       }
       globalWarnings.push(
@@ -427,20 +578,6 @@ export function handleSpawnWorker(args) {
 
   // Generate session ID for --session-id + --resume support (Gap 2)
   const claudeSessionId = mode === "interactive" ? randomUUID() : null;
-  // Resolve lead's tmux pane for bidirectional communication (Gap 4)
-  let leadPaneId = null;
-  const leadSession = readLeadSessionRecord(TERMINALS_DIR, notify_session_id);
-  const leadParentSessionId = resolveLeadParentSessionId(
-    parentSessionRaw,
-    leadSession,
-  );
-  if (leadSession) {
-    const pane = String(leadSession?.tmux_pane_id || "").trim();
-    if (pane.startsWith("%")) leadPaneId = pane;
-  }
-  if (!leadPaneId && isInsideTmux()) {
-    leadPaneId = getCurrentTmuxPane();
-  }
 
   const meta = {
     task_id: taskId,
@@ -477,23 +614,53 @@ export function handleSpawnWorker(args) {
     spawned: new Date().toISOString(),
     status: "running",
   };
+  if (resumeAgentId) {
+    meta.resumed_from_agent = resumeAgentId;
+    meta.agent_id = resumeAgentId;
+  }
   writeFileSecure(metaFile, JSON.stringify(meta, null, 2));
+  upsertWorkerIdentity(
+    {
+      team_name: teamName,
+      agent_id: resumeAgentId,
+      agent_name: agent || null,
+      worker_name: workerName || null,
+      session_id: claudeSessionId ? claudeSessionId.slice(0, 8) : null,
+      task_id: taskId,
+      pane_id: null,
+      claude_session_id: claudeSessionId,
+    },
+    "coord_spawn_worker",
+  );
 
   try {
     const cacheFile = join(SESSION_CACHE_DIR, "coder-context.md");
-    let contextPreamble = "";
-    const contextLimits = { minimal: 3000, standard: 10000, full: 30000 };
-    const ctxLimit = contextLimits[contextLevel] || 3000;
+    const ctxLimit = CONTEXT_LIMITS[contextLevel] || CONTEXT_LIMITS.minimal;
+    const lowOverheadMode = String(
+      teamConfig?.low_overhead_mode || "",
+    ).toLowerCase();
+    const compactMode =
+      contextLevel === "minimal" ||
+      lowOverheadMode === "compact" ||
+      lowOverheadMode === "minimal" ||
+      lowOverheadMode === "aggressive";
+    const contextSections = [];
     if (existsSync(cacheFile)) {
-      contextPreamble = `## Prior Context\n${readFileSync(cacheFile, "utf-8").slice(0, ctxLimit)}\n\n---\n\n`;
+      maybePushContextSection(
+        contextSections,
+        "Prior Context",
+        readFileSync(cacheFile, "utf-8").slice(0, ctxLimit),
+        60,
+      );
     }
-    // Lead's conversation context summary (closes context gap with Claude's agent system)
-    if (contextSummary) {
-      contextPreamble += `## Lead's Conversation Context\n${contextSummary.slice(0, ctxLimit)}\n\n---\n\n`;
-    }
+    maybePushContextSection(
+      contextSections,
+      "Lead's Conversation Context",
+      contextSummary ? contextSummary.slice(0, ctxLimit) : "",
+      100,
+    );
     if (notify_session_id) {
       const delegationContext = [
-        `## Lead Delegation Context`,
         `Lead coordinator session: ${notify_session_id}`,
         leadParentSessionId
           ? `Lead Claude session ID: ${leadParentSessionId}`
@@ -501,10 +668,15 @@ export function handleSpawnWorker(args) {
       ]
         .filter(Boolean)
         .join("\n");
-      contextPreamble += `${delegationContext}\n\n---\n\n`;
+      maybePushContextSection(
+        contextSections,
+        "Lead Delegation Context",
+        delegationContext,
+        95,
+      );
     }
     // Enhanced context: include lead's session data at standard/full levels
-    if (contextLevel !== "minimal" && leadSession) {
+    if (!compactMode && contextLevel !== "minimal" && leadSession) {
       const extras = [];
       if (leadSession.files_touched?.length) {
         extras.push(
@@ -527,9 +699,12 @@ export function handleSpawnWorker(args) {
         );
         extras.push(`## Lead's Active Plan\n${planContent}`);
       }
-      if (extras.length) {
-        contextPreamble += extras.join("\n\n") + "\n\n---\n\n";
-      }
+      maybePushContextSection(
+        contextSections,
+        "Lead Session Extras",
+        extras.join("\n\n"),
+        50,
+      );
     }
     // Lead's persistent exported context (auto-inject from coord_export_context)
     if (notify_session_id) {
@@ -541,9 +716,12 @@ export function handleSpawnWorker(args) {
       if (existsSync(leadContextFile)) {
         try {
           const leadCtx = JSON.parse(readFileSync(leadContextFile, "utf-8"));
-          if (leadCtx.summary) {
-            contextPreamble += `## Lead's Exported Context\n${leadCtx.summary.slice(0, ctxLimit)}\n\n---\n\n`;
-          }
+          maybePushContextSection(
+            contextSections,
+            "Lead's Exported Context",
+            leadCtx.summary ? String(leadCtx.summary).slice(0, ctxLimit) : "",
+            90,
+          );
         } catch {
           /* ignore */
         }
@@ -563,13 +741,29 @@ export function handleSpawnWorker(args) {
             const sharedCtx = ctx.entries
               .map((e) => `### ${e.key}\n${e.value}`)
               .join("\n\n");
-            contextPreamble += `## Shared Team Context\n${sharedCtx.slice(0, ctxLimit)}\n\n---\n\n`;
+            maybePushContextSection(
+              contextSections,
+              "Shared Team Context",
+              sharedCtx.slice(0, ctxLimit),
+              70,
+            );
           }
         } catch {
           /* ignore */
         }
       }
     }
+    const contextBuild = composeContextPreamble({
+      contextLevel,
+      compactMode,
+      sections: contextSections,
+    });
+    const contextPreamble = contextBuild.preamble;
+    meta.prompt_compaction = {
+      ...(meta.prompt_compaction || {}),
+      context: contextBuild.stats,
+    };
+    writeFileSecure(metaFile, JSON.stringify(meta, null, 2));
     const contextSuffix =
       "\n\nWhen done, write key findings to ~/.claude/session-cache/coder-context.md.";
     const promptFile = join(RESULTS_DIR, `${taskId}.prompt`);
@@ -578,9 +772,9 @@ export function handleSpawnWorker(args) {
       const instructionLines = [
         `## Worker Instructions (from lead)`,
         `You are an autonomous worker spawned by the project lead. Your task ID is ${taskId}.` +
-          (workerName
-            ? ` Your name is "${workerName}" — others can message you by name.`
-            : ``),
+        (workerName
+          ? ` Your name is "${workerName}" — others can message you by name.`
+          : ``),
         ``,
         `### Communication`,
         `- Your plain text output is NOT visible to the team lead or other teammates.`,
@@ -588,9 +782,6 @@ export function handleSpawnWorker(args) {
         notify_session_id
           ? `- Message the lead: \`coord_send_message from="${workerName || taskId}" to="${notify_session_id}" content="..." summary="<5-10 word preview>"\``
           : `- No lead session — write findings to ~/.claude/session-cache/coder-context.md`,
-        notify_session_id
-          ? `  Example: \`coord_send_message from="${workerName || taskId}" to="${notify_session_id}" content="Need guidance on API contract" summary="Blocked on API contract"\``
-          : ``,
         `- Messages from the lead appear as "--- INCOMING MESSAGES FROM COORDINATOR ---" before your tool calls`,
         `- If you receive instructions from the lead, prioritize them immediately`,
         `- If told to stop, pivot, or change direction — do so without question`,
@@ -623,7 +814,6 @@ export function handleSpawnWorker(args) {
           `You are part of a team. Your output is NOT visible to teammates — use these tools:`,
           `- Discover teammates: \`coord_discover_peers team_name=${teamName}\``,
           `- Message a peer by name: \`coord_send_message from="${workerName || taskId}" target_name="<name>" content="..." summary="<5-10 word preview>"\``,
-          `  Example: \`coord_send_message from="${workerName || taskId}" target_name="reviewer" content="Please validate migration edge cases" summary="Need edge-case review"\``,
           `- Message by session ID: \`coord_send_message from="${workerName || taskId}" to="<session_id>" content="..."\``,
           `- Broadcast to all: \`coord_broadcast from="${workerName || taskId}" content="..."\``,
           `- Shutdown request: \`coord_send_protocol type="shutdown_request" recipient="<name>"\``,
@@ -682,11 +872,9 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
     }
 
     // Native agent resume: resume full conversation via --resume instead of fresh spawn
-    const resumeAgentId = args.resume_agent_id
-      ? String(args.resume_agent_id).trim()
-      : null;
     if (resumeAgentId) {
       meta.resumed_from_agent = resumeAgentId;
+      meta.agent_id = resumeAgentId;
       writeFileSecure(metaFile, JSON.stringify(meta, null, 2));
       const resumeScript = buildResumeWorkerScript({
         sessionId: resumeAgentId,
@@ -706,18 +894,31 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
         meta.tmux_pane_id = tmuxResult.paneId;
         meta.backend_type = "tmux";
         writeFileSecure(metaFile, JSON.stringify(meta, null, 2));
+        upsertWorkerIdentity(
+          {
+            team_name: teamName,
+            agent_id: resumeAgentId,
+            agent_name: agent || null,
+            worker_name: workerName || null,
+            session_id: claudeSessionId ? claudeSessionId.slice(0, 8) : null,
+            task_id: taskId,
+            pane_id: tmuxResult.paneId,
+            claude_session_id: claudeSessionId,
+          },
+          "coord_spawn_worker_resume_agent",
+        );
       } else {
         spawnBackgroundWorker(resumeScript, resultFile, pidFile);
         usedApp = "background";
       }
       return text(
         `Worker resumed (native agent): **${taskId}**\n` +
-          `- Resumed agentId: ${resumeAgentId}\n` +
-          `- Full conversation history preserved via --resume\n` +
-          `- Layout: ${usedApp}\n` +
-          `- Notify Session: ${notify_session_id || "none"}\n` +
-          `- Parent Session: ${leadParentSessionId || "prompt-emulated only"}\n\n` +
-          `Send new task via \`coord_send_message\` to deliver work without re-spawning.`,
+        `- Resumed agentId: ${resumeAgentId}\n` +
+        `- Full conversation history preserved via --resume\n` +
+        `- Layout: ${usedApp}\n` +
+        `- Notify Session: ${notify_session_id || "none"}\n` +
+        `- Parent Session: ${leadParentSessionId || "prompt-emulated only"}\n\n` +
+        `Send new task via \`coord_send_message\` to deliver work without re-spawning.`,
       );
     }
 
@@ -775,6 +976,19 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       meta.tmux_pane_id = tmuxResult.paneId;
       meta.backend_type = "tmux";
       writeFileSecure(metaFile, JSON.stringify(meta, null, 2));
+      upsertWorkerIdentity(
+        {
+          team_name: teamName,
+          agent_id: resumeAgentId,
+          agent_name: agent || null,
+          worker_name: workerName || null,
+          session_id: claudeSessionId ? claudeSessionId.slice(0, 8) : null,
+          task_id: taskId,
+          pane_id: tmuxResult.paneId,
+          claude_session_id: claudeSessionId,
+        },
+        "coord_spawn_worker_tmux",
+      );
     } else if (layout === "background") {
       // Background spawn: no terminal, fastest possible.
       spawnBackgroundWorker(workerScript, resultFile, pidFile);
@@ -785,31 +999,37 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
 
     return text(
       `Worker spawned: **${taskId}**\n` +
-        `- Directory: ${workerDir}\n- Model: ${model}\n- Agent: ${agent || "default"}\n` +
-        `- Notify Session: ${notify_session_id || "none"}\n` +
-        `- Parent Session: ${leadParentSessionId || "prompt-emulated only"}\n` +
-        `- Runtime: ${runtime}\n` +
-        `- Mode: ${mode}${mode === "interactive" ? " (lead can message mid-execution)" : " (fire-and-forget)"}\n` +
-        `- Role: ${role || "custom"}\n` +
-        `- Team: ${teamName || "none"}${teamName ? ` (path=${teamConfig?.execution_path || "hybrid"}, overhead=${teamConfig?.low_overhead_mode || "advanced"})` : ""}\n` +
-        `- Layout: ${layout} via ${usedApp}\n- Platform: ${PLATFORM}\n` +
-        `- Isolated: ${isolate ? `yes (branch: ${worktreeBranch})` : "no"}\n` +
-        `- Permission Mode: ${rawPermMode}${rawPermMode !== cliPermissionMode ? ` (CLI: ${cliPermissionMode})` : ""}\n` +
-        `- Plan Mode: ${requirePlan ? "enabled" : "disabled"}\n` +
-        `- Files: ${files.join(", ") || "none"}\n- Results: ${resultFile}\n\n` +
-        `- Budget: ${budgetPolicy} (${estimatedTokens}/${budgetTokens} est tokens)\n` +
-        `- Global Budget: ${globalBudgetPolicy} (${activeEstimatedTokens}+${estimatedTokens}=${projectedGlobalTokens}/${globalBudgetTokens} est tokens)\n` +
-        `- Active Workers: ${activeWorkers}/${maxActiveWorkers}\n` +
-        (teamPolicy && Object.keys(teamPolicy).length > 0
-          ? `- Team Policy Applied: yes\n`
-          : "") +
-        (budgetPolicy === "warn" && estimatedTokens > budgetTokens
-          ? `- WARNING: Estimated token budget exceeded. Consider mode=pipe, context_level=minimal, or higher budget_tokens.\n\n`
-          : "") +
-        (globalWarnings.length
-          ? `${globalWarnings.map((w) => `- WARNING: ${w}`).join("\n")}\n\n`
-          : "\n") +
-        `Check: \`coord_get_result task_id="${taskId}"\``,
+      `- Directory: ${workerDir}\n- Model: ${model}\n- Agent: ${agent || "default"}\n` +
+      `- Notify Session: ${notify_session_id || "none"}\n` +
+      `- Parent Session: ${leadParentSessionId || "prompt-emulated only"}\n` +
+      `- Runtime: ${runtime}\n` +
+      `- Mode: ${mode}${mode === "interactive" ? " (lead can message mid-execution)" : " (fire-and-forget)"}\n` +
+      `- Role: ${role || "custom"}\n` +
+      `- Team: ${teamName || "none"}${teamName ? ` (path=${teamConfig?.execution_path || "hybrid"}, overhead=${teamConfig?.low_overhead_mode || "advanced"})` : ""}\n` +
+      `- Layout: ${layout} via ${usedApp}\n- Platform: ${PLATFORM}\n` +
+      `- Isolated: ${isolate ? `yes (branch: ${worktreeBranch})` : "no"}\n` +
+      `- Permission Mode: ${rawPermMode}${rawPermMode !== cliPermissionMode ? ` (CLI: ${cliPermissionMode})` : ""}\n` +
+      `- Plan Mode: ${requirePlan ? "enabled" : "disabled"}\n` +
+      `- Files: ${files.join(", ") || "none"}\n- Results: ${resultFile}\n\n` +
+      (meta.prompt_compaction?.context
+        ? `- Prompt Compaction: ${meta.prompt_compaction.context.included_sections}/${meta.prompt_compaction.context.candidate_sections} context sections kept; duplicates dropped=${meta.prompt_compaction.context.duplicate_sections_dropped}; bytes saved≈${meta.prompt_compaction.context.bytes_saved}\n`
+        : "") +
+      `- Budget: ${budgetPolicy} (${estimatedTokens}/${budgetTokens} est tokens)\n` +
+      `- Global Budget: ${globalBudgetPolicy} (${activeEstimatedTokens}+${estimatedTokens}=${projectedGlobalTokens}/${globalBudgetTokens} est tokens)\n` +
+      `- Active Workers: ${activeWorkers}/${maxActiveWorkers}\n` +
+      (teamPolicy && Object.keys(teamPolicy).length > 0
+        ? `- Team Policy Applied: yes\n`
+        : "") +
+      (policy.notes.length
+        ? `${policy.notes.map((note) => `- Policy: ${note}\n`).join("")}`
+        : "") +
+      (budgetPolicy === "warn" && estimatedTokens > budgetTokens
+        ? `- WARNING: Estimated token budget exceeded. Consider mode=pipe, context_level=minimal, or higher budget_tokens.\n\n`
+        : "") +
+      (globalWarnings.length
+        ? `${globalWarnings.map((w) => `- WARNING: ${w}`).join("\n")}\n\n`
+        : "\n") +
+      `Check: \`coord_get_result task_id="${taskId}"\``,
     );
   } catch (err) {
     meta.status = "failed";
@@ -854,7 +1074,7 @@ export function handleGetResult(args) {
     output =
       lines.length > limit
         ? `[...truncated ${lines.length - limit} lines...]\n` +
-          lines.slice(-limit).join("\n")
+        lines.slice(-limit).join("\n")
         : full;
   }
 
@@ -941,58 +1161,143 @@ export function handleResumeWorker(args) {
     }
   }
 
-  // Gather prior context — prefer transcript (true resume) over result file
-  const transcriptFile = join(RESULTS_DIR, `${task_id}.transcript`);
-  let priorOutput = "";
-  let resumeSource = "none";
-  if (existsSync(transcriptFile)) {
-    const full = readFileSync(transcriptFile, "utf-8");
-    // Use up to 30KB of transcript for true resume — matches Claude's system
-    priorOutput =
-      full.length > 30000 ? `[...truncated...]\n${full.slice(-30000)}` : full;
-    resumeSource = "transcript";
-  } else if (existsSync(resultFile)) {
-    const full = readFileSync(resultFile, "utf-8");
-    priorOutput =
-      full.length > 8000 ? `[...truncated...]\n${full.slice(-8000)}` : full;
-    resumeSource = "result-file";
-  }
-
-  let originalPrompt = "";
-  if (existsSync(promptFile)) {
-    originalPrompt = readFileSync(promptFile, "utf-8");
-  }
-
   const resumeCount = (meta.resume_count || 0) + 1;
   const newMode =
     args.mode === "interactive" ? "interactive" : meta.mode || "pipe";
+  const originalPromptFile = existsSync(promptFile)
+    ? readFileSync(promptFile, "utf-8")
+    : "";
+  const originalTaskPrompt = extractTaskPrompt(originalPromptFile);
+  const explicitResumeAgentId = args.resume_agent_id
+    ? String(args.resume_agent_id).trim()
+    : null;
 
-  // Build continuation prompt
-  const continuationPrompt = [
-    `CONTINUATION: A previous worker (task_id=${task_id}, attempt #${resumeCount}) was working on this task but stopped.`,
-    `Resume source: ${resumeSource}${resumeSource === "transcript" ? " (full session transcript — you have complete visibility into what happened)" : ""}`,
-    ``,
-    `## What it accomplished so far:`,
-    priorOutput ? `\`\`\`\n${priorOutput}\n\`\`\`` : "(no output captured)",
-    ``,
-    meta.files?.length ? `## Files it touched:\n${meta.files.join("\n")}` : "",
-    ``,
-    `## Original task:`,
-    originalPrompt || meta.prompt || "(original prompt not available)",
-    ``,
-    `Continue from where it left off. Do NOT redo already-completed work.`,
-    `Check the state of the files before making changes — some edits may have been persisted.`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const identityFromTask = findIdentityRecord({
+    team_name: meta.team_name || null,
+    task_id,
+  });
+  const identityFromSession = meta.claude_session_id
+    ? findIdentityRecord({
+      team_name: meta.team_name || null,
+      claude_session_id: meta.claude_session_id,
+    })
+    : null;
+  const identityFromWorkerName = meta.worker_name
+    ? findIdentityByToken(meta.worker_name, { team_name: meta.team_name || null })
+    : null;
+  const identityFromExplicitAgent = explicitResumeAgentId
+    ? findIdentityByToken(explicitResumeAgentId, {
+      team_name: meta.team_name || null,
+    })
+    : null;
+  const identityFromMetaAgent = meta.agent_id
+    ? findIdentityByToken(meta.agent_id, { team_name: meta.team_name || null })
+    : null;
+  const identityCandidates = [
+    identityFromExplicitAgent,
+    identityFromMetaAgent,
+    identityFromTask,
+    identityFromSession,
+    identityFromWorkerName,
+  ].filter(Boolean);
+  const identityWithNativeAgent = identityCandidates.find((rec) => rec.agent_id);
+  const identityWithClaudeSession = identityCandidates.find(
+    (rec) => rec.claude_session_id,
+  );
+  const identity =
+    identityWithNativeAgent || identityWithClaudeSession || identityCandidates[0] || null;
+  const nativeIdentitySource = explicitResumeAgentId
+    ? "explicit-resume-agent-id"
+    : identity?.agent_id
+      ? "identity-map"
+      : meta.agent_id
+        ? "meta.agent_id"
+        : meta.resumed_from_agent
+          ? "meta.resumed_from_agent"
+          : "none";
+  const nativeAgentId =
+    explicitResumeAgentId ||
+    (identity?.agent_id ? String(identity.agent_id).trim() : "") ||
+    (meta.agent_id ? String(meta.agent_id).trim() : "") ||
+    (meta.resumed_from_agent ? String(meta.resumed_from_agent).trim() : "") ||
+    null;
 
-  // True resume: if we have a claude_session_id, use --resume for full conversation reload (Gap 2)
-  if (meta.claude_session_id && newMode === "interactive") {
-    const { RESULTS_DIR: rDir, TERMINALS_DIR } = cfg();
+  if (nativeAgentId) {
+    upsertWorkerIdentity(
+      {
+        team_name: meta.team_name || null,
+        agent_id: nativeAgentId,
+        agent_name: meta.agent || identity?.agent_name || null,
+        worker_name: meta.worker_name || identity?.worker_name || null,
+        session_id:
+          meta.claude_session_id?.slice?.(0, 8) ||
+          identity?.session_id ||
+          null,
+        task_id,
+        pane_id: identity?.pane_id || meta.tmux_pane_id || null,
+        claude_session_id:
+          meta.claude_session_id || identity?.claude_session_id || null,
+      },
+      "coord_resume_worker_native_agent_lookup",
+    );
+
+    const resumed = handleSpawnWorker({
+      directory: meta.original_directory || meta.directory,
+      // Native resume preserves full history; avoid resending a large prompt blob.
+      prompt:
+        meta.prompt ||
+        `Continue work for task ${task_id} using native agent identity.`,
+      model: meta.model,
+      agent: meta.agent || undefined,
+      mode: newMode,
+      runtime: meta.runtime || "claude",
+      notify_session_id: meta.notify_session_id,
+      parent_session_id: meta.claude_parent_session_id,
+      files: meta.files,
+      role: meta.role,
+      permission_mode: meta.permission_mode,
+      require_plan: meta.require_plan,
+      budget_policy: meta.budget_policy || "warn",
+      budget_tokens: meta.budget_tokens,
+      global_budget_policy: meta.global_budget_policy || "warn",
+      global_budget_tokens: meta.global_budget_tokens,
+      max_active_workers: meta.max_active_workers,
+      team_name: meta.team_name,
+      context_level: meta.context_level || "standard",
+      worker_name: meta.worker_name,
+      resume_agent_id: nativeAgentId,
+    });
+    return text(
+      `Worker resumed (native agentId): **${task_id}**\n` +
+      `- route_mode: native-agent-resume\n` +
+      `- route_reason: native identity available (agent_id=${nativeAgentId})\n` +
+      `- probe_source: ${nativeIdentitySource}\n` +
+      `- fallback_history: []\n\n` +
+      `${resumed?.content?.[0]?.text || ""}`,
+    );
+  }
+
+  // True resume: if we have a Claude session identity, use --resume.
+  if (meta.claude_session_id) {
+    const { RESULTS_DIR: rDir } = cfg();
     const newTaskId = `${task_id}-r${resumeCount}`;
     const newMetaFile = join(rDir, `${newTaskId}.meta.json`);
     const newPidFile = join(rDir, `${newTaskId}.pid`);
     const leadPaneId = isInsideTmux() ? getCurrentTmuxPane() : null;
+    const policy = enforceWorkerPolicy({
+      sessionId:
+        meta.claude_parent_session_id ||
+        meta.notify_session_id ||
+        meta.claude_session_id ||
+        newTaskId,
+      subagentType: meta.agent || meta.role || "unknown",
+      description: `Resume worker ${task_id}`,
+      prompt: "",
+      model: meta.model || "",
+      maxTurns: meta.max_turns,
+      resume: meta.claude_session_id,
+    });
+    if (!policy.ok) return text(policy.blockMessage);
 
     const resumeMeta = {
       ...meta,
@@ -1043,6 +1348,19 @@ export function handleResumeWorker(args) {
       resumeMeta.tmux_pane_id = tmuxResult.paneId;
       resumeMeta.backend_type = "tmux";
       writeFileSecure(newMetaFile, JSON.stringify(resumeMeta, null, 2));
+      upsertWorkerIdentity(
+        {
+          team_name: resumeMeta.team_name || null,
+          agent_id: resumeMeta.agent_id || null,
+          agent_name: resumeMeta.agent || null,
+          worker_name: resumeMeta.worker_name || null,
+          session_id: meta.claude_session_id.slice(0, 8),
+          task_id: newTaskId,
+          pane_id: tmuxResult.paneId,
+          claude_session_id: meta.claude_session_id,
+        },
+        "coord_resume_worker_claude_session",
+      );
     } else {
       spawnBackgroundWorker(
         resumeScript,
@@ -1050,20 +1368,73 @@ export function handleResumeWorker(args) {
         newPidFile,
       );
       usedApp = "background";
+      upsertWorkerIdentity(
+        {
+          team_name: resumeMeta.team_name || null,
+          agent_id: resumeMeta.agent_id || null,
+          agent_name: resumeMeta.agent || null,
+          worker_name: resumeMeta.worker_name || null,
+          session_id: meta.claude_session_id.slice(0, 8),
+          task_id: newTaskId,
+          pane_id: null,
+          claude_session_id: meta.claude_session_id,
+        },
+        "coord_resume_worker_claude_session",
+      );
     }
 
     return text(
       `Worker resumed (true resume): **${newTaskId}**\n` +
-        `- Resumed session: ${meta.claude_session_id}\n` +
-        `- Full conversation history preserved\n` +
-        `- Layout: ${usedApp}\n` +
-        `- Original task: ${task_id}\n\n` +
-        `Check: \`coord_get_result task_id="${newTaskId}"\``,
+      `- route_mode: claude-session-resume\n` +
+      `- route_reason: agent_id unavailable; using claude_session_id\n` +
+      `- probe_source: worker-meta:claude_session_id\n` +
+      `- fallback_history: native-agent-resume unavailable\n` +
+      `- Resumed session: ${meta.claude_session_id}\n` +
+      `- Full conversation history preserved\n` +
+      `- Layout: ${usedApp}\n` +
+      `- Original task: ${task_id}\n\n` +
+      (policy.notes.length
+        ? `${policy.notes.map((note) => `- Policy: ${note}\n`).join("")}`
+        : "") +
+      `Check: \`coord_get_result task_id="${newTaskId}"\``,
     );
   }
 
-  // Fallback: spawn new worker with continuation context (no session ID available)
-  return handleSpawnWorker({
+  // Summary fallback path: native identity unavailable.
+  const transcriptFile = join(RESULTS_DIR, `${task_id}.transcript`);
+  let priorOutput = "";
+  let resumeSource = "none";
+  if (existsSync(transcriptFile)) {
+    const full = readFileSync(transcriptFile, "utf-8");
+    priorOutput =
+      full.length > 30000 ? `[...truncated...]\n${full.slice(-30000)}` : full;
+    resumeSource = "transcript";
+  } else if (existsSync(resultFile)) {
+    const full = readFileSync(resultFile, "utf-8");
+    priorOutput =
+      full.length > 8000 ? `[...truncated...]\n${full.slice(-8000)}` : full;
+    resumeSource = "result-file";
+  }
+
+  const continuationPrompt = [
+    `CONTINUATION: A previous worker (task_id=${task_id}, attempt #${resumeCount}) was working on this task but stopped.`,
+    `Resume source: ${resumeSource}${resumeSource === "transcript" ? " (full session transcript — you have complete visibility into what happened)" : ""}`,
+    ``,
+    `## What it accomplished so far:`,
+    priorOutput ? `\`\`\`\n${priorOutput}\n\`\`\`` : "(no output captured)",
+    ``,
+    meta.files?.length ? `## Files it touched:\n${meta.files.join("\n")}` : "",
+    ``,
+    `## Original task:`,
+    originalTaskPrompt || meta.prompt || "(original prompt not available)",
+    ``,
+    `Continue from where it left off. Do NOT redo already-completed work.`,
+    `Check the state of the files before making changes — some edits may have been persisted.`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const fallback = handleSpawnWorker({
     directory: meta.original_directory || meta.directory,
     prompt: continuationPrompt,
     model: meta.model,
@@ -1084,6 +1455,15 @@ export function handleResumeWorker(args) {
     team_name: meta.team_name,
     context_level: meta.context_level || "standard",
   });
+  return text(
+    `Worker resumed (summary fallback): **${task_id}**\n` +
+    `- route_mode: summary-fallback\n` +
+    `- route_reason: native identity unavailable (agent_id and claude_session_id missing)\n` +
+    `- probe_source: ${resumeSource}\n` +
+    `- fallback_history: native-agent-resume unavailable; claude-session-resume unavailable\n` +
+    `- summary_source: ${resumeSource}\n\n` +
+    `${fallback?.content?.[0]?.text || ""}`,
+  );
 }
 
 /**
@@ -1110,9 +1490,9 @@ export function handleUpgradeWorker(args) {
 
   return text(
     `## Worker Upgraded: ${task_id}\n\n` +
-      `**Kill:** ${killResult.content[0]?.text || "done"}\n` +
-      `**Resume:** ${resumeResult.content[0]?.text || "spawned"}\n\n` +
-      `Worker is now interactive — you can send directives via \`coord_send_directive\`.`,
+    `**Kill:** ${killResult.content[0]?.text || "done"}\n` +
+    `**Resume:** ${resumeResult.content[0]?.text || "spawned"}\n\n` +
+    `Worker is now interactive — you can send directives via \`coord_send_directive\`.`,
   );
 }
 
@@ -1145,7 +1525,7 @@ export function handleSpawnWorkers(args) {
 
   return text(
     `## Multi-Spawn: ${workers.length} workers\n\n` +
-      results.map((r, i) => `### Worker ${i + 1}\n${r}`).join("\n\n"),
+    results.map((r, i) => `### Worker ${i + 1}\n${r}`).join("\n\n"),
   );
 }
 

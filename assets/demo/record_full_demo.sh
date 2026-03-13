@@ -305,7 +305,7 @@ sleep 8
 
 printf '\033[1;33m╭─────────────────────────────────────────────────────────────────────────╮\033[0m\n'
 printf '\033[1;33m│                        CLAUDE LEAD SYSTEM                                │\033[0m\n'
-printf '\033[1;33m│                     Zero-Token Orchestration                              │\033[0m\n'
+printf '\033[1;33m│                Local Coordination Layer for Claude Code                   │\033[0m\n'
 printf '\033[1;33m╰─────────────────────────────────────────────────────────────────────────╯\033[0m\n\n'
 sleep 0.5
 
@@ -367,20 +367,15 @@ printf '  Worker A: +4 integration tests (login flow pipeline)\n'
 printf '  Worker B: +rate limiting (5/min/IP) + 2 new tests\n\n'
 sleep 2
 
-# Cost comparison
-printf '\033[1;36m▸ Cost comparison...\033[0m\n\n'
+# Coordination summary
+printf '\033[1;36m▸ Coordination summary...\033[0m\n\n'
 sleep 0.5
-printf '  \033[1mLead System (actual):\033[0m\n'
-printf '    Lead session (Opus):      ~150K tokens  = $2.25\n'
-printf '    Worker A (Sonnet):         ~80K tokens  = $0.72\n'
-printf '    Worker B (Sonnet):         ~60K tokens  = $0.54\n'
-printf '    Coordination (filesystem):  0 tokens    = $0.00\n'
-printf '    \033[1mTotal: $3.51\033[0m\n\n'
-printf '  \033[2mAgent Teams (projected):\033[0m\n'
-printf '    \033[2mLead + 2 teammates + messaging:  ~$8.10\033[0m\n'
-printf '    \033[2mSavings: $4.59 (57%%)\033[0m\n\n'
+printf '  \033[1mExecution path:\033[0m coordinator\n'
+printf '  \033[1mControl plane:\033[0m local state files + inbox delivery\n'
+printf '  \033[1mVerified demo path:\033[0m macOS coordinator workflow\n'
+printf '  \033[2mHybrid/native paths stay experimental in public copy.\033[0m\n\n'
 
-printf '\033[1;33m─── Session complete. All work tracked. Zero coordination tokens. ───\033[0m\n'
+printf '\033[1;33m─── Session complete. Local coordination shown in coordinator mode. ───\033[0m\n'
 sleep 999
 LEAD
 

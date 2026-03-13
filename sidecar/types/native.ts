@@ -1,6 +1,6 @@
 export interface NativeCapabilityState {
   available: boolean;
-  mode?: "bridge" | "ephemeral" | "unavailable" | string;
+  mode?: "bridge" | "native-direct" | "unavailable" | string;
   tools?: {
     TeamCreate?: boolean;
     TeamStatus?: boolean;

@@ -1,6 +1,5 @@
 import os
 import random
-import shutil
 import string
 import subprocess
 import tarfile
@@ -31,6 +30,18 @@ def _make_min_tarball(root: Path) -> Path:
 
 def _run_verify_only(args, env=None):
     cmd = ["bash", str(INSTALLER), "--verify-only", *args]
+    return subprocess.run(
+        cmd,
+        cwd=str(REPO_ROOT),
+        env=env or os.environ.copy(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def _run_installer(args, env=None):
+    cmd = ["bash", str(INSTALLER), *args]
     return subprocess.run(
         cmd,
         cwd=str(REPO_ROOT),
@@ -224,3 +235,39 @@ def test_release_mode_with_valid_signed_assets_passes():
             "--slsa-repo", "DrewDawson2027/claude-lead-system",
         ], env=env)
         assert res.returncode == 0, res.stderr
+
+
+def test_installer_rejects_node_below_18():
+    with tempfile.TemporaryDirectory(prefix="installer-fuzz-") as td:
+        root = Path(td)
+        tarball = _make_min_tarball(root)
+        checksums = root / "checksums.txt"
+        checksums.write_text(
+            f"{_sha256(INSTALLER)}  install.sh\n{_sha256(tarball)}  {tarball.name}\n",
+            encoding="utf-8",
+        )
+
+        fake_bin = root / "bin"
+        fake_bin.mkdir(parents=True, exist_ok=True)
+        node = fake_bin / "node"
+        node.write_text(
+            "#!/usr/bin/env bash\nset -euo pipefail\n"
+            "if [ \"${1:-}\" = \"--version\" ]; then\n"
+            "  echo \"v16.20.2\"\n"
+            "  exit 0\n"
+            "fi\n"
+            "echo \"stubbed node: unsupported invocation\" >&2\n"
+            "exit 1\n",
+            encoding="utf-8",
+        )
+        node.chmod(0o755)
+
+        env = os.environ.copy()
+        env["PATH"] = str(fake_bin) + os.pathsep + env.get("PATH", "")
+        res = _run_installer([
+            "--allow-unsigned-release",
+            "--source-tarball", str(tarball),
+            "--checksum-file", str(checksums),
+        ], env=env)
+        assert res.returncode != 0
+        assert "require >=18" in (res.stderr + res.stdout)

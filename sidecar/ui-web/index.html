@@ -50,9 +50,16 @@
     .team-row, .member-row, .task-row, .event-row, .alert-row, .action-row, .approval-card { padding: 10px; border: 1px solid transparent; border-radius: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.02); cursor: pointer; }
     .team-row.active, .member-row.active { border-color: rgba(78,161,255,0.45); background: rgba(78,161,255,0.08); }
     .approval-card { border-color: rgba(255,191,71,0.3); background: rgba(255,191,71,0.04); }
+    .approval-card.active, .alert-row.active { border-color: rgba(78,161,255,0.6); background: rgba(78,161,255,0.1); }
     .mini { color: var(--muted); font-size: 12px; }
     .tiny { color: var(--muted); font-size: 11px; }
+    .kvline { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:4px; }
+    .kvline .key { color: var(--muted); font-size: 11px; }
+    .kvline .value { font-size: 11px; font-family: var(--mono); }
     .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; margin-right: 6px; background: rgba(255,255,255,0.08); }
+    .p-route-native { background: rgba(83,209,125,0.2); color: #c7ffd9; }
+    .p-route-sidecar { background: rgba(78,161,255,0.18); color: #cfe4ff; }
+    .p-route-tmux { background: rgba(255,191,71,0.2); color: #ffe3a9; }
     .p-active { background: rgba(83,209,125,0.2); color: #c7ffd9; }
     .p-idle { background: rgba(255,191,71,0.18); color: #ffe3a9; }
     .p-stale, .p-offline { background: rgba(255,107,107,0.16); color: #ffc5c5; }
@@ -112,7 +119,7 @@
   <header>
     <div class="brand">Lead <span>Sidecar</span></div>
     <div class="status" id="status">Connecting...</div>
-    <div class="hotkeys">Hotkeys: `a` palette · `s` route simulate · `q` queue · `d` dispatch · `r` rebalance · `m` native msg · `i` directive · `p` approve/reject · `w` wake · `u` approve-safe · `z` wake-stale · `b` bridge validate · `f` force-path toggle · `?` help</div>
+    <div class="hotkeys">Hotkeys: `[`/`]` or ←/→ teammate cycle · `t` refresh focused · `x` triage focused interrupt · `y` approve focused · `n` reject focused · `a` palette · `s` route simulate · `q` queue · `d` dispatch · `r` rebalance · `m` native msg · `i` directive · `w` wake · `u` approve-safe · `z` wake-stale · `b` bridge validate · `f` force-path toggle · `?` help</div>
   </header>
   <main class="wrap">
     <section class="panel">
@@ -163,6 +170,19 @@
         </div>
 
         <div id="detail" class="section" data-focus-visible="all approval dispatch recovery"><div class="mini">Select a team.</div></div>
+
+        <div class="section" data-focus-visible="all approval dispatch recovery">
+          <h3>Focused Teammate Live</h3>
+          <div class="actions" style="margin-bottom:8px">
+            <button id="btn-focus-prev">Prev</button>
+            <button id="btn-focus-next">Next</button>
+            <button id="btn-triage-interrupt" class="warn">Triage Focused Interrupt</button>
+            <button id="btn-approve-selected" class="success">Approve Focused</button>
+            <button id="btn-reject-selected" class="err">Reject Focused</button>
+          </div>
+          <div class="tiny">Route preference: native-live -> sidecar-live -> tmux-mirror</div>
+          <div id="focused-teammate" class="mini">Select a teammate to start live focus.</div>
+        </div>
 
         <div class="section" data-focus-visible="all recovery">
           <h3>Native Lane</h3>
@@ -237,7 +257,7 @@
           <div class="grid2" style="margin-top:8px">
             <div>
               <label class="mini">Native Path Mode</label>
-              <select id="native-force-mode"><option value="">auto</option><option value="bridge">bridge</option><option value="ephemeral">ephemeral</option></select>
+              <select id="native-force-mode"><option value="">auto</option><option value="bridge">bridge</option><option value="native-direct">native-direct</option><option value="ephemeral">ephemeral (legacy)</option></select>
             </div>
             <div>
               <!-- B3: Preview before dispatch -->
@@ -294,6 +314,65 @@
           <pre id="result"></pre>
           <!-- C6: No-candidate explanation -->
           <div id="no-candidate-explain" style="margin-top:8px"></div>
+        </div>
+
+        <div class="section" data-focus-visible="all dispatch recovery">
+          <h3>Agent Manager</h3>
+          <div class="grid3">
+            <div>
+              <label class="mini">Agent Name</label>
+              <input id="agent-name" placeholder="reviewer" />
+            </div>
+            <div>
+              <label class="mini">Scope</label>
+              <select id="agent-scope">
+                <option value="project">project</option>
+                <option value="local">local</option>
+                <option value="user">user</option>
+                <option value="all">all (list/get only)</option>
+              </select>
+            </div>
+            <div>
+              <label class="mini">Model</label>
+              <input id="agent-model" placeholder="sonnet" />
+            </div>
+          </div>
+          <div style="margin-top:8px">
+            <label class="mini">Description</label>
+            <input id="agent-description" placeholder="Security-focused reviewer" />
+          </div>
+          <div class="grid2" style="margin-top:8px">
+            <div>
+              <label class="mini">Tools (comma separated)</label>
+              <input id="agent-tools" placeholder="Read,Edit,Write,Bash(git:*)" />
+            </div>
+            <div>
+              <label class="mini">Skills (comma separated)</label>
+              <input id="agent-skills" placeholder="security-review,tests" />
+            </div>
+          </div>
+          <div style="margin-top:8px">
+            <label class="mini">Memory Scope</label>
+            <select id="agent-memory">
+              <option value="">none</option>
+              <option value="project">project</option>
+              <option value="local">local</option>
+              <option value="user">user</option>
+            </select>
+          </div>
+          <div style="margin-top:8px">
+            <label class="mini">Prompt</label>
+            <textarea id="agent-prompt" placeholder="You are a code reviewer..."></textarea>
+          </div>
+          <div class="actions" style="margin-top:10px">
+            <button id="btn-agent-list">List</button>
+            <button id="btn-agent-get">Get</button>
+            <button id="btn-agent-create" class="primary">Create</button>
+            <button id="btn-agent-update">Update</button>
+            <button id="btn-agent-delete" class="err">Delete</button>
+            <button id="btn-agent-sync-manifest" class="warn">Sync Manifest</button>
+          </div>
+          <div id="agents-list" style="margin-top:8px"></div>
         </div>
 
         <div class="section" data-focus-visible="all dispatch">

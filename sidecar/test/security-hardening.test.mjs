@@ -413,7 +413,7 @@ test('origin allowlist permits configured origins', async () => {
 });
 
 // ── Test: File permissions auto-fix on startup ───────────────────────
-test('startup auto-fixes loose file permissions on sensitive files', async () => {
+test('startup auto-fixes loose file and directory permissions on sensitive sidecar paths', async () => {
   const prevHome = process.env.HOME;
   const home = setupHome();
   process.env.HOME = home;
@@ -422,13 +422,17 @@ test('startup auto-fixes loose file permissions on sensitive files', async () =>
   const mod1 = await import(`../server/index.js?t=${Date.now()}-${Math.random()}`);
   const s1 = await mod1.startSidecarServer({ port: 0 });
   const runtimeDir = join(home, '.claude', 'lead-sidecar', 'runtime');
+  const sidecarDir = join(home, '.claude', 'lead-sidecar');
   s1.close();
 
   // Loosen permissions on api.token
   const apiTokenPath = join(runtimeDir, 'api.token');
   chmodSync(apiTokenPath, 0o644);
+  chmodSync(sidecarDir, 0o755);
   const looseStat = statSync(apiTokenPath);
+  const looseDirStat = statSync(sidecarDir);
   assert.equal(looseStat.mode & 0o077, 0o044, 'Permissions should be loose (644) before restart');
+  assert.equal(looseDirStat.mode & 0o077, 0o055, 'Directory permissions should be loose (755) before restart');
 
   // Second boot should auto-fix
   const mod2 = await import(`../server/index.js?t=${Date.now()}-${Math.random()}`);
@@ -436,7 +440,9 @@ test('startup auto-fixes loose file permissions on sensitive files', async () =>
   s2.close();
 
   const fixedStat = statSync(apiTokenPath);
+  const fixedDirStat = statSync(sidecarDir);
   assert.equal(fixedStat.mode & 0o077, 0, 'Permissions should be tightened to 600 after restart');
+  assert.equal(fixedDirStat.mode & 0o077, 0, 'Directory permissions should be tightened to 700 after restart');
 
   if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;
 });

@@ -3,6 +3,53 @@ import {
   teamNameFromPath,
   taskIdFromTeamTaskPath,
 } from "./shared.js";
+import { existsSync } from "fs";
+import { execFileSync } from "child_process";
+import { join } from "path";
+
+const CANONICAL_STREAM_FALLBACK_ORDER = [
+  "native live",
+  "sidecar live",
+  "tmux mirror",
+];
+const CANONICAL_ROUTE_MODE_PREFERENCE = [
+  "native-live",
+  "sidecar-live",
+  "tmux-mirror",
+];
+
+function normalizeActionSnapshot(actions: any) {
+  const recent = Array.isArray(actions?.recent) ? actions.recent : [];
+  return {
+    ...(actions || {}),
+    recent: recent.map((record: any) => ({
+      ...record,
+      route_mode:
+        record?.route_mode || record?.path_mode || record?.adapter || "unknown",
+      route_reason:
+        record?.route_reason || record?.reason || "route metadata unavailable",
+      reason:
+        record?.route_reason || record?.reason || "route metadata unavailable",
+    })),
+  };
+}
+
+function normalizeFocusedTeammateLive(record: any) {
+  const sourceTruth =
+    typeof record?.source_truth === "string" && record.source_truth.trim()
+      ? record.source_truth
+      : "focused teammate view mirrors adapter/runtime/terminal sources";
+  return {
+    ...(record || {}),
+    stale_after_ms: Number(record?.stale_after_ms) || 6000,
+    stream_fallback_order: [...CANONICAL_STREAM_FALLBACK_ORDER],
+    route_mode_preference: [...CANONICAL_ROUTE_MODE_PREFERENCE],
+    source_truth: sourceTruth,
+    parity_note:
+      record?.parity_note ||
+      "in-process native teammate rendering is unavailable; sidecar mirrors live state",
+  };
+}
 
 export function registerTeamRoutes(registry: any): void {
   registry.add("teams:list", (ctx: any) => {
@@ -57,8 +104,101 @@ export function registerTeamRoutes(registry: any): void {
         timeline,
         alerts,
         native: snapshot.native || null,
-        actions: snapshot.actions || { recent: [] },
+        actions: normalizeActionSnapshot(snapshot.actions || { recent: [] }),
+        focused_teammate_live: normalizeFocusedTeammateLive(
+          snapshot.focused_teammate_live || null,
+        ),
         generated_at: snapshot.generated_at,
+      },
+      req,
+    );
+    return true;
+  });
+
+  registry.add("teams:teammate-mirror", (ctx: any) => {
+    const { req, res, url, snapshot, paths } = ctx;
+    if (
+      !(
+        req.method === "GET" &&
+        /^\/teams\/[^/]+\/teammates\/[^/]+\/mirror$/.test(url.pathname)
+      )
+    )
+      return false;
+    const parts = pathParts(url.pathname);
+    const teamName = decodeURIComponent(parts[2] || "");
+    const teammateId = decodeURIComponent(parts[4] || "");
+    const teammate = (snapshot.teammates || []).find(
+      (t: any) => t.team_name === teamName && t.id === teammateId,
+    );
+    if (!teammate) {
+      ctx.sendError(
+        res,
+        404,
+        "NOT_FOUND",
+        `Teammate ${teammateId} not found in team ${teamName}`,
+        req,
+      );
+      return true;
+    }
+
+    let output = null;
+    if (teammate.tmux_pane_id) {
+      try {
+        output = execFileSync(
+          "tmux",
+          ["capture-pane", "-t", teammate.tmux_pane_id, "-p", "-S", "-", "-e"],
+          { encoding: "utf8", timeout: 1500 },
+        );
+      } catch {
+        output = null;
+      }
+    }
+
+    const taskId = teammate.current_task_ref || teammate.worker_task_id || null;
+    if (!output && taskId) {
+      try {
+        const transcriptPath = join(paths.resultsDir, `${taskId}.transcript`);
+        if (existsSync(transcriptPath))
+          output = String(ctx.readFileSync(transcriptPath, "utf-8") || "").slice(
+            -6000,
+          );
+      } catch {
+        output = null;
+      }
+    }
+    if (!output && taskId) {
+      try {
+        const resultPath = join(paths.resultsDir, `${taskId}.json`);
+        if (existsSync(resultPath)) {
+          const result = ctx.readJSON(resultPath);
+          if (typeof result?.output === "string") output = result.output.slice(-4000);
+          else if (result) output = JSON.stringify(result, null, 2).slice(-4000);
+        }
+      } catch {
+        output = null;
+      }
+    }
+
+    ctx.sendJson(
+      res,
+      200,
+      {
+        ok: true,
+        team_name: teamName,
+        teammate_id: teammateId,
+        route_mode: "tmux-mirror",
+        route_label: "tmux mirror",
+        route_reason:
+          "native live and sidecar live unavailable/stale; terminal mirror fallback",
+        freshness: "fallback",
+        fallback_reason:
+          "native live and sidecar live unavailable/stale; terminal mirror fallback",
+        stale_after_ms: 6000,
+        route_mode_preference: [...CANONICAL_ROUTE_MODE_PREFERENCE],
+        stream_fallback_order: [...CANONICAL_STREAM_FALLBACK_ORDER],
+        source_truth: "tmux terminal mirror fallback (not native in-process rendering)",
+        output: output || null,
+        generated_at: new Date().toISOString(),
       },
       req,
     );

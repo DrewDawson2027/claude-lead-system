@@ -1,0 +1,5 @@
+- Claims are restricted to measured A/B outcomes from this harness run.
+- Evidence tier for this run: synthetic_measured.
+- Savings claims are disabled because claim-readiness quality gates did not pass.
+- lead_coordinator: measured token difference vs native is inconclusive for savings claims (evidence tier is synthetic_measured; only production_measured runs can support savings claims).
+- lead_overlay: measured token difference vs native is inconclusive for savings claims (evidence tier is synthetic_measured; only production_measured runs can support savings claims).

@@ -191,7 +191,7 @@ Share this as a testimonial:
 | Type-switching evasion (Explore blocked → tries general-purpose) | **BLOCKED** — "Resembles a previously blocked attempt." | ~50,000      |
 | Rapid-fire agent spawns (<5s apart)                              | **BLOCKED** — "Wait between spawns."                    | ~50,000      |
 | Agent in Explore'd directory                                     | **WARNED** — "Already mapped by Explore."               | Advisory     |
-| Opus model requested for agent                                   | **WARNED** — "Opus costs ~3x more."                     | Advisory     |
+| Unsupported model requested for agent                            | **BLOCKED** — "Only sonnet and haiku workers are allowed." | ~50,000      |
 
 ## Configuration
 
@@ -259,7 +259,7 @@ Add to your `~/.claude/settings.json`:
 6. **Type-switching detection** — catches "blocked as Explore, retry as general-purpose" (similarity >0.6)
 7. **Global cooldown** — prevents rapid-fire spawns of any type
 
-**Plus:** Resume detection (always allows continuing existing agents), team awareness (bypasses rules for team spawns but counts toward cap), first-spawn advisory, and model cost warnings.
+**Plus:** Resume detection (always allows continuing existing agents), team awareness (bypasses rules for team spawns but counts toward cap), first-spawn advisory, and model-router enforcement.
 
 ## Analytics
 

@@ -308,12 +308,12 @@ def make_dashboard() -> Image.Image:
         ("  ───────────────────────────────────────────────────────────────", SURFACE),
     )
     r.add_line(
-        ("  Coordination: ", MUTED),
-        ("0 API tokens", GREEN, True),
-        ("  |  State: ", MUTED),
-        ("3 sessions @ 1.4KB avg", CYAN),
-        ("  |  Latency: ", MUTED),
-        ("0.019ms", GREEN),
+        ("  Coordination path: ", MUTED),
+        ("local state files", GREEN, True),
+        ("  |  Delivery: ", MUTED),
+        ("inbox hooks", CYAN),
+        ("  |  Mode: ", MUTED),
+        ("coordinator", GREEN),
     )
 
     return r.render("claude — /lead")
@@ -456,7 +456,7 @@ def make_messaging() -> Image.Image:
         ("  Delivered on next tool invocation via ", MUTED),
         ("PreToolUse hook", CYAN),
         (" — ", MUTED),
-        ("0 API tokens", GREEN, True),
+        ("local inbox delivery", GREEN, True),
     )
 
     return r.render("claude — messaging")
@@ -501,7 +501,7 @@ def make_worker_spawn() -> Image.Image:
     )
 
     r.add_blank()
-    r.add_line(("  ─── 45 seconds later ─────────────────────────────────────────", SURFACE))
+    r.add_line(("  ─── Worker complete ──────────────────────────────────────────", SURFACE))
     r.add_blank()
 
     r.add_line(("$ ", GREEN), ("check worker W-1708349521", TEXT, True))
@@ -622,7 +622,7 @@ def make_before_after_real() -> Image.Image:
         ("", TEXT),
         ("─ Transcript-heavy coordination", TEXT),
         ("  Parse MBs of expensive transcripts", MUTED),
-        ("  burning API tokens for context", MUTED),
+        ("  to reconstruct who is doing what", MUTED),
     ]
 
     y = by0 + 70
@@ -646,15 +646,15 @@ def make_before_after_real() -> Image.Image:
         ("", TEXT),
         ("+ Inbox + wake orchestration", TEXT),
         ("  Send messages between terminals", MUTED),
-        ("  via filesystem hooks (0 tokens)", MUTED),
+        ("  via filesystem hooks and inbox files", MUTED),
         ("", TEXT),
         ("+ Autonomous workers + pipelines", TEXT),
         ("  Spawn claude -p workers, chain", MUTED),
         ("  multi-step tasks sequentially", MUTED),
         ("", TEXT),
         ("+ Compact JSON state protocol", TEXT),
-        ("  1.4KB per session vs 7.6MB", MUTED),
-        ("  transcripts — 207x faster", MUTED),
+        ("  Small local state files replace", MUTED),
+        ("  transcript-scanning for coordination", MUTED),
     ]
 
     y = ay0 + 70

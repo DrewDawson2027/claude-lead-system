@@ -39,10 +39,28 @@ export function handleDetectConflicts(args) {
   const sessions = allSessions.filter(
     (s) => s.session !== session_id && getSessionStatus(s) !== "closed",
   );
+  const recentActivity = readJSONL(ACTIVITY_FILE).slice(-100);
+  const liveWindowMs = 15000;
+  const liveCutoff = Date.now() - liveWindowMs;
+  const liveFilesBySession = new Map();
+  for (const entry of recentActivity) {
+    if (!["Read", "Edit", "Write"].includes(entry.tool)) continue;
+    if (new Date(entry.ts).getTime() <= liveCutoff) continue;
+    const normalized = normalizeFilePath(
+      entry.path || "",
+      sessionById.get(entry.session)?.cwd || detectorCwd,
+    );
+    if (!normalized) continue;
+    if (!liveFilesBySession.has(entry.session)) liveFilesBySession.set(entry.session, new Set());
+    liveFilesBySession.get(entry.session).add(normalized);
+  }
   const conflicts = [];
 
   for (const s of sessions) {
-    const theirFiles = [...(s.current_files || []), ...(s.files_touched || [])];
+    const liveFiles = [...(liveFilesBySession.get(s.session) || new Set())];
+    const activeFiles = Array.isArray(s.current_files) ? s.current_files : [];
+    const historicalFiles = Array.isArray(s.files_touched) ? s.files_touched : [];
+    const theirFiles = liveFiles.length > 0 ? liveFiles : (activeFiles.length > 0 ? activeFiles : historicalFiles);
     if (!theirFiles.length) continue;
     const theirNormalized = new Set(
       theirFiles
@@ -63,12 +81,11 @@ export function handleDetectConflicts(args) {
     }
   }
 
-  const recentActivity = readJSONL(ACTIVITY_FILE).slice(-100);
-  const fiveMinAgo = Date.now() - 300000;
+  const recentEditCutoff = liveCutoff;
   const recentEdits = recentActivity.filter(
     (a) =>
       a.session !== session_id &&
-      new Date(a.ts).getTime() > fiveMinAgo &&
+      new Date(a.ts).getTime() > recentEditCutoff &&
       (a.tool === "Edit" || a.tool === "Write") &&
       normalizedFiles.has(
         normalizeFilePath(
@@ -77,8 +94,9 @@ export function handleDetectConflicts(args) {
         ),
       ),
   );
+  const recentEditSessions = new Set(recentEdits.map((a) => a.session));
 
-  if (conflicts.length === 0 && recentEdits.length === 0)
+  if (conflicts.length === 0 && recentEditSessions.size < 2)
     return text("No conflicts detected. Safe to proceed.");
 
   let output = "## CONFLICTS DETECTED\n\n";
@@ -88,8 +106,8 @@ export function handleDetectConflicts(args) {
       output += `- **${c.session}** (${c.project}): ${c.overlapping_files.join(", ")} \u2014 \"${c.task}\"\n`;
     });
   }
-  if (recentEdits.length > 0) {
-    output += "\n### Recent Edits (last 5 min)\n";
+  if (recentEditSessions.size >= 2) {
+    output += `\n### Recent Edits (last ${Math.floor(liveWindowMs / 1000)}s)\n`;
     recentEdits.forEach((e) => {
       output += `- ${e.ts} ${e.session}: ${e.tool} ${e.file}\n`;
     });

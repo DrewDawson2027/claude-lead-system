@@ -28,9 +28,16 @@
     "audit:api-contract": "node scripts/policy/check-api-contract-sync.mjs",
     "audit:changelog": "node scripts/policy/check-changelog-consistency.mjs",
     "audit:security-review": "node scripts/policy/check-security-review-gate.mjs",
-    "docs:audit": "npm run audit:endpoints && npm run audit:coverage-claim && npm run audit:artifact-contract && npm run audit:api-contract && npm run audit:changelog && npm run audit:workflow-pinning && npm run audit:security-review",
+    "posture:sync": "node scripts/claim-posture-sync.mjs",
+    "posture:check": "node scripts/claim-posture-sync.mjs --check",
+    "docs:audit": "npm run audit:endpoints && npm run audit:coverage-claim && npm run audit:artifact-contract && npm run audit:api-contract && npm run audit:changelog && npm run audit:workflow-pinning && npm run audit:security-review && bash scripts/check-claim-drift.sh && npm run proof:matrix:check",
     "release:security-smoke": "bash scripts/release/security-smoke.sh",
     "release:preflight": "bash scripts/release/preflight.sh",
-    "release:gate": "npm run ci:local && npm run release:security-smoke"
+    "release:gate": "npm run ci:local && npm run release:security-smoke",
+    "proof:run": "node scripts/proof/run-platform-proof.mjs",
+    "proof:matrix": "node scripts/proof/generate-compatibility-matrix.mjs",
+    "proof:matrix:check": "node scripts/proof/generate-compatibility-matrix.mjs --check",
+    "bench:ab": "node bench/ab-harness.mjs --config bench/ab-harness.config.example.json",
+    "bench:ab:mock": "node bench/ab-harness.mjs --config bench/ab-harness.mock.config.json"
   }
 }

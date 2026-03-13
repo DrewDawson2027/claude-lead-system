@@ -192,3 +192,86 @@ test("--claim-only: respects blocked_by — skips blocked tasks", async () => {
   assert.equal(data.task_id, "SC_BLK_A", "returns unblocked task, not blocked one");
   restore();
 });
+
+test("--claim-only: loops through a full queued chain and terminates cleanly", async () => {
+  const home = makeHome();
+  const { api, restore } = await loadApi(home);
+
+  api.handleToolCall("coord_create_team", { team_name: "sc-loop" });
+
+  api.handleToolCall("coord_create_task", {
+    team_name: "sc-loop",
+    task_id: "SC_LOOP_1",
+    subject: "Task one",
+    assignee: "worker-loop",
+  });
+  api.handleToolCall("coord_update_task", {
+    task_id: "SC_LOOP_1",
+    status: "in_progress",
+    metadata: { worker_task_id: "wt_loop_1" },
+  });
+
+  api.handleToolCall("coord_create_task", {
+    team_name: "sc-loop",
+    task_id: "SC_LOOP_2",
+    subject: "Task two",
+    assignee: "worker-loop",
+    metadata: { dispatch: { prompt: "Handle task two." } },
+  });
+  api.handleToolCall("coord_create_task", {
+    team_name: "sc-loop",
+    task_id: "SC_LOOP_3",
+    subject: "Task three",
+    assignee: "worker-loop",
+    metadata: { dispatch: { prompt: "Handle task three." } },
+  });
+
+  const hop1 = JSON.parse(
+    runClaimOnly(home, {
+      team_name: "sc-loop",
+      assignee: "worker-loop",
+      completed_worker_task_id: "wt_loop_1",
+    }),
+  );
+  assert.equal(hop1.found, true);
+  assert.equal(hop1.task_id, "SC_LOOP_2");
+  assert.equal(hop1.prompt, "Handle task two.");
+
+  api.handleToolCall("coord_update_task", {
+    task_id: "SC_LOOP_2",
+    status: "in_progress",
+    metadata: { worker_task_id: "wt_loop_2", dispatch: { prompt: "Handle task two." } },
+  });
+
+  const hop2 = JSON.parse(
+    runClaimOnly(home, {
+      team_name: "sc-loop",
+      assignee: "worker-loop",
+      completed_worker_task_id: "wt_loop_2",
+    }),
+  );
+  assert.equal(hop2.found, true);
+  assert.equal(hop2.task_id, "SC_LOOP_3");
+  assert.equal(hop2.prompt, "Handle task three.");
+
+  api.handleToolCall("coord_update_task", {
+    task_id: "SC_LOOP_3",
+    status: "in_progress",
+    metadata: { worker_task_id: "wt_loop_3", dispatch: { prompt: "Handle task three." } },
+  });
+
+  const hop3 = runClaimOnly(home, {
+    team_name: "sc-loop",
+    assignee: "worker-loop",
+    completed_worker_task_id: "wt_loop_3",
+  });
+  assert.equal(hop3.trim(), "", "loop must stop after the last queued task");
+
+  const task1 = JSON.parse(readFileSync(join(home, ".claude", "terminals", "tasks", "SC_LOOP_1.json"), "utf-8"));
+  const task2 = JSON.parse(readFileSync(join(home, ".claude", "terminals", "tasks", "SC_LOOP_2.json"), "utf-8"));
+  const task3 = JSON.parse(readFileSync(join(home, ".claude", "terminals", "tasks", "SC_LOOP_3.json"), "utf-8"));
+  assert.equal(task1.status, "completed");
+  assert.equal(task2.status, "completed");
+  assert.equal(task3.status, "completed");
+  restore();
+});

@@ -7,7 +7,8 @@ Broad positioning claims still require human judgment; this table is only for cl
 
 | Claim                                   | Proof Artifact                       | Verification Command                                                                                                                                                                                                                                                                                        |
 | --------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 80%+ coordinator line-coverage gate (current ~86% on 2026-03-09 local validation) | `mcp-coordinator/coverage/`          | `cd mcp-coordinator && npm run test:coverage`                                                                                                                                                                                                                                                               |
+| Canonical claim posture source is the single sync authority | `docs/CLAIM_POSTURE_SOURCE.json`, `scripts/claim-posture-sync.mjs` | `node scripts/claim-posture-sync.mjs --check`                                                                                                                                                                                                                                                   |
+| 80%+ coordinator line-coverage gate (current ~86.75% on 2026-03-12 local validation) | `mcp-coordinator/coverage/`          | `cd mcp-coordinator && npm run test:coverage`                                                                                                                                                                                                                                                               |
 | CI platform coverage: macOS, Linux, Windows | CI `Platform Launch Matrix` jobs | `RUN_ID="$(gh run list --workflow ci.yml -L 1 --json databaseId --jq '.[0].databaseId')" && gh run view "$RUN_ID" --json jobs --jq '.jobs[] | select(.name | startswith("Platform Launch Matrix")) | {name, conclusion, startedAt, completedAt}'`                                                                                                                   |
 | Node 18/20, Python 3.10/3.11 compatible | CI `Compatibility Matrix` jobs       | `RUN_ID="$(gh run list --workflow ci.yml -L 1 --json databaseId --jq '.[0].databaseId')" && gh run view "$RUN_ID" --json jobs --jq '.jobs[] | select(.name | startswith("Compatibility Matrix")) | {name, conclusion, startedAt, completedAt}'`                                                                                                                    |
 | Signed releases with cosign             | `.github/workflows/supply-chain.yml` | `cosign verify-blob --signature checksums.txt.sig --certificate checksums.txt.pem ...`                                                                                                                                                                                                                      |
@@ -22,7 +23,7 @@ Broad positioning claims still require human judgment; this table is only for cl
 | Installer smoke tested                  | CI `smoke-install` job               | `bash tests/smoke-install.sh --ref HEAD --mode full`                                                                                                                                                                                                                                                        |
 | Hook integration tested                 | CI `integration-tests` job           | `bash tests/hooks-smoke.sh`                                                                                                                                                                                                                                                                                 |
 | Token system regression tested          | CI `token-system-regression` job     | `python3 scripts/run_token_system_regression.py`                                                                                                                                                                                                                                                            |
-| Fresh-checkout certification command set | `scripts/certify-a-plus.mjs`         | `npm run cert:a-plus:fresh`                                                                                                                                                                                                                                                                                 |
+| Fresh-checkout certification command set | `scripts/certify-a-plus.mjs`, `reports/a-plus-cert.json` | `npm run cert:a-plus:fresh`                                                                                                                                                                                                                                                              |
 | Installed-runtime health-check scope    | `hooks/health-check.sh`              | `bash ~/.claude/hooks/health-check.sh`                                                                                                                                                                                                                                                                      |
 
 ## How to Verify a Specific Claim
@@ -35,11 +36,19 @@ npm run audit:coverage-claim
 # Output includes configured gate and measured coverage from this checkout.
 ```
 
+## Release Discipline Policy
+
+- Canonical public-cert branch: `main`
+- Canonical cert flow command: `npm run cert:a-plus:fresh`
+- Canonical cert artifact: `reports/a-plus-cert.json`
+- `A+` is only valid when the cert flow passes on the exact `main` source branch with a clean worktree
+
 ### Fresh-checkout certification claim
 
 ```bash
 npm run cert:a-plus:fresh
-# Runs the 9-command cert process and reports live counts/gates.
+cat reports/a-plus-cert.json
+# Runs the canonical 8-step cert flow and emits deterministic literal output + JSON report.
 ```
 
 ### CI platform coverage claim
@@ -82,11 +91,13 @@ cat bench/latest-results.json | jq '.coordinator_benchmark | {speedup_ratio_avg,
 CI-backed claims in the table above are verified automatically on every push to `main` and every PR:
 
 - Coverage: `coverage` job
+- Docs + claim drift parity: `docs-audit` job (`npm run docs:audit`)
 - Platform support: `Platform Launch Matrix` jobs
 - Compatibility: `Compatibility Matrix` jobs
 - Performance: `perf-gate` job
 - Smoke install: `smoke-install` job
 - Hooks: `integration-tests` job
+- Canonical A+ cert artifact: `cert-a-plus-main` job (pushes to `main` only)
 
 ## References
 

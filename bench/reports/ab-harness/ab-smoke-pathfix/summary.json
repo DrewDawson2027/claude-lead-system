@@ -1,0 +1,264 @@
+{
+  "run_id": "ab-smoke-pathfix",
+  "generated_at": "2026-03-12T00:50:15.841Z",
+  "workload": {
+    "id": "mock-ab-workload",
+    "description": "Deterministic mock workload that emits telemetry for harness validation.",
+    "prompt_file": "/Users/drewdawson/claude-lead-system/bench/workloads/mock-workload-prompt.md"
+  },
+  "baseline_path": "native",
+  "trials": 4,
+  "confidence": 0.95,
+  "bootstrap_iterations": 2000,
+  "usage_window_tokens": 220000,
+  "summary": {
+    "per_path": {
+      "lead_coordinator": {
+        "classification": "lead_coordinator",
+        "runs": 4,
+        "completion_rate": {
+          "mean": 1,
+          "ci_low": 0.510109,
+          "ci_high": 1,
+          "successes": 4,
+          "total": 4
+        },
+        "latency_ms": {
+          "mean": 256.75,
+          "ci_low": 253.5,
+          "ci_high": 260,
+          "n": 4,
+          "stddev": 4.031129
+        },
+        "tokens_total": {
+          "mean": 15000,
+          "ci_low": 15000,
+          "ci_high": 15000,
+          "n": 4,
+          "stddev": 0
+        },
+        "human_interventions": {
+          "mean": 1,
+          "ci_low": 1,
+          "ci_high": 1,
+          "n": 4,
+          "stddev": 0
+        },
+        "conflict_incidents": {
+          "mean": 0,
+          "ci_low": 0,
+          "ci_high": 0,
+          "n": 4,
+          "stddev": 0
+        },
+        "throughput_per_usage_window": {
+          "mean": 14.666667,
+          "ci_low": 14.666667,
+          "ci_high": 14.666667,
+          "n": 4,
+          "stddev": 0
+        },
+        "resume": {
+          "attempts": 4,
+          "successes": 4,
+          "success_rate_mean": 1,
+          "success_rate_ci_low": 0.510109,
+          "success_rate_ci_high": 1
+        }
+      },
+      "lead_overlay": {
+        "classification": "lead_overlay",
+        "runs": 4,
+        "completion_rate": {
+          "mean": 1,
+          "ci_low": 0.510109,
+          "ci_high": 1,
+          "successes": 4,
+          "total": 4
+        },
+        "latency_ms": {
+          "mean": 262.25,
+          "ci_low": 258.5,
+          "ci_high": 266,
+          "n": 4,
+          "stddev": 4.787136
+        },
+        "tokens_total": {
+          "mean": 15400,
+          "ci_low": 15400,
+          "ci_high": 15400,
+          "n": 4,
+          "stddev": 0
+        },
+        "human_interventions": {
+          "mean": 1,
+          "ci_low": 1,
+          "ci_high": 1,
+          "n": 4,
+          "stddev": 0
+        },
+        "conflict_incidents": {
+          "mean": 0,
+          "ci_low": 0,
+          "ci_high": 0,
+          "n": 4,
+          "stddev": 0
+        },
+        "throughput_per_usage_window": {
+          "mean": 14.285714,
+          "ci_low": 14.285714,
+          "ci_high": 14.285714,
+          "n": 4,
+          "stddev": 0
+        },
+        "resume": {
+          "attempts": 4,
+          "successes": 4,
+          "success_rate_mean": 1,
+          "success_rate_ci_low": 0.510109,
+          "success_rate_ci_high": 1
+        }
+      },
+      "native": {
+        "classification": "native_claude",
+        "runs": 4,
+        "completion_rate": {
+          "mean": 1,
+          "ci_low": 0.510109,
+          "ci_high": 1,
+          "successes": 4,
+          "total": 4
+        },
+        "latency_ms": {
+          "mean": 273.5,
+          "ci_low": 272.5,
+          "ci_high": 274.5,
+          "n": 4,
+          "stddev": 1.290994
+        },
+        "tokens_total": {
+          "mean": 15900,
+          "ci_low": 15900,
+          "ci_high": 15900,
+          "n": 4,
+          "stddev": 0
+        },
+        "human_interventions": {
+          "mean": 1,
+          "ci_low": 1,
+          "ci_high": 1,
+          "n": 4,
+          "stddev": 0
+        },
+        "conflict_incidents": {
+          "mean": 2,
+          "ci_low": 2,
+          "ci_high": 2,
+          "n": 4,
+          "stddev": 0
+        },
+        "throughput_per_usage_window": {
+          "mean": 13.836478,
+          "ci_low": 13.836478,
+          "ci_high": 13.836478,
+          "n": 4,
+          "stddev": 0
+        },
+        "resume": {
+          "attempts": 4,
+          "successes": 0,
+          "success_rate_mean": 0,
+          "success_rate_ci_low": 0,
+          "success_rate_ci_high": 0.489891
+        }
+      }
+    },
+    "comparisons_vs_baseline": {
+      "lead_coordinator": {
+        "tokens_total_minus_baseline": {
+          "mean_diff": -900,
+          "ci_low": -900,
+          "ci_high": -900,
+          "n_a": 4,
+          "n_b": 4
+        },
+        "latency_ms_minus_baseline": {
+          "mean_diff": -16.75,
+          "ci_low": -20.25,
+          "ci_high": -13.25,
+          "n_a": 4,
+          "n_b": 4
+        },
+        "throughput_per_window_minus_baseline": {
+          "mean_diff": 0.830189,
+          "ci_low": 0.830189,
+          "ci_high": 0.830189,
+          "n_a": 4,
+          "n_b": 4
+        }
+      },
+      "lead_overlay": {
+        "tokens_total_minus_baseline": {
+          "mean_diff": -500,
+          "ci_low": -500,
+          "ci_high": -500,
+          "n_a": 4,
+          "n_b": 4
+        },
+        "latency_ms_minus_baseline": {
+          "mean_diff": -11.25,
+          "ci_low": -15.75,
+          "ci_high": -7.25,
+          "n_a": 4,
+          "n_b": 4
+        },
+        "throughput_per_window_minus_baseline": {
+          "mean_diff": 0.449236,
+          "ci_low": 0.449236,
+          "ci_high": 0.449236,
+          "n_a": 4,
+          "n_b": 4
+        }
+      }
+    }
+  },
+  "claim_safe_summary": {
+    "statements": [
+      "Claims are restricted to measured A/B outcomes from this harness run.",
+      "lead_coordinator: measured token difference vs native is inconclusive; no savings claim is supported.",
+      "lead_overlay: measured token difference vs native is inconclusive; no savings claim is supported."
+    ],
+    "policy": [
+      {
+        "path_id": "lead_coordinator",
+        "savings_claim_allowed": false,
+        "reason": "insufficient evidence",
+        "comparison_tokens_total_minus_baseline": {
+          "mean_diff": -900,
+          "ci_low": -900,
+          "ci_high": -900,
+          "n_a": 4,
+          "n_b": 4
+        }
+      },
+      {
+        "path_id": "lead_overlay",
+        "savings_claim_allowed": false,
+        "reason": "insufficient evidence",
+        "comparison_tokens_total_minus_baseline": {
+          "mean_diff": -500,
+          "ci_low": -500,
+          "ci_high": -500,
+          "n_a": 4,
+          "n_b": 4
+        }
+      }
+    ]
+  },
+  "artifacts": {
+    "raw_dataset_jsonl": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/ab-smoke-pathfix/raw-dataset.jsonl",
+    "manifest_json": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/ab-smoke-pathfix/run-manifest.json",
+    "summary_json": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/ab-smoke-pathfix/summary.json",
+    "report_md": "/Users/drewdawson/claude-lead-system/bench/reports/ab-harness/ab-smoke-pathfix/report.md"
+  }
+}

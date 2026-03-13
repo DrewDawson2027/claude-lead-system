@@ -1,4 +1,5 @@
-// @ts-nocheck
+import type { RebuildOpsDeps } from "./types.js";
+
 export function createRebuildOps({
   store,
   nativeAdapter,
@@ -10,11 +11,11 @@ export function createRebuildOps({
   mkdirSync,
   unlinkSync,
   writeJSON,
-}) {
+}: RebuildOpsDeps) {
   let rebuilding = false;
 
   async function enrichDynamicState() {
-    const nativeStatus = await nativeAdapter.getStatus().catch((err) => ({
+    const nativeStatus: any = await nativeAdapter.getStatus().catch((err: any) => ({
       adapter_ok: false,
       mode: "unavailable",
       error: err.message,
@@ -35,19 +36,39 @@ export function createRebuildOps({
     if (rebuilding) return;
     rebuilding = true;
     try {
+      const rebuiltAt = new Date().toISOString();
       const base = buildSidecarSnapshot();
       await enrichDynamicState();
+      const nativeSnapshot = store.getSnapshot().native as any;
       store.setSnapshot({
         ...base,
         native: store.getSnapshot().native,
         actions: store.getSnapshot().actions,
         alerts: store.getSnapshot().alerts,
         metrics: store.getSnapshot().metrics,
+        focused_teammate_live: {
+          sidecar_live_at: rebuiltAt,
+          native_available: Boolean(
+            nativeSnapshot?.adapter_ok ?? nativeSnapshot?.native?.available,
+          ),
+          stream_fallback_order: ["native live", "sidecar live", "tmux mirror"],
+          route_mode_preference: [
+            "native-live",
+            "sidecar-live",
+            "tmux-mirror",
+          ],
+          stale_after_ms: 6000,
+          source_truth:
+            "focused teammate view mirrors adapter/runtime/terminal sources",
+          parity_note:
+            "in-process native teammate rendering is unavailable; sidecar mirrors live state",
+        },
       });
       store.emitTimeline({
         type: "snapshot.rebuilt",
         source,
         generated_at: base.generated_at,
+        sidecar_live_at: rebuiltAt,
       });
       try {
         mkdirSync(paths.snapshotHistoryDir, { recursive: true });
@@ -62,10 +83,10 @@ export function createRebuildOps({
           for (const f of histFiles.slice(0, histFiles.length - 50)) {
             try {
               unlinkSync(`${paths.snapshotHistoryDir}/${f}`);
-            } catch {}
+            } catch { }
           }
         }
-      } catch {}
+      } catch { }
     } finally {
       rebuilding = false;
     }

@@ -164,10 +164,10 @@ def make_slide_1_hook(out_path: Path, brand: Brand) -> None:
     subtitle_font = _font(34)
     muted_font = _font(26)
 
-    title = "Your Claude terminals\nare blind to each other."
+    title = "A local coordination layer\nfor Claude Code."
     _text(d, (64, 150), title, title_font, brand.text, anchor="la")
 
-    sub = "Fix it with one command: /lead"
+    sub = "Use one lead session: /lead"
     _text(d, (64, 350), sub, subtitle_font, brand.muted, anchor="la")
 
     box = (64, 440, 1536, 806)
@@ -175,8 +175,8 @@ def make_slide_1_hook(out_path: Path, brand: Brand) -> None:
 
     k_font = _font(30)
     b_font = _font(40)
-    _text(d, (96, 490), "0 API tokens", b_font, brand.text, anchor="la")
-    _text(d, (96, 548), "Hooks + filesystem state, not transcript parsing.", k_font, brand.muted, anchor="la")
+    _text(d, (96, 490), "Local coordination", b_font, brand.text, anchor="la")
+    _text(d, (96, 548), "Hooks + filesystem state outside the main context window.", k_font, brand.muted, anchor="la")
 
     _text(d, (96, 640), "Dashboard · Messaging · Conflicts · Workers · Pipelines", k_font, brand.text, anchor="la")
     _text(d, (96, 700), "Best for X: native MP4 + links in reply.", muted_font, brand.muted, anchor="la")
@@ -223,7 +223,7 @@ def make_slide_3_how_it_works(out_path: Path, brand: Brand) -> None:
 
     mono = _font(30)
     lines = [
-        "Terminal hooks (0 tokens)",
+        "Terminal hooks + local state",
         "  → ~/.claude/terminals/session-*.json",
         "  → ~/.claude/terminals/inbox/*.jsonl",
         "",
@@ -254,8 +254,8 @@ def make_slide_4_cta(out_path: Path, brand: Brand) -> None:
 
     mono = _font(30)
     steps = [
-        "1) Install (link in reply):",
-        "   curl -fsSL https://…/install.sh | bash",
+        "1) Install from the latest release",
+        "   then launch with claudex",
         "",
         "2) Open 2 Claude Code terminals in the same repo",
         "3) Type: /lead",

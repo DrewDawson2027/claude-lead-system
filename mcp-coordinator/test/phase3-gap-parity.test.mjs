@@ -281,6 +281,7 @@ test('Gap 5: idle detector subprocess is added when leadPaneId and sessionId are
   });
   assert.match(cmd, /IDLE_SENT/, 'idle detector must use IDLE_SENT flag to avoid repeat notifications');
   assert.match(cmd, /sleep 1/, 'idle detector must poll on a 1-second interval');
+  assert.match(cmd, /-gt 30/, 'idle detector must wait 30 seconds before notifying');
   assert.match(cmd, /\[IDLE\]/, 'idle detector must send [IDLE] notification to lead');
   assert.match(cmd, /_IDLE_PID=\$!/, 'idle detector must track its background PID');
 });

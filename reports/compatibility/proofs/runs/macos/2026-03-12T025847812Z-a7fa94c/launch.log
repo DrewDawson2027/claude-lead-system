@@ -1,0 +1,50 @@
+capability: launch
+description: Platform launch command proof
+started_at: 2026-03-12T02:59:17.790Z
+ended_at: 2026-03-12T02:59:18.250Z
+duration_ms: 460
+command: npm --workspace mcp-coordinator exec -- node --test test/platform-launch.test.mjs
+exit_status: 0
+signal: null
+error: null
+
+--- stdout ---
+✔ darwin iTerm2 split uses AppleScript split command (0.8245ms)
+✔ windows terminal split uses wt sp -V (0.952083ms)
+✔ linux kitty split uses kitty launch window (0.115291ms)
+✔ fallback uses nohup background (0.107417ms)
+✔ windows worker script launch uses powershell file mode (0.3135ms)
+✔ unix worker script safely quotes apostrophes in paths (0.185667ms)
+✔ darwin iTerm2 tab creates tab (not split) (0.057125ms)
+✔ darwin Terminal uses do script (0.04425ms)
+✔ darwin none falls back to background (0.058667ms)
+✔ win32 WindowsTerminal tab uses nt (not sp) (0.090834ms)
+✔ win32 cmd fallback uses start (0.055208ms)
+✔ linux gnome-terminal uses -- separator (0.053083ms)
+✔ linux konsole uses -e flag (0.037334ms)
+✔ linux alacritty uses -e flag (0.134583ms)
+✔ linux kitty tab uses launch --type=tab (0.063208ms)
+✔ unix worker script includes agent flag (0.132ms)
+✔ unix worker script omits agent flag when empty (0.078958ms)
+✔ interactive worker script on linux uses script -c wrapper and exports worker env (0.251541ms)
+✔ interactive team worker script exports auto-claim helper env and invokes it on exit (0.209875ms)
+✔ interactive worker script exports parent-session env and probes for native flag (0.074333ms)
+✔ plain worker script without team auto-claim context does not emit malformed shell separators (0.061917ms)
+✔ plain worker script exports parent-session env and uses runtime-gated parent arg (0.066125ms)
+✔ interactive worker script on darwin uses script without -c wrapper (0.061334ms)
+✔ interactive worker script on windows falls back to pipe-mode worker script (0.0535ms)
+✔ resume worker script exports parent-session env and uses runtime-gated parent arg (0.128292ms)
+✔ codex worker script supports model flag and cleanup (0.08575ms)
+✔ codex worker script omits default sonnet model flag and windows is unsupported (0.040125ms)
+✔ codex interactive worker script uses codex TUI command and windows is unsupported (0.067833ms)
+ℹ tests 28
+ℹ suites 0
+ℹ pass 28
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 206.633125
+
+
+--- stderr ---

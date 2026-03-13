@@ -6,7 +6,7 @@ Assumptions:
 
 - Native reference is the source of truth for current Agent Teams behavior.
 - This pass covers coordinator, sidecar, and root config/docs only.
-- `CLAUDE.md` was requested but is not present at repo root.
+- `CLAUDE.md` is present at repo root; its parity language needed a separate truth-pass because it overstated native alignment.
 
 Tests run:
 
@@ -149,9 +149,9 @@ Conclusion: backlog items 6-11 are implemented in code, not merely claimed. The 
 | File           | Purpose                                         | Quality                                                   | Native parity                                           | Unique value                              | Issues                                                                                                                                                          | Severity      |
 | -------------- | ----------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `package.json` | Workspace scripts for test/lint/release policy. | Good script hygiene and CI shape.                         | Native has no repo-level equivalent.                    | Helpful local release discipline.         | None major found.                                                                                                                                               | ✅ Good       |
-| `README.md`    | Primary product positioning and setup doc.      | Polished but over-claims parity and cost delta.           | Compares directly to native.                            | Good onboarding.                          | Claims “same capabilities” / “13 features it can’t do” conflict with current native reference; cross-platform/background claim is overstated given Windows bug. | ⚠️ Needs Work |
+| `README.md`    | Primary product positioning and setup doc.      | Polished, but previous draft over-claimed parity and cost delta. | Compares directly to native.                       | Good onboarding.                          | Needed truth-pass edits: remove “same capabilities” / “13 features it can’t do” framing and soften cross-platform/background claims given current Windows gap. | ⚠️ Needs Work |
 | `MANIFEST.md`  | Describes broader agent/mode ecosystem.         | Internally coherent, but not tightly scoped to this repo. | Native has agent frontmatter/config, not this manifest. | Documents surrounding operator ecosystem. | More about local `.claude` environment than repo runtime; can blur source-of-truth boundaries.                                                                  | ⚠️ Needs Work |
-| `CLAUDE.md`    | Requested root policy/config doc.               | N/A                                                       | N/A                                                     | N/A                                       | File not present at repo root.                                                                                                                                  | ⚠️ Needs Work |
+| `CLAUDE.md`    | Root policy/config doc for this repo.           | Useful, but previous draft overstated exact/native parity. | Compares directly to native workflow expectations. | Good maintainer guidance when kept honest. | Needed truth-pass edits: remove exact-parity percentages and label hybrid/native paths as experimental rather than settled.                                     | ⚠️ Needs Work |
 
 ## Native Agent Teams vs Lead System
 

@@ -10,6 +10,15 @@ const TOOL_BY_ACTION = {
   probe: "TeamStatus",
 };
 
+function normalizeNativeModel(value) {
+  const raw = String(value || "sonnet").trim().toLowerCase();
+  if (!raw) return "sonnet";
+  if (raw === "sonnet" || raw === "haiku") return raw;
+  if (raw.startsWith("claude-sonnet-")) return "sonnet";
+  if (raw.startsWith("claude-haiku-")) return "haiku";
+  throw new Error("Only sonnet and haiku models are allowed.");
+}
+
 function fillTemplate(template, vars) {
   let out = template;
   for (const [k, v] of Object.entries(vars)) {
@@ -48,6 +57,33 @@ function redactedPayload(payload) {
   return p;
 }
 
+function withRouteMetadata(
+  payload = {},
+  {
+    routeMode = "native-direct",
+    routeReason = null,
+    probeSource = "native-runner",
+  } = {},
+) {
+  const fallback_history = Array.isArray(payload?.fallback_history)
+    ? payload.fallback_history
+    : [];
+  const probe_source = String(payload?.probe_source || probeSource || "").trim();
+  return {
+    ...payload,
+    path_mode: payload?.path_mode || "native-direct",
+    route_mode: payload?.route_mode || routeMode,
+    route_reason:
+      payload?.route_reason ||
+      routeReason ||
+      (payload?.ok === false
+        ? "native direct execution returned failure"
+        : "native direct execution succeeded"),
+    fallback_history,
+    probe_source: probe_source || "native-runner",
+  };
+}
+
 export class NativeActionRunner {
   constructor({ sidecarDir = null, execImpl = null } = {}) {
     this.sidecarDir = sidecarDir;
@@ -79,6 +115,8 @@ export class NativeActionRunner {
         },
         tool_available: false,
         notes: "mock unavailable",
+        route_mode: "native-direct",
+        route_reason: "mock native unavailable",
       };
     }
     if (mode === "permission_denied") {
@@ -89,6 +127,8 @@ export class NativeActionRunner {
         error: { code: "permission_denied", message: `${tool} not permitted` },
         tool_available: true,
         notes: "mock permission denied",
+        route_mode: "native-direct",
+        route_reason: "mock permission denied",
       };
     }
     return {
@@ -103,6 +143,8 @@ export class NativeActionRunner {
       },
       tool_available: true,
       notes: "mock success",
+      route_mode: "native-direct",
+      route_reason: "mock native execution succeeded",
     };
   }
 
@@ -111,9 +153,36 @@ export class NativeActionRunner {
     payload = {},
     { timeoutMs = 15000, model = "sonnet" } = {},
   ) {
+    let resolvedModel;
+    try {
+      resolvedModel = normalizeNativeModel(model);
+    } catch (err) {
+      return withRouteMetadata({
+        ok: false,
+        action,
+        native_tool: TOOL_BY_ACTION[action] || null,
+        error: { code: "unsupported_model", message: err.message },
+        tool_available: null,
+        notes: `Rejected model: ${String(model || "") || "(empty)"}`,
+        latency_ms: 0,
+      }, {
+        routeReason: "native execution blocked: unsupported model",
+      });
+    }
+
     if (process.env.LEAD_SIDECAR_NATIVE_RUNNER_MOCK) {
       const out = this._mockResponse(action, payload);
-      return { ...out, latency_ms: 1, path_mode: "ephemeral" };
+      return withRouteMetadata({
+        ...out,
+        latency_ms: 1,
+      }, {
+        routeReason:
+          out.route_reason ||
+          (out.ok
+            ? "mock native execution succeeded"
+            : "mock native execution failed"),
+        probeSource: "native-runner-mock",
+      });
     }
 
     const templateMap = {
@@ -139,17 +208,21 @@ export class NativeActionRunner {
         timeoutMs,
         action,
         payload,
-        model,
+        model: resolvedModel,
       });
       try {
         const parsed = parseStructuredJson(raw.stdout || raw.output || "");
-        return {
+        return withRouteMetadata({
           ...parsed,
           latency_ms: raw.latency_ms ?? 0,
-          path_mode: "ephemeral",
-        };
+        }, {
+          routeReason:
+            parsed?.ok === false
+              ? "native direct execution returned failure"
+              : "native direct execution succeeded",
+        });
       } catch (err) {
-        return {
+        return withRouteMetadata({
           ok: false,
           action,
           native_tool: TOOL_BY_ACTION[action] || null,
@@ -159,13 +232,14 @@ export class NativeActionRunner {
             -1000,
           ),
           latency_ms: raw.latency_ms ?? 0,
-          path_mode: "ephemeral",
-        };
+        }, {
+          routeReason: "native direct execution returned malformed response",
+        });
       }
     }
 
     const started = Date.now();
-    const args = ["-p", prompt];
+    const args = ["-p", "--model", resolvedModel, prompt];
     const child = spawn("claude", args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
@@ -195,7 +269,7 @@ export class NativeActionRunner {
 
     const latency_ms = Date.now() - started;
     if (result.timeout) {
-      return {
+      return withRouteMetadata({
         ok: false,
         action,
         native_tool: TOOL_BY_ACTION[action] || null,
@@ -207,11 +281,12 @@ export class NativeActionRunner {
         tool_available: null,
         notes: stderr.slice(-500),
         latency_ms,
-        path_mode: "ephemeral",
-      };
+      }, {
+        routeReason: "native direct execution timed out",
+      });
     }
     if (result.error) {
-      return {
+      return withRouteMetadata({
         ok: false,
         action,
         native_tool: TOOL_BY_ACTION[action] || null,
@@ -222,20 +297,25 @@ export class NativeActionRunner {
         tool_available: null,
         notes: stderr.slice(-500),
         latency_ms,
-        path_mode: "ephemeral",
-      };
+      }, {
+        routeReason: "native direct execution failed to start",
+      });
     }
 
     try {
       const parsed = parseStructuredJson(result.stdout);
-      return {
+      return withRouteMetadata({
         ...parsed,
         latency_ms,
-        path_mode: "ephemeral",
         raw_code: result.code,
-      };
+      }, {
+        routeReason:
+          parsed?.ok === false
+            ? "native direct execution returned failure"
+            : "native direct execution succeeded",
+      });
     } catch (err) {
-      return {
+      return withRouteMetadata({
         ok: false,
         action,
         native_tool: TOOL_BY_ACTION[action] || null,
@@ -243,8 +323,9 @@ export class NativeActionRunner {
         tool_available: null,
         notes: (result.stderr || result.stdout || "").slice(-1000),
         latency_ms,
-        path_mode: "ephemeral",
-      };
+      }, {
+        routeReason: "native direct execution returned malformed response",
+      });
     }
   }
 }
