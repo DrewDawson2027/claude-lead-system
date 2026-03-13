@@ -53,7 +53,7 @@ BRANCH="auto/${DATE}-${SLUG}"
 # ── 4. Check out / create the branch in the slot ────────────────────────────
 cd "$SLOT" || { echo "STATUS=no_slot"; exit 0; }
 
-CHECKOUT_OUT=$(git checkout -b "$BRANCH" 2>&1 || git checkout "$BRANCH" 2>&1)
+git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH" 2>/dev/null
 CHECKOUT_EXIT=$?
 
 if [ $CHECKOUT_EXIT -ne 0 ]; then
@@ -93,5 +93,6 @@ echo "STATUS=ready"
 echo "SLOT_PATH=$SLOT"
 echo "BRANCH=$CURRENT_BRANCH"
 echo "SLOT_DIR=$SLOT"
+echo "REPO_PATH=$REPO_PATH"
 
 exit 0
