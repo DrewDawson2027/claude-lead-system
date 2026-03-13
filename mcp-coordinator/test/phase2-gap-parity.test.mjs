@@ -171,7 +171,7 @@ test('Gap 6: coord_discover_peers table has correct column headers', async () =>
       team_name: 'charlie',
       worker_name: 'reviewer',
       role: 'reviewer',
-      model: 'opus',
+      model: 'sonnet',
       permission_mode: 'readOnly',
       status: 'running',
       tmux_pane_id: '%9',
@@ -265,6 +265,63 @@ test('Gap 4: worker instructions state plain text output is NOT visible to teamm
       /NOT visible to the team lead or other teammates/,
       'worker instructions must warn that plain text is not visible',
     );
+  } finally {
+    restore();
+  }
+});
+
+test('Gap 4: worker prompt includes delegation fallback when native parent session is unavailable', async () => {
+  const { home, results } = setupHome();
+  const projectDir = join(home, 'project');
+  mkdirSync(projectDir, { recursive: true });
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const taskId = 'W_PARENT_FALLBACK';
+    api.handleToolCall('coord_spawn_worker', {
+      task_id: taskId,
+      directory: projectDir,
+      prompt: 'do the task',
+      mode: 'interactive',
+      notify_session_id: 'lead5678',
+    });
+    const promptContent = readFileSync(join(results, `${taskId}.prompt`), 'utf8');
+    assert.match(promptContent, /Lead Delegation Context/);
+    assert.match(promptContent, /Native Claude parent-session linkage is unavailable/);
+    assert.match(promptContent, /delegated sub-agent/i);
+  } finally {
+    restore();
+  }
+});
+
+test('Gap 4: queued team dispatch preserves parent_session_id for later assignment', async () => {
+  const { home, results } = setupHome();
+  const projectDir = join(home, 'project');
+  mkdirSync(projectDir, { recursive: true });
+  const parentSessionId = '12345678-1234-4234-8234-123456789abc';
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    api.handleToolCall('coord_create_team', {
+      team_name: 'delta',
+      members: [{ name: 'ivy', role: 'implementer' }],
+    });
+    api.handleToolCall('coord_team_queue_task', {
+      team_name: 'delta',
+      task_id: 'TQ_PARENT',
+      subject: 'Implement parent-linked task',
+      prompt: 'implement task',
+      notify_session_id: 'lead5678',
+      parent_session_id: parentSessionId,
+    });
+    api.handleToolCall('coord_team_assign_next', {
+      team_name: 'delta',
+      directory: projectDir,
+      worker_task_id: 'WQ_PARENT',
+      mode: 'pipe',
+    });
+    const meta = readJson(join(results, 'WQ_PARENT.meta.json'));
+    assert.equal(meta.claude_parent_session_id, parentSessionId);
   } finally {
     restore();
   }

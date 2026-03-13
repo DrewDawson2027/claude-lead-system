@@ -128,6 +128,7 @@ test('coord_team_dispatch success response contains team name', async () => {
     const txt = textOf(result);
     assert.match(txt, /dispatch-team|Dispatched/i, 'Should reference the team or dispatch action');
     assert.match(txt, /login/i, 'Should reference the task subject');
+    assert.match(txt, /Dispatch Profile: low-overhead|Dispatch Profile: standard/i);
   } finally {
     restore();
   }

@@ -158,7 +158,7 @@ def make_frames() -> list[tuple[Image.Image, int]]:
     frames.append((f.copy(), 1200))
 
     draw_line(f, 2, [("  ", TEXT), ("✓ ", GREEN), ("Message sent to ", MUTED), ("e5f6g7h8", CYAN)])
-    draw_line(f, 3, [("    Priority: ", MUTED), ("urgent", RED), ("  |  Cost: ", MUTED), ("0 API tokens", GREEN)])
+    draw_line(f, 3, [("    Priority: ", MUTED), ("urgent", RED), ("  |  Path: ", MUTED), ("local inbox", GREEN)])
     frames.append((f.copy(), 2000))
 
     # ═══ Scene 5: Spawn worker ═══
@@ -173,7 +173,7 @@ def make_frames() -> list[tuple[Image.Image, int]]:
     frames.append((f.copy(), 2000))
 
     # Worker complete
-    draw_line(f, 8, [("  ─── 45 seconds later ───", SURFACE)])
+    draw_line(f, 8, [("  ─── Worker complete ───", SURFACE)])
     draw_line(f, 10, [("  Status: ", MUTED), ("completed ✓", GREEN)])
     draw_line(f, 11, [("  ", TEXT), ("✓ 25 tests passed  |  Coverage: 94.2%", GREEN)])
     frames.append((f.copy(), 2500))
@@ -181,9 +181,9 @@ def make_frames() -> list[tuple[Image.Image, int]]:
     # ═══ Scene 6: Punchline ═══
     f = new_frame("claude — lead")
     draw_line(f, 1, [("──────────────────────────────────────────────────────", SURFACE)])
-    draw_line(f, 3, [("Total coordination cost: ", TEXT), ("0 API tokens", GREEN)])
-    draw_line(f, 5, [("All orchestration via shell hooks + filesystem state.", MUTED)])
-    draw_line(f, 6, [("State: 1.4KB avg  |  Latency: 0.019ms  |  207x faster", MUTED)])
+    draw_line(f, 3, [("Execution path: ", TEXT), ("coordinator", GREEN)])
+    draw_line(f, 5, [("Local state files + inbox delivery handle coordination.", MUTED)])
+    draw_line(f, 6, [("Demo posture: macOS coordinator workflow.", MUTED)])
     draw_line(f, 8, [("github.com/DrewDawson2027/claude-lead-system", CYAN)])
     frames.append((f.copy(), 3000))
 

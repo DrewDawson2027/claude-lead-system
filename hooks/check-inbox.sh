@@ -11,17 +11,19 @@ source "$HOOK_DIR/lib/portable.sh"
 require_jq
 
 INPUT=$(cat)
-RAW_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // ""')
+IFS=$'\t' read -r RAW_SESSION_ID TOOL_NAME <<EOF
+$(printf '%s' "$INPUT" | jq -r '[(.session_id // ""), (.tool_name // "unknown")] | @tsv' 2>/dev/null)
+EOF
 if ! [[ "$RAW_SESSION_ID" =~ ^[A-Za-z0-9_-]{8,64}$ ]]; then
   echo "BLOCKED: Invalid session_id in check-inbox payload." >&2
   exit 2
 fi
 SESSION_ID="${RAW_SESSION_ID:0:8}"
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // "unknown"')
 
 # ─── PERMISSION MODE ENFORCEMENT (physically blocks tools per worker mode) ───
 # Matches Claude's agent type tool restrictions: readOnly, editOnly, planOnly, acceptEdits
 WORKER_TASK_ID="${CLAUDE_WORKER_TASK_ID:-}"
+WORKER_NAME="${CLAUDE_WORKER_NAME:-}"
 PERMISSION_MODE="${CLAUDE_WORKER_PERMISSION_MODE:-acceptEdits}"
 
 # readOnly mode: blocks Edit/Write/Bash entirely (research/exploration workers)
@@ -74,92 +76,111 @@ if [ "$PERMISSION_MODE" = "planOnly" ] || { [ -n "$WORKER_TASK_ID" ] && [ "$PERM
 fi
 INBOX_DIR=~/.claude/terminals/inbox
 INBOX="${INBOX_DIR}/${SESSION_ID}.jsonl"
+RESULTS_DIR=~/.claude/terminals/results
 
 mkdir -p "$INBOX_DIR"
 
-# Route completed worker output to an explicit target inbox.
-RESULTS_DIR=~/.claude/terminals/results
-for donefile in "$RESULTS_DIR"/*.meta.json.done; do
-  [ -f "$donefile" ] || continue
-  TASK_ID=$(basename "$donefile" .meta.json.done)
-  REPORTED="$RESULTS_DIR/${TASK_ID}.reported"
-  [ -f "$REPORTED" ] && continue
-  ROUTE_LOCK="$RESULTS_DIR/${TASK_ID}.route.lock"
-  if ! mkdir "$ROUTE_LOCK" 2>/dev/null; then
-    continue
+ROUTE_SCAN_STAMP="$RESULTS_DIR/.route-scan.stamp"
+ROUTE_SCAN_COOLDOWN="${CLAUDE_LEAD_ROUTE_SCAN_COOLDOWN:-10}"
+ROUTE_SCAN_MAX_PER_PASS="${CLAUDE_LEAD_ROUTE_SCAN_MAX_PER_PASS:-8}"
+DO_ROUTE_SCAN=false
+if [ -z "$WORKER_TASK_ID" ] && [ -z "$WORKER_NAME" ]; then
+  DO_ROUTE_SCAN=true
+  if [ -e "$ROUTE_SCAN_STAMP" ]; then
+    ROUTE_SCAN_AGE=$(( $(date +%s) - $(get_file_mtime_epoch "$ROUTE_SCAN_STAMP") ))
+    if [ "$ROUTE_SCAN_AGE" -ge 0 ] && [ "$ROUTE_SCAN_AGE" -lt "$ROUTE_SCAN_COOLDOWN" ]; then
+      DO_ROUTE_SCAN=false
+    fi
   fi
-
-  META_FILE="$RESULTS_DIR/${TASK_ID}.meta.json"
-  TARGET_SESSION=""
-  if [ -f "$META_FILE" ]; then
-    TARGET_SESSION=$(jq -r '.notify_session_id // .requested_by // empty' "$META_FILE" 2>/dev/null || true)
-  fi
-
-  ROUTED=false
-  if [[ "$TARGET_SESSION" =~ ^[A-Za-z0-9_-]{8}$ ]]; then
-    TARGET_INBOX="${INBOX_DIR}/${TARGET_SESSION}.jsonl"
-    if [ -L "$TARGET_INBOX" ]; then
-      rmdir "$ROUTE_LOCK" 2>/dev/null || true
+fi
+if $DO_ROUTE_SCAN; then
+  touch "$ROUTE_SCAN_STAMP"
+  ROUTED_THIS_PASS=0
+  for donefile in "$RESULTS_DIR"/*.meta.json.done; do
+    [ -f "$donefile" ] || continue
+    if [ "$ROUTED_THIS_PASS" -ge "$ROUTE_SCAN_MAX_PER_PASS" ]; then
+      break
+    fi
+    TASK_ID=$(basename "$donefile" .meta.json.done)
+    REPORTED="$RESULTS_DIR/${TASK_ID}.reported"
+    [ -f "$REPORTED" ] && continue
+    ROUTE_LOCK="$RESULTS_DIR/${TASK_ID}.route.lock"
+    if ! mkdir "$ROUTE_LOCK" 2>/dev/null; then
       continue
     fi
-    DONE_SUMMARY=$(tr -d '\000-\010\013\014\016-\037\177\200-\237' < "$donefile" | head -c 4000)
-    RESULT_TAIL=$(tail -20 "$RESULTS_DIR/${TASK_ID}.txt" 2>/dev/null | tr -d '\000-\010\013\014\016-\037\177\200-\237' | head -c 12000)
-    if jq -n \
-      --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      --arg task "$TASK_ID" \
-      --arg done_summary "$DONE_SUMMARY" \
-      --arg tail "$RESULT_TAIL" \
-      '
-      {
-        ts: $ts,
-        from: "coordinator",
-        priority: "normal",
-        content: (
-          "[WORKER COMPLETED] " + $task + "\n" + $done_summary +
-          (if $tail != "" then "\n\n" + $tail else "" end)
-        )
-      }
-      ' >> "$TARGET_INBOX"; then
-      ROUTED=true
-    fi
-  fi
 
-  if [ "$ROUTED" = true ]; then
-    touch "$REPORTED"
-  fi
-  rmdir "$ROUTE_LOCK" 2>/dev/null || true
-done
+    META_FILE="$RESULTS_DIR/${TASK_ID}.meta.json"
+    TARGET_SESSION=""
+    if [ -f "$META_FILE" ]; then
+      TARGET_SESSION=$(jq -r '.notify_session_id // .requested_by // empty' "$META_FILE" 2>/dev/null || true)
+    fi
+
+    ROUTED=false
+    if [[ "$TARGET_SESSION" =~ ^[A-Za-z0-9_-]{8}$ ]]; then
+      TARGET_INBOX="${INBOX_DIR}/${TARGET_SESSION}.jsonl"
+      if [ -L "$TARGET_INBOX" ]; then
+        rmdir "$ROUTE_LOCK" 2>/dev/null || true
+        continue
+      fi
+      DONE_SUMMARY=$(tr -d '\000-\010\013\014\016-\037\177\200-\237' < "$donefile" | head -c 4000)
+      RESULT_TAIL=$(tail -20 "$RESULTS_DIR/${TASK_ID}.txt" 2>/dev/null | tr -d '\000-\010\013\014\016-\037\177\200-\237' | head -c 12000)
+      if jq -n \
+        --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg task "$TASK_ID" \
+        --arg done_summary "$DONE_SUMMARY" \
+        --arg tail "$RESULT_TAIL" \
+        '
+        {
+          ts: $ts,
+          from: "coordinator",
+          priority: "normal",
+          content: (
+            "[WORKER COMPLETED] " + $task + "\n" + $done_summary +
+            (if $tail != "" then "\n\n" + $tail else "" end)
+          )
+        }
+        ' >> "$TARGET_INBOX"; then
+        ROUTED=true
+      fi
+    fi
+
+    if [ "$ROUTED" = true ]; then
+      ROUTED_THIS_PASS=$((ROUTED_THIS_PASS + 1))
+      touch "$REPORTED"
+    fi
+    rmdir "$ROUTE_LOCK" 2>/dev/null || true
+  done
+fi
 
 # ─── Plan Approval Check ───
 # If this worker has a pending approval file, check and deliver it
 RESULTS_DIR_CHECK=~/.claude/terminals/results
-for approval_file in "$RESULTS_DIR_CHECK"/*.approval; do
-  [ -f "$approval_file" ] || continue
-  APPROVAL_TASK=$(basename "$approval_file" .approval)
-  APPROVAL_REPORTED="$RESULTS_DIR_CHECK/${APPROVAL_TASK}.approval.reported"
-  [ -f "$APPROVAL_REPORTED" ] && continue
-  # Check if this approval is for our session (match by checking meta notify_session_id)
-  META_CHECK="$RESULTS_DIR_CHECK/${APPROVAL_TASK}.meta.json"
-  if [ -f "$META_CHECK" ]; then
-    NOTIFY_SID=$(jq -r '.notify_session_id // empty' "$META_CHECK" 2>/dev/null || true)
-    # If this worker IS the approval target or we can't determine, deliver it
+if [ -n "$WORKER_TASK_ID" ]; then
+  approval_file="$RESULTS_DIR_CHECK/${WORKER_TASK_ID}.approval"
+  APPROVAL_REPORTED="$RESULTS_DIR_CHECK/${WORKER_TASK_ID}.approval.reported"
+  if [ -f "$approval_file" ] && [ ! -f "$APPROVAL_REPORTED" ]; then
+    META_CHECK="$RESULTS_DIR_CHECK/${WORKER_TASK_ID}.meta.json"
+    NOTIFY_SID=""
+    if [ -f "$META_CHECK" ]; then
+      NOTIFY_SID=$(jq -r '.notify_session_id // empty' "$META_CHECK" 2>/dev/null || true)
+    fi
     if [ "$NOTIFY_SID" = "$SESSION_ID" ] || [ -z "$NOTIFY_SID" ]; then
       APPROVAL_STATUS=$(jq -r '.status // "unknown"' "$approval_file" 2>/dev/null || echo "unknown")
       APPROVAL_MSG=$(jq -r '.message // .feedback // ""' "$approval_file" 2>/dev/null || true)
       echo "--- PLAN APPROVAL UPDATE ---"
-      echo "Task: $APPROVAL_TASK"
+      echo "Task: $WORKER_TASK_ID"
       echo "Status: $APPROVAL_STATUS"
       [ -n "$APPROVAL_MSG" ] && echo "Message: $APPROVAL_MSG"
       echo "--- END APPROVAL ---"
       touch "$APPROVAL_REPORTED"
     fi
   fi
-done
+fi
 
 # ─── Task Board Suggestions (for interactive workers) ───
 # Check for unassigned, unblocked pending tasks and suggest them
 TASKS_DIR=~/.claude/terminals/tasks
-if [ -d "$TASKS_DIR" ]; then
+if [ "${CLAUDE_LEAD_SHOW_TASK_SUGGESTIONS:-0}" = "1" ] && [ -d "$TASKS_DIR" ]; then
   PENDING_TASKS=""
   for tf in "$TASKS_DIR"/*.json; do
     [ -f "$tf" ] || continue

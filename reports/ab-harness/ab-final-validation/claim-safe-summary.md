@@ -1,0 +1,3 @@
+- Claims are restricted to measured A/B outcomes from this harness run.
+- lead_coordinator: measured token difference vs native is inconclusive; no savings claim is supported.
+- lead_overlay: measured token difference vs native is inconclusive; no savings claim is supported.

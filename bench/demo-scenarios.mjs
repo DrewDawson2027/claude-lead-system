@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * End-to-end demo scenarios exercising the sidecar system.
+ * Demo scenarios against live supported sidecar endpoints.
  *
  * Usage: node bench/demo-scenarios.mjs --port PORT
  * Requires a running sidecar instance.
@@ -12,11 +12,15 @@ const PORT = portIdx >= 0 ? Number(args[portIdx + 1]) : 9900;
 const BASE = `http://127.0.0.1:${PORT}`;
 
 async function api(method, path, body = null) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(10000) };
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(15000),
+  };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`${BASE}${path}`, opts);
   const data = await res.json().catch(() => ({}));
-  return { status: res.status, ok: res.ok, data };
+  return { status: res.status, ok: res.ok, data, path };
 }
 
 async function scenario(name, fn) {
@@ -33,89 +37,139 @@ function assert(condition, msg) {
   if (!condition) throw new Error(`Assertion failed: ${msg}`);
 }
 
-/* ── Scenario 1: Happy Path ──────────────────────────────────────── */
-async function happyPath() {
-  // Health check
-  const health = await api('GET', '/health.json');
-  assert(health.ok, 'Health endpoint should be OK');
+/* ── Scenario 1: API Health + Schema ─────────────────────────────── */
+async function healthAndSchema() {
+  const health = await api('GET', '/v1/health');
+  assert(health.ok, `/v1/health should be OK (got ${health.status})`);
 
-  // Trigger snapshot rebuild
-  const rebuild = await api('POST', '/rebuild', { source: 'demo' });
+  const schemaVersion = await api('GET', '/v1/schema/version');
+  assert(schemaVersion.ok, '/v1/schema/version should be OK');
+  assert(schemaVersion.data?.api_version === 'v1', 'api_version should be v1');
 
-  // Get snapshot
-  const snap = await api('GET', '/snapshot.json');
-  assert(snap.ok, 'Snapshot should be accessible');
+  const routes = await api('GET', '/v1/schema/routes');
+  assert(routes.ok, '/v1/schema/routes should be OK');
+  assert(Array.isArray(routes.data?.routes), 'schema routes payload should include routes[]');
 
-  // Get metrics
-  const metrics = await api('GET', '/metrics.json');
-  assert(metrics.ok, 'Metrics should be accessible');
-
-  // Export diagnostics
-  const diag = await api('POST', '/diagnostics/export', { label: 'demo-happy-path' });
-  assert(diag.ok, 'Diagnostics export should succeed');
-
-  return { health: health.data, has_snapshot: !!snap.data, diagnostics_file: diag.data?.file };
+  return {
+    health_status: health.data?.status,
+    api_version: schemaVersion.data?.api_version,
+    route_count: routes.data?.routes?.length ?? 0,
+  };
 }
 
-/* ── Scenario 2: Metrics History ─────────────────────────────────── */
-async function metricsHistory() {
-  // Fetch metrics history
-  const history = await api('GET', '/metrics/history?limit=10');
-  assert(history.ok, 'Metrics history should be accessible');
+/* ── Scenario 2: Metrics + Timeline ──────────────────────────────── */
+async function metricsAndTimeline() {
+  const metrics = await api('GET', '/v1/metrics.json');
+  assert(metrics.ok, '/v1/metrics.json should be OK');
 
-  // Fetch metrics diff
-  const diff = await api('GET', '/metrics/diff');
-  assert(diff.ok, 'Metrics diff should be accessible');
+  const history = await api('GET', '/v1/metrics/history?limit=10');
+  assert(history.ok, '/v1/metrics/history should be OK');
 
-  return { history_count: history.data?.count ?? 0, has_diff: !!diff.data?.diff };
+  const diff = await api('GET', '/v1/metrics/diff');
+  assert(diff.ok, '/v1/metrics/diff should be OK');
+
+  const timeline = await api('GET', '/v1/timeline/replay');
+  assert(timeline.ok, '/v1/timeline/replay should be OK');
+
+  return {
+    history_count: history.data?.count ?? 0,
+    has_diff: diff.data?.diff !== undefined,
+    replay_events: Array.isArray(timeline.data?.events) ? timeline.data.events.length : 0,
+  };
 }
 
-/* ── Scenario 3: Comparison Report ───────────────────────────────── */
-async function comparisonReport() {
-  const report = await api('POST', '/reports/comparison', { label: 'demo-report' });
-  assert(report.ok, 'Report generation should succeed');
+/* ── Scenario 3: Diagnostics + Reports ───────────────────────────── */
+async function diagnosticsAndReports() {
+  const diag = await api('POST', '/v1/diagnostics/export', { label: 'demo-diagnostics' });
+  assert(diag.ok, '/v1/diagnostics/export should succeed');
+  assert(typeof diag.data?.file === 'string', 'diagnostics export should return a file path');
+
+  const latestDiag = await api('GET', '/v1/diagnostics/latest');
+  assert(latestDiag.ok, '/v1/diagnostics/latest should be OK');
+
+  const report = await api('POST', '/v1/reports/comparison', { label: 'demo-report' });
+  assert(report.ok, '/v1/reports/comparison should succeed');
   assert(report.data?.markdown, 'Report should contain markdown');
   assert(report.data?.json, 'Report should contain JSON summary');
 
-  const latest = await api('GET', '/reports/latest');
-  assert(latest.ok, 'Latest report should be accessible');
+  const latest = await api('GET', '/v1/reports/latest');
+  assert(latest.ok, '/v1/reports/latest should be accessible');
 
-  return { report_file: report.data?.file, has_markdown: !!report.data?.markdown, json_keys: Object.keys(report.data?.json || {}) };
+  return {
+    diagnostics_file: diag.data?.file,
+    has_latest_diagnostics: Boolean(latestDiag.data?.latest),
+    report_file: report.data?.file,
+    has_markdown: Boolean(report.data?.markdown),
+    report_json_keys: Object.keys(report.data?.json || {}).length,
+  };
 }
 
-/* ── Scenario 4: Dispatch Routing ────────────────────────────────── */
-async function dispatchRouting() {
-  // Route simulation
-  const sim = await api('POST', '/route/simulate', { action: 'coord_list_tasks', payload: {} });
-  assert(sim.ok, 'Route simulation should succeed');
+/* ── Scenario 4: Maintenance + Consistency ───────────────────────── */
+async function maintenanceAndConsistency() {
+  const run = await api('POST', '/v1/maintenance/run', { source: 'demo' });
+  assert(run.ok, '/v1/maintenance/run should succeed');
+  const maintenanceOk = run.data?.ok === true;
+  assert(maintenanceOk, '/v1/maintenance/run should return ok=true');
 
-  return { simulation: sim.data };
+  const consistency = await api('GET', '/v1/events/consistency');
+  assert(consistency.ok, '/v1/events/consistency should be OK');
+  const consistencyMatch = consistency.data?.consistent === true;
+  assert(
+    consistencyMatch,
+    '/v1/events/consistency should report consistent=true',
+  );
+
+  const rebuildCheck = await api('POST', '/v1/events/rebuild-check', {});
+  assert(rebuildCheck.ok, '/v1/events/rebuild-check should be OK');
+  const rebuildCheckMatch = rebuildCheck.data?.consistent === true;
+  assert(
+    rebuildCheckMatch,
+    '/v1/events/rebuild-check should report consistent=true',
+  );
+
+  const snapshotDiff = await api('POST', '/v1/snapshots/diff', {});
+  assert(snapshotDiff.ok, '/v1/snapshots/diff should be OK');
+
+  return {
+    maintenance_ok: maintenanceOk,
+    consistency_match: consistencyMatch,
+    rebuild_check_match: rebuildCheckMatch,
+    snapshot_diff_present: snapshotDiff.data?.diff !== undefined,
+  };
 }
 
-/* ── Scenario 5: System Diagnostics ──────────────────────────────── */
-async function systemDiagnostics() {
-  // Full diagnostics bundle
-  const diag = await api('POST', '/diagnostics/export', { label: 'demo-full' });
-  assert(diag.ok, 'Diagnostics export should succeed');
+/* ── Scenario 5: Action Routing Simulation ───────────────────────── */
+async function routingSimulation() {
+  const simulation = await api('POST', '/v1/route/simulate', {
+    team_name: 'demo-team',
+    action: 'dispatch',
+    payload: {
+      team_name: 'demo-team',
+      subject: 'demo',
+      prompt: 'Validate route decision path only',
+    },
+  });
+  assert(simulation.ok, '/v1/route/simulate should succeed');
+  assert(simulation.data?.decision, 'route simulation should return decision');
 
-  // Schema version check
-  const latest = await api('GET', '/diagnostics/latest');
-  assert(latest.ok, 'Diagnostics latest should be accessible');
+  const actions = await api('GET', '/v1/actions');
+  assert(actions.ok, '/v1/actions should be accessible');
+  assert(Array.isArray(actions.data?.actions), '/v1/actions should return actions[]');
 
-  // Maintenance sweep
-  const sweep = await api('POST', '/maintenance/run', {});
-  assert(sweep.ok, 'Maintenance sweep should succeed');
-
-  return { diagnostics: diag.data, has_latest: !!latest.data };
+  return {
+    decision_adapter: simulation.data?.decision?.adapter ?? null,
+    decision_reason: simulation.data?.decision?.reason ?? null,
+    action_queue_size: actions.data?.actions?.length ?? 0,
+  };
 }
 
 /* ── Run all ─────────────────────────────────────────────────────── */
 const results = [];
-results.push(await scenario('happy_path', happyPath));
-results.push(await scenario('metrics_history', metricsHistory));
-results.push(await scenario('comparison_report', comparisonReport));
-results.push(await scenario('dispatch_routing', dispatchRouting));
-results.push(await scenario('system_diagnostics', systemDiagnostics));
+results.push(await scenario('health_and_schema', healthAndSchema));
+results.push(await scenario('metrics_and_timeline', metricsAndTimeline));
+results.push(await scenario('diagnostics_and_reports', diagnosticsAndReports));
+results.push(await scenario('maintenance_and_consistency', maintenanceAndConsistency));
+results.push(await scenario('routing_simulation', routingSimulation));
 
 const allPassed = results.every(r => r.passed);
 const output = {

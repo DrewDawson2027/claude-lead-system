@@ -56,9 +56,9 @@ slow_print "${BOLD}${WHITE}Claude Lead System ${VERSION}${RESET} — Demo" 1.5
 echo ""
 slow_print "${DIM}The problem: multiple Claude Code terminals in one repo.${RESET}" 1
 slow_print "${DIM}They can't see each other. They step on the same files.${RESET}" 1
-slow_print "${DIM}You burn API tokens just babysitting them.${RESET}" 1.5
+slow_print "${DIM}Coordination state ends up scattered across separate sessions.${RESET}" 1.5
 echo ""
-slow_print "${BOLD}${CYAN}The fix: one command.${RESET}" 1
+slow_print "${BOLD}${CYAN}The fix: one lead session.${RESET}" 1
 
 echo ""
 echo -ne "${GREEN}[claude-lead ${VERSION}] \$ ${RESET}"
@@ -130,7 +130,7 @@ sleep 1
 echo ""
 echo -e "  ${GREEN}✓${RESET} Message sent to ${CYAN}e5f6g7h8${RESET}"
 echo -e "    Priority: ${RED}urgent${RESET}  |  Delivery: next tool invocation"
-echo -e "    ${DIM}Cost: 0 API tokens (filesystem hook, not context window)${RESET}"
+echo -e "    ${DIM}Path: local inbox delivery via filesystem hook${RESET}"
 sleep 2
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -176,10 +176,10 @@ sleep 2
 echo ""
 echo -e "${DIM}──────────────────────────────────────────────────────────────────${RESET}"
 echo ""
-slow_print "${BOLD}${WHITE}Total coordination cost:${RESET} ${BOLD}${GREEN}0 API tokens${RESET}" 0.8
-slow_print "${DIM}All orchestration via shell hooks + filesystem state.${RESET}" 0.5
-slow_print "${DIM}State files: 1.4KB avg  |  Latency: 0.019ms  |  207x faster than transcripts${RESET}" 1
+slow_print "${BOLD}${WHITE}Execution path:${RESET} ${BOLD}${GREEN}coordinator${RESET}" 0.8
+slow_print "${DIM}Coordination handled by shell hooks + filesystem state.${RESET}" 0.5
+slow_print "${DIM}Small local state files replace transcript-scanning for coordination.${RESET}" 1
 echo ""
 slow_print "${BOLD}${CYAN}github.com/DrewDawson2027/claude-lead-system${RESET}" 1
-slow_print "${DIM}curl -fsSL https://raw.githubusercontent.com/DrewDawson2027/claude-lead-system/main/install.sh | bash${RESET}" 2
+slow_print "${DIM}Install from the latest release, then launch with claudex.${RESET}" 2
 echo ""

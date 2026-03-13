@@ -1,0 +1,5 @@
+{"ts":"2026-03-12T03:01:17.405Z","type":"workload_started","count":1,"detail":"path=native trial=6","run_id":"ab-economics-proof-synthetic-20260312-final","trial":"6","path_id":"native","workload_id":"agent-teams-economics-ab-synthetic"}
+{"ts":"2026-03-12T03:01:17.588Z","type":"human_intervention","count":1,"detail":"manual approvals","run_id":"ab-economics-proof-synthetic-20260312-final","trial":"6","path_id":"native","workload_id":"agent-teams-economics-ab-synthetic"}
+{"ts":"2026-03-12T03:01:17.609Z","type":"conflict_incident","count":1,"detail":"file overlap","run_id":"ab-economics-proof-synthetic-20260312-final","trial":"6","path_id":"native","workload_id":"agent-teams-economics-ab-synthetic"}
+{"ts":"2026-03-12T03:01:17.628Z","type":"resume_attempt","count":1,"detail":"resume invoked","run_id":"ab-economics-proof-synthetic-20260312-final","trial":"6","path_id":"native","workload_id":"agent-teams-economics-ab-synthetic"}
+{"ts":"2026-03-12T03:01:17.648Z","type":"workload_completed","count":1,"detail":"workload success","run_id":"ab-economics-proof-synthetic-20260312-final","trial":"6","path_id":"native","workload_id":"agent-teams-economics-ab-synthetic"}

@@ -1,0 +1,74 @@
+{
+  "run_id": "ab-economics-proof-synthetic-20260312-final",
+  "generated_at": "2026-03-12T03:01:13.432Z",
+  "config_path": "/Users/drewdawson/claude-lead-system/reports/ab-harness/ab-economics-proof-synthetic.config.json",
+  "trials": 6,
+  "timeout_seconds": 120,
+  "seed": 20260312,
+  "confidence": 0.95,
+  "bootstrap_iterations": 2000,
+  "usage_window_tokens": 220000,
+  "workload": {
+    "id": "agent-teams-economics-ab-synthetic",
+    "description": "Synthetic-measured validation run for matched workload runner contract.",
+    "prompt_file": "/Users/drewdawson/claude-lead-system/bench/workloads/README-workload-prompt.md",
+    "comparison_target": "claude_agent_teams_subagent_workflow",
+    "evidence_tier": "synthetic_measured"
+  },
+  "baseline_path": "native",
+  "active_paths": [
+    {
+      "path_id": "native",
+      "command": "bash bench/workloads/run-native-subagent-workflow.sh",
+      "extra_env": {
+        "AB_WORKLOAD_RUN_MODE": "mock",
+        "AB_WORKLOAD_ALLOW_MOCK_FALLBACK": "1",
+        "AB_MOCK_AGENT_METRICS_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/transcripts/transcript-native.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/results"
+      }
+    },
+    {
+      "path_id": "lead_coordinator",
+      "command": "bash bench/workloads/run-lead-coordinator-workflow.sh",
+      "extra_env": {
+        "AB_WORKLOAD_RUN_MODE": "mock",
+        "AB_WORKLOAD_ALLOW_MOCK_FALLBACK": "1",
+        "AB_MOCK_AGENT_METRICS_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/transcripts/transcript-lead-coordinator.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/results"
+      }
+    },
+    {
+      "path_id": "lead_overlay",
+      "command": "bash bench/workloads/run-lead-overlay-workflow.sh",
+      "extra_env": {
+        "AB_WORKLOAD_RUN_MODE": "mock",
+        "AB_WORKLOAD_ALLOW_MOCK_FALLBACK": "1",
+        "AB_MOCK_AGENT_METRICS_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/agent-metrics.jsonl",
+        "AB_MOCK_TRANSCRIPT_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/transcripts/transcript-lead-overlay.jsonl",
+        "AB_MOCK_ACTIVITY_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/activity.jsonl",
+        "AB_MOCK_CONFLICTS_JSONL": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/conflicts.jsonl",
+        "AB_MOCK_RESULTS_DIR": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/results"
+      }
+    }
+  ],
+  "telemetry": {
+    "agent_metrics_jsonl": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/agent-metrics.jsonl",
+    "activity_jsonl": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/activity.jsonl",
+    "conflicts_jsonl": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/conflicts.jsonl",
+    "results_dir": "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/results",
+    "transcript_roots": [
+      "/Users/drewdawson/claude-lead-system/reports/ab-harness/synthetic-telemetry/transcripts"
+    ],
+    "transcript_include_regex": "transcript.*\\.jsonl$",
+    "transcript_max_depth": 4
+  },
+  "min_trials_for_savings_claim": 5,
+  "evidence_tier": "synthetic_measured",
+  "comparison_target": "claude_agent_teams_subagent_workflow"
+}

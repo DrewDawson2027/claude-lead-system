@@ -1,0 +1,298 @@
+{
+  "run_id": "ab-economics-proof-synthetic-20260312-final",
+  "generated_at": "2026-03-12T03:01:18.173Z",
+  "workload": {
+    "id": "agent-teams-economics-ab-synthetic",
+    "description": "Synthetic-measured validation run for matched workload runner contract.",
+    "prompt_file": "/Users/drewdawson/claude-lead-system/bench/workloads/README-workload-prompt.md",
+    "comparison_target": "claude_agent_teams_subagent_workflow",
+    "evidence_tier": "synthetic_measured"
+  },
+  "baseline_path": "native",
+  "trials": 6,
+  "confidence": 0.95,
+  "bootstrap_iterations": 2000,
+  "usage_window_tokens": 220000,
+  "data_quality": {
+    "total_runs": 18,
+    "expected_total_runs": 18,
+    "path_balance": [
+      {
+        "path_id": "native",
+        "expected_runs": 6,
+        "observed_runs": 6,
+        "balanced": true
+      },
+      {
+        "path_id": "lead_coordinator",
+        "expected_runs": 6,
+        "observed_runs": 6,
+        "balanced": true
+      },
+      {
+        "path_id": "lead_overlay",
+        "expected_runs": 6,
+        "observed_runs": 6,
+        "balanced": true
+      }
+    ],
+    "balanced_trial_matrix": true,
+    "token_observed_runs": 18,
+    "token_coverage_ratio": 1,
+    "event_observed_runs": 18,
+    "event_coverage_ratio": 1,
+    "claim_ready_for_savings": true,
+    "claim_readiness_issues": []
+  },
+  "summary": {
+    "per_path": {
+      "lead_overlay": {
+        "classification": "lead_overlay",
+        "runs": 6,
+        "completion_rate": {
+          "mean": 1,
+          "ci_low": 0.609666,
+          "ci_high": 1,
+          "successes": 6,
+          "total": 6
+        },
+        "latency_ms": {
+          "mean": 259.833333,
+          "ci_low": 257.666667,
+          "ci_high": 262.166667,
+          "n": 6,
+          "stddev": 3.060501
+        },
+        "tokens_total": {
+          "mean": 15400,
+          "ci_low": 15400,
+          "ci_high": 15400,
+          "n": 6,
+          "stddev": 0
+        },
+        "human_interventions": {
+          "mean": 1,
+          "ci_low": 1,
+          "ci_high": 1,
+          "n": 6,
+          "stddev": 0
+        },
+        "conflict_incidents": {
+          "mean": 0,
+          "ci_low": 0,
+          "ci_high": 0,
+          "n": 6,
+          "stddev": 0
+        },
+        "throughput_per_usage_window": {
+          "mean": 14.285714,
+          "ci_low": 14.285714,
+          "ci_high": 14.285714,
+          "n": 6,
+          "stddev": 0
+        },
+        "resume": {
+          "attempts": 6,
+          "successes": 6,
+          "success_rate_mean": 1,
+          "success_rate_ci_low": 0.609666,
+          "success_rate_ci_high": 1
+        }
+      },
+      "lead_coordinator": {
+        "classification": "lead_coordinator",
+        "runs": 6,
+        "completion_rate": {
+          "mean": 1,
+          "ci_low": 0.609666,
+          "ci_high": 1,
+          "successes": 6,
+          "total": 6
+        },
+        "latency_ms": {
+          "mean": 254,
+          "ci_low": 252.166667,
+          "ci_high": 255.5,
+          "n": 6,
+          "stddev": 2.280351
+        },
+        "tokens_total": {
+          "mean": 15000,
+          "ci_low": 15000,
+          "ci_high": 15000,
+          "n": 6,
+          "stddev": 0
+        },
+        "human_interventions": {
+          "mean": 1,
+          "ci_low": 1,
+          "ci_high": 1,
+          "n": 6,
+          "stddev": 0
+        },
+        "conflict_incidents": {
+          "mean": 0,
+          "ci_low": 0,
+          "ci_high": 0,
+          "n": 6,
+          "stddev": 0
+        },
+        "throughput_per_usage_window": {
+          "mean": 14.666667,
+          "ci_low": 14.666667,
+          "ci_high": 14.666667,
+          "n": 6,
+          "stddev": 0
+        },
+        "resume": {
+          "attempts": 6,
+          "successes": 6,
+          "success_rate_mean": 1,
+          "success_rate_ci_low": 0.609666,
+          "success_rate_ci_high": 1
+        }
+      },
+      "native": {
+        "classification": "native_claude",
+        "runs": 6,
+        "completion_rate": {
+          "mean": 1,
+          "ci_low": 0.609666,
+          "ci_high": 1,
+          "successes": 6,
+          "total": 6
+        },
+        "latency_ms": {
+          "mean": 270.666667,
+          "ci_low": 268.666667,
+          "ci_high": 272.666667,
+          "n": 6,
+          "stddev": 2.804758
+        },
+        "tokens_total": {
+          "mean": 15900,
+          "ci_low": 15900,
+          "ci_high": 15900,
+          "n": 6,
+          "stddev": 0
+        },
+        "human_interventions": {
+          "mean": 1,
+          "ci_low": 1,
+          "ci_high": 1,
+          "n": 6,
+          "stddev": 0
+        },
+        "conflict_incidents": {
+          "mean": 2,
+          "ci_low": 2,
+          "ci_high": 2,
+          "n": 6,
+          "stddev": 0
+        },
+        "throughput_per_usage_window": {
+          "mean": 13.836478,
+          "ci_low": 13.836478,
+          "ci_high": 13.836478,
+          "n": 6,
+          "stddev": 0
+        },
+        "resume": {
+          "attempts": 6,
+          "successes": 0,
+          "success_rate_mean": 0,
+          "success_rate_ci_low": 0,
+          "success_rate_ci_high": 0.390334
+        }
+      }
+    },
+    "comparisons_vs_baseline": {
+      "lead_overlay": {
+        "tokens_total_minus_baseline": {
+          "mean_diff": -500,
+          "ci_low": -500,
+          "ci_high": -500,
+          "n_a": 6,
+          "n_b": 6
+        },
+        "latency_ms_minus_baseline": {
+          "mean_diff": -10.833333,
+          "ci_low": -13.8375,
+          "ci_high": -7.833333,
+          "n_a": 6,
+          "n_b": 6
+        },
+        "throughput_per_window_minus_baseline": {
+          "mean_diff": 0.449236,
+          "ci_low": 0.449236,
+          "ci_high": 0.449236,
+          "n_a": 6,
+          "n_b": 6
+        }
+      },
+      "lead_coordinator": {
+        "tokens_total_minus_baseline": {
+          "mean_diff": -900,
+          "ci_low": -900,
+          "ci_high": -900,
+          "n_a": 6,
+          "n_b": 6
+        },
+        "latency_ms_minus_baseline": {
+          "mean_diff": -16.666667,
+          "ci_low": -19.333333,
+          "ci_high": -14,
+          "n_a": 6,
+          "n_b": 6
+        },
+        "throughput_per_window_minus_baseline": {
+          "mean_diff": 0.830189,
+          "ci_low": 0.830189,
+          "ci_high": 0.830189,
+          "n_a": 6,
+          "n_b": 6
+        }
+      }
+    }
+  },
+  "claim_safe_summary": {
+    "statements": [
+      "Claims are restricted to measured A/B outcomes from this harness run.",
+      "Evidence tier for this run: synthetic_measured.",
+      "lead_overlay: measured token difference vs native is inconclusive for savings claims (evidence tier is synthetic_measured; only production_measured runs can support savings claims).",
+      "lead_coordinator: measured token difference vs native is inconclusive for savings claims (evidence tier is synthetic_measured; only production_measured runs can support savings claims)."
+    ],
+    "policy": [
+      {
+        "path_id": "lead_overlay",
+        "savings_claim_allowed": false,
+        "reason": "evidence tier is synthetic_measured; only production_measured runs can support savings claims",
+        "comparison_tokens_total_minus_baseline": {
+          "mean_diff": -500,
+          "ci_low": -500,
+          "ci_high": -500,
+          "n_a": 6,
+          "n_b": 6
+        }
+      },
+      {
+        "path_id": "lead_coordinator",
+        "savings_claim_allowed": false,
+        "reason": "evidence tier is synthetic_measured; only production_measured runs can support savings claims",
+        "comparison_tokens_total_minus_baseline": {
+          "mean_diff": -900,
+          "ci_low": -900,
+          "ci_high": -900,
+          "n_a": 6,
+          "n_b": 6
+        }
+      }
+    ]
+  },
+  "artifacts": {
+    "raw_dataset_jsonl": "/Users/drewdawson/claude-lead-system/reports/ab-harness/ab-economics-proof-synthetic-20260312-final/raw-dataset.jsonl",
+    "manifest_json": "/Users/drewdawson/claude-lead-system/reports/ab-harness/ab-economics-proof-synthetic-20260312-final/run-manifest.json",
+    "summary_json": "/Users/drewdawson/claude-lead-system/reports/ab-harness/ab-economics-proof-synthetic-20260312-final/summary.json",
+    "report_md": "/Users/drewdawson/claude-lead-system/reports/ab-harness/ab-economics-proof-synthetic-20260312-final/report.md"
+  }
+}

@@ -27,6 +27,11 @@ import { getAllSessions, getSessionStatus } from "./sessions.js";
 import { handleWakeSession } from "./platform/wake.js";
 import { readTeamConfig } from "./teams.js";
 import { tmuxSendKeys, isInsideTmux } from "./platform/common.js";
+import {
+  findIdentityByToken,
+  readIdentityMap,
+  upsertIdentityRecord,
+} from "./identity-map.js";
 
 /**
  * Check if a team is configured for native or hybrid execution path.
@@ -81,6 +86,73 @@ function queueNativeAction(action) {
     join(actionsDir, `msg-${Date.now()}.json`),
     JSON.stringify(action, null, 2),
   );
+}
+
+const RECENT_MESSAGE_TTL_MS = 15 * 1000;
+const recentMessageDeliveries = new Map();
+
+function normalizeMessagePart(value, limit = 600) {
+  return String(value || "")
+    .slice(0, limit)
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function checkRecentDuplicateMessage({
+  to,
+  from,
+  priority,
+  content,
+  summary,
+  protocolType,
+}) {
+  const now = Date.now();
+  for (const [key, ts] of recentMessageDeliveries.entries()) {
+    if (now - ts > RECENT_MESSAGE_TTL_MS) recentMessageDeliveries.delete(key);
+  }
+  const dedupeKey = [
+    normalizeMessagePart(to, 32),
+    normalizeMessagePart(from, 32),
+    normalizeMessagePart(priority, 16),
+    normalizeMessagePart(protocolType, 32),
+    normalizeMessagePart(summary, 120),
+    normalizeMessagePart(content, 400),
+  ].join("|");
+  const prev = recentMessageDeliveries.get(dedupeKey);
+  if (prev && now - prev <= RECENT_MESSAGE_TTL_MS) {
+    return { duplicate: true, age_ms: now - prev };
+  }
+  recentMessageDeliveries.set(dedupeKey, now);
+  return { duplicate: false, age_ms: 0 };
+}
+
+function upsertMessageIdentity(record, source) {
+  try {
+    upsertIdentityRecord({ ...record, source });
+  } catch {
+    // Best-effort identity enrichment only.
+  }
+}
+
+function resolveNativeIdentitySession(token, teamName = null) {
+  const byTeam = findIdentityByToken(token, { team_name: teamName || null });
+  const mapped = byTeam || (teamName ? findIdentityByToken(token) : null);
+  if (!mapped?.session_id) return null;
+  upsertMessageIdentity(
+    {
+      team_name: mapped.team_name || teamName || null,
+      agent_id: mapped.agent_id || null,
+      agent_name: mapped.agent_name || null,
+      worker_name: mapped.worker_name || null,
+      session_id: mapped.session_id || null,
+      task_id: mapped.task_id || null,
+      pane_id: mapped.pane_id || null,
+      claude_session_id: mapped.claude_session_id || null,
+    },
+    "coord_resolve_worker_name_identity",
+  );
+  return mapped.session_id;
 }
 
 /**
@@ -152,11 +224,31 @@ export function handleCheckInbox(args) {
  * @param {string} targetName - Worker name to resolve
  * @returns {string|null} Session ID (8-char) or null
  */
-function resolveWorkerName(targetName) {
+export function resolveWorkerName(targetName, teamName = null) {
+  // Native identity graph takes priority so delivery prefers agent identity.
+  const nativeMappedSession = resolveNativeIdentitySession(
+    targetName,
+    teamName,
+  );
+  if (nativeMappedSession) return nativeMappedSession;
+
   // Check session files for worker_name field (set by heartbeat from CLAUDE_WORKER_NAME env var)
   const sessions = getAllSessions();
   for (const s of sessions) {
     if (s.worker_name === targetName && getSessionStatus(s) !== "closed") {
+      upsertMessageIdentity(
+        {
+          team_name: null,
+          agent_id: null,
+          agent_name: null,
+          worker_name: s.worker_name || targetName,
+          session_id: s.session || null,
+          task_id: s.current_task || null,
+          pane_id: s.tmux_pane_id || null,
+          claude_session_id: s.claude_session_id || null,
+        },
+        "coord_resolve_worker_name_session",
+      );
       return s.session;
     }
   }
@@ -168,12 +260,44 @@ function resolveWorkerName(targetName) {
     );
     for (const f of files) {
       const meta = readJSON(join(RESULTS_DIR, f));
-      if (meta?.worker_name === targetName && meta.notify_session_id) {
+      if (meta?.worker_name === targetName) {
+        const metaSessionId = meta.session_id || meta.claude_session_id || null;
+        if (typeof metaSessionId === "string" && metaSessionId.length >= 8) {
+          upsertMessageIdentity(
+            {
+              team_name: meta.team_name || null,
+              agent_id: meta.agent_id || meta.resumed_from_agent || null,
+              agent_name: meta.agent_name || null,
+              worker_name: meta.worker_name || targetName,
+              session_id: sanitizeShortSessionId(metaSessionId),
+              task_id: meta.task_id || null,
+              pane_id: meta.tmux_pane_id || null,
+              claude_session_id: meta.claude_session_id || null,
+            },
+            "coord_resolve_worker_name_meta",
+          );
+          return sanitizeShortSessionId(metaSessionId);
+        }
         // Find the worker's session by checking its notify relationship
         const workerSessions = sessions.filter(
           (s) => s.current_task === meta.task_id,
         );
-        if (workerSessions.length > 0) return workerSessions[0].session;
+        if (workerSessions.length > 0) {
+          upsertMessageIdentity(
+            {
+              team_name: meta.team_name || null,
+              agent_id: meta.agent_id || meta.resumed_from_agent || null,
+              agent_name: meta.agent_name || null,
+              worker_name: meta.worker_name || targetName,
+              session_id: workerSessions[0].session || null,
+              task_id: meta.task_id || null,
+              pane_id: meta.tmux_pane_id || null,
+              claude_session_id: meta.claude_session_id || null,
+            },
+            "coord_resolve_worker_name_meta_linked",
+          );
+          return workerSessions[0].session;
+        }
       }
     }
   } catch {}
@@ -212,7 +336,93 @@ function resolveTargetPaneId(sessionId, targetName) {
   for (const s of sessions) {
     if (s.session === sessionId && s.tmux_pane_id) return s.tmux_pane_id;
   }
+  const mapped = findIdentityByToken(targetName || sessionId);
+  if (mapped?.pane_id) return mapped.pane_id;
   return null;
+}
+
+/**
+ * Check whether a recipient session exists (session file or worker meta).
+ * @param {string} to - Short session ID (8 chars)
+ * @returns {{ exists: boolean, status: string|null }}
+ */
+function checkRecipientExists(to) {
+  const { TERMINALS_DIR, RESULTS_DIR } = cfg();
+  const sessionFile = join(TERMINALS_DIR, `session-${to}.json`);
+  if (existsSync(sessionFile)) {
+    const s = readJSON(sessionFile);
+    return { exists: true, status: s?.status || null };
+  }
+  try {
+    const files = readdirSync(RESULTS_DIR).filter(
+      (f) => f.endsWith(".meta.json") && !f.includes(".done"),
+    );
+    for (const f of files) {
+      const meta = readJSON(join(RESULTS_DIR, f));
+      if (!meta) continue;
+      if (
+        meta.worker_name === to ||
+        meta.notify_session_id === to ||
+        (meta.claude_session_id && meta.claude_session_id.slice(0, 8) === to)
+      ) {
+        upsertMessageIdentity(
+          {
+            team_name: meta.team_name || null,
+            agent_id: meta.agent_id || meta.resumed_from_agent || null,
+            agent_name: meta.agent_name || null,
+            worker_name: meta.worker_name || null,
+            session_id: to,
+            task_id: meta.task_id || null,
+            pane_id: meta.tmux_pane_id || null,
+            claude_session_id: meta.claude_session_id || null,
+          },
+          "coord_check_recipient_meta",
+        );
+        return { exists: true, status: meta.status || null };
+      }
+    }
+  } catch {}
+  const mapped = findIdentityByToken(to);
+  if (mapped?.session_id === to) {
+    return { exists: true, status: null };
+  }
+  return { exists: false, status: null };
+}
+
+/**
+ * Build a human-readable list of available session IDs and worker names.
+ * @returns {string} Comma-separated list or "(none)"
+ */
+function listAvailableSessions() {
+  const { RESULTS_DIR } = cfg();
+  const names = new Set();
+  for (const s of getAllSessions()) {
+    if (s.session && getSessionStatus(s) !== "closed") names.add(s.session);
+    if (s.worker_name) names.add(s.worker_name);
+  }
+  try {
+    const files = readdirSync(RESULTS_DIR).filter(
+      (f) => f.endsWith(".meta.json") && !f.includes(".done"),
+    );
+    for (const f of files) {
+      const meta = readJSON(join(RESULTS_DIR, f));
+      if (!meta) continue;
+      if (meta.notify_session_id) names.add(meta.notify_session_id);
+      if (meta.worker_name) names.add(meta.worker_name);
+    }
+  } catch {}
+  try {
+    const map = readIdentityMap();
+    for (const rec of map.records || []) {
+      if (rec.session_id) names.add(rec.session_id);
+      if (rec.agent_id) names.add(rec.agent_id);
+      if (rec.agent_name) names.add(rec.agent_name);
+      if (rec.worker_name) names.add(rec.worker_name);
+      if (rec.task_id) names.add(rec.task_id);
+    }
+  } catch {}
+  if (names.size === 0) return "(none)";
+  return [...names].join(", ");
 }
 
 /**
@@ -223,11 +433,21 @@ function resolveTargetPaneId(sessionId, targetName) {
  * @returns {object} MCP text response
  */
 export function handleSendMessage(args) {
-  const { INBOX_DIR, TERMINALS_DIR, RESULTS_DIR } = cfg();
+  const { INBOX_DIR, TERMINALS_DIR } = cfg();
   const from = String(args.from || "lead").trim();
   const content = String(args.content || "").trim();
-  const summary = args.summary ? String(args.summary).trim().slice(0, 50) : "";
+  const rawSummary = args.summary
+    ? String(args.summary).trim().slice(0, 50)
+    : "";
+  const summary =
+    normalizeMessagePart(rawSummary, 80) &&
+    !normalizeMessagePart(content, 160).includes(
+      normalizeMessagePart(rawSummary, 80),
+    )
+      ? rawSummary
+      : "";
   const priority = args.priority === "urgent" ? "urgent" : "normal";
+  const teamName = args.team_name ? String(args.team_name).trim() : null;
   if (!content) return text("Message content is required.");
   assertMessageBudget(content);
 
@@ -235,21 +455,45 @@ export function handleSendMessage(args) {
   let to;
   const targetName = args.target_name ? String(args.target_name).trim() : null;
   if (targetName) {
-    const resolved = resolveWorkerName(targetName);
+    const resolved = resolveWorkerName(targetName, teamName);
     if (!resolved)
       return text(
         `Worker name "${targetName}" not found. Use coord_list_sessions to find active workers.`,
       );
     to = resolved;
   } else if (args.to) {
-    to = sanitizeShortSessionId(args.to);
+    const rawTo = String(args.to).trim();
+    to =
+      resolveNativeIdentitySession(rawTo, teamName) ||
+      sanitizeShortSessionId(rawTo);
   } else {
     return text(
       "Either 'to' (session ID) or 'target_name' (worker name) is required.",
     );
   }
 
+  // Validate recipient exists (bug #25135 parity: never silently succeed for unknown recipients)
+  const recipientCheck = checkRecipientExists(to);
+  if (!recipientCheck.exists) {
+    return text(
+      `Recipient session '${to}' not found. Available sessions: ${listAvailableSessions()}`,
+    );
+  }
+
   const inboxFile = join(INBOX_DIR, `${to}.jsonl`);
+  const dedupe = checkRecentDuplicateMessage({
+    to,
+    from,
+    priority,
+    content,
+    summary,
+    protocolType: "message",
+  });
+  if (dedupe.duplicate) {
+    return text(
+      `Duplicate message suppressed for ${to} (same payload sent ${dedupe.age_ms}ms ago).`,
+    );
+  }
   enforceMessageRateLimit(to);
   const msg = {
     ts: new Date().toISOString(),
@@ -306,8 +550,25 @@ export function handleSendMessage(args) {
     }
   }
 
+  const mappedIdentity =
+    findIdentityByToken(targetName || "", { team_name: teamName }) ||
+    findIdentityByToken(to, { team_name: teamName });
+  upsertMessageIdentity(
+    {
+      team_name: teamName,
+      agent_id: mappedIdentity?.agent_id || null,
+      agent_name: mappedIdentity?.agent_name || null,
+      worker_name: mappedIdentity?.worker_name || targetName || null,
+      session_id: to,
+      task_id: mappedIdentity?.task_id || null,
+      pane_id:
+        resolveTargetPaneId(to, targetName) || mappedIdentity?.pane_id || null,
+      claude_session_id: mappedIdentity?.claude_session_id || null,
+    },
+    "coord_send_message",
+  );
+
   // If team uses native/hybrid execution, also queue for native push delivery
-  const teamName = args.team_name ? String(args.team_name).trim() : null;
   let nativePush = false;
   if (isNativeDeliveryAvailable(teamName)) {
     queueNativeAction({
@@ -321,12 +582,18 @@ export function handleSendMessage(args) {
     nativePush = true;
   }
 
+  const exitedWarning =
+    recipientCheck.status === "exited"
+      ? `\n⚠ Warning: session '${to}' has exited. Message written to inbox but may not be read.`
+      : "";
+
   return text(
     `Message sent to ${to}\n- From: ${from}\n- Priority: ${priority}\n- Content: "${content.slice(0, 200)}"` +
       (summary ? `\n- Summary: "${summary}"` : "") +
       (tmuxPushed ? `\n- Tmux push: delivered to pane.` : "") +
       (nativePush ? `\n- Native push: queued for delivery.` : "") +
       wakeStatus +
+      exitedWarning +
       `\n- 0 API tokens used.`,
   );
 }
@@ -417,6 +684,19 @@ export function handleSendDirective(args) {
 
   // Write to inbox
   const inboxFile = join(INBOX_DIR, `${to}.jsonl`);
+  const dedupe = checkRecentDuplicateMessage({
+    to,
+    from,
+    priority,
+    content: `[DIRECTIVE] ${content}`,
+    summary: "",
+    protocolType: "directive",
+  });
+  if (dedupe.duplicate) {
+    return text(
+      `Duplicate directive suppressed for ${to} (same payload sent ${dedupe.age_ms}ms ago).`,
+    );
+  }
   enforceMessageRateLimit(to);
   appendJSONLineSecure(inboxFile, {
     ts: new Date().toISOString(),
@@ -506,7 +786,7 @@ export function handleSendProtocol(args) {
   let to;
   const recipient = args.recipient ? String(args.recipient).trim() : null;
   if (recipient) {
-    const resolved = resolveWorkerName(recipient);
+    const resolved = resolveWorkerName(recipient, null);
     to = resolved || sanitizeShortSessionId(recipient);
   } else if (args.to) {
     to = sanitizeShortSessionId(args.to);
@@ -530,7 +810,28 @@ export function handleSendProtocol(args) {
       : `[REVISION] request_id=${requestId}${feedback ? ` — ${feedback}` : ""}`;
   }
 
+  // Validate recipient exists (bug #25135 parity)
+  const protocolRecipientCheck = checkRecipientExists(to);
+  if (!protocolRecipientCheck.exists) {
+    return text(
+      `Recipient session '${to}' not found. Available sessions: ${listAvailableSessions()}`,
+    );
+  }
+
   const inboxFile = join(INBOX_DIR, `${to}.jsonl`);
+  const dedupe = checkRecentDuplicateMessage({
+    to,
+    from,
+    priority: "urgent",
+    content: protocolContent,
+    summary: requestId,
+    protocolType: type,
+  });
+  if (dedupe.duplicate) {
+    return text(
+      `Duplicate protocol message suppressed for ${to} (same payload sent ${dedupe.age_ms}ms ago).`,
+    );
+  }
   enforceMessageRateLimit(to);
   appendJSONLineSecure(inboxFile, {
     ts: new Date().toISOString(),

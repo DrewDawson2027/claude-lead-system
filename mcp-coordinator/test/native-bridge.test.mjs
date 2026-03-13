@@ -67,6 +67,7 @@ test('native bridge: queues action file when team is hybrid', async () => {
   const { api, restore } = await loadForTest(home);
   try {
     api.ensureDirsOnce();
+    writeFileSync(join(terminals, 'session-abcd1234.json'), JSON.stringify({ session: 'abcd1234', status: 'active', last_active: new Date().toISOString() }));
     const result = api.handleToolCall('coord_send_message', {
       from: 'lead',
       to: 'abcd1234',
@@ -98,6 +99,7 @@ test('native bridge: queues action when team execution_path is native', async ()
   const { api, restore } = await loadForTest(home);
   try {
     api.ensureDirsOnce();
+    writeFileSync(join(terminals, 'session-abcd1234.json'), JSON.stringify({ session: 'abcd1234', status: 'active', last_active: new Date().toISOString() }));
     api.handleToolCall('coord_send_message', {
       from: 'lead',
       to: 'abcd1234',
@@ -152,6 +154,7 @@ test('native bridge: TTL cleanup removes stale action files', async () => {
   const { api, restore } = await loadForTest(home);
   try {
     api.ensureDirsOnce();
+    writeFileSync(join(terminals, 'session-abcd1234.json'), JSON.stringify({ session: 'abcd1234', status: 'active', last_active: new Date().toISOString() }));
     api.handleToolCall('coord_send_message', {
       from: 'lead',
       to: 'abcd1234',
@@ -215,6 +218,7 @@ test('coord_drain_native_queue: delivers pending action via coordinator inbox', 
   const { api, restore } = await loadForTest(home);
   try {
     api.ensureDirsOnce();
+    writeFileSync(join(terminals, 'session-abcd1234.json'), JSON.stringify({ session: 'abcd1234', status: 'active', last_active: new Date().toISOString() }));
     const result = api.handleToolCall('coord_drain_native_queue', {});
     const text = result?.content?.[0]?.text || '';
     assert.match(text, /1 processed/);

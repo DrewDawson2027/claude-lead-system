@@ -321,9 +321,14 @@ export function sanitizeName(input, label = "name") {
  * @returns {string} Validated model name (defaults to "sonnet")
  */
 export function sanitizeModel(input) {
-  const model = String(input ?? "sonnet").trim();
+  const model = String(input ?? "sonnet")
+    .trim()
+    .toLowerCase();
   if (!SAFE_MODEL_RE.test(model)) throw new Error("Invalid model name.");
-  return model;
+  if (model === "sonnet" || model === "haiku") return model;
+  if (model.startsWith("claude-sonnet-")) return "sonnet";
+  if (model.startsWith("claude-haiku-")) return "haiku";
+  throw new Error("Only sonnet and haiku models are allowed.");
 }
 
 /**

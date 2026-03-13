@@ -1,0 +1,36 @@
+capability: messaging
+description: Bidirectional messaging proof
+started_at: 2026-03-12T00:15:20.861Z
+ended_at: 2026-03-12T00:15:21.473Z
+duration_ms: 612
+command: npm --workspace mcp-coordinator exec -- node --test test/e2e-bidirectional-comms.test.mjs
+exit_status: 0
+signal: null
+error: null
+
+--- stdout ---
+✔ E2E Bidir: Worker A discovers Worker B via coord_discover_peers and sends message by name (76.238584ms)
+✔ E2E Bidir: Worker B replies to Worker A — full bidirectional round-trip (58.805833ms)
+✔ E2E Bidir: both messages have correct from/content/ts fields (23.988625ms)
+✔ E2E Bidir: coord_discover_peers lists both workers with session_ids and roles (4.201708ms)
+✔ E2E Bidir: sending to unknown target_name returns graceful error without crashing (3.02625ms)
+✔ E2E Bidir: lead sends message to worker-a, worker-a receives it in inbox (21.168792ms)
+✔ E2E Bidir: worker-b sends message back to lead session, lead receives it (22.952834ms)
+✔ E2E Bidir: broadcast from lead — both workers receive it (14.287917ms)
+✔ E2E Bidir: protocol type=message (coord_send_message) — basic message delivery (15.027292ms)
+✔ E2E Bidir: protocol type=broadcast — native broadcast type delivery (14.789459ms)
+✔ E2E Bidir: protocol type=shutdown_request — worker receives shutdown request in inbox (19.924875ms)
+✔ E2E Bidir: protocol type=shutdown_response — lead receives worker shutdown approval (21.752667ms)
+✔ E2E Bidir: protocol type=plan_approval_response (approve) — lead approves worker plan (18.195042ms)
+✔ E2E Bidir: protocol type=plan_approval_response (reject) — lead sends revision request (16.652167ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 400.345458
+
+
+--- stderr ---

@@ -1,0 +1,56 @@
+capability: pipeline
+description: Pipeline execution proof
+started_at: 2026-03-12T00:15:21.833Z
+ended_at: 2026-03-12T00:15:23.934Z
+duration_ms: 2101
+command: npm --workspace mcp-coordinator exec -- node --test test/e2e-worker-pipeline.test.mjs
+exit_status: 0
+signal: null
+error: null
+
+--- stdout ---
+coord: inbox rename failed: EACCES: permission denied, rename '/var/folders/jb/mm9lbqq9177bl5qcnvh56rhr0000gn/T/coord-e2e-QOCIPl/.claude/terminals/inbox/abcd1234.jsonl' -> '/var/folders/jb/mm9lbqq9177bl5qcnvh56rhr0000gn/T/coord-e2e-QOCIPl/.claude/terminals/inbox/abcd1234.drain.1773274522185.59312.jsonl'
+✔ check_inbox truncates oversized inbox output safely (77.110458ms)
+✔ check_inbox preserves inbox when rename fallback path is used (9.573375ms)
+✔ coordinator creates secure state directories (3.2105ms)
+✔ spawn_worker rejects duplicate task_id collisions (53.2965ms)
+✔ spawn_worker blocks when global budget policy is enforce (20.22125ms)
+✔ spawn_worker warns (but allows) when global budget policy is warn (30.206458ms)
+✔ team policy applies permission mode and low-overhead preset defaults to worker spawn (37.998583ms)
+✔ task board supports team-scoped tasking and list filter (14.265167ms)
+✔ coord_team_dispatch creates team task, spawns worker, and links live team state (52.907292ms)
+✔ coord_team_queue_task + coord_team_status_compact + coord_team_assign_next dispatch queued work (59.861333ms)
+✔ coord_claim_next_task completes the current team task and claims the next newly unblocked queued task (126.995458ms)
+✔ coord_team_rebalance reassigns queued tasks deterministically by role (29.842417ms)
+✔ coord_sidecar_status reads local sidecar runtime snapshot metadata (4.146333ms)
+✔ spawn worker -> completion -> get result (338.239792ms)
+✔ spawn worker -> kill worker (153.952542ms)
+✔ spawn_worker with notify_session_id records in meta (40.215209ms)
+✔ spawn_worker with files records in meta (36.94525ms)
+✔ spawn_worker rejects empty prompt (3.687333ms)
+✔ spawn_worker rejects missing directory (3.011292ms)
+✔ run_pipeline rejects empty tasks (3.456208ms)
+✔ run_pipeline rejects nonexistent directory (5.08125ms)
+✔ run_pipeline rejects duplicate pipeline_id (2.96725ms)
+✔ get_pipeline shows pending status for not-yet-started pipeline (2.94775ms)
+✔ spawn_terminal with initial_prompt includes prompt in command (4.175959ms)
+✔ spawn_worker with runtime codex uses codex exec in generated script (33.434833ms)
+✔ spawn_worker with runtime codex interactive uses codex TUI command (33.33975ms)
+✔ spawn_worker defaults to claude runtime when runtime param is absent (34.369667ms)
+✔ spawn_worker with max_turns emits CLAUDE_WORKER_MAX_TURNS in script (33.799625ms)
+✔ spawn_worker with max_turns clamps to valid range (34.00925ms)
+✔ spawn_worker without max_turns does not emit CLAUDE_WORKER_MAX_TURNS (35.251416ms)
+✔ run pipeline -> completion -> get pipeline status (426.216708ms)
+✔ completing a task auto-unblocks its dependents (blocked_by cleared on completion) (31.314ms)
+✔ completing a task sends inbox notification to assigned worker of newly-unblocked task (32.212166ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1882.561916
+
+
+--- stderr ---
