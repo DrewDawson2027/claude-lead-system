@@ -7,19 +7,46 @@ RUNTIME_DIR="$SIDECAR_DIR/runtime"
 PORT_FILE="$RUNTIME_DIR/sidecar.port"
 LOCK_FILE="$RUNTIME_DIR/sidecar.lock"
 LOG_FILE="$SIDECAR_DIR/logs/sidecar.out.log"
-MODE="${LEAD_SIDECAR_MODE:-lite}"
+MODE="${LEAD_SIDECAR_MODE:-full}"
 OPEN_DASHBOARD=0
 SIDECAR_ONLY=0
 NO_SIDECAR=0
 NATIVE_ENABLE="${LEAD_SIDECAR_NATIVE_ENABLE:-}"
 NATIVE_BRIDGE_AUTOSTART="${LEAD_SIDECAR_NATIVE_BRIDGE_AUTOSTART:-}"
 
-usage() {
-  cat <<USAGE
-Usage: claudex [--mode lite|hybrid|full] [--native] [--no-native] [--bridge-autostart] [--no-bridge-autostart] [--open-dashboard] [--sidecar-only] [--no-sidecar] [--] [claude args...]
+show_recovery_help() {
+  echo "Advanced recovery: $SIDECAR_DIR/bin/sidecarctl doctor" >&2
+  echo "Startup log: $LOG_FILE" >&2
+  if [[ -f "$SIDECAR_DIR/logs/npm-install.log" ]]; then
+    echo "Install log: $SIDECAR_DIR/logs/npm-install.log" >&2
+  fi
+}
 
-Starts/ensures the local Lead Sidecar, auto-merges Claude settings, then launches Claude.
+usage() {
+  local advanced="${1:-0}"
+  cat <<USAGE
+Usage: claudex [--open-dashboard] [--] [claude args...]
+
+Blessed default:
+  Starts the standard Lead flow, syncs Claude settings,
+  gets Lead ready in the background, then launches Claude.
+  Next step: type /lead.
+
+Common options:
+  --open-dashboard  Open the Lead dashboard after startup
+  --help-advanced   Show advanced launch options
 USAGE
+  if [[ "$advanced" = "1" ]]; then
+    cat <<USAGE
+
+Advanced options:
+  --sidecar-only
+  --mode full|hybrid|lite
+  --native | --no-native
+  --bridge-autostart | --no-bridge-autostart
+  --no-sidecar
+USAGE
+  fi
 }
 
 while [[ $# -gt 0 ]]; do
@@ -40,6 +67,8 @@ while [[ $# -gt 0 ]]; do
       NATIVE_BRIDGE_AUTOSTART=0; shift ;;
     --no-sidecar)
       NO_SIDECAR=1; shift ;;
+    --help-advanced)
+      usage 1; exit 0 ;;
     --help|-h)
       usage; exit 0 ;;
     --)
@@ -49,9 +78,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "$MODE" in
+  full|hybrid|lite) ;;
+  *)
+    echo "Invalid --mode: $MODE (expected full|hybrid|lite)" >&2
+    exit 1 ;;
+esac
+
 ensure_sidecar_running() {
   mkdir -p "$RUNTIME_DIR" "$SIDECAR_DIR/logs" "$SIDECAR_DIR/state"
   local need_start=1
+  local sidecar_pid=""
   if [[ -f "$LOCK_FILE" ]]; then
     local pid
     pid=$(python3 - <<PY 2>/dev/null
@@ -63,28 +100,66 @@ except Exception:
     print('')
 PY
 )
-    if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null && [[ -f "$PORT_FILE" ]]; then
       need_start=0
+    else
+      rm -f "$LOCK_FILE" "$PORT_FILE"
     fi
   fi
 
   if [[ "$need_start" -eq 1 ]]; then
+    rm -f "$PORT_FILE" "$LOCK_FILE"
+    local tsx_bin="$SIDECAR_DIR/node_modules/.bin/tsx"
+    local tsx_module="$SIDECAR_DIR/node_modules/tsx/dist/cli.mjs"
+    local sidecar_entry="$SIDECAR_DIR/server/index.js"
+    if [[ ! -x "$tsx_bin" ]] && [[ ! -f "$tsx_module" ]]; then
+      echo "Lead background-service dependency missing: tsx is not installed in $SIDECAR_DIR." >&2
+      echo "Re-run install.sh or run npm install in $SIDECAR_DIR." >&2
+      if [[ -f "$SIDECAR_DIR/logs/npm-install.log" ]]; then
+        echo "--- lead install log (tail) ---" >&2
+        tail -40 "$SIDECAR_DIR/logs/npm-install.log" >&2 || true
+      fi
+      show_recovery_help
+      return 1
+    fi
+    if [[ ! -f "$sidecar_entry" ]]; then
+      echo "Lead background-service entry missing: $sidecar_entry" >&2
+      show_recovery_help
+      return 1
+    fi
+    local -a tsx_cmd
+    if [[ -x "$tsx_bin" ]]; then
+      tsx_cmd=("$tsx_bin" --tsconfig "$SIDECAR_DIR/tsconfig.json" "$sidecar_entry")
+    else
+      tsx_cmd=(node "$tsx_module" --tsconfig "$SIDECAR_DIR/tsconfig.json" "$sidecar_entry")
+    fi
+    printf '[%s] starting Lead background service (mode=%s)\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$MODE" >> "$LOG_FILE"
+    printf '[%s] launch command: %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "${tsx_cmd[*]}" >> "$LOG_FILE"
     nohup env \
+      LEAD_SIDECAR_AUTOSTART=1 \
       LEAD_SIDECAR_NATIVE_ENABLE="${NATIVE_ENABLE:-${LEAD_SIDECAR_NATIVE_ENABLE:-0}}" \
       LEAD_SIDECAR_NATIVE_BRIDGE_AUTOSTART="${NATIVE_BRIDGE_AUTOSTART:-${LEAD_SIDECAR_NATIVE_BRIDGE_AUTOSTART:-1}}" \
-      "$SIDECAR_DIR/node_modules/.bin/tsx" --tsconfig "$SIDECAR_DIR/tsconfig.json" "$SIDECAR_DIR/server/index.js" > "$LOG_FILE" 2>&1 &
+      "${tsx_cmd[@]}" >> "$LOG_FILE" 2>&1 &
+    sidecar_pid="$!"
     disown || true
     local i
-    for i in {1..30}; do
+    for i in {1..100}; do
       [[ -f "$PORT_FILE" ]] && break
+      if [[ -n "$sidecar_pid" ]] && ! kill -0 "$sidecar_pid" 2>/dev/null; then
+        break
+      fi
       sleep 0.2
     done
     if [[ ! -f "$PORT_FILE" ]]; then
-      echo "Lead Sidecar failed to start (no port file created)." >&2
+      echo "Lead background service failed to start (no readiness file created)." >&2
+      if [[ -n "$sidecar_pid" ]] && ! kill -0 "$sidecar_pid" 2>/dev/null; then
+        echo "Background service exited before reporting readiness." >&2
+      fi
       if [[ -f "$LOG_FILE" ]]; then
-        echo "--- sidecar log (tail) ---" >&2
+        echo "--- lead startup log (tail) ---" >&2
         tail -40 "$LOG_FILE" >&2 || true
       fi
+      show_recovery_help
       return 1
     fi
   fi
@@ -103,13 +178,16 @@ PY
 )
     if [[ -n "${port:-}" ]]; then
       if command -v open >/dev/null 2>&1; then open "http://127.0.0.1:${port}/" >/dev/null 2>&1 || true; fi
-      echo "Lead Sidecar dashboard: http://127.0.0.1:${port}/"
+      echo "Lead dashboard: http://127.0.0.1:${port}/"
     fi
   fi
 }
 
 if [[ -x "$SIDECAR_DIR/bin/merge-settings.mjs" ]]; then
-  node "$SIDECAR_DIR/bin/merge-settings.mjs" --mode "$MODE" --quiet || true
+  if ! node "$SIDECAR_DIR/bin/merge-settings.mjs" --mode "$MODE" --quiet; then
+    echo "Lead settings sync failed for mode=$MODE. /lead may not be fully wired." >&2
+    show_recovery_help
+  fi
 fi
 
 if [[ "$NO_SIDECAR" -ne 1 ]]; then
@@ -137,5 +215,5 @@ if command -v claude >/dev/null 2>&1; then
   exec claude "$@"
 fi
 
-echo "claude binary not found in PATH. Sidecar setup completed; launch Claude normally or install Claude CLI." >&2
+echo "claude binary not found in PATH. Lead launcher completed, but Claude CLI is unavailable. Install Claude CLI or launch Claude normally." >&2
 exit 1

@@ -76,13 +76,13 @@ gpg --armor --export YOUR_KEY_ID
 
 ## Enforcement Policy
 
-| Context                | Requirement                     | Enforcement                 |
-| ---------------------- | ------------------------------- | --------------------------- |
-| Release tags           | MUST be signed (`git tag -s`)   | `tag-policy.yml` CI check   |
-| Release tag format     | MUST match `vX.Y.Z` semver      | `tag-policy.yml` CI check   |
-| PR commits             | Signed commits advisory         | Not enforced (yet)          |
-| Release artifacts      | Cosign keyless signature        | `supply-chain.yml` workflow |
-| SBOM                   | Generated per release           | `supply-chain.yml` workflow |
+| Context | Requirement | Enforcement |
+|---------|-------------|-------------|
+| Release tags | MUST be signed (`git tag -s`) | `tag-policy.yml` CI check |
+| Release tag format | MUST match `vX.Y.Z` semver | `tag-policy.yml` CI check |
+| PR commits | Signed commits advisory | Not enforced (yet) |
+| Release artifacts | Cosign keyless signature | `supply-chain.yml` workflow |
+| SBOM | Generated per release | `supply-chain.yml` workflow |
 | Provenance attestation | GitHub Actions build provenance | `supply-chain.yml` workflow |
 
 ## References

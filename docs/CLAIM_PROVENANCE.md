@@ -4,23 +4,23 @@ Maps every major README claim to its proof artifact and verification command.
 
 ## Verification Table
 
-| Claim                                   | Proof Artifact                       | Verification Command                                                                                                                                                                                                                                                                                        |
-| --------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 88%+ test coverage                      | `mcp-coordinator/coverage/`          | `cd mcp-coordinator && npm run test:coverage`                                                                                                                                                                                                                                                               |
-| Cross-platform: macOS, Linux, Windows   | CI `platform-matrix` job             | `gh run view --job platform-matrix`                                                                                                                                                                                                                                                                         |
-| Node 18/20, Python 3.10/3.11 compatible | CI `compatibility-matrix` job        | `gh run view --job compatibility-matrix`                                                                                                                                                                                                                                                                    |
-| Signed releases with cosign             | `.github/workflows/supply-chain.yml` | `cosign verify-blob --signature checksums.txt.sig --certificate checksums.txt.pem ...`                                                                                                                                                                                                                      |
-| SBOM included                           | `sbom.spdx.json` release asset       | Download from GitHub Release assets                                                                                                                                                                                                                                                                         |
-| One-command install                     | `install.sh`                         | `bash install.sh --version vX.Y.Z --checksum-file checksums.txt --checksum-signature checksums.txt.sig --checksum-cert checksums.txt.pem --release-manifest release.json --release-manifest-signature release.json.sig --release-manifest-cert release.json.pem --source-tarball claude-lead-system.tar.gz` |
-| Coordinator benchmark thresholds        | `bench/latest-results.json`          | `node bench/coord-benchmark.mjs`                                                                                                                                                                                                                                                                            |
-| Performance gate in CI                  | `tests/perf-gate.mjs`                | `node tests/perf-gate.mjs`                                                                                                                                                                                                                                                                                  |
-| 80%+ coverage gate                      | CI `coverage` job                    | `cd mcp-coordinator && npm run test:coverage`                                                                                                                                                                                                                                                               |
-| Shell hooks linted                      | CI `lint-shell` job                  | `shellcheck hooks/*.sh`                                                                                                                                                                                                                                                                                     |
-| Python hooks linted                     | CI `lint-python` job                 | `ruff check hooks/*.py`                                                                                                                                                                                                                                                                                     |
-| CI action SHAs pinned                   | `.github/workflows/*.yml`            | `grep -r 'uses:' .github/workflows/ \| grep -v '#'`                                                                                                                                                                                                                                                         |
-| Installer smoke tested                  | CI `smoke-install` job               | `bash tests/smoke-install.sh --ref HEAD --mode lite`                                                                                                                                                                                                                                                        |
-| Hook integration tested                 | CI `integration-tests` job           | `bash tests/hooks-smoke.sh`                                                                                                                                                                                                                                                                                 |
-| Token system regression tested          | CI `token-system-regression` job     | `python3 scripts/run_token_system_regression.py`                                                                                                                                                                                                                                                            |
+| Claim | Proof Artifact | Verification Command |
+|-------|----------------|---------------------|
+| 88%+ test coverage | `mcp-coordinator/coverage/` | `cd mcp-coordinator && npm run test:coverage` |
+| Cross-platform: macOS, Linux, Windows | CI `platform-matrix` job | `gh run view --job platform-matrix` |
+| Node 18/20, Python 3.10/3.11 compatible | CI `compatibility-matrix` job | `gh run view --job compatibility-matrix` |
+| Signed releases with cosign | `.github/workflows/supply-chain.yml` | `cosign verify-blob --signature checksums.txt.sig --certificate checksums.txt.pem ...` |
+| SBOM included | `sbom.spdx.json` release asset | Download from GitHub Release assets |
+| One-command install | `install.sh` | `bash install.sh --version vX.Y.Z --checksum-file checksums.txt --checksum-signature checksums.txt.sig --checksum-cert checksums.txt.pem --release-manifest release.json --release-manifest-signature release.json.sig --release-manifest-cert release.json.pem --source-tarball claude-lead-system.tar.gz` |
+| Coordinator benchmark thresholds | `bench/latest-results.json` | `node bench/coord-benchmark.mjs` |
+| Performance gate in CI | `tests/perf-gate.mjs` | `node tests/perf-gate.mjs` |
+| 80%+ coverage gate | CI `coverage` job | `cd mcp-coordinator && npm run test:coverage` |
+| Shell hooks linted | CI `lint-shell` job | `shellcheck hooks/*.sh` |
+| Python hooks linted | CI `lint-python` job | `ruff check hooks/*.py` |
+| CI action SHAs pinned | `.github/workflows/*.yml` | `grep -r 'uses:' .github/workflows/ \| grep -v '#'` |
+| Installer smoke tested | CI `smoke-install` job | `bash tests/smoke-install.sh --ref HEAD --mode lite` |
+| Hook integration tested | CI `integration-tests` job | `bash tests/hooks-smoke.sh` |
+| Token system regression tested | CI `token-system-regression` job | `python3 scripts/run_token_system_regression.py` |
 
 ## How to Verify a Specific Claim
 
@@ -68,7 +68,6 @@ cat bench/latest-results.json | jq '.results | to_entries[] | "\(.key): \(.value
 ## Automation
 
 All claims are verified automatically in CI on every push to `main` and every PR:
-
 - Coverage: `coverage` job
 - Platform support: `platform-matrix` job
 - Compatibility: `compatibility-matrix` job

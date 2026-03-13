@@ -20,6 +20,68 @@ function commandExists(name) {
   }
 }
 
+function buildRouteDecision({
+  available,
+  bridgeStatus,
+  staticCheck,
+  probeError,
+}) {
+  const nativeEligible = Boolean(
+    staticCheck.enabled && staticCheck.claude_bin && staticCheck.permissions_ok,
+  );
+  const nativeAvailable = Boolean(nativeEligible && available);
+  const nativeBlockedReason = !staticCheck.enabled
+    ? "native execution is disabled by policy"
+    : !staticCheck.claude_bin
+      ? "native execution unavailable: claude binary not found"
+      : !staticCheck.permissions_ok
+        ? "native execution unavailable: required native permissions missing"
+        : probeError
+          ? `native probe failed: ${probeError}`
+          : "native capability unavailable";
+
+  if (nativeAvailable) {
+    return {
+      route_mode: "native-direct",
+      route_reason: "native capability probe passed",
+      mode: "native-direct",
+      fallback_history: [],
+    };
+  }
+  if (bridgeStatus === "healthy") {
+    return {
+      route_mode: "bridge",
+      route_reason: `${nativeBlockedReason}; bridge healthy`,
+      mode: "bridge",
+      fallback_history: [
+        {
+          route_mode: "native-direct",
+          status: "unavailable",
+          reason: nativeBlockedReason,
+        },
+      ],
+    };
+  }
+  const bridgeUnavailableReason = `bridge status=${String(bridgeStatus || "down")}`;
+  return {
+    route_mode: "coordinator",
+    route_reason: `${nativeBlockedReason}; ${bridgeUnavailableReason}`,
+    mode: "unavailable",
+    fallback_history: [
+      {
+        route_mode: "native-direct",
+        status: "unavailable",
+        reason: nativeBlockedReason,
+      },
+      {
+        route_mode: "bridge",
+        status: "unavailable",
+        reason: bridgeUnavailableReason,
+      },
+    ],
+  };
+}
+
 export class NativeCapabilityDetector {
   constructor({ paths, runner, readSettings, bridgeHealthFn }) {
     this.paths = paths;
@@ -58,18 +120,32 @@ export class NativeCapabilityDetector {
     const bridge = this.bridgeHealthFn
       ? this.bridgeHealthFn()
       : { bridge_status: "down" };
+    const bridgeStatus = bridge.bridge_status || "down";
+    const nowIso = new Date().toISOString();
+    const cacheAgeMs = cache?.last_probe_at
+      ? Date.now() - new Date(cache.last_probe_at).getTime()
+      : null;
 
     if (!force && this._cacheFresh(cache, ttlMs)) {
+      const route = buildRouteDecision({
+        available: Boolean(cache.available),
+        bridgeStatus,
+        staticCheck,
+        probeError: cache.last_probe_error || null,
+      });
       return {
         ...cache,
+        available: route.route_mode === "native-direct",
+        observed_at: nowIso,
+        probe_source: "cache",
+        cache_age_ms: Number.isFinite(cacheAgeMs) ? cacheAgeMs : null,
+        cache_ttl_ms: ttlMs,
         static: staticCheck,
-        bridge_status: bridge.bridge_status || "down",
-        mode:
-          bridge.bridge_status === "healthy"
-            ? "bridge"
-            : cache.available
-              ? "ephemeral"
-              : "unavailable",
+        bridge_status: bridgeStatus,
+        route_mode: route.route_mode,
+        route_reason: route.route_reason,
+        mode: route.mode,
+        fallback_history: route.fallback_history,
       };
     }
 
@@ -100,26 +176,35 @@ export class NativeCapabilityDetector {
       staticCheck.permissions_ok &&
       probe?.ok !== false,
     );
+    const lastProbeError =
+      probe?.ok === false
+        ? probe.error?.code || probe.error?.message || "probe_failed"
+        : null;
+    const route = buildRouteDecision({
+      available,
+      bridgeStatus,
+      staticCheck,
+      probeError: lastProbeError,
+    });
     const out = {
       available,
-      mode:
-        bridge.bridge_status === "healthy"
-          ? "bridge"
-          : available
-            ? "ephemeral"
-            : "unavailable",
+      mode: route.mode,
+      route_mode: route.route_mode,
+      route_reason: route.route_reason,
+      fallback_history: route.fallback_history,
       tools,
-      last_probe_at: new Date().toISOString(),
-      last_probe_error:
-        probe?.ok === false
-          ? probe.error?.code || probe.error?.message || "probe_failed"
-          : null,
+      last_probe_at: nowIso,
+      last_probe_error: lastProbeError,
       confidence: probe
         ? probe.ok || probe.tool_available !== false
           ? "high"
           : "medium"
         : "low",
-      bridge_status: bridge.bridge_status || "down",
+      bridge_status: bridgeStatus,
+      observed_at: nowIso,
+      probe_source: "fresh",
+      cache_age_ms: null,
+      cache_ttl_ms: ttlMs,
       static: staticCheck,
       probe: probe ? { ok: probe.ok, notes: probe.notes || null } : null,
     };

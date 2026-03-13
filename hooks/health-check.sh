@@ -2,9 +2,14 @@
 # Hook Health Check — validates all hooks are working and provides audit stats
 #
 # Usage:
-#   bash ~/.claude/hooks/health-check.sh           # Full health check
+#   bash ~/.claude/hooks/health-check.sh            # Full installed-runtime health check
 #   bash ~/.claude/hooks/health-check.sh --stats   # Token guard audit stats
 #   bash ~/.claude/hooks/health-check.sh --cleanup  # Prune stale session state
+#
+# Scope:
+#   This script validates the installed ~/.claude runtime (blessed path).
+#   Fresh-checkout certification lives in the repository command:
+#     npm run cert:a-plus:fresh
 #
 # Part of the Token Management System:
 #   token-guard.py          → blocks illegal agent spawns (PreToolUse)
@@ -169,6 +174,51 @@ fi
 # Default: full health check
 echo ""
 echo "=== Claude Code Hook Health Check ==="
+echo "Scope: installed ~/.claude runtime (blessed path)"
+echo "Fresh-checkout certification command: npm run cert:a-plus:fresh"
+echo ""
+
+# ── Install-state detection ───────────────────────────────────────────
+# Distinguish "not installed" from "broken code" so operators don't chase
+# phantom failures when install.sh simply hasn't been run.
+INSTALL_MARKER="$HOME/.claude/.lead-system-install.json"
+INSTALL_MODE="unknown"
+INSTALL_STATE="unknown"
+
+if [ -f "$INSTALL_MARKER" ]; then
+  INSTALL_MODE=$(python3 - <<'PY' 2>/dev/null
+import json, os
+try:
+    d = json.load(open(os.path.expanduser("~/.claude/.lead-system-install.json")))
+    print(d.get("mode", "unknown"))
+except Exception:
+    print("unknown")
+PY
+)
+  INSTALL_STATE="installed"
+  echo "  Install state: INSTALLED (mode=$INSTALL_MODE)"
+elif [ -d "$HOME/.claude/lead-sidecar" ] || [ -d "$HOME/.claude/mcp-coordinator" ]; then
+  INSTALL_STATE="partial"
+  echo "  Install state: PARTIAL (components exist but install marker missing)"
+  echo "  ⚠  Re-run install.sh to complete installation and create install marker."
+else
+  # Check if we're running from the repo rather than from ~/.claude/hooks
+  SCRIPT_SELF="$(cd "$(dirname "$0")" && pwd)"
+  if [ "$SCRIPT_SELF" = "$HOME/.claude/hooks" ]; then
+    # Running from installed location but no install marker and no sidecar
+    echo "  Install state: NOT INSTALLED"
+    echo ""
+    echo "  The Lead System has not been installed."
+    echo "  Run: bash install.sh --allow-unsigned-release"
+    echo "  Then: claudex → /lead"
+    echo ""
+    exit 2
+  else
+    # Running from repo checkout — skip install-state enforcement
+    INSTALL_STATE="repo"
+    echo "  Install state: REPO (running from source checkout)"
+  fi
+fi
 echo ""
 
 PASS=0
@@ -219,53 +269,140 @@ check() {
   fi
 }
 
-echo "Hooks:"
-check "terminal-heartbeat" ~/.claude/hooks/terminal-heartbeat.sh required
-check "session-register" ~/.claude/hooks/session-register.sh required
-check "check-inbox" ~/.claude/hooks/check-inbox.sh required
-check "session-end" ~/.claude/hooks/session-end.sh required
-check "teammate-lifecycle" ~/.claude/hooks/teammate-lifecycle.sh required
-check "token-guard" ~/.claude/hooks/token-guard.py required
-check "read-efficiency-guard" ~/.claude/hooks/read-efficiency-guard.py required
-check "hook-utils" ~/.claude/hooks/hook_utils.py required
+has_hook_command() {
+   local file="$1" needle="$2"
+   [ -f "$file" ] || return 1
+   jq -e --arg needle "$needle" '.. | objects | .command? // empty | select(contains($needle))' "$file" >/dev/null 2>&1
+ }
 
-echo ""
-echo "MCP Coordinator:"
-check "coordinator" ~/.claude/mcp-coordinator/index.js required
+LOCAL_SETTINGS="$HOME/.claude/settings.local.json"
+GLOBAL_SETTINGS="$HOME/.claude/settings.json"
 
-echo ""
-echo "Token Management:"
-if [ -f ~/.claude/hooks/token-guard-config.json ]; then
-  if python3 -c "import json; json.load(open('$HOME/.claude/hooks/token-guard-config.json'))" 2>/dev/null; then
-    MAX_AGENTS=$(python3 -c "import json; print(json.load(open('$HOME/.claude/hooks/token-guard-config.json')).get('max_agents', '?'))" 2>/dev/null)
-    CONFIG_SCHEMA=$(python3 -c "import json; print(json.load(open('$HOME/.claude/hooks/token-guard-config.json')).get('schema_version', 1))" 2>/dev/null)
-    echo "  PASS  config valid (schema_version=$CONFIG_SCHEMA, max_agents=$MAX_AGENTS)"
-    PASS=$((PASS + 1))
-    if [ "$CONFIG_SCHEMA" -lt 2 ] 2>/dev/null; then
-      echo "  WARN  config schema_version < 2 (upgrade recommended)"
-      WARN=$((WARN + 1))
-    fi
-  else
-    echo "  FAIL  config is invalid JSON"
-    FAIL=$((FAIL + 1))
-  fi
-else
-  echo "  WARN  no config file (using defaults)"
-  WARN=$((WARN + 1))
-fi
+has_any_hook_command() {
+   local needle="$1"
+   shift
+   local file
+   for file in "$@"; do
+     if has_hook_command "$file" "$needle"; then
+       return 0
+     fi
+   done
+   return 1
+ }
 
-STATE_COUNT=$(find "$STATE_DIR" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
-echo "  INFO  $STATE_COUNT active session state files"
+lead_permission_status() {
+   python3 - <<'PY' 2>/dev/null || true
+import json, os
 
-if [ -f "$AUDIT_LOG" ]; then
-  AUDIT_LINES=$(wc -l < "$AUDIT_LOG" | tr -d ' ')
-  echo "  INFO  audit log: $AUDIT_LINES entries"
-else
-  echo "  INFO  audit log: not yet created (will appear after first Task call)"
-fi
+claude_dir = os.path.expanduser("~/.claude")
+local_path = os.path.join(claude_dir, "settings.local.json")
+global_path = os.path.join(claude_dir, "settings.json")
+lead_path = os.path.join(claude_dir, "commands", "lead.md")
+install_marker = os.path.join(claude_dir, ".lead-system-install.json")
 
-if [ -f "$AUDIT_LOG" ] || [ -f "$METRICS_LOG" ]; then
-  DQ_OUT=$(python3 - <<PY 2>/dev/null
+def read_json(path):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+mode = "unknown"
+meta = read_json(install_marker)
+if isinstance(meta, dict):
+    mode = str(meta.get("mode", "unknown"))
+if mode not in {"full", "hybrid"}:
+    print(f"skip|mode={mode}|")
+    raise SystemExit(0)
+if not os.path.isfile(lead_path):
+    print(f"skip|mode={mode}|")
+    raise SystemExit(0)
+
+tools = []
+in_tools = False
+with open(lead_path, "r", encoding="utf-8") as f:
+    for raw in f:
+        stripped = raw.strip()
+        if not in_tools:
+            if stripped == "allowed-tools:":
+                in_tools = True
+            continue
+        if stripped == "---":
+            break
+        if stripped.startswith("- "):
+            tools.append(stripped[2:].strip())
+        elif stripped and not raw.startswith(" "):
+            break
+
+if not tools:
+    print(f"skip|mode={mode}|")
+    raise SystemExit(0)
+
+allow = set()
+sources = []
+for label, path in (("local", local_path), ("global", global_path)):
+    data = read_json(path)
+    if not isinstance(data, dict):
+        continue
+    sources.append(label)
+    for item in (data.get("permissions") or {}).get("allow") or []:
+        if isinstance(item, str):
+            allow.add(item)
+
+missing = [tool for tool in tools if tool not in allow]
+status = "pass" if not missing else "fail"
+print(f"{status}|mode={mode};sources={','.join(sources) or 'none'}|{','.join(missing)}")
+PY
+ }
+
+ echo "Hooks:"
+ check "terminal-heartbeat" ~/.claude/hooks/terminal-heartbeat.sh required
+ check "session-register" ~/.claude/hooks/session-register.sh required
+ check "check-inbox" ~/.claude/hooks/check-inbox.sh required
+ check "session-end" ~/.claude/hooks/session-end.sh required
+ check "teammate-lifecycle" ~/.claude/hooks/teammate-lifecycle.sh required
+ check "token-guard" ~/.claude/hooks/token-guard.py required
+ check "model-router" ~/.claude/hooks/model-router.py required
+ check "read-efficiency-guard" ~/.claude/hooks/read-efficiency-guard.py required
+ check "hook-utils" ~/.claude/hooks/hook_utils.py required
+
+ echo ""
+ echo "MCP Coordinator:"
+ check "coordinator" ~/.claude/mcp-coordinator/index.js required
+
+ echo ""
+ echo "Token Management:"
+ if [ -f ~/.claude/hooks/token-guard-config.json ]; then
+   if python3 -c "import json; json.load(open('$HOME/.claude/hooks/token-guard-config.json'))" 2>/dev/null; then
+     MAX_AGENTS=$(python3 -c "import json; print(json.load(open('$HOME/.claude/hooks/token-guard-config.json')).get('max_agents', '?'))" 2>/dev/null)
+     CONFIG_SCHEMA=$(python3 -c "import json; print(json.load(open('$HOME/.claude/hooks/token-guard-config.json')).get('schema_version', 1))" 2>/dev/null)
+     echo "  PASS  config valid (schema_version=$CONFIG_SCHEMA, max_agents=$MAX_AGENTS)"
+     PASS=$((PASS + 1))
+     if [ "$CONFIG_SCHEMA" -lt 2 ] 2>/dev/null; then
+       echo "  WARN  config schema_version < 2 (upgrade recommended)"
+       WARN=$((WARN + 1))
+     fi
+   else
+     echo "  FAIL  config is invalid JSON"
+     FAIL=$((FAIL + 1))
+   fi
+ else
+   echo "  WARN  no config file (using defaults)"
+   WARN=$((WARN + 1))
+ fi
+
+ STATE_COUNT=$(find "$STATE_DIR" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
+ echo "  INFO  $STATE_COUNT active session state files"
+
+ if [ -f "$AUDIT_LOG" ]; then
+   AUDIT_LINES=$(wc -l < "$AUDIT_LOG" | tr -d ' ')
+   echo "  INFO  audit log: $AUDIT_LINES entries"
+ else
+   echo "  INFO  audit log: not yet created (will appear after first Task call)"
+ fi
+
+ if [ -f "$AUDIT_LOG" ] || [ -f "$METRICS_LOG" ]; then
+   DQ_OUT=$(python3 - <<PY 2>/dev/null
 import json, os
 state_dir = os.path.expanduser("$STATE_DIR")
 audit = os.path.join(state_dir, "audit.jsonl")
@@ -307,15 +444,15 @@ for m in lines(metrics):
 print(f"audit_v2={v2_audit} audit_v1={v1_audit} invalid_legacy_session={invalid_legacy_session} faults={faults} untagged_metrics={untagged_metrics} empty_agent_type={empty_agent_type}")
 PY
 )
-  [ -n "$DQ_OUT" ] && echo "  INFO  data-quality: $DQ_OUT"
-fi
+   [ -n "$DQ_OUT" ] && echo "  INFO  data-quality: $DQ_OUT"
+ fi
 
-echo ""
-echo "Prompt Sync:"
-if [ -f "$PROMPT_SYNC_TOOL" ]; then
-  PROMPT_SYNC_JSON=$(python3 "$PROMPT_SYNC_TOOL" --verify-only 2>/dev/null || true)
-  if [ -n "$PROMPT_SYNC_JSON" ]; then
-    PROMPT_STATUS=$(PROMPT_SYNC_JSON="$PROMPT_SYNC_JSON" python3 - <<'PY' 2>/dev/null
+ echo ""
+ echo "Prompt Sync:"
+ if [ -f "$PROMPT_SYNC_TOOL" ]; then
+   PROMPT_SYNC_JSON=$(python3 "$PROMPT_SYNC_TOOL" --verify-only 2>/dev/null || true)
+   if [ -n "$PROMPT_SYNC_JSON" ]; then
+     PROMPT_STATUS=$(PROMPT_SYNC_JSON="$PROMPT_SYNC_JSON" python3 - <<'PY' 2>/dev/null
 import json,os
 try:
     d=json.loads(os.environ.get("PROMPT_SYNC_JSON","{}"))
@@ -323,14 +460,14 @@ try:
     if live.get("matches"):
         print("PASS")
     elif live.get("exists"):
-        print("WARN")
+        print("INFO")
     else:
         print("WARN")
 except Exception:
     print("WARN")
 PY
 )
-    PROMPT_HASH=$(PROMPT_SYNC_JSON="$PROMPT_SYNC_JSON" python3 - <<'PY' 2>/dev/null
+     PROMPT_HASH=$(PROMPT_SYNC_JSON="$PROMPT_SYNC_JSON" python3 - <<'PY' 2>/dev/null
 import json,os
 try:
     d=json.loads(os.environ.get("PROMPT_SYNC_JSON","{}")); print(d.get("prompt_hash","unknown"))
@@ -338,44 +475,44 @@ except Exception:
     print("unknown")
 PY
 )
-    if [ "$PROMPT_STATUS" = "PASS" ]; then
-      echo "  PASS  preflight prompt hash matches source ($PROMPT_HASH)"
-      PASS=$((PASS + 1))
-    else
-      echo "  WARN  preflight prompt drift (run prompt_sync.py --apply-live) hash=$PROMPT_HASH"
-      WARN=$((WARN + 1))
-    fi
-  else
-    echo "  WARN  prompt sync tool returned no data"
-    WARN=$((WARN + 1))
-  fi
-else
-  echo "  WARN  prompt sync tool not found ($PROMPT_SYNC_TOOL)"
-  WARN=$((WARN + 1))
-fi
+     if [ "$PROMPT_STATUS" = "PASS" ]; then
+       echo "  PASS  preflight prompt hash matches source ($PROMPT_HASH)"
+       PASS=$((PASS + 1))
+     elif [ "$PROMPT_STATUS" = "INFO" ]; then
+       echo "  INFO  preflight prompt hash repo-only ($PROMPT_HASH)"
+     else
+       echo "  WARN  preflight prompt drift (run prompt_sync.py --apply-live) hash=$PROMPT_HASH"
+       WARN=$((WARN + 1))
+     fi
+   else
+     echo "  INFO  prompt sync tool returned no data"
+   fi
+ else
+   echo "  INFO  prompt sync tool not found ($PROMPT_SYNC_TOOL)"
+ fi
 
-echo ""
-echo "Alerts & Ops Cache:"
-if [ -f "$ALERTS_LOG" ]; then
-  ALERT_LINES=$(wc -l < "$ALERTS_LOG" | tr -d ' ')
-  LAST_ALERT=$(tail -1 "$ALERTS_LOG" 2>/dev/null | jq -r '.ts // "unknown"' 2>/dev/null)
-  echo "  INFO  alerts.jsonl: $ALERT_LINES entries, last: $LAST_ALERT"
-else
-  echo "  INFO  alerts.jsonl: not yet created"
-fi
-if [ -f "$ALERT_STATE" ]; then
-  if python3 -c "import json; json.load(open('$ALERT_STATE'))" 2>/dev/null; then
-    echo "  PASS  alert-state.json valid"
-    PASS=$((PASS + 1))
-  else
-    echo "  WARN  alert-state.json invalid JSON"
-    WARN=$((WARN + 1))
-  fi
-else
-  echo "  INFO  alert-state.json: not yet created"
-fi
-if [ -f "$OPS_SNAPSHOT_CACHE" ]; then
-  SNAP_META=$(python3 - <<PY 2>/dev/null
+ echo ""
+ echo "Alerts & Ops Cache:"
+ if [ -f "$ALERTS_LOG" ]; then
+   ALERT_LINES=$(wc -l < "$ALERTS_LOG" | tr -d ' ')
+   LAST_ALERT=$(tail -1 "$ALERTS_LOG" 2>/dev/null | jq -r '.ts // "unknown"' 2>/dev/null)
+   echo "  INFO  alerts.jsonl: $ALERT_LINES entries, last: $LAST_ALERT"
+ else
+   echo "  INFO  alerts.jsonl: not yet created"
+ fi
+ if [ -f "$ALERT_STATE" ]; then
+   if python3 -c "import json; json.load(open('$ALERT_STATE'))" 2>/dev/null; then
+     echo "  PASS  alert-state.json valid"
+     PASS=$((PASS + 1))
+   else
+     echo "  WARN  alert-state.json invalid JSON"
+     WARN=$((WARN + 1))
+   fi
+ else
+   echo "  INFO  alert-state.json: not yet created"
+ fi
+ if [ -f "$OPS_SNAPSHOT_CACHE" ]; then
+   SNAP_META=$(python3 - <<PY 2>/dev/null
 import json
 try:
     d=json.load(open("$OPS_SNAPSHOT_CACHE"))
@@ -384,23 +521,29 @@ except Exception:
     print("invalid")
 PY
 )
-  if [ "$SNAP_META" = "invalid" ]; then
-    echo "  WARN  ops-snapshot-cache.json invalid JSON"
-    WARN=$((WARN + 1))
-  else
-    echo "  INFO  ops-snapshot-cache.json: $SNAP_META"
-  fi
-else
-  echo "  INFO  ops-snapshot-cache.json: not yet created"
-fi
+   if [ "$SNAP_META" = "invalid" ]; then
+     echo "  WARN  ops-snapshot-cache.json invalid JSON"
+     WARN=$((WARN + 1))
+   else
+     echo "  INFO  ops-snapshot-cache.json: $SNAP_META"
+   fi
+ else
+   echo "  INFO  ops-snapshot-cache.json: not yet created"
+ fi
 
-REPO_ROOT="$HOME/Projects/claude-lead-system"
-if [ -d "$REPO_ROOT/hooks" ]; then
-  DRIFT_COUNT=$(python3 - <<PY 2>/dev/null
+ SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+ DEFAULT_REPO_ROOT=""
+ CANDIDATE_REPO_ROOT="$(cd "$SCRIPT_DIR/.." 2>/dev/null && pwd)"
+ if [ -n "$CANDIDATE_REPO_ROOT" ] && [ -d "$CANDIDATE_REPO_ROOT/.git" ] && [ -d "$CANDIDATE_REPO_ROOT/hooks" ]; then
+   DEFAULT_REPO_ROOT="$CANDIDATE_REPO_ROOT"
+ fi
+ REPO_ROOT="${CLAUDE_LEAD_REPO_ROOT:-$DEFAULT_REPO_ROOT}"
+ if [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT/hooks" ]; then
+   DRIFT_COUNT=$(LEAD_HEALTH_REPO_ROOT="$REPO_ROOT" python3 - <<PY 2>/dev/null
 import filecmp, os
-home = os.path.expanduser("~")
-repo = os.path.join(home, "Projects", "claude-lead-system", "hooks")
-live = os.path.join(home, ".claude", "hooks")
+repo_root = os.environ.get("LEAD_HEALTH_REPO_ROOT", "")
+repo = os.path.join(repo_root, "hooks") if repo_root else ""
+live = os.path.join(os.path.expanduser("~"), ".claude", "hooks")
 files = ["token-guard.py","read-efficiency-guard.py","agent-metrics.py","self-heal.py","health-check.sh","hook_utils.py","token-guard-config.json"]
 drift = 0
 for name in files:
@@ -411,110 +554,189 @@ for name in files:
 print(drift)
 PY
 )
-  echo "  INFO  repo/live hook drift count: ${DRIFT_COUNT:-unknown}"
-fi
+   echo "  INFO  repo/live hook drift count: ${DRIFT_COUNT:-unknown}"
+ else
+   echo "  INFO  repo/live hook drift count: skipped (set CLAUDE_LEAD_REPO_ROOT to compare against a local clone)"
+ fi
 
-echo ""
-echo "Repo Advisories:"
-if [ -d "$REPO_ROOT" ]; then
-  if [ -f "$REPO_ROOT/.github/workflows/benchmark-publish.yml" ]; then
-    echo "  PASS  benchmark workflow present (.github/workflows/benchmark-publish.yml)"
-    PASS=$((PASS + 1))
-  else
-    echo "  WARN  benchmark workflow missing (repo-side advisory)"
-    WARN=$((WARN + 1))
-  fi
-  if [ -f "$REPO_ROOT/docs/TOKEN_MANAGEMENT_BENCHMARK_PUBLISHING.md" ]; then
-    echo "  PASS  benchmark publishing doc present"
-    PASS=$((PASS + 1))
-  else
-    echo "  WARN  benchmark publishing doc missing (repo-side advisory)"
-    WARN=$((WARN + 1))
-  fi
-else
-  echo "  INFO  repo not present at $REPO_ROOT (skipping repo advisories)"
-fi
+ echo ""
+ echo "Repo Advisories:"
+ if [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT" ]; then
+   if [ -f "$REPO_ROOT/.github/workflows/benchmark-publish.yml" ]; then
+     echo "  PASS  benchmark workflow present (.github/workflows/benchmark-publish.yml)"
+     PASS=$((PASS + 1))
+   else
+     echo "  WARN  benchmark workflow missing (repo-side advisory)"
+     WARN=$((WARN + 1))
+   fi
+   if [ -f "$REPO_ROOT/docs/TOKEN_MANAGEMENT_BENCHMARK_PUBLISHING.md" ]; then
+     echo "  PASS  benchmark publishing doc present"
+     PASS=$((PASS + 1))
+   else
+     echo "  WARN  benchmark publishing doc missing (repo-side advisory)"
+     WARN=$((WARN + 1))
+   fi
+ else
+   echo "  INFO  repo advisories skipped (set CLAUDE_LEAD_REPO_ROOT to compare against a local clone)"
+ fi
 
-echo ""
-echo "Dependencies:"
-if command -v jq &>/dev/null; then
-  echo "  PASS  jq installed ($(jq --version 2>/dev/null))"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL  jq not installed — heartbeat won't work"
-  FAIL=$((FAIL + 1))
-fi
+ echo ""
+ echo "Dependencies:"
+ if command -v jq &>/dev/null; then
+   echo "  PASS  jq installed ($(jq --version 2>/dev/null))"
+   PASS=$((PASS + 1))
+ else
+   echo "  FAIL  jq not installed — heartbeat won't work"
+   FAIL=$((FAIL + 1))
+ fi
 
-if command -v node &>/dev/null; then
-  echo "  PASS  node installed ($(node --version 2>/dev/null))"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL  node not installed — MCP coordinator won't work"
-  FAIL=$((FAIL + 1))
-fi
+ if command -v node &>/dev/null; then
+   NODE_VERSION=$(node --version 2>/dev/null || echo "unknown")
+   NODE_MAJOR=$(echo "$NODE_VERSION" | sed -E 's/^v([0-9]+).*/\1/')
+   if [[ "$NODE_MAJOR" =~ ^[0-9]+$ ]] && [ "$NODE_MAJOR" -ge 18 ]; then
+     echo "  PASS  node installed ($NODE_VERSION)"
+     PASS=$((PASS + 1))
+   elif [[ "$NODE_MAJOR" =~ ^[0-9]+$ ]]; then
+     echo "  FAIL  node version unsupported ($NODE_VERSION) — require >=18"
+     FAIL=$((FAIL + 1))
+   else
+     echo "  FAIL  node version unreadable ($NODE_VERSION) — require >=18"
+     FAIL=$((FAIL + 1))
+   fi
+ else
+   echo "  FAIL  node not installed — MCP coordinator won't work"
+   FAIL=$((FAIL + 1))
+ fi
 
-echo ""
-echo "Settings:"
-if [ -f ~/.claude/settings.local.json ]; then
-  if jq -e '.mcpServers.coordinator.args[]? | strings | contains("__HOME__")' ~/.claude/settings.local.json &>/dev/null; then
+ echo ""
+ echo "Settings:"
+ if [ -f "$LOCAL_SETTINGS" ] || [ -f "$GLOBAL_SETTINGS" ]; then
+  if { [ -f "$LOCAL_SETTINGS" ] && jq -e '.mcpServers.coordinator.args[]? | strings | contains("__HOME__")' "$LOCAL_SETTINGS" &>/dev/null; } || { [ -f "$GLOBAL_SETTINGS" ] && jq -e '.mcpServers.coordinator.args[]? | strings | contains("__HOME__")' "$GLOBAL_SETTINGS" &>/dev/null; }; then
     echo "  FAIL  unresolved __HOME__ placeholder in coordinator args"
     FAIL=$((FAIL + 1))
+  elif [ -f "$LOCAL_SETTINGS" ] && jq -e '.mcpServers.coordinator.command == "node" and any(.mcpServers.coordinator.args[]?; contains("/.claude/mcp-coordinator/index.js"))' "$LOCAL_SETTINGS" &>/dev/null; then
+    echo "  PASS  coordinator MCP registered in local settings"
+    PASS=$((PASS + 1))
+  elif [ -f "$GLOBAL_SETTINGS" ] && jq -e '.mcpServers.coordinator.command == "node" and any(.mcpServers.coordinator.args[]?; contains("/.claude/mcp-coordinator/index.js"))' "$GLOBAL_SETTINGS" &>/dev/null; then
+    echo "  PASS  coordinator MCP registered in global settings"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL  coordinator MCP missing or miswired"
+    FAIL=$((FAIL + 1))
   fi
-  # Check heartbeat is registered
-  if jq -e '.hooks.PostToolUse[].hooks[]? | select(.command | contains("terminal-heartbeat"))' ~/.claude/settings.local.json &>/dev/null; then
-    echo "  PASS  heartbeat registered in PostToolUse"
+  if has_any_hook_command "terminal-heartbeat" "$LOCAL_SETTINGS" "$GLOBAL_SETTINGS"; then
+    echo "  PASS  heartbeat registered in settings"
     PASS=$((PASS + 1))
   else
     echo "  FAIL  heartbeat NOT registered in PostToolUse"
     FAIL=$((FAIL + 1))
   fi
-  if jq -e '.hooks.PreToolUse[].hooks[]? | select(.command | contains("check-inbox"))' ~/.claude/settings.local.json &>/dev/null; then
-    echo "  PASS  inbox hook registered in PreToolUse"
+  if has_any_hook_command "check-inbox" "$LOCAL_SETTINGS" "$GLOBAL_SETTINGS"; then
+    echo "  PASS  inbox hook registered in settings"
     PASS=$((PASS + 1))
   else
-    if jq -e '.hooks.PreToolUse[].hooks[]? | select(.command | contains("check-inbox"))' ~/.claude/settings.json >/dev/null 2>&1; then
-      echo "  PASS  inbox hook registered in global settings"
-      PASS=$((PASS + 1))
-    else
-      echo "  WARN  inbox hook not found (messaging may not work)"
-      WARN=$((WARN + 1))
-    fi
+    echo "  WARN  inbox hook not found (messaging may not work)"
+    WARN=$((WARN + 1))
   fi
-  if jq -e '.hooks.TeammateIdle[].hooks[]? | select(.command | contains("teammate-lifecycle"))' ~/.claude/settings.local.json &>/dev/null; then
+  if has_any_hook_command "teammate-lifecycle.sh TeammateIdle" "$LOCAL_SETTINGS" "$GLOBAL_SETTINGS"; then
     echo "  PASS  teammate-lifecycle registered in TeammateIdle"
     PASS=$((PASS + 1))
   else
     echo "  WARN  TeammateIdle hook not registered (native team idle telemetry missing)"
     WARN=$((WARN + 1))
   fi
-  if jq -e '.hooks.TaskCompleted[].hooks[]? | select(.command | contains("teammate-lifecycle"))' ~/.claude/settings.local.json &>/dev/null; then
+  if has_any_hook_command "teammate-lifecycle.sh TaskCompleted" "$LOCAL_SETTINGS" "$GLOBAL_SETTINGS"; then
     echo "  PASS  teammate-lifecycle registered in TaskCompleted"
     PASS=$((PASS + 1))
   else
     echo "  WARN  TaskCompleted hook not registered (native completion telemetry missing)"
     WARN=$((WARN + 1))
   fi
-else
-  echo "  FAIL  settings.local.json not found"
+ else
+   echo "  FAIL  settings.local.json and settings.json not found"
+   FAIL=$((FAIL + 1))
+ fi
+
+ echo ""
+ echo "Blessed Path:"
+ if [ -f ~/.claude/commands/lead.md ]; then
+   echo "  PASS  /lead command installed"
+   PASS=$((PASS + 1))
+ else
+   echo "  FAIL  /lead command missing"
+   FAIL=$((FAIL + 1))
+ fi
+ if [ -e ~/.local/bin/claudex ]; then
+   echo "  PASS  claudex launcher installed"
+   PASS=$((PASS + 1))
+ elif [ "$INSTALL_STATE" = "installed" ]; then
+   echo "  FAIL  claudex launcher missing from ~/.local/bin (re-run install.sh)"
+   FAIL=$((FAIL + 1))
+ else
+   echo "  WARN  claudex launcher not linked (run install.sh to create ~/.local/bin/claudex)"
+   WARN=$((WARN + 1))
+ fi
+ if [ -e ~/.local/bin/sidecarctl ]; then
+   echo "  PASS  sidecarctl launcher installed"
+   PASS=$((PASS + 1))
+ elif [ "$INSTALL_STATE" = "installed" ]; then
+   echo "  FAIL  sidecarctl launcher missing from ~/.local/bin (re-run install.sh)"
+   FAIL=$((FAIL + 1))
+ else
+   echo "  WARN  sidecarctl launcher not linked (run install.sh to create ~/.local/bin/sidecarctl)"
+   WARN=$((WARN + 1))
+ fi
+
+ LEAD_PERMISSION_CHECK=$(lead_permission_status)
+ LEAD_PERMISSION_STATUS=${LEAD_PERMISSION_CHECK%%|*}
+ LEAD_PERMISSION_REST=${LEAD_PERMISSION_CHECK#*|}
+ LEAD_PERMISSION_META=${LEAD_PERMISSION_REST%%|*}
+ LEAD_PERMISSION_MISSING=${LEAD_PERMISSION_CHECK##*|}
+ case "$LEAD_PERMISSION_STATUS" in
+   pass)
+     echo "  PASS  /lead permissions cover command tool surface ($LEAD_PERMISSION_META)"
+     PASS=$((PASS + 1))
+     ;;
+   fail)
+     echo "  FAIL  /lead permissions missing: ${LEAD_PERMISSION_MISSING} ($LEAD_PERMISSION_META)"
+     FAIL=$((FAIL + 1))
+     ;;
+   skip)
+     echo "  INFO  /lead permission surface check skipped ($LEAD_PERMISSION_META)"
+     ;;
+ esac
+
+ if has_any_hook_command "token-guard" "$LOCAL_SETTINGS" "$GLOBAL_SETTINGS"; then
+   echo "  PASS  token-guard registered in local settings"
+   PASS=$((PASS + 1))
+elif [ "$INSTALL_STATE" = "installed" ]; then
+  echo "  FAIL  token-guard NOT registered in settings"
   FAIL=$((FAIL + 1))
+else
+  echo "  WARN  token-guard not registered (run install.sh to sync settings)"
+  WARN=$((WARN + 1))
 fi
 
-# Check token-guard is registered in global settings
-if [ -f ~/.claude/settings.json ]; then
-  if jq -e '.hooks.PreToolUse[].hooks[]? | select(.command? // "" | contains("token-guard"))' ~/.claude/settings.json &>/dev/null; then
-    echo "  PASS  token-guard registered in PreToolUse"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL  token-guard NOT registered in PreToolUse"
-    FAIL=$((FAIL + 1))
-  fi
-  if jq -e '.hooks.PreToolUse[].hooks[]? | select(.command? // "" | contains("read-efficiency-guard"))' ~/.claude/settings.json &>/dev/null; then
-    echo "  PASS  read-efficiency-guard registered in PreToolUse"
-    PASS=$((PASS + 1))
-  else
-    echo "  FAIL  read-efficiency-guard NOT registered in PreToolUse"
-    FAIL=$((FAIL + 1))
-  fi
+if has_any_hook_command "model-router" "$LOCAL_SETTINGS" "$GLOBAL_SETTINGS"; then
+  echo "  PASS  model-router registered in local settings"
+  PASS=$((PASS + 1))
+elif [ "$INSTALL_STATE" = "installed" ]; then
+  echo "  FAIL  model-router NOT registered in settings"
+  FAIL=$((FAIL + 1))
+else
+  echo "  WARN  model-router not registered (run install.sh to sync settings)"
+  WARN=$((WARN + 1))
+fi
+
+if has_any_hook_command "read-efficiency-guard" "$LOCAL_SETTINGS" "$GLOBAL_SETTINGS"; then
+  echo "  PASS  read-efficiency-guard registered in local settings"
+  PASS=$((PASS + 1))
+elif [ "$INSTALL_STATE" = "installed" ]; then
+  echo "  FAIL  read-efficiency-guard NOT registered in settings"
+  FAIL=$((FAIL + 1))
+else
+  echo "  WARN  read-efficiency-guard not registered (run install.sh to sync settings)"
+  WARN=$((WARN + 1))
 fi
 
 echo ""
@@ -526,18 +748,25 @@ for agent in master-coder master-researcher master-architect master-workflow; do
     echo "  PASS  ${agent}.md"
     AGENT_PASS=$((AGENT_PASS + 1))
     PASS=$((PASS + 1))
-  else
-    echo "  FAIL  ${agent}.md — missing"
+  elif [ "$INSTALL_STATE" = "installed" ]; then
+    echo "  FAIL  ${agent}.md — missing (re-run install.sh)"
     AGENT_FAIL=$((AGENT_FAIL + 1))
     FAIL=$((FAIL + 1))
+  else
+    echo "  WARN  ${agent}.md — not installed (run install.sh)"
+    AGENT_FAIL=$((AGENT_FAIL + 1))
+    WARN=$((WARN + 1))
   fi
 done
 if [ -f ~/.claude/master-agents/MANIFEST.md ]; then
   echo "  PASS  MANIFEST.md"
   PASS=$((PASS + 1))
-else
-  echo "  FAIL  MANIFEST.md — missing"
+elif [ "$INSTALL_STATE" = "installed" ]; then
+  echo "  FAIL  MANIFEST.md — missing (re-run install.sh)"
   FAIL=$((FAIL + 1))
+else
+  echo "  WARN  MANIFEST.md — not installed (run install.sh)"
+  WARN=$((WARN + 1))
 fi
 MODE_COUNT=$(find ~/.claude/master-agents -name "*.md" -not -name "MANIFEST.md" -not -path "*/refs/*" 2>/dev/null | wc -l | tr -d ' ')
 echo "  INFO  $MODE_COUNT mode files found (expected 17)"

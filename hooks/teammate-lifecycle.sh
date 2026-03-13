@@ -86,7 +86,7 @@ if [[ "$EVENT_NAME" == "TaskCompleted" ]]; then
     GATE_OUTPUT=$(echo "$INPUT" | "$GATE_SCRIPT" "$EVENT_NAME" 2>&1)
     GATE_EXIT=$?
     if [[ "$GATE_EXIT" -eq 2 ]]; then
-      printf "Quality gate FAILED for task %s:\n%s\n" "$TASK_ID" "$GATE_OUTPUT"
+      printf "Quality gate FAILED for task %s:\n%s\n" "$TASK_ID" "$GATE_OUTPUT" >&2
       exit 2
     fi
   fi

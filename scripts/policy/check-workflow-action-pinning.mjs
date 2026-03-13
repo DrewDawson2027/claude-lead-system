@@ -6,6 +6,11 @@ const root = resolve(process.cwd());
 const wfDir = resolve(root, '.github/workflows');
 const files = readdirSync(wfDir).filter((f) => f.endsWith('.yml'));
 
+// First-party Anthropic actions are allowed to use official tags (e.g. @beta)
+// without SHA pinning. SHA-pinning first-party actions would break on every
+// Anthropic release and provides minimal supply-chain benefit for the repo owner.
+const ANTHROPIC_ACTION_PREFIX = 'anthropics/';
+
 const unpinned = [];
 for (const f of files) {
   const txt = readFileSync(resolve(wfDir, f), 'utf8');
@@ -14,6 +19,8 @@ for (const f of files) {
     const m = line.match(/uses:\s*([^\s#]+)/);
     if (!m) return;
     const ref = m[1];
+    // Allow first-party Anthropic actions to use their official tag refs.
+    if (ref.startsWith(ANTHROPIC_ACTION_PREFIX)) return;
     const at = ref.lastIndexOf('@');
     if (at < 0) {
       unpinned.push(`${f}:${idx + 1} missing @ref -> ${ref}`);

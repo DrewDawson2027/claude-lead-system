@@ -61,10 +61,14 @@ export class BridgeController {
 
   _statusPatch(patch) {
     const prev = readJSON(this.paths.nativeBridgeStatusFile) || {};
+    const nextPid =
+      patch && Object.prototype.hasOwnProperty.call(patch, "pid")
+        ? patch.pid
+        : (prev?.pid ?? process.pid);
     const next = {
       ...prev,
       ...patch,
-      pid: patch?.pid ?? prev?.pid ?? process.pid,
+      pid: nextPid,
       updated_at: new Date().toISOString(),
     };
     writeJSON(this.paths.nativeBridgeStatusFile, next);
@@ -173,6 +177,9 @@ export class BridgeController {
 
     this._statusPatch({
       starting: false,
+      pid: null,
+      session_id: null,
+      task_id: null,
       note: "bridge spawn failed",
       last_error: res?.text || "unknown spawn failure",
     });
@@ -193,7 +200,11 @@ export class BridgeController {
     const allowed = allowDegraded
       ? new Set(["healthy", "starting", "stale", "degraded"])
       : new Set(["healthy"]);
-    if (!allowed.has(health.bridge_status)) throw new Error("bridge_stale");
+    if (!allowed.has(health.bridge_status)) {
+      throw new Error(
+        `bridge_unavailable:${String(health.bridge_status || "down")}`,
+      );
+    }
     const request_id = newRequestId();
     const request = {
       request_id,
@@ -221,7 +232,16 @@ export class BridgeController {
 
     const res = await waitForBridgeResponse(this.paths, request_id, timeoutMs);
     if (!res) throw new Error("bridge_timeout");
-    return { ...res, path_mode: "bridge" };
+    return {
+      ...res,
+      path_mode: "bridge",
+      route_mode: "bridge",
+      route_reason: "bridge execution succeeded",
+      fallback_history: Array.isArray(res?.fallback_history)
+        ? res.fallback_history
+        : [],
+      probe_source: res?.probe_source || "bridge-controller",
+    };
   }
 
   _simulateBridgeWorkerResponse({ timeoutMs = 5000, once = true } = {}) {

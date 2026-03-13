@@ -1,0 +1,73 @@
+{
+  "cert_flow_version": "release-discipline-v1",
+  "cert_flow_fingerprint_sha256": "4bb9b5ff66bc9b14309cd1bb72c51d6b6966181819e7cbf34184b1bd59703206",
+  "canonical_public_branch": "main",
+  "run_branch": "feature/context-default-upgrade",
+  "run_commit": "a7fa94c50ad4de66b10ee3cdc7b75cf08cc78961",
+  "worktree_clean": false,
+  "cert_flow_result": "FAIL",
+  "public_release_grade": "NOT_A+",
+  "blockers": [
+    "step-failures",
+    "non-canonical-branch:feature/context-default-upgrade",
+    "dirty-worktree"
+  ],
+  "steps": [
+    {
+      "name": "lint:shell",
+      "command": "npm",
+      "args": ["run", "lint:shell"],
+      "result": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "lint:python",
+      "command": "npm",
+      "args": ["run", "lint:python"],
+      "result": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "lint:coordinator",
+      "command": "npm",
+      "args": ["run", "lint:coordinator"],
+      "result": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "test:coverage",
+      "command": "npm",
+      "args": ["--workspace", "mcp-coordinator", "run", "test:coverage"],
+      "result": "FAIL",
+      "exit_code": 1
+    },
+    {
+      "name": "docs:audit",
+      "command": "npm",
+      "args": ["run", "docs:audit"],
+      "result": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "typecheck:sidecar",
+      "command": "npm",
+      "args": ["run", "typecheck:sidecar"],
+      "result": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "test:sidecar",
+      "command": "npm",
+      "args": ["run", "test:sidecar"],
+      "result": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "verify:hooks",
+      "command": "npm",
+      "args": ["run", "verify:hooks"],
+      "result": "PASS",
+      "exit_code": 0
+    }
+  ]
+}

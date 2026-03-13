@@ -1,5 +1,6 @@
 import { createRouteRegistry } from "../router.js";
 import { registerSystemRoutes } from "./system.js";
+import { registerAgentRoutes } from "./agents.js";
 import { registerTeamRoutes } from "./teams.js";
 import { registerNativeRoutes } from "./native.js";
 import { registerActionRoutes } from "./actions.js";
@@ -9,6 +10,7 @@ import { registerMaintenanceRoutes } from "./maintenance.js";
 export function buildServerRouter() {
   const registry = createRouteRegistry();
   registerSystemRoutes(registry);
+  registerAgentRoutes(registry);
   registerTeamRoutes(registry);
   registerActionRoutes(registry);
   registerNativeRoutes(registry);
