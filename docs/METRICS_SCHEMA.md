@@ -34,21 +34,21 @@ curl -s http://127.0.0.1:7199/v1/metrics.json | jq .
 
 **Fields:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `actions_dispatched` | number | Total actions dispatched since startup |
-| `actions_completed` | number | Actions that completed successfully |
-| `actions_failed` | number | Actions that failed |
-| `actions_retried` | number | Actions retried after failure |
-| `actions_fallback` | number | Actions sent to fallback path |
-| `bridge_requests_sent` | number | Native bridge requests sent |
-| `bridge_responses_received` | number | Native bridge responses received |
-| `bridge_timeouts` | number | Bridge requests that timed out |
-| `rebuilds` | number | Snapshot rebuilds performed |
-| `maintenance_sweeps` | number | Maintenance sweeps executed |
-| `checkpoints_created` | number | Recovery checkpoints created |
-| `sse_connections` | number | Active SSE connections |
-| `generated_at` | ISO 8601 | When the snapshot was taken |
+| Field                       | Type     | Description                            |
+| --------------------------- | -------- | -------------------------------------- |
+| `actions_dispatched`        | number   | Total actions dispatched since startup |
+| `actions_completed`         | number   | Actions that completed successfully    |
+| `actions_failed`            | number   | Actions that failed                    |
+| `actions_retried`           | number   | Actions retried after failure          |
+| `actions_fallback`          | number   | Actions sent to fallback path          |
+| `bridge_requests_sent`      | number   | Native bridge requests sent            |
+| `bridge_responses_received` | number   | Native bridge responses received       |
+| `bridge_timeouts`           | number   | Bridge requests that timed out         |
+| `rebuilds`                  | number   | Snapshot rebuilds performed            |
+| `maintenance_sweeps`        | number   | Maintenance sweeps executed            |
+| `checkpoints_created`       | number   | Recovery checkpoints created           |
+| `sse_connections`           | number   | Active SSE connections                 |
+| `generated_at`              | ISO 8601 | When the snapshot was taken            |
 
 ---
 
@@ -62,9 +62,9 @@ curl -s "http://127.0.0.1:7199/v1/metrics/history?limit=10" | jq .
 
 **Query parameters:**
 
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| `limit` | number | 100 | Max snapshots to return |
+| Param   | Type   | Default | Description             |
+| ------- | ------ | ------- | ----------------------- |
+| `limit` | number | 100     | Max snapshots to return |
 
 **Response:**
 
