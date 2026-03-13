@@ -6,9 +6,6 @@ RUNTIME_DIR="$SIDECAR_DIR/runtime"
 PORT_FILE="$RUNTIME_DIR/sidecar.port"
 LOCK_FILE="$RUNTIME_DIR/sidecar.lock"
 API_TOKEN_FILE="$RUNTIME_DIR/api.token"
-LOG_FILE="$SIDECAR_DIR/logs/sidecar.out.log"
-INSTALL_LOG_FILE="$SIDECAR_DIR/logs/npm-install.log"
-INSTALL_MARKER="$CLAUDE_DIR/.lead-system-install.json"
 
 get_port() {
   [[ -f "$PORT_FILE" ]] || return 1
@@ -40,96 +37,6 @@ api() {
   else
     curl -fsS -X "$method" "http://127.0.0.1:${port}${path}" "${headers[@]}" -d "${body:-{}}"
   fi
-}
-
-doctor_settings_snapshot() {
-  python3 - <<PY 2>/dev/null || true
-import json, os
-
-claude_dir = os.path.expanduser("$CLAUDE_DIR")
-local_path = os.path.join(claude_dir, "settings.local.json")
-global_path = os.path.join(claude_dir, "settings.json")
-lead_path = os.path.join(claude_dir, "commands", "lead.md")
-install_marker = os.path.join(claude_dir, ".lead-system-install.json")
-
-def read_json(path):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return None
-
-def parse_allowed_tools(path):
-    if not os.path.isfile(path):
-        return []
-    tools = []
-    in_tools = False
-    with open(path, "r", encoding="utf-8") as f:
-        for raw in f:
-            stripped = raw.strip()
-            if not in_tools:
-                if stripped == "allowed-tools:":
-                    in_tools = True
-                continue
-            if stripped == "---":
-                break
-            if stripped.startswith("- "):
-                tools.append(stripped[2:].strip())
-            elif stripped and not raw.startswith(" "):
-                break
-    return tools
-
-mode = "unknown"
-meta = read_json(install_marker)
-if isinstance(meta, dict):
-    mode = str(meta.get("mode", "unknown"))
-
-sources = []
-placeholder_sources = []
-coordinator_sources = []
-wired_sources = []
-coordinator_args = []
-allow = set()
-
-for label, path in (("local", local_path), ("global", global_path)):
-    data = read_json(path)
-    if not isinstance(data, dict):
-        continue
-    sources.append(label)
-    for item in (data.get("permissions") or {}).get("allow") or []:
-        if isinstance(item, str):
-            allow.add(item)
-    mcp = (data.get("mcpServers") or {}).get("coordinator")
-    if not isinstance(mcp, dict):
-        continue
-    coordinator_sources.append(label)
-    args = [str(arg) for arg in (mcp.get("args") or [])]
-    if not coordinator_args and args:
-        coordinator_args = args
-    if any("__HOME__" in arg for arg in args):
-        placeholder_sources.append(label)
-    if mcp.get("command") == "node" and any("/.claude/mcp-coordinator/index.js" in arg for arg in args):
-        wired_sources.append(label)
-        if args:
-            coordinator_args = args
-
-lead_tools = parse_allowed_tools(lead_path)
-missing = [tool for tool in lead_tools if tool not in allow]
-if not lead_tools:
-    perm_status = "skipped"
-elif not missing:
-    perm_status = "ok"
-elif mode in {"full", "hybrid"}:
-    perm_status = "missing"
-else:
-    perm_status = "partial"
-
-print("settings sources:", ",".join(sources) or "none")
-print("settings placeholders:", ",".join(placeholder_sources) or "none")
-print("coordinator mcp:", "ok" if wired_sources else "missing", f"sources={','.join(wired_sources or coordinator_sources or ['none'])}")
-print("coordinator args:", coordinator_args)
-print("/lead tool perms:", perm_status, missing)
-PY
 }
 
 launchagent_plist() {
@@ -212,72 +119,32 @@ case "$cmd" in
     esac
     ;;
   doctor)
-    echo "== Lead Doctor (Advanced) =="
-    echo "background service dir: $SIDECAR_DIR"
+    echo "== Lead Sidecar Doctor =="
+    echo "sidecar dir: $SIDECAR_DIR"
     command -v node >/dev/null && echo "node: ok" || echo "node: missing"
-    command -v python3 >/dev/null && echo "python3: ok" || echo "python3: missing"
     command -v claude >/dev/null && echo "claude: ok" || echo "claude: missing"
-    if [[ -f "$INSTALL_MARKER" ]]; then
+    [[ -f "$CLAUDE_DIR/settings.local.json" ]] && echo "settings.local.json: present" || echo "settings.local.json: missing"
+    if [[ -f "$CLAUDE_DIR/settings.local.json" ]]; then
       python3 - <<PY 2>/dev/null || true
 import json
-try:
-    meta=json.load(open("$INSTALL_MARKER"))
-    print("install marker:", f"mode={meta.get('mode','unknown')} ref={meta.get('ref','unknown')} installed_at={meta.get('installed_at','unknown')}")
-except Exception:
-    print("install marker: invalid")
+s=json.load(open("$CLAUDE_DIR/settings.local.json"))
+a=set(s.get("permissions",{}).get("allow",[]))
+need=["TeamCreate","TeamStatus","SendMessage","Task"]
+print("native perms:", "ok" if all(x in a for x in need) else "missing", [x for x in need if x not in a])
+print("coordinator mcp:", "ok" if "coordinator" in s.get("mcpServers",{}) else "missing")
 PY
-    else
-      echo "install marker: missing"
-    fi
-    [[ -f "$CLAUDE_DIR/commands/lead.md" ]] && echo "/lead command: present" || echo "/lead command: missing"
-    [[ -e "$HOME/.local/bin/claudex" ]] && echo "claudex launcher: present" || echo "claudex launcher: missing"
-    [[ -e "$HOME/.local/bin/sidecarctl" ]] && echo "sidecarctl launcher: present" || echo "sidecarctl launcher: missing"
-    if [[ -x "$SIDECAR_DIR/node_modules/.bin/tsx" ]] || [[ -f "$SIDECAR_DIR/node_modules/tsx/dist/cli.mjs" ]]; then
-      echo "tsx runtime: present"
-    else
-      echo "tsx runtime: missing"
-    fi
-    [[ -f "$SIDECAR_DIR/server/index.js" ]] && echo "server entry: present" || echo "server entry: missing"
-    [[ -f "$CLAUDE_DIR/settings.local.json" ]] && echo "settings.local.json: present" || echo "settings.local.json: missing"
-    [[ -f "$CLAUDE_DIR/settings.json" ]] && echo "settings.json: present" || echo "settings.json: missing"
-    doctor_settings_snapshot
-    if [[ -f "$LOCK_FILE" ]]; then
-      echo "lock file: present"
-      cat "$LOCK_FILE" 2>/dev/null || true
-      echo
-    else
-      echo "lock file: missing"
     fi
     if [[ -f "$PORT_FILE" ]]; then
-      echo "port file: present"
-      cat "$PORT_FILE" 2>/dev/null || true
+      echo "sidecar api /health:" && api GET /health || true
       echo
-    else
-      echo "port file: missing"
-    fi
-    if [[ -f "$PORT_FILE" ]]; then
-      echo "Lead API /health:" && api GET /health || true
+      echo "sidecar native status:" && api GET /native/status || true
       echo
-      echo "advanced native status:" && api GET /native/status || true
-      echo
-      echo "advanced bridge validation:" && api GET /native/bridge/validation || true
+      echo "sidecar bridge validation:" && api GET /native/bridge/validation || true
       echo
       echo "diagnostics latest:" && api GET /diagnostics/latest || true
       echo
-      echo "sidecar security audit:" && api GET /health/security-audit || true
-      echo
     else
-      echo "Lead background service: not running"
-    fi
-    echo "startup log: $LOG_FILE"
-    if [[ -f "$LOG_FILE" ]]; then
-      tail -20 "$LOG_FILE" 2>/dev/null || true
-      echo
-    fi
-    if [[ -f "$INSTALL_LOG_FILE" ]]; then
-      echo "install log: $INSTALL_LOG_FILE"
-      tail -20 "$INSTALL_LOG_FILE" 2>/dev/null || true
-      echo
+      echo "sidecar runtime: not running"
     fi
     ;;
   autostart)
@@ -301,7 +168,7 @@ PY
     esac
     ;;
   self-check)
-    echo "== Advanced Troubleshooting (Lead Self-Check) =="
+    echo "== Lead Sidecar Self-Check =="
     PASS=0; FAIL=0; WARN=0
     sc_ok()   { echo "  PASS: $*"; PASS=$((PASS + 1)); }
     sc_fail() { echo "  FAIL: $*" >&2; FAIL=$((FAIL + 1)); }

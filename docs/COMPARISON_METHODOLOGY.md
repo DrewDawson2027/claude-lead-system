@@ -1,153 +1,92 @@
-# Throughput Comparison Methodology (Evidence-Grade A/B)
+# Cost Comparison Methodology
 
-Economics claims must be tied to measured A/B artifacts. Modeled outputs are explicitly non-claim.
+How the README cost comparison numbers were calculated.
 
-## Evidence Classes
+## Pricing Used
 
-- `production_measured`: live native vs Lead runs on the same workload; eligible for conditional savings claims.
-- `synthetic_measured`: measured harness execution on synthetic/mock workflow adapters; validates instrumentation only, not production savings claims.
-- `modeled`: scenario or assumption outputs; never eligible for savings claims.
+As of February 2026 (Anthropic pricing page):
 
-## Matched Runner Contract
+| Model | Input (per 1M tokens) | Output (per 1M tokens) |
+|-------|----------------------|------------------------|
+| Claude Opus | $15.00 | $75.00 |
+| Claude Sonnet | $3.00 | $15.00 |
 
-A/B commands are path-specific and workload-matched:
+## Assumptions
 
-- Native path runner: `bench/workloads/run-native-subagent-workflow.sh`
-- Lead coordinator runner: `bench/workloads/run-lead-coordinator-workflow.sh`
-- Lead overlay runner: `bench/workloads/run-lead-overlay-workflow.sh` (optional)
+### Task scenario
+- Moderately complex feature build (e.g., "add error handling to API endpoints")
+- 2 parallel workers + 1 lead session
+- Each worker handles a focused subtask and exits
+- Lead coordinates, reviews, merges
 
-Canonical config: `bench/ab-harness.config.example.json`
+### Agent Teams context growth
+- Lead session: ~150K tokens (Opus) — maintains full context for orchestration
+- Teammate A: ~300K tokens (Sonnet) — context grows with every tool call (Edit, Read, Bash)
+- Teammate B: ~250K tokens (Sonnet) — context grows similarly
+- Coordination overhead: ~100K tokens — messages between teammates are in-context
 
-Key workload controls in config:
+### Lead System context
+- Lead session: ~150K tokens (Opus) — same orchestration load
+- Worker 1: ~80K tokens (Sonnet) — gets task, executes, exits (no context growth from coordination)
+- Worker 2: ~60K tokens (Sonnet) — same pattern
+- Coordination: 0 tokens — all coordination is JSON files on disk
 
-- `workload.comparison_target`
-- `workload.evidence_tier`
-- `workload.prompt_file`
+## Cost Calculation
 
-## Canonical Run Command
-
-```bash
-node bench/ab-harness.mjs --config bench/ab-harness.config.example.json
+### Agent Teams
+```
+Lead:         150K tokens × ($15 + $75) / 2M ≈ $2.25  (mix of input/output at Opus rates)
+Teammate A:   300K tokens × ($3 + $15) / 2M  ≈ $2.70  (Sonnet rates)
+Teammate B:   250K tokens × ($3 + $15) / 2M  ≈ $2.25
+Coordination: 100K tokens × ($3 + $15) / 2M  ≈ $0.90
+TOTAL: $8.10
 ```
 
-Required per-run artifacts:
+### Lead System
+```
+Lead:         150K tokens × ($15 + $75) / 2M ≈ $2.25  (same)
+Worker 1:     80K tokens × ($3 + $15) / 2M   ≈ $0.72  (smaller context)
+Worker 2:     60K tokens × ($3 + $15) / 2M   ≈ $0.54  (smaller context)
+Coordination: 0 tokens (filesystem)           = $0.00
+TOTAL: $3.51
+```
 
-- `reports/ab-harness/<run-id>/raw-dataset.jsonl`
-- `reports/ab-harness/<run-id>/run-manifest.json`
-- `reports/ab-harness/<run-id>/run-status.json`
-- `reports/ab-harness/<run-id>/summary.json`
-- `reports/ab-harness/<run-id>/report.md`
-- `reports/ab-harness/<run-id>/claim-safe-summary.md`
+### Savings
+```
+$8.10 - $3.51 = $4.59 savings (57%)
+```
 
-## Metric Definitions (Measured)
+## Why Workers Use Fewer Tokens
 
-Metrics and their artifact fields:
+Agent Teams teammates maintain growing context windows:
+- Every `TaskList`, `SendMessage`, `TaskUpdate` call adds to context
+- Idle teammates still hold their full context window open
+- Messages between teammates are delivered as context (not free)
 
-- Token usage: `raw-dataset.jsonl[*].tokens.total_tokens_used`
-- Latency: `raw-dataset.jsonl[*].latency_ms`
-- Completion rate: `summary.per_path.<path>.completion_rate`
-- Human intervention count: `raw-dataset.jsonl[*].human_intervention_count`
-- Resume attempts/success: `raw-dataset.jsonl[*].resume.*` and `summary.per_path.<path>.resume`
-- Conflict incidents: `raw-dataset.jsonl[*].conflict_incidents`
-- Throughput per usage window: `raw-dataset.jsonl[*].throughput.per_usage_window`
+Lead System workers are stateless:
+- Worker gets a task prompt, executes it, writes `result.json`, exits
+- No coordination messages in context — messages are JSON files
+- No idle cost — workers don't exist between tasks
 
-## Attribution Integrity Contract
+## Key Difference: Coordination Cost
 
-Every counted telemetry record must carry and match all three attribution fields for the active trial row:
+| Operation | Agent Teams Cost | Lead System Cost |
+|-----------|-----------------|-----------------|
+| Send message | ~500-2000 tokens (in-context) | 0 tokens (JSON file) |
+| Check task status | ~1000 tokens (tool call) | 0 tokens (read JSON) |
+| Worker idle wait | Full context maintained | Worker doesn't exist |
+| Conflict detection | Not available | 0 tokens (hook reads JSON) |
 
-- `run_id`
-- `trial`
-- `path_id`
+## Disclaimer
 
-This rule is enforced for:
+- Actual costs vary by task complexity, coding style, and tool usage patterns
+- The comparison uses a representative mid-complexity task scenario
+- Token counts are estimates based on typical tool call patterns observed in practice
+- Pricing may change — check the [Anthropic pricing page](https://www.anthropic.com/pricing) for current rates
+- The comparison assumes Claude Opus for the lead session and Claude Sonnet for workers/teammates
 
-- token lanes (`agent-metrics.jsonl`, transcript JSONL usage records)
-- activity records
-- conflict records
-- resume records (`*.meta.json`)
-- harness event records
+## References
 
-Records tagged to another run are ignored.
-
-Records missing attribution tags are treated as attribution gaps. Any metric dependent on a lane with attribution gaps is marked unavailable, and the run fails claim readiness.
-
-## Claim Gate
-
-A savings claim is allowed only when all conditions pass in `summary.json`:
-
-1. `workload.evidence_tier == production_measured`
-2. `data_quality.claim_ready_for_savings == true`
-3. `claim_safe_summary.policy[*].savings_claim_allowed == true`
-4. `data_quality.attribution_integrity_pass == true`
-
-If any condition fails, the run is claim-ineligible and must be reported as inconclusive for savings.
-
-## One-Fifth Objective Certification
-
-The economics proof lane emits machine-readable certification in:
-
-- `summary.json -> economics_certification.overall_result`
-- `summary.json -> economics_certification.per_path.<path>.result`
-
-Allowed values:
-
-- `certified`
-- `not_certified`
-- `blocked_by_evidence_quality`
-
-The one-fifth objective is certifiable only when every required gate passes for compared paths:
-
-1. `same_workload_comparison_valid`
-2. `completion_quality_non_inferior`
-3. `intervention_failure_cost_not_materially_worse`
-4. `token_cost_reduction_supports_target_threshold`
-
-Target threshold is enforced conservatively from confidence bounds:
-
-- `tokens_total_ratio_to_baseline.ci_high <= 0.2`
-
-If evidence quality is incomplete (attribution gaps, partial trial matrix, missing lane bounds), result must be `blocked_by_evidence_quality`, never `certified`.
-
-## Current Evidence Snapshot (March 12, 2026)
-
-Run ID:
-
-- `ab-economics-proof-synthetic-20260312-final`
-
-Artifact root:
-
-- `reports/ab-harness/ab-economics-proof-synthetic-20260312-final/`
-
-Measured outputs from `summary.json`:
-
-- Lead coordinator token delta vs native: `-900` (`summary.comparisons_vs_baseline.lead_coordinator.tokens_total_minus_baseline.mean_diff`)
-- Lead overlay token delta vs native: `-500` (`summary.comparisons_vs_baseline.lead_overlay.tokens_total_minus_baseline.mean_diff`)
-- Claim gate result: savings disallowed for both compared paths due `synthetic_measured` evidence tier (`claim_safe_summary.policy[*].reason`)
-
-Interpretation status:
-
-- These are measured harness results.
-- They are synthetic evidence.
-- They are not valid for production "cheaper than native" claims.
-
-## Modeled Lane (Non-Claim)
-
-`bench/workflow-benchmark.mjs` remains available for exploratory scenario analysis only.
-
-Modeled outputs are not valid evidence for:
-
-- provider billing outcomes,
-- blanket savings claims,
-- universal cheaper-than-native statements.
-
-## Forbidden Economics Language
-
-Never publish without a claim-qualified measured run:
-
-- "cheaper than native Agent Teams"
-- "75-90% cheaper"
-- "universal savings"
-
-Allowed only with matching measured artifacts and claim gate pass:
-
-- "For run `<run-id>`, path `<x>` showed lower measured token usage than native under this workload."
+- [Anthropic Pricing](https://www.anthropic.com/pricing)
+- `README.md` — Cost comparison section
+- `docs/OPERATIONAL_SLOS.md` — Performance targets

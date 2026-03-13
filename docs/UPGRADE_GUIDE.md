@@ -28,7 +28,6 @@ bash install.sh --version "$VERSION" \
 ```
 
 ### What happens during upgrade
-
 1. Existing hooks are backed up to `~/.claude/hooks.backup.{timestamp}/`
 2. New hooks, agents, modes, and reference cards are installed
 3. `settings.local.json` is merged (user customizations preserved)
@@ -54,7 +53,6 @@ curl http://127.0.0.1:7199/v1/schema/version
 If you previously installed by cloning the repository:
 
 1. Switch from `--ref main` to `--version vX.Y.Z` for stability:
-
    ```bash
    bash install.sh --version v1.2.0 \
      --checksum-file checksums.txt \
@@ -67,7 +65,6 @@ If you previously installed by cloning the repository:
    ```
 
 2. Verify with checksums for integrity:
-
    ```bash
    gh release download v1.2.0 -R DrewDawson2027/claude-lead-system \
      -p checksums.txt \
@@ -86,7 +83,6 @@ If you previously installed by cloning the repository:
 ### Unreleased (post-1.0.0)
 
 **API error schema change:**
-
 - Error responses now use `{ error_code, message, request_id }` instead of `{ error: string }`
 - If you have custom scripts or integrations that parse sidecar error responses, update them to use `error_code` and `message` fields
 - The `request_id` field is included for debugging and correlation
@@ -98,13 +94,11 @@ If you previously installed by cloning the repository:
 If you prefer manual control:
 
 1. Pull or download the new release:
-
    ```bash
    gh release download vX.Y.Z -R DrewDawson2027/claude-lead-system
    ```
 
 2. Run the installer:
-
    ```bash
    bash install.sh --version vX.Y.Z \
      --checksum-file checksums.txt \
@@ -117,7 +111,6 @@ If you prefer manual control:
    ```
 
 3. Verify hooks:
-
    ```bash
    bash ~/.claude/hooks/health-check.sh
    ```

@@ -20,8 +20,7 @@
 set -uo pipefail
 
 TASK="${1:-autonomous task}"
-# REPO_PATH is exported for child processes spawned from this script
-export REPO_PATH="${2:-$PWD}"
+REPO_PATH="${2:-$PWD}"
 PICK="$HOME/.claude/hooks/worktree-pick.sh"
 
 # ── 1. Claim a slot ──────────────────────────────────────────────────────────
@@ -54,7 +53,7 @@ BRANCH="auto/${DATE}-${SLUG}"
 # ── 4. Check out / create the branch in the slot ────────────────────────────
 cd "$SLOT" || { echo "STATUS=no_slot"; exit 0; }
 
-git checkout -b "$BRANCH" 2>&1 || git checkout "$BRANCH" 2>&1
+git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH" 2>/dev/null
 CHECKOUT_EXIT=$?
 
 if [ $CHECKOUT_EXIT -ne 0 ]; then
@@ -94,5 +93,6 @@ echo "STATUS=ready"
 echo "SLOT_PATH=$SLOT"
 echo "BRANCH=$CURRENT_BRANCH"
 echo "SLOT_DIR=$SLOT"
+echo "REPO_PATH=$REPO_PATH"
 
 exit 0

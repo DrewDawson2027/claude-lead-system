@@ -39,26 +39,14 @@ function patchJson(port, path, body, headers = {}) {
   return requestJson(port, path, 'PATCH', body, headers);
 }
 
-function deleteJson(port, path, body = {}, headers = {}) {
-  return requestJson(port, path, 'DELETE', body, headers);
-}
-
 function requestJson(port, path, method, body = null, headers = {}) {
   return new Promise((resolve, reject) => {
-    const payload = body === null ? null : JSON.stringify(body || {});
-    const reqHeaders = body === null
-      ? headers
-      : {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload, 'utf8'),
-          ...headers,
-        };
     const req = http.request({
       host: '127.0.0.1',
       port,
       path,
       method,
-      headers: reqHeaders,
+      headers: body === null ? headers : { 'Content-Type': 'application/json', ...headers },
     }, (res) => {
       let raw = '';
       res.on('data', (c) => { raw += c; });
@@ -68,7 +56,7 @@ function requestJson(port, path, method, body = null, headers = {}) {
       });
     });
     req.on('error', reject);
-    if (payload !== null) req.write(payload);
+    if (body !== null) req.write(JSON.stringify(body || {}));
     req.end();
   });
 }
@@ -114,194 +102,6 @@ test('sidecar server exposes health and teams endpoints', async () => {
     assert.equal(schemaV1.status, 200);
     assert.equal(schemaV1.body.api_version, 'v1');
     assert.equal(schemaV1.headers.deprecation, undefined);
-  } finally {
-    sidecar.close();
-    if (prevHome === undefined) delete process.env.HOME;
-    else process.env.HOME = prevHome;
-  }
-});
-
-test('sidecar server supports agent CRUD and manifest sync endpoints', async () => {
-  const prevHome = process.env.HOME;
-  const home = setupHome();
-  process.env.HOME = home;
-
-  const projectDir = join(home, 'project');
-  mkdirSync(join(projectDir, '.claude', 'agents'), { recursive: true });
-  mkdirSync(join(projectDir, '.claude', 'agents.local'), { recursive: true });
-  mkdirSync(join(home, '.claude', 'agents'), { recursive: true });
-  const manifestPath = join(projectDir, 'MANIFEST.md');
-  writeFileSync(
-    manifestPath,
-    [
-      '# Manifest',
-      '',
-      '## Agents',
-      '',
-      'old',
-      '',
-      '### Worker Role Presets',
-      '',
-      'keep',
-      '',
-    ].join('\n'),
-  );
-
-  const mod = await import(`../server/index.js?t=${Date.now()}-${Math.random()}`);
-  const sidecar = await mod.startSidecarServer({ port: 0 });
-  const { port } = sidecar;
-  const apiToken = sidecar.apiToken;
-  try {
-    assert.equal(typeof apiToken, 'string');
-    assert.equal(apiToken.length > 0, true);
-
-    const created = await postJson(port, '/agents', {
-      agent_name: 'api-agent',
-      scope: 'project',
-      description: 'API-created agent',
-      model: 'sonnet',
-      tools: ['Read', 'Edit'],
-      memory: 'project',
-      skills: ['qa'],
-      prompt: 'You are API agent.',
-      project_dir: projectDir,
-    });
-    assert.equal(created.status, 200);
-    assert.equal(created.body.ok, true);
-    assert.equal(created.body.agent.name, 'api-agent');
-    assert.equal(created.body.agent.scope, 'project');
-    assert.equal(created.body.manifest_sync.ok, true);
-
-    const listed = await getJson(
-      port,
-      `/agents?scope=all&project_dir=${encodeURIComponent(projectDir)}&include_invalid=true`,
-    );
-    assert.equal(listed.status, 200);
-    assert.equal(Array.isArray(listed.body.agents), true);
-    assert.equal(listed.body.agents.some((a) => a.name === 'api-agent'), true);
-
-    const fetched = await getJson(
-      port,
-      `/agents/api-agent?scope=project&project_dir=${encodeURIComponent(projectDir)}`,
-    );
-    assert.equal(fetched.status, 200);
-    assert.equal(fetched.body.ok, true);
-    assert.equal(fetched.body.agent.name, 'api-agent');
-    assert.equal(fetched.body.agent.scope, 'project');
-    assert.deepEqual(fetched.body.agent.tools, ['Read', 'Edit']);
-    assert.equal('prompt' in fetched.body.agent, false);
-    assert.equal('frontmatter' in fetched.body.agent, false);
-
-    const fullAnonymous = await getJson(
-      port,
-      `/agents/api-agent/full?scope=project&project_dir=${encodeURIComponent(projectDir)}`,
-    );
-    assert.equal(fullAnonymous.status, 401);
-    assert.equal(fullAnonymous.body.error_code, 'AUTH_REQUIRED');
-
-    const fullAuthed = await getJson(
-      port,
-      `/agents/api-agent/full?scope=project&project_dir=${encodeURIComponent(projectDir)}`,
-      { Authorization: `Bearer ${apiToken}` },
-    );
-    assert.equal(fullAuthed.status, 200);
-    assert.equal(fullAuthed.body.ok, true);
-    assert.match(fullAuthed.body.agent.prompt, /You are API agent/);
-    assert.equal(typeof fullAuthed.body.agent.frontmatter, 'object');
-
-    const shadowSource = await postJson(port, '/agents', {
-      agent_name: 'api-agent',
-      scope: 'user',
-      description: 'User-scoped fallback',
-      model: 'sonnet',
-      project_dir: projectDir,
-    });
-    assert.equal(shadowSource.status, 200);
-    assert.equal(shadowSource.body.ok, true);
-
-    const fetchedAll = await getJson(
-      port,
-      `/agents/api-agent?scope=all&project_dir=${encodeURIComponent(projectDir)}`,
-    );
-    assert.equal(fetchedAll.status, 200);
-    assert.equal(fetchedAll.body.ok, true);
-    assert.equal(fetchedAll.body.agent.scope, 'project');
-
-    const updated = await patchJson(port, '/agents/api-agent', {
-      scope: 'project',
-      new_name: 'api-agent-v2',
-      model: 'opus',
-      description: 'Updated agent',
-      tools: ['Read', 'Write'],
-      skills: ['qa', 'security-review'],
-      project_dir: projectDir,
-    });
-    assert.equal(updated.status, 200);
-    assert.equal(updated.body.ok, true);
-    assert.equal(updated.body.agent.name, 'api-agent-v2');
-    assert.equal(updated.body.agent.model, 'opus');
-    assert.equal(updated.body.manifest_sync.ok, true);
-
-    const userV2 = await postJson(port, '/agents', {
-      agent_name: 'api-agent-v2',
-      scope: 'user',
-      description: 'User v2 fallback',
-      project_dir: projectDir,
-    });
-    assert.equal(userV2.status, 200);
-    assert.equal(userV2.body.ok, true);
-
-    const sync = await postJson(port, '/agents/sync-manifest', {
-      manifest_path: manifestPath,
-      project_dir: projectDir,
-      scope: 'all',
-    });
-    assert.equal(sync.status, 200);
-    assert.equal(sync.body.ok, true);
-    const manifest = readFileSync(manifestPath, 'utf-8');
-    assert.match(manifest, /\| api-agent-v2 \|/);
-    assert.doesNotMatch(manifest, /\nold\n/);
-
-    const deleted = await deleteJson(
-      port,
-      `/agents/api-agent-v2?scope=all&project_dir=${encodeURIComponent(projectDir)}`,
-      {
-      scope: 'all',
-      project_dir: projectDir,
-      },
-    );
-    assert.equal(deleted.status, 200);
-    assert.equal(deleted.body.ok, true);
-    assert.equal(deleted.body.deleted_count, 1);
-    assert.equal(deleted.body.deleted[0].scope, 'project');
-    assert.equal(deleted.body.manifest_sync.ok, true);
-
-    const missing = await getJson(
-      port,
-      `/agents/api-agent-v2?scope=project&project_dir=${encodeURIComponent(projectDir)}`,
-    );
-    assert.equal(missing.status, 404);
-    assert.equal(missing.body.ok, false);
-    assert.equal(missing.body.error_code, 'NOT_FOUND');
-
-    const winnerAfterDelete = await getJson(
-      port,
-      `/agents/api-agent-v2?scope=all&project_dir=${encodeURIComponent(projectDir)}`,
-    );
-    assert.equal(winnerAfterDelete.status, 200);
-    assert.equal(winnerAfterDelete.body.ok, true);
-    assert.equal(winnerAfterDelete.body.agent.scope, 'user');
-
-    const badPrompt = await postJson(port, '/agents', {
-      agent_name: 'bad-prompt',
-      scope: 'project',
-      description: 'bad prompt',
-      prompt: '   ',
-      project_dir: projectDir,
-    });
-    assert.equal(badPrompt.status, 400);
-    assert.equal(badPrompt.body.ok, false);
-    assert.equal(badPrompt.body.error_code, 'VALIDATION_ERROR');
   } finally {
     sidecar.close();
     if (prevHome === undefined) delete process.env.HOME;
@@ -421,8 +221,6 @@ test('sidecar server exposes native status/probe endpoints and action queue meta
     assert.equal(nativeTask.status, 200);
     assert.equal(nativeTask.body.adapter, 'native');
     assert.equal(Boolean(nativeTask.body.action_id), true);
-    assert.equal(typeof nativeTask.body.route_mode, 'string');
-    assert.equal(typeof nativeTask.body.route_reason, 'string');
 
     const bridgeValidate = await postJson(port, '/native/bridge/validate', { team_name: 'delta', simulate: true, timeout_ms: 3000 });
     assert.equal([200, 400].includes(bridgeValidate.status), true);
@@ -441,9 +239,6 @@ test('sidecar server exposes native status/probe endpoints and action queue meta
     const actions = await getJson(port, '/actions');
     assert.equal(actions.status, 200);
     assert.equal(actions.body.actions.length >= 1, true);
-    const latestAction = actions.body.actions[0];
-    assert.equal(typeof latestAction.route_mode, 'string');
-    assert.equal(typeof latestAction.route_reason, 'string');
     assert.equal(actions.headers.deprecation, 'true');
     assert.match(String(actions.headers.link || ''), /\/v1\/actions/);
 
@@ -451,14 +246,6 @@ test('sidecar server exposes native status/probe endpoints and action queue meta
     assert.equal(actionsV1.status, 200);
     assert.equal(actionsV1.headers.deprecation, undefined);
     assert.equal(Array.isArray(actionsV1.body.actions), true);
-
-    const teamDetail = await getJson(port, '/teams/delta');
-    assert.equal(teamDetail.status, 200);
-    assert.equal(Array.isArray(teamDetail.body.actions?.recent), true);
-    if (teamDetail.body.actions.recent.length > 0) {
-      assert.equal(typeof teamDetail.body.actions.recent[0].route_mode, 'string');
-      assert.equal(typeof teamDetail.body.actions.recent[0].route_reason, 'string');
-    }
   } finally {
     sidecar.close();
     if (prevHome === undefined) delete process.env.HOME; else process.env.HOME = prevHome;

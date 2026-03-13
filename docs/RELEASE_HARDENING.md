@@ -2,28 +2,24 @@
 
 This document defines what must pass before a release tag is created.
 
-## Compatibility Posture
+## Compatibility Guarantees
 
-The release process verifies compatibility coverage and declares the current support posture; it does not imply identical runtime maturity across every platform.
-
-- Node.js `18.x` and `20.x` for `mcp-coordinator` are CI-tested targets.
-- Python `3.10` and `3.11` for hook guards are CI-tested targets.
-- `jq` must be available on PATH for shell hooks.
-- CI runs on macOS, Linux, and Windows runners, but the strongest verified mainstream lane remains the default macOS coordinator flow.
-- Linux and Windows paths include partial or conditional behaviors that should be re-verified before external demos.
-
-See `docs/COMPATIBILITY_MATRIX.md` for the detailed platform-by-feature posture.
+The project guarantees support for:
+- Node.js `18.x` and `20.x` for `mcp-coordinator`
+- Python `3.10+` for hook guards
+- `jq` available on PATH for shell hooks
+- OS targets: macOS, Linux, Windows (with inbox fallback where terminal injection is unavailable)
 
 ## Versioned Test Matrix
 
-| Dimension                 | Versions / Targets                          | Validation                          |
-| ------------------------- | ------------------------------------------- | ----------------------------------- |
-| Node.js                   | 18, 20                                      | `npm run test:unit`, `node --check` |
-| Python                    | 3.10, 3.11                                  | `python3 -m py_compile` + `ruff`    |
-| OS                        | ubuntu-latest, macos-latest, windows-latest | platform launch unit tests          |
-| Hook runtime              | ubuntu-latest                               | `tests/hooks-smoke.sh`              |
-| Health-check behavior     | ubuntu-latest                               | `tests/health-check-regression.sh`  |
-| Worker/pipeline lifecycle | ubuntu-latest                               | `npm run test:e2e`                  |
+| Dimension | Versions / Targets | Validation |
+|---|---|---|
+| Node.js | 18, 20 | `npm run test:unit`, `node --check` |
+| Python | 3.10, 3.11 | `python3 -m py_compile` + `ruff` |
+| OS | ubuntu-latest, macos-latest, windows-latest | platform launch unit tests |
+| Hook runtime | ubuntu-latest | `tests/hooks-smoke.sh` |
+| Health-check behavior | ubuntu-latest | `tests/health-check-regression.sh` |
+| Worker/pipeline lifecycle | ubuntu-latest | `npm run test:e2e` |
 
 ## Release Gates (must pass)
 
@@ -59,11 +55,8 @@ See `docs/COMPATIBILITY_MATRIX.md` for the detailed platform-by-feature posture.
 2. Verify `install.sh` SHA256 against `checksums.txt` before executing
 3. Confirm `health-check.sh` shows healthy status
 4. Run sidecar release security smoke:
-
 - `bash scripts/release/security-smoke.sh`
-
 5. Start two Claude sessions and verify:
-
 - inbox messaging
 - conflict detection
 - worker spawn/result

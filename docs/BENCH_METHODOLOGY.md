@@ -1,94 +1,111 @@
 # Benchmark Methodology
 
-How benchmark lanes are configured, measured, and interpreted without over-claiming.
+How performance benchmarks are configured, measured, and enforced.
 
-## Method Boundary
+## What's Measured
 
-This repo has two economics-related benchmark lanes:
+The benchmark suite (`bench/coord-benchmark.mjs`) measures actual coordinator operations:
 
-1. **Measured A/B harness (`bench/ab-harness.mjs`)**: canonical claim-bearing lane for native vs lead comparisons.
-2. **Workflow scenario model (`bench/workflow-benchmark.mjs`)**: legacy assumption-testing lane; not claim-bearing for savings.
+| Operation | What It Tests |
+|-----------|---------------|
+| Session read | Load and parse a session JSON file |
+| Boot scan | Full directory scan for sessions, workers, pipelines |
+| Conflict detection | Compare files_touched arrays across active sessions |
 
-## Benchmark Suites
+## How It's Measured
 
-### 1. Coordinator Performance (`bench/coord-benchmark.mjs`)
+### Multi-run median aggregation
 
-Measures raw coordinator operation latency across defined scenarios.
+Each operation is run multiple times (default: 10 iterations). The **median** value is reported, not the mean.
 
-### 2. Measured A/B Harness (`bench/ab-harness.mjs`)
+**Why medians over means:**
+- Medians are robust to outliers caused by CI runner variance (GC pauses, disk I/O spikes)
+- A single slow run doesn't inflate the result
+- More representative of typical user experience
 
-Runs the same workload across enabled paths (`native`, `lead_coordinator`, optional `lead_overlay`) and captures:
+### Performance gate
 
-- token usage deltas from transcript JSONL / `agent-metrics.jsonl`
-- latency
-- completion rate
-- human intervention count
-- conflict incidents
-- resume success
-- throughput per usage window
+`tests/perf-gate.mjs` enforces SLO thresholds in CI:
 
-Required outputs:
-
-- `reports/ab-harness/<run-id>/raw-dataset.jsonl`
-- `reports/ab-harness/<run-id>/run-manifest.json`
-- `reports/ab-harness/<run-id>/summary.json`
-- `reports/ab-harness/<run-id>/report.md`
-- `reports/ab-harness/<run-id>/claim-safe-summary.md`
-
-### 3. Workflow Scenario Model (`bench/workflow-benchmark.mjs`)
-
-Used only for stress-testing assumptions. Outputs from this lane are not evidence for savings claims.
-
-## Data Classification Contract
-
-Use these evidence labels:
-
-- `verified`
-- `partial`
-- `experimental`
-
-Canonical source: `docs/CLAIM_POSTURE_SOURCE.json`
-
-## Current Economics Claim Status
-
-| Claim                                                               | Label          | Notes                                                             |
-| ------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------- |
-| A/B harness is the canonical economics evidence lane                | `verified`     | Runner + artifacts + claim-safe policy are implemented            |
-| Runtime cost comparison is sourced only from harness artifacts      | `verified`     | `mcp-coordinator/lib/cost-comparison.js` reads measured summaries |
-| Savings claim can be published without `savings_claim_allowed=true` | `experimental` | Explicitly disallowed by harness policy guard                     |
-| Scenario model output can prove cheaper-than-native economics       | `experimental` | Explicitly disallowed; scenario lane is non-claim                 |
-
-## Running Locally
-
-```bash
-# Coordinator benchmark
-node bench/coord-benchmark.mjs
-
-# Measured A/B harness (canonical lane)
-node bench/ab-harness.mjs --config bench/ab-harness.config.example.json
-
-# Deterministic local harness validation
-node bench/ab-harness.mjs --config bench/ab-harness.mock.config.json
-
-# Legacy scenario-model lane (non-claim)
-node bench/workflow-benchmark.mjs > bench/workflow-results.json
+```javascript
+// Thresholds (fail CI if exceeded)
+{ sessionRead: 5,    // ms
+  bootScan: 50,      // ms
+  conflictDetect: 10  // ms
+}
 ```
 
-## What This Lane Cannot Prove
+If any operation's median exceeds its threshold, the CI job fails.
 
-1. Exact invoice savings without provider billing telemetry.
-2. Universal or blanket cheaper-than-native outcomes.
-3. Exact native-parity economics across all workflows.
+## Environment
 
-## Strongest Truthful Position
+### CI environment
+- Runner: `ubuntu-latest` GitHub Actions runner
+- CPU: 2-core AMD EPYC (shared)
+- RAM: 7 GB
+- Disk: SSD (Azure-backed)
+- Node.js: 20.x
 
-- Measured A/B artifacts are required for economics claims.
-- Savings claims are allowed only when harness claim-safe policy allows them.
-- Scenario-model output is assumption analysis, not billing proof.
+### Local benchmarking
+
+```bash
+# Run benchmark locally
+node bench/coord-benchmark.mjs
+
+# View results
+cat bench/latest-results.json | jq .
+```
+
+### Hardware/software capture
+
+Benchmark results include:
+- Node.js version
+- OS platform and architecture
+- Timestamp
+- Iteration count
+
+## Reading Results
+
+`bench/latest-results.json` format:
+
+```json
+{
+  "timestamp": "2026-02-26T...",
+  "node_version": "v20.x.x",
+  "platform": "linux",
+  "iterations": 10,
+  "results": {
+    "sessionRead": { "median_ms": 1.2, "p95_ms": 2.1, "runs": [...] },
+    "bootScan": { "median_ms": 15.3, "p95_ms": 22.0, "runs": [...] },
+    "conflictDetect": { "median_ms": 3.1, "p95_ms": 5.5, "runs": [...] }
+  }
+}
+```
+
+Fields:
+- `median_ms`: Median execution time across all iterations
+- `p95_ms`: 95th percentile
+- `runs`: Array of individual run times (for debugging flaky results)
+
+## CI Integration
+
+The performance gate runs in `.github/workflows/ci.yml` as the `perf-gate` job:
+
+```yaml
+perf-gate:
+  name: Coordinator Performance Gate
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with: { node-version: "20" }
+    - run: cd mcp-coordinator && npm ci
+    - run: node tests/perf-gate.mjs
+```
 
 ## References
 
-- `bench/ab-harness.mjs`
-- `bench/coord-benchmark.mjs`
-- `bench/workflow-benchmark.mjs`
-- `docs/COMPARISON_METHODOLOGY.md`
+- `bench/coord-benchmark.mjs` — Benchmark harness
+- `bench/latest-results.json` — Latest benchmark snapshot
+- `tests/perf-gate.mjs` — CI performance gate
+- `docs/TOKEN_MANAGEMENT_BENCHMARK_PUBLISHING.md` — Benchmark publishing workflow

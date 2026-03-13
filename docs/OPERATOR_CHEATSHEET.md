@@ -4,17 +4,16 @@
 
 ```bash
 # Start sidecar
-npm --workspace sidecar start -- --port 9900
+node sidecar/server/index.js --port 9900
 
 # Stop sidecar
-pkill -f "server/index.js --port 9900"
+kill $(cat ~/.claude/lead-sidecar/runtime/sidecar.lock)
 
 # Start with auth
-LEAD_SIDECAR_REQUIRE_TOKEN=1 npm --workspace sidecar start -- --port 9900
+LEAD_SIDECAR_REQUIRE_TOKEN=1 node sidecar/server/index.js --port 9900
 ```
 
 Browser-origin security notes:
-
 - Only the sidecar UI origin (`http://127.0.0.1:<sidecar-port>`) may call the sidecar API from a browser.
 - Cross-port localhost browser requests are blocked by design.
 - Use `X-Sidecar-CSRF` for browser-origin mutation requests.
@@ -24,48 +23,47 @@ Browser-origin security notes:
 
 ```bash
 # Health
-curl http://127.0.0.1:9900/v1/health
+curl http://127.0.0.1:9900/health.json
 
-# Teams snapshot
-curl http://127.0.0.1:9900/v1/teams
+# Full snapshot
+curl http://127.0.0.1:9900/snapshot.json
 
 # Metrics
-curl http://127.0.0.1:9900/v1/metrics.json
+curl http://127.0.0.1:9900/metrics.json
 
 # Teams
-curl http://127.0.0.1:9900/v1/teams
+curl http://127.0.0.1:9900/teams
 
 # Schema version
-curl http://127.0.0.1:9900/v1/schema/version
+curl http://127.0.0.1:9900/schema/version
 ```
 
 ## Debugging
 
 ```bash
 # Export diagnostics
-curl -X POST http://127.0.0.1:9900/v1/diagnostics/export -H 'Content-Type: application/json' -d '{"label":"debug"}'
+curl -X POST http://127.0.0.1:9900/diagnostics/export -H 'Content-Type: application/json' -d '{"label":"debug"}'
 
-# Events consistency check
-curl http://127.0.0.1:9900/v1/events/consistency
+# Force rebuild
+curl -X POST http://127.0.0.1:9900/rebuild -H 'Content-Type: application/json' -d '{}'
 
 # Force maintenance sweep
-curl -X POST http://127.0.0.1:9900/v1/maintenance/run -H 'Content-Type: application/json' -d '{}'
+curl -X POST http://127.0.0.1:9900/maintenance/run -H 'Content-Type: application/json' -d '{}'
 
 # Check action queue
-curl http://127.0.0.1:9900/v1/actions
+curl http://127.0.0.1:9900/actions
 
-# Retry first failed action (if any)
-ACTION_ID=$(curl -sS http://127.0.0.1:9900/v1/actions | jq -r '.actions[]? | select(.status=="failed") | .action_id' | head -n 1)
-[ -n "$ACTION_ID" ] && curl -X POST "http://127.0.0.1:9900/v1/actions/$ACTION_ID/retry" -H 'Content-Type: application/json' -d '{}' || echo "No failed actions to retry"
+# Retry failed action
+curl -X POST http://127.0.0.1:9900/actions/<ID>/retry -H 'Content-Type: application/json' -d '{}'
 
-# Timeline replay
-curl "http://127.0.0.1:9900/v1/timeline/replay"
+# Timeline replay (last hour)
+curl "http://127.0.0.1:9900/timeline/replay?from=$(date -v-1H -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # Snapshot diff
-curl -X POST http://127.0.0.1:9900/v1/snapshots/diff -H 'Content-Type: application/json' -d '{}'
+curl -X POST http://127.0.0.1:9900/snapshots/diff -H 'Content-Type: application/json' -d '{}'
 
 # Comparison report
-curl -X POST http://127.0.0.1:9900/v1/reports/comparison -H 'Content-Type: application/json' -d '{"label":"check"}'
+curl -X POST http://127.0.0.1:9900/reports/comparison -H 'Content-Type: application/json' -d '{"label":"check"}'
 ```
 
 ## Log Locations
@@ -78,37 +76,37 @@ curl -X POST http://127.0.0.1:9900/v1/reports/comparison -H 'Content-Type: appli
 ~/.claude/lead-sidecar/state/metrics-history/     # Metrics over time
 ~/.claude/lead-sidecar/state/snapshot-history/    # Snapshot archive
 ~/.claude/lead-sidecar/state/ui-prefs.json        # UI preferences
-~/.claude/lead-sidecar/runtime/sidecar.lock       # PID lock (when present)
-~/.claude/lead-sidecar/runtime/sidecar.port       # Port file (when present)
+~/.claude/lead-sidecar/runtime/sidecar.lock       # PID lock
+~/.claude/lead-sidecar/runtime/sidecar.port       # Port file
 ```
 
 ## Configuration Knobs
 
-| Env Variable                 | Default | Description                                                                           |
-| ---------------------------- | ------- | ------------------------------------------------------------------------------------- |
-| `LEAD_SIDECAR_REQUIRE_TOKEN` | `0`     | Enable bearer-token auth for non-browser clients (browser UI uses same-origin + CSRF) |
-| `COORD_PERF_MIN_SPEEDUP`     | `50`    | Perf gate speedup threshold                                                           |
-| `BENCH_ITERATIONS`           | `100`   | Benchmark iteration count                                                             |
+| Env Variable | Default | Description |
+|--------------|---------|-------------|
+| `LEAD_SIDECAR_REQUIRE_TOKEN` | `0` | Enable bearer-token auth for non-browser clients (browser UI uses same-origin + CSRF) |
+| `COORD_PERF_MIN_SPEEDUP` | `50` | Perf gate speedup threshold |
+| `BENCH_ITERATIONS` | `100` | Benchmark iteration count |
 
 ## Emergency Procedures
 
 ```bash
-# Ensure bridge (stuck/down)
-curl -X POST http://127.0.0.1:9900/v1/native/bridge/ensure -H 'Content-Type: application/json' -d '{}'
+# Kill bridge (stuck)
+kill -9 $(cat ~/.claude/lead-sidecar/runtime/native/bridge.lock)
 
 # Reset snapshot (corrupt)
-rm -f ~/.claude/lead-sidecar/state/latest.json
-curl -X POST http://127.0.0.1:9900/v1/maintenance/run -H 'Content-Type: application/json' -d '{}'
+rm ~/.claude/lead-sidecar/state/latest.json
+curl -X POST http://127.0.0.1:9900/rebuild -H 'Content-Type: application/json' -d '{}'
 
 # Force GC (cleanup)
 # Via MCP coordinator tool: coord_run_gc
 
 # Clear action queue (stuck)
-find ~/.claude/lead-sidecar/runtime/actions/inflight -type f -delete
-find ~/.claude/lead-sidecar/runtime/actions/pending -type f -delete
+rm ~/.claude/lead-sidecar/runtime/actions/inflight/*
+rm ~/.claude/lead-sidecar/runtime/actions/pending/*
 
 # Clear bridge queue
-find ~/.claude/lead-sidecar/runtime/native/bridge.request-queue -type f -delete
+rm ~/.claude/lead-sidecar/runtime/native/bridge.request-queue/*
 ```
 
 ## Benchmarks

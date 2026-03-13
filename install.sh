@@ -33,43 +33,33 @@ INSTALL_MARKER="$CLAUDE_DIR/.lead-system-install.json"
 VERIFY_ONLY=false
 
 usage() {
-  local advanced="${1:-0}"
-  cat <<'USAGE'
+  cat <<USAGE
 Claude Lead System installer
 
-Usage: install.sh [--version vX.Y.Z] [--checksum-file <checksums.txt>] [--source-tarball <release.tar.gz>] [--uninstall]
+Usage: install.sh [--mode lite|hybrid|full] [--version vX.Y.Z | --ref <branch-or-tag>] [--checksum-file <checksums.txt>] [--source-tarball <release.tar.gz>] [--uninstall]
 
-Blessed default path:
-  Install Lead, launch with `claudex`, then type `/lead`.
+Modes:
+  lite    Sidecar + wrapper + coordinator + settings merge (minimal/no hooks)
+  hybrid  Sidecar + coordinator + hooks + settings merge
+  full    Full install (default): hybrid plus full hook/policy template wiring
 
-Common options:
+Version / integrity:
   --version vX.Y.Z       Install from a release tag (preferred)
+  --ref <branch-or-tag>  Install from a specific branch or tag (advanced/dev, requires --allow-unsigned-release)
   --checksum-file <file> Verify this installer against checksums.txt before continuing
   --checksum-signature <file>  Cosign signature file for checksums.txt verification
   --checksum-cert <file>       Cosign certificate for keyless (Fulcio) verification
+  --enforce-signed-checksums   Require --checksum-file + --checksum-signature; abort if missing or invalid
   --source-tarball <f>   Install from a local release tarball (verifiable source content path)
   --release-manifest <file>              release.json manifest file
   --release-manifest-signature <file>    Signature for release.json
   --release-manifest-cert <file>         Cosign certificate for release.json verification
-  --uninstall                            Remove Claude Lead System install from ~/.claude
-  --verify-only                          Run integrity/provenance verification then exit
-  --help-advanced                        Show advanced install and dev options
-USAGE
-  if [[ "$advanced" = "1" ]]; then
-    cat <<'USAGE'
-
-Advanced install profiles:
-  --mode hybrid  Advanced alternate profile for debugging and integration work
-  --mode lite    Advanced minimal profile for power users
-
-Advanced/dev options:
-  --ref <branch-or-tag>  Install from a specific branch or tag (advanced/dev, requires --allow-unsigned-release)
-  --enforce-signed-checksums   Require --checksum-file + --checksum-signature; abort if missing or invalid
   --allow-unsigned-release               DEV ONLY: required for unverified ref installs; also bypasses enforced signed release checks
   --skip-attestation-verify              DEV ONLY: skip SLSA attestation verification
   --slsa-repo <owner/repo>               Repo used for attestation verification (default: DrewDawson2027/claude-lead-system)
+  --uninstall                            Remove Claude Lead System install from ~/.claude
+  --verify-only                          Run integrity/provenance verification then exit
 USAGE
-  fi
 }
 
 sha256_file() {
@@ -235,10 +225,9 @@ verify_release_manifest_signature() {
 verify_slsa_attestation() {
   local tarball_path="$1"
   if ! command -v gh >/dev/null 2>&1; then
-    echo "  ⚠  gh CLI not found — skipping SLSA attestation verification" >&2
-    echo "     Signed checksums and release manifest verification still ran." >&2
-    echo "     Install GitHub CLI to enable GitHub provenance verification." >&2
-    return 0
+    echo "  ✗  gh CLI required for SLSA attestation verification" >&2
+    echo "     Install GitHub CLI or pass --skip-attestation-verify for dev installs." >&2
+    exit 1
   fi
   if gh attestation verify "$tarball_path" --repo "$SLSA_REPO" >/dev/null 2>&1; then
     echo "  ✓  SLSA attestation verified via GitHub provenance"
@@ -251,25 +240,6 @@ verify_slsa_attestation() {
 uninstall_lead_system() {
   echo ""
   echo "Uninstalling Claude Lead System from $CLAUDE_DIR ..."
-  local lock_file="$CLAUDE_DIR/lead-sidecar/runtime/sidecar.lock"
-  if [ -f "$lock_file" ]; then
-    local sidecar_pid
-    sidecar_pid=$(python3 - <<PY 2>/dev/null
-import json
-try:
-    print(json.load(open("$lock_file")).get("pid", ""))
-except Exception:
-    print("")
-PY
-)
-    if [ -n "${sidecar_pid:-}" ] && kill -0 "$sidecar_pid" 2>/dev/null; then
-      kill "$sidecar_pid" 2>/dev/null || true
-      sleep 1
-      if kill -0 "$sidecar_pid" 2>/dev/null; then
-        kill -9 "$sidecar_pid" 2>/dev/null || true
-      fi
-    fi
-  fi
   rm -rf \
     "$CLAUDE_DIR/mcp-coordinator" \
     "$CLAUDE_DIR/lead-sidecar" \
@@ -352,10 +322,6 @@ while [ $# -gt 0 ]; do
       VERIFY_ONLY=true
       shift
       ;;
-    --help-advanced)
-      usage 1
-      exit 0
-      ;;
     --help|-h)
       usage
       exit 0
@@ -371,7 +337,7 @@ done
 case "$MODE" in
   lite|hybrid|full) ;;
   *)
-    echo "Invalid mode: $MODE (expected full|hybrid|lite)" >&2
+    echo "Invalid mode: $MODE (expected lite|hybrid|full)" >&2
     exit 1
     ;;
 esac
@@ -444,13 +410,10 @@ fi
 echo ""
 echo "  Claude Lead System — Installer"
 echo "  ================================"
-echo "  Install profile: $MODE"
+echo "  Mode: $MODE"
 echo "  Ref:  $CLONE_REF"
 if [ -n "$SOURCE_TARBALL" ]; then
   echo "  Source tarball: $SOURCE_TARBALL"
-fi
-if [ "$MODE" != "full" ]; then
-  echo "  Advanced profile selected"
 fi
 echo ""
 
@@ -494,23 +457,6 @@ check_dep() {
   echo "  ✓  $1 found"
 }
 
-check_node_runtime() {
-  local version major
-  version="$(node --version 2>/dev/null || true)"
-  major="$(printf '%s' "$version" | sed -E 's/^v([0-9]+).*/\1/')"
-  if ! [[ "$major" =~ ^[0-9]+$ ]]; then
-    echo "  ✗  Unable to parse Node.js version (${version:-unknown})" >&2
-    echo "     Install with: https://nodejs.org (v18+)" >&2
-    exit 1
-  fi
-  if [ "$major" -lt 18 ]; then
-    echo "  ✗  Unsupported Node.js runtime: $version (require >=18)" >&2
-    echo "     Install with: https://nodejs.org (v18+)" >&2
-    exit 1
-  fi
-  echo "  ✓  node version supported ($version)"
-}
-
 resolve_npm_bin() {
   if command -v npm >/dev/null 2>&1; then
     echo "npm"
@@ -527,53 +473,10 @@ resolve_npm_bin() {
   return 1
 }
 
-npm_install_runtime_deps() {
-  local package_dir="$1"
-  local install_log="$2"
-  local install_mode
-
-  if [ -f "$package_dir/package-lock.json" ]; then
-    install_mode="ci"
-    if (cd "$package_dir" && "$NPM_BIN" ci --silent --omit=dev >"$install_log" 2>&1); then
-      return 0
-    fi
-    echo "  ⚠  npm ci failed in $package_dir — falling back to npm install" >&2
-  else
-    install_mode="install"
-  fi
-
-  if (cd "$package_dir" && "$NPM_BIN" install --silent --omit=dev >"$install_log" 2>&1); then
-    return 0
-  fi
-
-  echo "  npm $install_mode failed in $package_dir" >&2
-  return 1
-}
-
-show_sidecar_recovery_help() {
-  echo "  Advanced recovery: $CLAUDE_DIR/lead-sidecar/bin/sidecarctl doctor" >&2
-  echo "  Startup log: $CLAUDE_DIR/lead-sidecar/logs/sidecar.out.log" >&2
-  if [ -f "$CLAUDE_DIR/lead-sidecar/logs/npm-install.log" ]; then
-    echo "  Install log: $CLAUDE_DIR/lead-sidecar/logs/npm-install.log" >&2
-  fi
-}
-
-verify_sidecar_first_run() {
-  local verify_mode="$1"
-  echo "Starting Lead background service once to verify startup..."
-  if ! "$CLAUDE_DIR/lead-sidecar/bin/claudex" --mode "$verify_mode" --sidecar-only; then
-    echo "  Lead background-service first-run verification failed." >&2
-    show_sidecar_recovery_help
-    exit 1
-  fi
-}
-
 echo "Checking dependencies..."
 check_dep git   "https://git-scm.com"
 check_dep jq    "brew install jq  /  apt install jq  /  choco install jq"
 check_dep node  "https://nodejs.org (v18+)"
-check_node_runtime
-check_dep python3 "https://python.org  /  brew install python"
 check_dep bash  "(should be pre-installed)"
 NPM_BIN="$(resolve_npm_bin || true)"
 if [ -z "$NPM_BIN" ]; then
@@ -635,10 +538,8 @@ cp -r "$SRC/commands/."       "$CLAUDE_DIR/commands/"
 cp -r "$SRC/mcp-coordinator/." "$CLAUDE_DIR/mcp-coordinator/"
 rm -rf "$CLAUDE_DIR/lead-sidecar"
 cp -r "$SRC/sidecar/."        "$CLAUDE_DIR/lead-sidecar/"
-mkdir -p "$CLAUDE_DIR/lead-sidecar/runtime" "$CLAUDE_DIR/lead-sidecar/state" "$CLAUDE_DIR/lead-sidecar/logs/diagnostics"
-chmod 700 "$CLAUDE_DIR/lead-sidecar" "$CLAUDE_DIR/lead-sidecar/runtime" "$CLAUDE_DIR/lead-sidecar/state" "$CLAUDE_DIR/lead-sidecar/logs" "$CLAUDE_DIR/lead-sidecar/logs/diagnostics" 2>/dev/null || true
 chmod +x "$CLAUDE_DIR/lead-sidecar/bin/"* 2>/dev/null || true
-echo "  ✓  Lead command and background services installed"
+echo "  ✓  Commands, MCP coordinator, and Sidecar installed"
 
 # ── Master agents ────────────────────────────────────────────────────
 echo ""
@@ -665,56 +566,33 @@ echo "  ✓  Lead tools installed"
 
 # ── Install MCP deps ─────────────────────────────────────────────────
 echo ""
-echo "Installing Lead runtime dependencies..."
+echo "Installing MCP coordinator dependencies..."
 if [ ! -f "$CLAUDE_DIR/mcp-coordinator/package.json" ]; then
   echo "  ✗  Missing mcp-coordinator/package.json after install copy" >&2
   exit 1
 fi
-mkdir -p "$CLAUDE_DIR/lead-sidecar/logs"
-COORDINATOR_INSTALL_LOG="$CLAUDE_DIR/lead-sidecar/logs/mcp-install.log"
-if ! npm_install_runtime_deps "$CLAUDE_DIR/mcp-coordinator" "$COORDINATOR_INSTALL_LOG"; then
-  echo "  Lead runtime dependency install failed" >&2
-  echo "     See log: $COORDINATOR_INSTALL_LOG" >&2
-  tail -40 "$COORDINATOR_INSTALL_LOG" >&2 || true
-  exit 1
-fi
-echo "  runtime packages installed"
+(cd "$CLAUDE_DIR/mcp-coordinator" && "$NPM_BIN" install --silent)
+echo "  ✓  npm packages installed"
 
 # ── Sidecar deps (dependency-free today, keep hook for future additions) ──────
-echo "Preparing Lead background service..."
+echo "Preparing sidecar..."
 if [ -f "$CLAUDE_DIR/lead-sidecar/package.json" ]; then
-  SIDECAR_INSTALL_LOG="$CLAUDE_DIR/lead-sidecar/logs/npm-install.log"
-  if ! npm_install_runtime_deps "$CLAUDE_DIR/lead-sidecar" "$SIDECAR_INSTALL_LOG"; then
-    echo "  Lead background-service dependency install failed" >&2
-    echo "     See log: $SIDECAR_INSTALL_LOG" >&2
-    tail -40 "$SIDECAR_INSTALL_LOG" >&2 || true
-    exit 1
-  fi
-  if [ ! -e "$CLAUDE_DIR/lead-sidecar/node_modules/.bin/tsx" ] && [ ! -e "$CLAUDE_DIR/lead-sidecar/node_modules/.bin/tsx.cmd" ] && [ ! -e "$CLAUDE_DIR/lead-sidecar/node_modules/tsx/dist/cli.mjs" ]; then
-    echo "  Lead background-service dependency missing after install (tsx)" >&2
-    echo "     See log: $SIDECAR_INSTALL_LOG" >&2
-    exit 1
-  fi
+  (cd "$CLAUDE_DIR/lead-sidecar" && "$NPM_BIN" install --silent --omit=dev >/dev/null 2>&1 || true)
 fi
 mkdir -p "$HOME/.local/bin"
 ln -sf "$CLAUDE_DIR/lead-sidecar/bin/claudex" "$HOME/.local/bin/claudex"
 ln -sf "$CLAUDE_DIR/lead-sidecar/bin/sidecarctl" "$HOME/.local/bin/sidecarctl"
-if [ ! -f "$CLAUDE_DIR/commands/lead.md" ]; then
-  echo "  ✗  Missing /lead command after install copy" >&2
-  exit 1
+echo "  ✓  Sidecar wrapper commands linked in ~/.local/bin (add to PATH if needed)"
+
+# ── Settings ─────────────────────────────────────────────────────────
+echo ""
+echo "Merging settings.local.json ($MODE mode)..."
+if [ ! -f "$CLAUDE_DIR/lead-sidecar/templates/settings.full.json" ]; then
+  cp "$SRC/settings/settings.local.json" "$CLAUDE_DIR/lead-sidecar/templates/settings.full.json"
 fi
-if [ ! -e "$HOME/.local/bin/claudex" ] || [ ! -e "$HOME/.local/bin/sidecarctl" ]; then
-  echo "  ✗  Failed to link claudex/sidecarctl into ~/.local/bin" >&2
-  exit 1
-fi
-echo "  Lead launcher commands linked in ~/.local/bin (add to PATH if needed)"
-echo "Synchronizing Claude settings..."
-if ! node "$CLAUDE_DIR/lead-sidecar/bin/merge-settings.mjs" --mode "$MODE" --quiet; then
-  echo "  Failed to synchronize settings.local.json" >&2
-  exit 1
-fi
-echo "  settings.local.json synchronized ($MODE profile)"
-printf '{"installed_at":"%s","mode":"%s","ref":"%s"}\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$MODE" "$CLONE_REF" > "$INSTALL_MARKER"
+node "$CLAUDE_DIR/lead-sidecar/bin/merge-settings.mjs" --mode "$MODE"
+echo "  ✓  settings.local.json merged (backup created automatically if file existed)"
+printf '{\"installed_at\":\"%s\",\"mode\":\"%s\",\"ref\":\"%s\"}\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$MODE" "$CLONE_REF" > "$INSTALL_MARKER"
 
 # ── Cleanup ──────────────────────────────────────────────────────────
 rm -rf "$TMP_DIR"
@@ -725,19 +603,16 @@ if [ "$MODE" != "lite" ]; then
   echo "Running health check..."
   echo ""
   bash "$CLAUDE_DIR/hooks/health-check.sh"
+else
+  echo ""
+  echo "Lite mode installed. Starting sidecar once to verify runtime..."
+  "$CLAUDE_DIR/lead-sidecar/bin/claudex" --mode lite --sidecar-only --open-dashboard || true
 fi
 
 echo ""
-verify_sidecar_first_run "$MODE"
-echo ""
-echo "  Installation complete!"
-if [ "$MODE" = "full" ]; then
-  echo "  Lead is ready. Next step: run claudex, then type /lead."
-else
-  echo "  Advanced profile ready. Next step: run claudex --mode $MODE, then type /lead."
-fi
-echo "  Advanced troubleshooting: sidecarctl doctor"
-echo "  Standard product path: claudex, then /lead."
+echo "  ✅  Installation complete!"
+echo "  Launch with: claudex   (wrapper starts sidecar + patches settings idempotently)"
+echo "  Or type /lead in any Claude Code session to use coordinator tools."
 if ! echo ":$PATH:" | grep -q ":$HOME/.local/bin:"; then
   echo "  Note: ~/.local/bin is not on PATH in this shell. Add it to use 'claudex' directly."
 fi
