@@ -7,8 +7,8 @@
  * that the lifecycle wires into sseBroadcast.
  */
 
-import fs from 'fs';
-import EventEmitter from 'events';
+import fs from "fs";
+import EventEmitter from "events";
 
 const RING_BUFFER_SIZE = 200;
 const MAX_WATCHERS = 20;
@@ -32,7 +32,14 @@ export class OutputStreamManager extends EventEmitter {
       // but don't open another native watcher
     }
 
-    const entry = { watcher: null, pollStat: null, offset: 0, buffer: [], filePath, workerName };
+    const entry = {
+      watcher: null,
+      pollStat: null,
+      offset: 0,
+      buffer: [],
+      filePath,
+      workerName,
+    };
     this.workers.set(taskId, entry);
 
     this._attachWatcher(taskId, entry);
@@ -41,12 +48,18 @@ export class OutputStreamManager extends EventEmitter {
   _attachWatcher(taskId, entry) {
     // Try native fs.watch first; fall back to fs.watchFile polling on unreliable macOS
     try {
-      const watcher = fs.watch(entry.filePath, { persistent: false }, (eventType) => {
-        if (eventType === 'change') this._readDelta(taskId, entry);
-      });
-      watcher.on('error', () => {
+      const watcher = fs.watch(
+        entry.filePath,
+        { persistent: false },
+        (eventType) => {
+          if (eventType === "change") this._readDelta(taskId, entry);
+        },
+      );
+      watcher.on("error", () => {
         // Native watcher failed — switch to polling
-        try { watcher.close(); } catch {}
+        try {
+          watcher.close();
+        } catch {}
         entry.watcher = null;
         this._attachPollWatcher(taskId, entry);
       });
@@ -62,7 +75,11 @@ export class OutputStreamManager extends EventEmitter {
   _attachPollWatcher(taskId, entry) {
     if (entry.pollStat) return;
     const listener = () => this._readDelta(taskId, entry);
-    fs.watchFile(entry.filePath, { persistent: false, interval: POLL_INTERVAL_MS }, listener);
+    fs.watchFile(
+      entry.filePath,
+      { persistent: false, interval: POLL_INTERVAL_MS },
+      listener,
+    );
     // Store a reference so we can remove it later
     entry.pollStat = listener;
     // Attempt initial read
@@ -71,25 +88,32 @@ export class OutputStreamManager extends EventEmitter {
 
   _readDelta(taskId, entry) {
     let stat;
-    try { stat = fs.statSync(entry.filePath); } catch { return; }
+    try {
+      stat = fs.statSync(entry.filePath);
+    } catch {
+      return;
+    }
     if (stat.size <= entry.offset) return;
 
-    let newBytes = '';
+    let newBytes = "";
     try {
-      const fd = fs.openSync(entry.filePath, 'r');
+      const fd = fs.openSync(entry.filePath, "r");
       const length = stat.size - entry.offset;
       const buf = Buffer.alloc(length);
       fs.readSync(fd, buf, 0, length, entry.offset);
       fs.closeSync(fd);
-      newBytes = buf.toString('utf-8');
-    } catch { return; }
+      newBytes = buf.toString("utf-8");
+    } catch {
+      return;
+    }
 
     entry.offset = stat.size;
 
-    const lines = newBytes.split('\n');
+    const lines = newBytes.split("\n");
     // Last element may be an incomplete line; keep it for next delta
     // (unless the file ended with \n in which case last element is '')
-    const complete = lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines.slice(0, -1);
+    const complete =
+      lines[lines.length - 1] === "" ? lines.slice(0, -1) : lines.slice(0, -1);
     // Remaining partial line is discarded (acceptable — next read picks it up when complete)
 
     if (complete.length === 0) return;
@@ -100,7 +124,7 @@ export class OutputStreamManager extends EventEmitter {
       entry.buffer = entry.buffer.slice(entry.buffer.length - RING_BUFFER_SIZE);
     }
 
-    this.emit('output', {
+    this.emit("output", {
       task_id: taskId,
       worker_name: entry.workerName,
       lines: complete,
@@ -115,8 +139,16 @@ export class OutputStreamManager extends EventEmitter {
   stopWatching(taskId) {
     const entry = this.workers.get(taskId);
     if (!entry) return;
-    if (entry.watcher) { try { entry.watcher.close(); } catch {} }
-    if (entry.pollStat) { try { fs.unwatchFile(entry.filePath, entry.pollStat); } catch {} }
+    if (entry.watcher) {
+      try {
+        entry.watcher.close();
+      } catch {}
+    }
+    if (entry.pollStat) {
+      try {
+        fs.unwatchFile(entry.filePath, entry.pollStat);
+      } catch {}
+    }
     this.workers.delete(taskId);
   }
 
@@ -132,7 +164,7 @@ export class OutputStreamManager extends EventEmitter {
    * Callback receives { task_id, worker_name, lines, total_lines, timestamp }.
    */
   onOutput(callback) {
-    this.on('output', callback);
+    this.on("output", callback);
   }
 
   /**
