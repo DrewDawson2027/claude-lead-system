@@ -1,83 +1,60 @@
+<!-- GENERATED FILE: do not edit manually. -->
+<!-- Source: scripts/proof/generate-compatibility-matrix.mjs -->
+
 # Compatibility Matrix
 
-Platform, terminal emulator, and runtime support for the claude-lead-system.
+Evidence-backed platform matrix derived from committed proof artifacts.
 
-## Platform + Terminal Support
+Generated at: 2026-03-12T03:03:22.885Z
+Latest artifact completed at: 2026-03-12T03:03:22.885Z
+Proof root: `reports/compatibility/proofs`
 
-| Feature | macOS (iTerm2) | macOS (Terminal.app) | Linux (gnome-terminal) | Linux (kitty/alacritty) | Linux (tmux) | Windows (Windows Terminal) | Windows (cmd) |
-|---------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| Worker spawn (tab) | Yes | Yes | Yes | Yes | Yes | Yes | No |
-| Worker spawn (split) | Yes | No | No | No | Yes | No | No |
-| Session wake (Enter) | Yes | Yes | Yes | Yes | Yes | Partial | No |
-| Hook execution (.sh) | Yes | Yes | Yes | Yes | Yes | Git Bash | Git Bash |
-| Python hooks | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
-| Sidecar dashboard | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
-| File locking (flock) | Fallback | Fallback | Yes | Yes | Yes | msvcrt | msvcrt |
-| Lead tools (.sh) | Yes | Yes | Yes | Yes | Yes | Git Bash | Git Bash |
+Rule: platform claims must be grounded in in-repo proof artifacts with explicit pass/fail/unproven reasons.
 
-### Notes
-- **macOS flock fallback**: stock macOS lacks `flock`. Hooks use `mkdir`-based locking with auto-expiry (60s).
-- **Windows Git Bash**: Shell hooks require Git Bash or WSL. Stock cmd.exe cannot run `.sh` files.
-- **Windows session wake**: Partial support via PowerShell `SendKeys`. Stock cmd.exe not supported.
-- **Linux tmux splits**: Worker spawn uses `tmux split-window` for split pane support.
+Legend: ✅ pass | ❌ fail | ⚪ not run | 🚫 unsupported | ⛔ no artifact
 
-## Runtime Version Matrix
+## Proof Coverage Contract
 
-Tested in CI (`.github/workflows/ci.yml`):
+- `install`: Install
+- `launch`: Launch
+- `lead_boot`: Lead boot
+- `message_delivery`: Message delivery
+- `task_dispatch`: Task dispatch
+- `conflict_detection`: Conflict detection
+- `resume`: Resume
+- `sidecar_health`: Sidecar health
 
-| Runtime | Tested Versions | Minimum |
-|---------|:-:|:-:|
-| Node.js | 18.x, 20.x | 18.0 |
-| Python | 3.10, 3.11 | 3.10 |
+## Platform Maturity
 
-### Node.js Requirements
-- `Array.findLastIndex` (Node 18+)
-- `AbortSignal.timeout` (Node 18+)
-- ES module syntax (`import`/`export`)
-- `crypto.randomUUID()` (Node 19+ or with `--experimental-global-webcrypto`)
+| Platform | Maturity | Artifact |
+| --- | --- | --- |
+| macOS | artifact-backed with gaps (1 failed) | [proof](../reports/compatibility/proofs/latest/macos.json) |
+| Linux | unproven (no artifact) | none |
+| Windows | unproven (no artifact) | none |
 
-### Python Requirements
-- `fcntl` module (Unix) / `msvcrt` module (Windows)
-- `json`, `os`, `sys`, `time` (stdlib)
-- No pip packages required for hooks
+## Proof Matrix
 
-## CI Platform Matrix
+| Capability | macOS | Linux | Windows |
+| --- | --- | --- | --- |
+| Install | ❌ fail ([log](../reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/install.log)) | ⛔ no artifact | ⛔ no artifact |
+| Launch | ✅ pass ([log](../reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/launch.log)) | ⛔ no artifact | ⛔ no artifact |
+| Lead boot | ✅ pass ([log](../reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/lead_boot.log)) | ⛔ no artifact | ⛔ no artifact |
+| Message delivery | ✅ pass ([log](../reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/message_delivery.log)) | ⛔ no artifact | ⛔ no artifact |
+| Task dispatch | ✅ pass ([log](../reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/task_dispatch.log)) | ⛔ no artifact | ⛔ no artifact |
+| Conflict detection | ✅ pass ([log](../reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/conflict_detection.log)) | ⛔ no artifact | ⛔ no artifact |
+| Resume | ✅ pass ([log](../reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/resume.log)) | ⛔ no artifact | ⛔ no artifact |
+| Sidecar health | ✅ pass ([log](../reports/compatibility/proofs/runs/macos/2026-03-12T030253741Z-a7fa94c/sidecar_health.log)) | ⛔ no artifact | ⛔ no artifact |
 
-From `.github/workflows/ci.yml` `platform-matrix` job:
+## Artifact Inventory
 
-| Platform | Runner | Status |
-|----------|--------|:-:|
-| Ubuntu (latest) | `ubuntu-latest` | Tested |
-| macOS (latest) | `macos-latest` | Tested |
-| Windows (latest) | `windows-latest` | Tested |
+| Platform | Run ID | Completed At (UTC) | Artifact |
+| --- | --- | --- | --- |
+| macOS | `2026-03-12T030253741Z-a7fa94c` | 2026-03-12T03:03:22.885Z | [proof.json](../reports/compatibility/proofs/latest/macos.json) |
+| Linux | none | none | n/a |
+| Windows | none | none | n/a |
 
-## CI Compatibility Matrix
+## Regeneration
 
-From `.github/workflows/ci.yml` `compatibility-matrix` job:
-
-| Node.js | Python | Status |
-|:-:|:-:|:-:|
-| 18 | 3.10 | Tested |
-| 18 | 3.11 | Tested |
-| 20 | 3.10 | Tested |
-| 20 | 3.11 | Tested |
-
-## Feature Support by Install Mode
-
-| Feature | lite | hybrid | full |
-|---------|:-:|:-:|:-:|
-| Sidecar server | Yes | Yes | Yes |
-| MCP coordinator | Yes | Yes | Yes |
-| Commands | Yes | Yes | Yes |
-| Agents + modes | Yes | Yes | Yes |
-| Shell hooks | No | Yes | Yes |
-| Python hooks | No | Yes | Yes |
-| Settings merge | Yes | Yes | Yes |
-| Health check | Sidecar-only | Full | Full |
-| Policy templates | No | No | Yes |
-
-## References
-
-- `.github/workflows/ci.yml` — CI job definitions
-- `install.sh` — Install mode documentation
-- `docs/KNOWN_LIMITATIONS.md` — Platform-specific limitations
+```bash
+node scripts/proof/generate-compatibility-matrix.mjs
+```
