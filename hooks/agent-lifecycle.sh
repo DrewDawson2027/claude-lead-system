@@ -126,4 +126,40 @@ if [ -f "$METRICS_FILE" ]; then
   fi
 fi
 
+# ── Exit-code-2 feedback contract ──────────────────────────────────────────
+# Native TeammateIdle uses exit 2 → "send feedback, keep working."
+# Native TaskCompleted uses exit 2 → "don't mark complete, send feedback."
+# We honour this contract: if the input carries a non-empty feedback field
+# with feedback_exit_code=2, route the message to the worker's inbox file
+# so the coordinator can surface it, then exit 2 to signal Claude Code.
+#
+# The platform layer sets { "feedback": "...", "feedback_exit_code": 2 }
+# alongside normal SubagentStop fields to trigger this path.
+FEEDBACK=$(echo "$INPUT" | jq -r '.feedback // empty' 2>/dev/null || true)
+FEEDBACK_CODE=$(echo "$INPUT" | jq -r '.feedback_exit_code // 0' 2>/dev/null || echo "0")
+
+if [ -n "$FEEDBACK" ] && [ "$FEEDBACK_CODE" = "2" ]; then
+  INBOX_DIR="$HOME/.claude/terminals/inbox"
+  mkdir -p "$INBOX_DIR"
+  INBOX_FILE="$INBOX_DIR/${SESSION_ID}.jsonl"
+  FEEDBACK_MSG=$(python3 -c "
+import json, sys, time
+feedback = sys.argv[1]
+agent_type = sys.argv[2]
+msg = {
+    'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+    'from': 'lifecycle-hook',
+    'priority': 'normal',
+    'content': f'[exit-code-2 feedback from {agent_type}] {feedback}',
+}
+print(json.dumps(msg))
+" "$FEEDBACK" "$AGENT_TYPE_SAFE" 2>/dev/null)
+  if [ -n "$FEEDBACK_MSG" ]; then
+    echo "$FEEDBACK_MSG" >> "$INBOX_FILE"
+  fi
+  # Emit the feedback to stderr (Claude Code reads hook stderr on exit 2)
+  echo "$FEEDBACK" >&2
+  exit 2
+fi
+
 exit 0

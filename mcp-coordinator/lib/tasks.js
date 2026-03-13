@@ -110,6 +110,19 @@ export function handleCheckQualityGates(args) {
   for (const r of results) {
     out += `- ${r.passed ? "[x]" : "[ ]"} (${r.type}) ${r.gate}\n`;
   }
+
+  // Exit-code-2 feedback contract: if any gates failed, append actionable
+  // feedback so the caller can route it to the worker's inbox rather than
+  // blocking. This mirrors the native TaskCompleted exit-2 semantics where
+  // "don't mark complete, send this feedback" is the expected behaviour.
+  if (!allPassed) {
+    const failing = results.filter((r) => !r.passed).map((r) => r.gate);
+    out += `\n## Feedback for worker\n`;
+    out += `The following gates are not yet satisfied — address them before marking this task complete:\n`;
+    for (const g of failing) out += `- ${g}\n`;
+    out += `\nCall coord_update_task with gate_results once each gate passes.`;
+  }
+
   return text(out);
 }
 
