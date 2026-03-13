@@ -175,6 +175,9 @@ jobs:
         run: bash tests/health-check-regression.sh
 
   platform-matrix:
+    # Windows is NOT a supported platform. It runs here as a canary only and
+    # its failure does NOT block CI (continue-on-error per step below).
+    # Supported platforms: Linux (ubuntu-latest), macOS (macos-latest).
     name: Platform Launch Matrix (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -191,6 +194,8 @@ jobs:
       - name: Install deps
         run: cd mcp-coordinator && npm ci
       - name: Run coordinator unit tests
+        # Windows is unsupported — failure is informational only
+        continue-on-error: ${{ runner.os == 'Windows' }}
         run: cd mcp-coordinator && npm run test:unit
 
   platform-proof:
@@ -266,6 +271,8 @@ jobs:
         run: bash tests/hooks-smoke.sh
 
   smoke-install:
+    # Windows is NOT a supported platform. Runs as a canary; failure is
+    # informational only and does not block CI (continue-on-error below).
     name: Smoke Install (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -287,6 +294,8 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install jq -y
       - name: Run smoke install
+        # Windows is unsupported — failure is informational only
+        continue-on-error: ${{ runner.os == 'Windows' }}
         shell: bash
         run: bash tests/smoke-install.sh --ref HEAD --mode full
 
