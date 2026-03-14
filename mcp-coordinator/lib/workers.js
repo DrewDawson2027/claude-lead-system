@@ -1092,6 +1092,104 @@ export function handleGetResult(args) {
 }
 
 /**
+ * Handle coord_watch_output tool call.
+ * Live-monitoring equivalent to native Shift+Down — returns latest worker output
+ * by name or task_id. Optimized for repeated calls during active work.
+ * @param {object} args - { worker_name?, task_id?, lines? }
+ * @returns {object} MCP text response
+ */
+export function handleWatchOutput(args) {
+  const { RESULTS_DIR } = cfg();
+  const lines = Math.min(Math.max(Number(args.lines) || 50, 1), 500);
+
+  // Resolve worker_name to task_id if needed
+  let task_id = args.task_id ? sanitizeId(args.task_id, "task_id") : null;
+  const workerName = args.worker_name ? sanitizeName(args.worker_name) : null;
+
+  if (!task_id && !workerName) {
+    // No name/id given — show all active workers' latest line
+    const summary = [];
+    try {
+      const metas = readdirSync(RESULTS_DIR).filter(
+        (f) => f.endsWith(".meta.json") && !f.includes(".done"),
+      );
+      for (const mf of metas) {
+        const meta = readJSON(join(RESULTS_DIR, mf));
+        if (!meta) continue;
+        const tid = mf.replace(".meta.json", "");
+        const pidFile = join(RESULTS_DIR, `${tid}.pid`);
+        const isRunning =
+          existsSync(pidFile) &&
+          isProcessAlive(readFileSync(pidFile, "utf-8").trim());
+        if (!isRunning && !existsSync(`${join(RESULTS_DIR, mf)}.done`))
+          continue;
+        const resultFile = join(RESULTS_DIR, `${tid}.txt`);
+        let lastLine = "(no output)";
+        if (existsSync(resultFile)) {
+          const content = readFileSync(resultFile, "utf-8").trimEnd();
+          const allLines = content.split("\n");
+          lastLine = allLines[allLines.length - 1] || "(empty)";
+          if (lastLine.length > 120) lastLine = lastLine.slice(0, 117) + "...";
+        }
+        const name = meta.worker_name || tid;
+        const status = existsSync(`${join(RESULTS_DIR, mf)}.done`)
+          ? "done"
+          : isRunning
+            ? "running"
+            : "idle";
+        summary.push(`[${status}] ${name}: ${lastLine}`);
+      }
+    } catch {
+      /* empty results dir */
+    }
+    if (summary.length === 0) return text("No active workers.");
+    return text(
+      `## Active Workers\n\`\`\`\n${summary.join("\n")}\n\`\`\`\nUse \`worker_name\` to focus on one.`,
+    );
+  }
+
+  // Resolve name to task_id
+  if (!task_id && workerName) {
+    try {
+      const metas = readdirSync(RESULTS_DIR).filter((f) =>
+        f.endsWith(".meta.json"),
+      );
+      for (const mf of metas) {
+        const meta = readJSON(join(RESULTS_DIR, mf));
+        if (meta && meta.worker_name === workerName) {
+          task_id = mf.replace(".meta.json", "");
+          break;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    if (!task_id) return text(`Worker "${workerName}" not found.`);
+  }
+
+  const resultFile = join(RESULTS_DIR, `${task_id}.txt`);
+  const pidFile = join(RESULTS_DIR, `${task_id}.pid`);
+  const metaFile = join(RESULTS_DIR, `${task_id}.meta.json`);
+  const meta = readJSON(metaFile);
+
+  const isRunning =
+    existsSync(pidFile) &&
+    isProcessAlive(readFileSync(pidFile, "utf-8").trim());
+  const isDone = existsSync(`${metaFile}.done`);
+  const status = isDone ? "done" : isRunning ? "running" : "idle";
+  const name = meta?.worker_name || task_id;
+
+  let output = "(no output yet)";
+  if (existsSync(resultFile)) {
+    const full = readFileSync(resultFile, "utf-8");
+    const allLines = full.split("\n");
+    output = allLines.length > lines ? allLines.slice(-lines).join("\n") : full;
+  }
+
+  return text(`## [${status}] ${name}\n\`\`\`\n${output}\n\`\`\``);
+}
+
+/**
  * Handle coord_kill_worker tool call.
  * @param {object} args - { task_id }
  * @returns {object} MCP text response

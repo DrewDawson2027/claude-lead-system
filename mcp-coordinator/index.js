@@ -48,6 +48,7 @@ import {
   handleDrainNativeQueue,
 } from "./lib/messaging.js";
 import { handleDetectConflicts } from "./lib/conflicts.js";
+import { handleSessionHealth } from "./lib/session-health.js";
 import {
   handleSpawnWorker,
   handleSpawnWorkers,
@@ -57,6 +58,7 @@ import {
   handleResumeWorker,
   handleUpgradeWorker,
   handleWorkerReport,
+  handleWatchOutput,
   killAllWorkers,
 } from "./lib/workers.js";
 import { handleRunPipeline, handleGetPipeline } from "./lib/pipelines.js";
@@ -239,6 +241,7 @@ const CORE_TOOLS = new Set([
   "coord_spawn_worker",
   "coord_spawn_workers",
   "coord_get_result",
+  "coord_watch_output",
   "coord_kill_worker",
   "coord_resume_worker",
   "coord_upgrade_worker",
@@ -292,6 +295,7 @@ const OPS_TOOLS = new Set([
   "coord_sidecar_status",
   "coord_cost_comparison",
   "coord_worker_report",
+  "coord_session_health",
 ]);
 
 function toolVisibleInProfile(toolName) {
@@ -308,6 +312,28 @@ function toolVisibleInProfile(toolName) {
 
 /* c8 ignore start — tool schemas are declarative data, tested via dispatch */
 const ALL_TOOLS = [
+  {
+    name: "coord_session_health",
+    description:
+      "Check session enrichment health for cheap /lead boot: sparse ratio, repair coverage, and no-transcript-read readiness.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        include_closed: {
+          type: "boolean",
+          description: "Include closed sessions (default: false)",
+        },
+        warn_sparse_ratio: {
+          type: "number",
+          description: "Warning threshold as fraction (default: 0.10)",
+        },
+        fail_sparse_ratio: {
+          type: "number",
+          description: "Fail threshold as fraction (default: 0.25)",
+        },
+      },
+    },
+  },
   {
     name: "coord_list_sessions",
     description:
@@ -618,6 +644,28 @@ const ALL_TOOLS = [
         },
       },
       required: ["task_id"],
+    },
+  },
+  {
+    name: "coord_watch_output",
+    description:
+      "Live-monitor worker output — equivalent to native Shift+Down. Call with no args to see all active workers' latest line. Call with worker_name to focus on one worker's full output.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        worker_name: {
+          type: "string",
+          description: "Worker name to watch (e.g. 'alpha')",
+        },
+        task_id: {
+          type: "string",
+          description: "Task ID (alternative to worker_name)",
+        },
+        lines: {
+          type: "number",
+          description: "Number of lines to return (default: 50, max: 500)",
+        },
+      },
     },
   },
   {
@@ -1935,6 +1983,9 @@ function handleToolCall(name, args = {}) {
   try {
     let result;
     switch (name) {
+      case "coord_session_health":
+        result = handleSessionHealth(args);
+        break;
       case "coord_list_sessions":
         result = handleListSessions(args);
         break;
@@ -1958,6 +2009,9 @@ function handleToolCall(name, args = {}) {
         break;
       case "coord_get_result":
         result = handleGetResult(args);
+        break;
+      case "coord_watch_output":
+        result = handleWatchOutput(args);
         break;
       case "coord_wake_session":
         result = handleWakeSession(args);
@@ -2242,6 +2296,8 @@ export const __test__ = {
   handleSyncAgentManifest,
   handleBootSnapshot,
   handleWorkerReport,
+  handleWatchOutput,
+  handleSessionHealth,
   PROFILE,
   CORE_TOOLS,
   TEAMS_TOOLS,

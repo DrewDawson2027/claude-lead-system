@@ -8,6 +8,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added (2026-03-12 → 2026-03-13 consolidation sprint)
+
+- **Exit-code-2 hook feedback contract** (`hooks/agent-lifecycle.sh`): when a hook sends `feedback_exit_code=2`, the feedback is written to the worker's inbox JSONL file and the hook exits 2 — Claude Code surfaces this as feedback without stopping the worker. Mirrors native TeammateIdle semantics.
+- **Quality gate actionable feedback** (`mcp-coordinator/lib/tasks.js`): `handleCheckQualityGates` now returns a checklist of failing gates with remediation instructions when `allPassed === false`, instead of just returning a PASS/FAIL table.
+- **`sidecar/test/output-stream.test.mjs`** (11 tests): First test coverage for `OutputStreamManager` — ring buffer, idempotent watcher attach, output event emission, `stopAll`, and max-watcher cap. Sidecar test count: 233 → 244.
+- **Live E2E runbooks** (`scripts/e2e/`): Three guided runbook scripts for manual end-to-end verification:
+  - `e1-agent-resume.sh` — spawn, kill, resume, verify `resume_count ≥ 1` in meta file
+  - `e2-p2p-messaging.sh` — alpha sends to beta, verify inbox JSONL has correct `from` and `content`
+  - `e3-plan-approval.sh` — worker in plan mode sends request, lead approves, verify `[APPROVED]` in inbox
+- **`scripts/lead-status-watch.sh`**: Continuously-refreshing terminal table of all active workers (session ID, status, worker name, current task, branch, last active, inbox depth). Supports `--once` for snapshot and `--interval N` for custom refresh rate. Narrows the UX gap with native's Shift+Down worker cycling.
+- **Session resumption competitive advantage note** (`CLAUDE.md`): Documents that native Agent Teams explicitly cannot restore in-process teammates on resume. `coord_resume_worker` uses `--session-id` to re-enter the prior conversation. This becomes a `verified` lead-exclusive advantage once E1 live run is confirmed.
+- **`docs/archive/`**: New directory for session-artifact documents moved out of the repo root.
+- **Windows CI canary**: `continue-on-error: ${{ runner.os == 'Windows' }}` on `platform-matrix` and `smoke-install` test steps. Windows failures are informational, not blocking — documented as unsupported canary.
+
+### Changed (2026-03-12 → 2026-03-13)
+
+- **CLAUDE.md branch conventions**: Replaced deprecated `codex/` branch prefix example with canonical prefixes (`feature/`, `fix/`, `docs/`, `test/`, `ci/`, `refactor/`, `chore/`).
+- **`README.md`**: Added Quick Start (3 steps), "When to use" comparison table, and lead-exclusive capabilities table (29 capabilities). Collapsed "Canonical claim posture" block into a `<details>` fold — was top-level; now below the fold for contributors/reviewers only. Collapsed the 8-curl signed install block into a `<details>` fold; new "What it looks like" section shows coordinator commands.
+- **CLAUDE.md E2E section**: Updated to 2026-03-13, added runbook links (`scripts/e2e/`), added competitive advantage note for session resumption.
+- **Root-level cleanup**: 6 session-artifact `.md` files moved to `docs/archive/` (`AGENT-DELEGATION-PLAN.md`, `LEAD_SYSTEM_REVIEW_CORRECTED.md`, `LEAD_SYSTEM_REVIEW_PART1_APPLICATION_CODE.md`, `LEAD_SYSTEM_SESSION_WORKLOG.md`, `LEAD_SYSTEM_TOP_TO_BOTTOM_REVIEW.md`, `STRATEGIC_ASSESSMENT_CAPSTONE.md`).
+
+### Fixed (2026-03-12 → 2026-03-13)
+
+- **ANSI escape codes in `lead-status-watch.sh`**: Variables declared with single-quoted `'\033[Xm'` stored literal backslashes, not ESC bytes. Fixed with `$'\033[Xm'` syntax. `printf %s` was also replaced with `%b` for columns containing ANSI codes so the terminal receives real escape sequences.
+- **`output-stream.test.mjs` timing**: Two tests that wrote to a watched file immediately after `startWatching()` would race with `fs.watch()` attachment. Added a 100ms settle delay and extended `waitFor` timeout to 4000ms.
+
 ### Breaking Changes
 
 - **API error schema**: Error responses now use `{ error_code, message, request_id }` instead of `{ error: string }`. Clients parsing error responses must update their JSON key expectations.

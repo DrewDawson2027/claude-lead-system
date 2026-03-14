@@ -22,7 +22,7 @@ Version: `2026-03-13`
 ## Native Advantages (Canonical)
 
 - In-process teammate lifecycle semantics in a single runtime.
-- Tighter first-party cross-platform UX consistency.
+- Tighter first-party cross-platform UX consistency. In-process display (native keypress UX) is `partial` — `coord_watch_output` provides functional output monitoring via MCP tool call, not identical UX to native Shift+Down keypress.
 - Integrated native UI and runtime linkage without external coordinator polling.
 
 ## Lead Advantages (Canonical)
@@ -67,7 +67,7 @@ The following block must appear verbatim in every sync target:
 
 - Canonical taxonomy: `verified`, `partial`, `experimental`
 - Parity posture (canonical): Do not claim exact UX parity or exact feature parity with native Agent Teams. Do not publish single-number parity percentages. Use only evidence-labeled capability claims using the canonical taxonomy. Hybrid/native execution paths remain experimental until current end-to-end evidence exists.
-- Native advantages (canonical): In-process teammate lifecycle semantics in a single runtime. Tighter first-party cross-platform UX consistency. Integrated native UI and runtime linkage without external coordinator polling.
+- Native advantages (canonical): In-process teammate lifecycle semantics in a single runtime. Tighter first-party cross-platform UX consistency. In-process display is `partial` — `coord_watch_output` provides functional output monitoring via MCP tool call, not identical UX to native keypress. Integrated native UI and runtime linkage without external coordinator polling.
 - Lead advantages (canonical): Pre-edit conflict detection and conflict lifecycle visibility across active sessions. Operator-grade dashboard and API orchestration for multi-terminal workflows. Filesystem coordination path with zero API-token coordination overhead. Policy and governance controls around worker execution (budget/spawn/approval/checkpoint).
 - Economics posture (canonical): Do not claim universal savings or blanket cheaper-than-native outcomes. Filesystem coordination can claim zero API-token coordination overhead on that path. Throughput and economics claims beyond that path must stay evidence-scoped to the workflow under discussion.
 - Economics verdicts (canonical): Filesystem coordination overhead claim = verified; Workflow-scoped token-pressure delta claim = partial; Universal cheaper-than-native or universal savings claim = experimental.

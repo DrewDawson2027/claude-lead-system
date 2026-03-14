@@ -1,4 +1,4 @@
-import { existsSync } from "fs";
+import { existsSync, appendFileSync, readdirSync } from "fs";
 import { spawnSync } from "child_process";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -93,6 +93,31 @@ function runPolicyHook(name, scriptPath, payload, { required = true } = {}) {
   };
 }
 
+function writeAuditLine(decision, reason, toolInput) {
+  try {
+    const { TERMINALS_DIR } = cfg();
+    const resultsDir = join(TERMINALS_DIR, "results");
+    let activeCount = 0;
+    if (existsSync(resultsDir)) {
+      const files = readdirSync(resultsDir);
+      activeCount = files.filter(
+        (f) => f.endsWith(".meta.json") && !files.includes(f + ".done"),
+      ).length;
+    }
+    appendFileSync(
+      join(TERMINALS_DIR, "budget-audit.jsonl"),
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        worker_name: toolInput.worker_name || "unknown",
+        model: toolInput.model || "sonnet",
+        decision,
+        reason,
+        active_workers: activeCount,
+      }) + "\n",
+    );
+  } catch {}
+}
+
 export function enforceWorkerPolicy({
   sessionId,
   subagentType,
@@ -146,6 +171,7 @@ export function enforceWorkerPolicy({
     });
     if (outcome.notes?.length) notes.push(...outcome.notes);
     if (!outcome.ok) {
+      writeAuditLine("block", outcome.blockMessage, toolInput);
       return {
         ok: false,
         blockMessage: outcome.blockMessage,
@@ -154,5 +180,6 @@ export function enforceWorkerPolicy({
     }
   }
 
+  writeAuditLine("allow", "policy passed", toolInput);
   return { ok: true, notes: Array.from(new Set(notes)) };
 }

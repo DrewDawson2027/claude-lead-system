@@ -26,6 +26,12 @@
     "Tighter first-party cross-platform UX consistency.",
     "Integrated native UI and runtime linkage without external coordinator polling."
   ],
+  "in_process_display": {
+    "label": "partial",
+    "description": "coord_watch_output provides functional output monitoring via MCP tool call. Not identical UX to native Shift+Down keypress (tool call vs keypress). Code path verified at lib/workers.js:1101. No dedicated test coverage for coord_watch_output — classified partial, not verified.",
+    "capability": "coord_watch_output",
+    "evidence": "lib/workers.js:1101 (handleWatchOutput implementation), mcp-coordinator/index.js:650 (tool registration)"
+  },
   "lead_advantages": [
     "Pre-edit conflict detection and conflict lifecycle visibility across active sessions.",
     "Operator-grade dashboard and API orchestration for multi-terminal workflows.",
