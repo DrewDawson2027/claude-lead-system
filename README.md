@@ -8,7 +8,7 @@ Detect file conflicts before they collide. Spawn, redirect, and message workers.
 
 <!-- ![demo](demo.gif) -->
 
-[![Tests](https://img.shields.io/badge/tests-618%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![Tests](https://img.shields.io/badge/tests-716%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![Coverage](https://img.shields.io/badge/coverage-87.8%25-green)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
