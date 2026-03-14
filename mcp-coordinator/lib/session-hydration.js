@@ -27,21 +27,28 @@ function cloneSession(session) {
 
 function totalToolCount(toolCounts) {
   if (!isObject(toolCounts)) return 0;
-  return Object.values(toolCounts).reduce((sum, n) => sum + (Number(n) || 0), 0);
+  return Object.values(toolCounts).reduce(
+    (sum, n) => sum + (Number(n) || 0),
+    0,
+  );
 }
 
 export function hasCanonicalEnrichment(session) {
-  return Array.isArray(session?.files_touched)
-    && Array.isArray(session?.recent_ops)
-    && isObject(session?.tool_counts)
-    && Number(session?.schema_version || 0) >= SESSION_SCHEMA_MIN;
+  return (
+    Array.isArray(session?.files_touched) &&
+    Array.isArray(session?.recent_ops) &&
+    isObject(session?.tool_counts) &&
+    Number(session?.schema_version || 0) >= SESSION_SCHEMA_MIN
+  );
 }
 
 function isPlaceholderOnly(session) {
-  return hasCanonicalEnrichment(session)
-    && (session.recent_ops?.length || 0) === 0
-    && (session.files_touched?.length || 0) === 0
-    && totalToolCount(session.tool_counts) === 0;
+  return (
+    hasCanonicalEnrichment(session) &&
+    (session.recent_ops?.length || 0) === 0 &&
+    (session.files_touched?.length || 0) === 0 &&
+    totalToolCount(session.tool_counts) === 0
+  );
 }
 
 function ensureBaseline(session) {
@@ -64,7 +71,10 @@ function ensureBaseline(session) {
     out.turn_count = 0;
     changed = true;
   }
-  if (!Number.isInteger(out.schema_version) || out.schema_version < SESSION_SCHEMA_MIN) {
+  if (
+    !Number.isInteger(out.schema_version) ||
+    out.schema_version < SESSION_SCHEMA_MIN
+  ) {
     out.schema_version = SESSION_SCHEMA_MIN;
     changed = true;
   }
@@ -106,9 +116,15 @@ export function buildActivityReplayIndex() {
 
     bucket.tool_counts[tool] = (Number(bucket.tool_counts[tool]) || 0) + 1;
     if ((tool === "Edit" || tool === "Write") && path && path !== "unknown") {
-      bucket.files_touched = [...bucket.files_touched.filter(f => f !== path), path].slice(-MAX_FILES_TOUCHED);
+      bucket.files_touched = [
+        ...bucket.files_touched.filter((f) => f !== path),
+        path,
+      ].slice(-MAX_FILES_TOUCHED);
     }
-    bucket.recent_ops = [...bucket.recent_ops, { t: ts || new Date(0).toISOString(), tool, file }].slice(-MAX_RECENT_OPS);
+    bucket.recent_ops = [
+      ...bucket.recent_ops,
+      { t: ts || new Date(0).toISOString(), tool, file },
+    ].slice(-MAX_RECENT_OPS);
     if (ts) bucket.last_active = ts;
   }
 
@@ -122,7 +138,11 @@ export function buildActivityReplayIndex() {
  * @param {Map<string, object>} activityIndex
  * @returns {object}
  */
-export function hydrateSessionRecord(session, filePath, activityIndex = new Map()) {
+export function hydrateSessionRecord(
+  session,
+  filePath,
+  activityIndex = new Map(),
+) {
   const original = cloneSession(session);
   const { session: out, changed: baselineChanged } = ensureBaseline(original);
   let changed = baselineChanged;
@@ -136,7 +156,12 @@ export function hydrateSessionRecord(session, filePath, activityIndex = new Map(
     out.tool_counts = { ...replay.tool_counts };
     out.files_touched = [...replay.files_touched];
     out.recent_ops = [...replay.recent_ops];
-    if (replay.last_active && (!out.last_active || new Date(replay.last_active).getTime() > new Date(out.last_active).getTime())) {
+    if (
+      replay.last_active &&
+      (!out.last_active ||
+        new Date(replay.last_active).getTime() >
+          new Date(out.last_active).getTime())
+    ) {
       out.last_active = replay.last_active;
     }
     out.enrichment_status = "hydrated-from-activity";
@@ -151,7 +176,9 @@ export function hydrateSessionRecord(session, filePath, activityIndex = new Map(
     try {
       writeFileSecure(filePath, JSON.stringify(out, null, 2));
     } catch (e) {
-      process.stderr.write(`coord: session hydration persist failed (${basename(filePath)}): ${e.message}\n`);
+      process.stderr.write(
+        `coord: session hydration persist failed (${basename(filePath)}): ${e.message}\n`,
+      );
     }
   }
 
