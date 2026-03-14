@@ -28,6 +28,12 @@ Terminal B (interactive):
 
 **How it complements Agent Teams:** Agent Teams' `Task` tool spawns background subagents within the same process. `coord_spawn_worker` spawns fully independent terminal processes with PID tracking, kill support, and result retrieval.
 
+**Verification:** `test-verified`
+
+- Role-based spawn defaults (researcher=haiku/readOnly, implementer=sonnet/acceptEdits, reviewer=sonnet/readOnly+requirePlan, planner=sonnet/planOnly+requirePlan): `mcp-coordinator/test/gap-parity.test.mjs:71–172`
+- Worker meta records UUID and parent session linkage: `mcp-coordinator/test/gap-parity.test.mjs:174–276`
+- Budget policy enforcement blocks/warns at spawn time: `mcp-coordinator/test/e2e-worker-pipeline.test.mjs:219–291`
+
 ---
 
 ## Pattern 2: Conflict-Safe Teams
@@ -48,6 +54,11 @@ Both terminals work independently. When Terminal C tries to Edit src/auth.ts:
 
 **How it complements Agent Teams:** Agent Teams handles task assignment through `Task`. The conflict guard provides the file-level awareness that prevents merge-time surprises.
 
+**Verification:** `test-verified`
+
+- Conflict detection fires when two sessions have touched the same file: `mcp-coordinator/test/conflicts.test.mjs` (covers activity.jsonl write + conflict warning path)
+- Activity log records file-level tool calls per session: `tests/test-hooks.sh:126` (asserts activity.jsonl is written by heartbeat hook)
+
 ---
 
 ## Pattern 3: Pipeline to Team Handoff
@@ -67,6 +78,12 @@ Terminal A (lead):
 **When to use:** Ordered task chains where step N depends on step N-1. Agent Teams has no sequential pipeline primitive — it dispatches tasks independently.
 
 **How it complements Agent Teams:** Pipelines handle sequential ordering. Agent Teams handles the fan-out of results to multiple agents afterward.
+
+**Verification:** `test-verified`
+
+- Pipeline rejects empty task list and non-existent directory: `mcp-coordinator/test/e2e-worker-pipeline.test.mjs:817–857`
+- Pipeline rejects duplicate pipeline_id (idempotency guard): `mcp-coordinator/test/e2e-worker-pipeline.test.mjs:859–882`
+- Pipeline `pending` status reported before execution starts: `mcp-coordinator/test/e2e-worker-pipeline.test.mjs:883–910`
 
 ---
 
@@ -89,6 +106,13 @@ Session file (session-a1b2c3d4.json):
 **When to use:** Understanding what happened across sessions. Agent Teams provides idle notifications but no tool-level activity tracking.
 
 **What you get:** Per-session tool counts, files touched, recent operations, and a universal append-only activity log — all maintained in local files outside the native team message path.
+
+**Verification:** `test-verified`
+
+- Session list returns active sessions with tool counts: `mcp-coordinator/test/sessions.test.mjs:31–73`
+- Session detail returns files_touched and recent_ops: `mcp-coordinator/test/sessions.test.mjs:95–122`
+- TeammateIdle event is written to activity.jsonl with correct tool name field: `tests/test-hooks.sh:383–387`
+- teammate_events counter increments on each lifecycle event: `tests/test-hooks.sh:388–390`
 
 ---
 

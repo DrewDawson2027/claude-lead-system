@@ -8,6 +8,7 @@
     "start": "tsx --tsconfig ./tsconfig.json ./server/index.js",
     "tui": "node ui-tui/index.js",
     "test": "tsx --test test/*.test.mjs",
+    "coverage:sidecar": "npx c8 --reporter=text --reporter=html tsx --test test/*.test.mjs",
     "typecheck": "node ./bin/typecheck-ci.mjs",
     "typecheck:raw": "tsc --noEmit -p ./tsconfig.typecheck.json"
   },

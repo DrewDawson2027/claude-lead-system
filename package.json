@@ -17,7 +17,7 @@
     "lint:python": "ruff check hooks/*.py --ignore E501 && python3 -m py_compile hooks/*.py",
     "lint:coordinator": "node --check mcp-coordinator/index.js && npm --workspace mcp-coordinator run test:unit",
     "typecheck:sidecar": "npm --workspace sidecar run typecheck",
-    "verify:hooks": "bash tests/hooks-smoke.sh && bash tests/test-hooks.sh && bash tests/health-check-regression.sh && pytest -q",
+    "verify:hooks": "bash tests/hooks-smoke.sh && bash tests/test-hooks.sh && bash tests/health-check-regression.sh && python3 -m pytest -q --cov=hooks/ --cov-report=term-missing",
     "ci:local": "npm run lint:shell && npm run lint:python && npm run lint:coordinator && npm --workspace mcp-coordinator run test:coverage && npm run docs:audit && npm run typecheck:sidecar && npm run test:sidecar && npm run verify:hooks",
     "ci:local:report": "node scripts/ci-local-report.mjs",
     "cert:a-plus:fresh": "node scripts/certify-a-plus.mjs",
