@@ -6,10 +6,11 @@
 
 Detect file conflicts before they collide. Spawn, redirect, and message workers. Run tracked multi-step pipelines. All from a single local coordinator — no API tokens spent on coordination.
 
-<!-- ![demo](demo.gif) -->
+> **One terminal to rule them all.** Spawn workers, detect conflicts,
+> message sessions, track pipelines — no API tokens for coordination.
 
-[![Tests](https://img.shields.io/badge/tests-716%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
-[![Coverage](https://img.shields.io/badge/coverage-87.8%25-green)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![Tests](https://img.shields.io/badge/tests-724%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![Coverage](https://img.shields.io/badge/coverage-85.1%25-green)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Why you'd use it:**
@@ -42,6 +43,20 @@ claudex
 ```
 
 You'll see a live dashboard of every active Claude terminal — what it's working on, what files it's touching, and whether any two sessions are about to collide.
+
+---
+
+## Platform Support
+
+| Platform | Status    | Notes                                                       |
+| -------- | --------- | ----------------------------------------------------------- |
+| macOS    | Verified  | Full support. iTerm2 or tmux recommended for split-pane.    |
+| Linux    | Supported | Requires bash + tmux or kitty for split-pane.               |
+| Windows  | Supported | Requires Windows Terminal. Codex runtime not yet supported. |
+
+**Requirements:** Node.js 18+, bash (macOS/Linux), Python 3.10+ (for hooks)
+
+---
 
 **Common MCP tools (usable from any Claude session):**
 
@@ -94,8 +109,8 @@ Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.
 
 ## By the Numbers
 
-- **618** automated tests passing
-- **87.8%** test coverage
+- **724** automated tests passing
+- **85.1%** test coverage
 - **60+** MCP coordination tools
 - **22** lib modules
 - **Zero** API tokens spent on coordination (filesystem path)
@@ -104,7 +119,7 @@ Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.
 
 ## The Story
 
-> _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 60+ tools, 716 tests, SLSA supply chain security — entirely through Claude Code."_
+> _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 60+ tools, 724 tests, SLSA supply chain security — entirely through Claude Code."_
 
 → [Twitter thread](#) _(coming soon)_
 
