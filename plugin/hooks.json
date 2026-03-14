@@ -13,12 +13,12 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/token-guard.py\"",
-            "timeout": 5
+            "timeout": 3
           },
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/model-router.py\"",
-            "timeout": 5
+            "timeout": 3
           }
         ]
       },
@@ -28,7 +28,7 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/read-efficiency-guard.py\"",
-            "timeout": 5
+            "timeout": 3
           }
         ]
       }
@@ -39,7 +39,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/agent-lifecycle.sh\"",
-            "timeout": 5
+            "timeout": 3
           }
         ]
       }
@@ -50,12 +50,12 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/agent-lifecycle.sh\"",
-            "timeout": 5
+            "timeout": 3
           },
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-metrics.py\"",
-            "timeout": 10
+            "timeout": 5
           }
         ]
       }

@@ -3,6 +3,12 @@
 # Runs before EVERY tool call. If inbox has messages, prints them so the model sees them.
 umask 077
 
+# NOTE: No top-of-hook early-exit guard here by design.
+# Permission enforcement (readOnly/planOnly/planRequired) must always run for
+# every tool call — it reads tool_name from stdin to block restricted modes.
+# A guard before stdin is read would bypass all permission checks.
+# The inbox drain section (below) already skips when the inbox file is empty.
+
 # Load portable utilities
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib/portable.sh

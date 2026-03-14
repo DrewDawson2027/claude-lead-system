@@ -6,6 +6,10 @@
 # Runs on: Edit, Write
 umask 077
 
+# Quick-exit: if only one session exists, nothing can conflict — skip entire hook (~2ms)
+SESSION_COUNT=$(ls "$HOME/.claude/terminals/session-"*.json 2>/dev/null | wc -l)
+[ "$SESSION_COUNT" -lt 2 ] && exit 0
+
 # Load portable utilities
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib/portable.sh

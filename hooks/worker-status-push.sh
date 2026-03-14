@@ -18,6 +18,9 @@ if [ -f "$MARKER" ]; then
 fi
 echo "$NOW" > "$MARKER"
 
+# Quick-exit: if no .pid files exist, no workers are running — skip the loop (~2ms)
+ls "$RESULTS_DIR"/*.pid 2>/dev/null | head -1 | grep -q . || exit 0
+
 # Collect running workers (one compact line each)
 STATUS=""
 for meta in "$RESULTS_DIR"/*.meta.json; do

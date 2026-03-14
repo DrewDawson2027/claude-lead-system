@@ -43,7 +43,9 @@ NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 MAX_TURNS_MESSAGE=""
 
-# ─── ACTIVITY LOG (always fires, flock-protected for concurrent safety) ───
+# ─── ACTIVITY LOG (always fires before cooldown — intentional by design) ───
+# The rate-limit check is AFTER this block. Activity log gets every event;
+# the full session-file update is rate-limited to 1/5s. This is correct behavior.
 ACTIVITY_FILE=~/.claude/terminals/activity.jsonl
 JSON_LINE=$(jq -n --arg ts "$NOW" --arg session "$SID8" --arg tool "$TOOL_NAME" \
       --arg file "$FILE_BASE" --arg path "$FILE_PATH" --arg project "$PROJECT" \

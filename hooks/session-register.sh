@@ -4,6 +4,10 @@
 # Captures transcript_path so the lead can read other sessions' conversations
 umask 077
 
+# Quick-exit: if this session is already registered, skip re-registration (~2ms)
+# CLAUDE_SESSION_ID is set as an env var by Claude Code for all hooks.
+[ -f "$HOME/.claude/terminals/session-${CLAUDE_SESSION_ID:0:8}.json" ] && exit 0
+
 # Load portable utilities
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib/portable.sh
