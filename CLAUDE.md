@@ -157,8 +157,9 @@ The goal is practical overlap plus differentiated local tooling, not an "exactly
 ## E2E Verification Checklist (GAP 5 — manual one-time runs required)
 
 Code paths exist but have not been verified end-to-end. Run once before declaring GAP 5 closed.
+Runbook scripts for each scenario are in `scripts/e2e/`.
 
-### Status Summary (as of 2026-03-07)
+### Status Summary (as of 2026-03-13)
 
 | Scenario          | Code Path   | Integration Tests                              | Live Run                    |
 | ----------------- | ----------- | ---------------------------------------------- | --------------------------- |
@@ -166,16 +167,15 @@ Code paths exist but have not been verified end-to-end. Run once before declarin
 | E2: P2P Messaging | ✅ verified | ✅ 4/4 p2p-messaging + 3/3 e2e-p2p-worker-dm   | ✅ verified (cross-process) |
 | E3: Plan Approval | ✅ verified | ✅ 2/2 phase3-gap-parity tests pass            | ⏳ pending                  |
 
+**To run a live scenario:** `bash scripts/e2e/e1-agent-resume.sh` (or e2/e3). Update the table above to `✅ verified (live)` when the runbook passes.
+
 ### E1: Agent Resume (`buildResumeWorkerScript`)
 
 **Code path:** `buildResumeWorkerScript` at `lib/platform/common.js:626` — `--session-id` arg confirmed. `coord_resume_worker` wired in `index.js:1689`. Gap 2 tests cover true-resume path and continuation-spawn fallback. **Status: code path verified ✅**
 
-Live run steps (pending):
+**Competitive advantage note:** Native Agent Teams explicitly states that "resume does not restore in-process teammates" (context is lost on session end). If the E1 live run passes — i.e., the resumed worker demonstrably re-enters its prior conversation context — that is a **verified lead-exclusive advantage** and should be promoted from `experimental` to `verified` in `docs/CLAIM_POSTURE_SOURCE.json`. Do not claim this advantage until E1 live run is confirmed.
 
-1. Spawn a worker on a task, note the session ID from its meta file
-2. Kill the worker mid-task (`coord_kill_worker`)
-3. Call `coord_resume_worker` with that `session_id`
-4. Verify the resumed worker picks up from prior conversation context (not a fresh run)
+Live runbook: `bash scripts/e2e/e1-agent-resume.sh`
 
 ### E2: Bidirectional Worker-to-Peer Messaging
 
@@ -183,23 +183,13 @@ Live run steps (pending):
 
 **What was verified:** A real child `node` subprocess imports the coordinator, resolves `worker-b` by name from session files, and appends to `inbox/b2b2b2b2.jsonl`. The parent process then reads that file and asserts `from=worker-a` and `content=ping`. This proves two separate Node.js processes operating on the same filesystem coordinate correctly — the exact runtime scenario for real `claude -p` workers.
 
-Live tmux run (optional hardening):
-
-1. Spawn two workers on the same team: `alpha`, `beta`
-2. In alpha's task prompt, include: "call coord_send_message to target_name=beta with content=ping"
-3. Verify `~/.claude/terminals/inbox/{beta_session_id}.jsonl` contains the message
-4. Verify beta's tmux pane shows the injected message
+Live tmux runbook: `bash scripts/e2e/e2-p2p-messaging.sh`
 
 ### E3: Plan Approval Flow
 
 **Code path:** `coord_send_protocol` wired in `index.js:1791` with `plan_approval_response` type. Both approve=true (`[APPROVED]`) and approve=false (`[REVISION]`) covered in `test/phase3-gap-parity.test.mjs` Gap 3 tests. **Status: code path verified ✅ / live worker-in-plan-mode run still pending**
 
-Live run steps (pending):
-
-1. Spawn a worker with `permission_mode: plan`
-2. Worker enters plan mode and calls `coord_send_protocol type=plan_approval_request`
-3. Lead receives the request via its inbox
-4. Call `coord_send_protocol type=plan_approval_response approve=true`; verify worker resumes
+Live runbook: `bash scripts/e2e/e3-plan-approval.sh`
 
 ---
 
