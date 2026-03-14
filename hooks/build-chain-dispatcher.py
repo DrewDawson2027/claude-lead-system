@@ -67,7 +67,7 @@ SKIP_KEYWORDS = frozenset(
 def _enqueue_action(action_type: str, instruction: str, context: str = "") -> str:
     """Write a mandatory action to the persistent queue. Returns action_id."""
     os.makedirs(QUEUE_DIR, exist_ok=True)
-    action_id = f"{action_type}-{int(time.time())}"
+    action_id = f"{action_type}-{int(time.time())}-{uuid.uuid4().hex[:6]}"
     action = {
         "id": action_id,
         "type": action_type,

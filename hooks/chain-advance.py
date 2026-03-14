@@ -11,6 +11,7 @@ Usage: python3 chain-advance.py /path/to/chain-{id}.json
 import json
 import sys
 import time
+import uuid
 
 
 def main():
@@ -43,7 +44,7 @@ def main():
         chain_type = chain.get("type", "build")
         step_num = cur + 2
         total = len(steps)
-        action_id = f"{ns['name']}-{int(time.time())}"
+        action_id = f"{ns['name']}-{int(time.time())}-{uuid.uuid4().hex[:6]}"
         # Store action_id in the chain state for correlation
         ns["action_id"] = action_id
         action = {

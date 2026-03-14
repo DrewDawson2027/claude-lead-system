@@ -17,6 +17,7 @@ import os
 import re
 import sys
 import time
+import uuid
 
 QUEUE_DIR = os.path.expanduser("~/.claude/hooks/session-state")
 QUEUE_FILE = os.path.join(QUEUE_DIR, "mandatory-actions.jsonl")
@@ -30,7 +31,7 @@ def _enqueue_action(action_type: str, instruction: str, context: str = "") -> st
     This is the mechanical equivalent of Agent Teams' SendMessage.
     """
     os.makedirs(QUEUE_DIR, exist_ok=True)
-    action_id = f"{action_type}-{int(time.time())}"
+    action_id = f"{action_type}-{int(time.time())}-{uuid.uuid4().hex[:6]}"
     action = {
         "id": action_id,
         "type": action_type,
