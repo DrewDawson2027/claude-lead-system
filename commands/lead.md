@@ -24,6 +24,7 @@ allowed-tools:
   - mcp__coordinator__coord_quick_team
   - mcp__coordinator__coord_get_result
   - mcp__coordinator__coord_wake_session
+  - mcp__coordinator__coord_watch_output
   - mcp__coordinator__coord_kill_worker
   - mcp__coordinator__coord_resume_worker
   - mcp__coordinator__coord_upgrade_worker
@@ -128,7 +129,13 @@ If the default Lead tools (`coord_*`) are NOT available (check by trying to use 
 
 ## Boot Sequence (MANDATORY — DO THIS FIRST)
 
-**One call:** `coord_boot_snapshot` (add `include_git: true` for git status per project).
+**Step 0 (run first, every time):** Register as lead session to enable worker auto-status push:
+
+```bash
+touch ~/.claude/terminals/.lead-session
+```
+
+**Step 1:** Call `coord_boot_snapshot` (add `include_git: true` for git status per project).
 
 Returns pre-formatted dashboard: session table, activity summaries, conflict detection, and recommended actions. No raw JSON parsing needed.
 

@@ -6,6 +6,9 @@
 RESULTS_DIR="$HOME/.claude/terminals/results"
 [ -d "$RESULTS_DIR" ] || exit 0
 
+# Only fire in lead sessions (check for lead marker)
+[ -f "$HOME/.claude/terminals/.lead-session" ] || exit 0
+
 # Rate limit: max once per 10 seconds to avoid spamming on rapid tool calls
 MARKER="$RESULTS_DIR/.status-push-ts"
 NOW=$(date +%s)
