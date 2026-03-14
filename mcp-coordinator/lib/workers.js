@@ -28,7 +28,7 @@ import {
   writeFileSecure,
 } from "./security.js";
 import { readJSON, shellQuote, text } from "./helpers.js";
-import { readTeamConfig } from "./teams.js";
+import { readTeamConfig, handleCreateTeam } from "./teams.js";
 import { enforceWorkerPolicy } from "./worker-policy.js";
 import {
   isProcessAlive,
@@ -1089,6 +1089,99 @@ export function handleGetResult(args) {
   }
   result += `\n### Output\n\`\`\`\n${output || "(no output yet)"}\n\`\`\`\n`;
   return text(result);
+}
+
+/**
+ * Returns a compact summary of all active/recently-done workers.
+ * Extracted from handleWatchOutput (no-arg case) so it can be shared with
+ * handleBootSnapshot and the worker-status-push hook.
+ * @returns {Array<{name: string, status: string, lastLine: string, task_id: string}>}
+ */
+export function getActiveWorkerSummaries() {
+  const { RESULTS_DIR } = cfg();
+  const summary = [];
+  try {
+    const metas = readdirSync(RESULTS_DIR).filter((f) =>
+      f.endsWith(".meta.json"),
+    );
+    for (const mf of metas) {
+      const meta = readJSON(join(RESULTS_DIR, mf));
+      if (!meta) continue;
+      const tid = mf.replace(".meta.json", "");
+      const metaFullPath = join(RESULTS_DIR, mf);
+      const pidFile = join(RESULTS_DIR, `${tid}.pid`);
+      const isDone = existsSync(`${metaFullPath}.done`);
+      const isRunning =
+        existsSync(pidFile) &&
+        isProcessAlive(readFileSync(pidFile, "utf-8").trim());
+      if (!isRunning && !isDone) continue;
+      const resultFile = join(RESULTS_DIR, `${tid}.txt`);
+      let lastLine = "(no output)";
+      if (existsSync(resultFile)) {
+        const content = readFileSync(resultFile, "utf-8").trimEnd();
+        const allLines = content.split("\n");
+        lastLine = allLines[allLines.length - 1] || "(empty)";
+        if (lastLine.length > 120) lastLine = lastLine.slice(0, 117) + "...";
+      }
+      const name = meta.worker_name || tid;
+      const status = isDone ? "done" : isRunning ? "running" : "idle";
+      summary.push({ name, status, lastLine, task_id: tid });
+    }
+  } catch {
+    /* empty results dir */
+  }
+  return summary;
+}
+
+/**
+ * Handle coord_quick_team — create a team and spawn multiple workers in one call.
+ * Closes Gap 1: replaces 4+ separate tool calls with 1 natural-language-friendly call.
+ * @param {object} args - { workers, name?, directory?, notify_session_id? }
+ */
+export function handleQuickTeam(args) {
+  const workers = args.workers;
+  if (!Array.isArray(workers) || workers.length === 0) {
+    return text("'workers' array is required with at least one entry.");
+  }
+  if (workers.length > 10) {
+    return text("Maximum 10 workers per coord_quick_team call.");
+  }
+
+  // Team name: use provided name or auto-generate
+  const teamName = args.name
+    ? String(args.name)
+        .trim()
+        .replace(/[^A-Za-z0-9._-]/g, "-")
+    : `quick-${randomUUID().slice(0, 8)}`;
+
+  // Top-level directory (per-worker can override)
+  const topDir = args.directory || process.cwd();
+
+  // Create the team
+  const teamResult = handleCreateTeam({ team_name: teamName });
+  const teamResultText = teamResult.content?.[0]?.text || "";
+  const teamOk = !teamResultText.toLowerCase().startsWith("error");
+
+  // Enrich each worker with team_name, directory, and auto-named worker_name
+  const enrichedWorkers = workers.map((w, i) => ({
+    directory: topDir,
+    worker_name: `${teamName}-${i + 1}`,
+    ...w,
+    team_name: teamName,
+    ...(args.notify_session_id && !w.notify_session_id
+      ? { notify_session_id: args.notify_session_id }
+      : {}),
+  }));
+
+  const spawnResult = handleSpawnWorkers({ workers: enrichedWorkers });
+  const spawnText = spawnResult.content?.[0]?.text || "";
+
+  return text(
+    `## Quick Team: ${teamName}\n\n` +
+      `**Team:** ${teamOk ? "created" : "error — " + teamResultText}\n` +
+      `**Workers:** ${workers.length} spawned\n\n` +
+      spawnText,
+  );
 }
 
 /**

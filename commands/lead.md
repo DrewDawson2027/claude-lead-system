@@ -21,6 +21,7 @@ allowed-tools:
   - mcp__coordinator__coord_spawn_terminal
   - mcp__coordinator__coord_spawn_worker
   - mcp__coordinator__coord_spawn_workers
+  - mcp__coordinator__coord_quick_team
   - mcp__coordinator__coord_get_result
   - mcp__coordinator__coord_wake_session
   - mcp__coordinator__coord_kill_worker
@@ -132,6 +133,43 @@ If the default Lead tools (`coord_*`) are NOT available (check by trying to use 
 Returns pre-formatted dashboard: session table, activity summaries, conflict detection, and recommended actions. No raw JSON parsing needed.
 
 Stay on the standard Lead workflow after boot. Only reach for native APIs if the user explicitly asks for native-first behavior or first-party collaboration UX.
+
+---
+
+## Natural Language Patterns (MANDATORY — translate intent, NEVER ask for parameters)
+
+When the user says anything like the patterns below, call the mapped tool immediately. Do NOT ask for model, role, permission_mode, contextLevel, task_id, session_id, or worker_name — infer ALL from the task description and role presets. Use cwd for directory unless the user specifies a project.
+
+| When the user says…                       | You call…                                                                                       |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| "spawn 3 reviewers"                       | `coord_spawn_workers` with 3 reviewer-role entries, prompts auto-filled from context            |
+| "create a team for PR review"             | `coord_quick_team` with reviewer roles, directory=cwd                                           |
+| "get me 2 researchers and an implementer" | `coord_quick_team` with mixed roles                                                             |
+| "set up a team" / "start a team"          | `coord_quick_team` (ask only for description if completely vague, otherwise infer from context) |
+| "start a worker on [task]"                | `coord_spawn_worker` with directory=cwd, prompt=[task], role inferred from task type            |
+| "spawn N [role]s"                         | `coord_spawn_workers` with N entries at that role                                               |
+| "what are my workers doing"               | `coord_watch_output` (no args — shows all active workers)                                       |
+| "check on [worker-name]"                  | `coord_watch_output worker_name=[worker-name]`                                                  |
+| "kill [worker-name]"                      | `coord_kill_worker worker_name=[worker-name]`                                                   |
+
+**Auto-status:** Worker output tails appear automatically in `coord_boot_snapshot`. For live monitoring between tool calls, use `coord_watch_output`.
+
+---
+
+## Messaging Shortcuts (MANDATORY — never expose raw parameters)
+
+| When the user says…                | You call…                                                                                                      |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| "tell [name] to [instruction]"     | `coord_send_directive target_name=[name] directive="[instruction]"`                                            |
+| "message the [role] about [topic]" | `coord_send_message target_name=[resolve role→name] content="[topic context]" from="lead" summary="[5 words]"` |
+| "broadcast: [message]"             | `coord_broadcast content="[message]"`                                                                          |
+| "redirect [worker] to [new task]"  | `coord_send_directive target_name=[worker] directive="[new task]" priority="urgent"`                           |
+
+Infer automatically:
+
+- `from`: always "lead" (you are the lead)
+- `summary`: auto-generate from first 5 words of content
+- `target`: use `target_name` (human name), NEVER a session ID
 
 ---
 

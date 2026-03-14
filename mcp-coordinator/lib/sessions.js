@@ -11,6 +11,16 @@ import { sanitizeShortSessionId } from "./security.js";
 import { readJSON, readJSONLLimited, text, timeAgo } from "./helpers.js";
 import { colorName } from "./teams.js";
 
+/** Lightweight process-alive check used only in this module. */
+function _isAlive(pid) {
+  try {
+    execFileSync("kill", ["-0", String(pid)], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Build a lookup map from session_id prefix → {name, color} by reading all
  * team JSON files. Used to annotate coord_list_sessions with member identity.
@@ -359,6 +369,43 @@ export function handleBootSnapshot(args = {}) {
   if (idleCount > 0) out += `- Wake or reassign ${idleCount} idle session(s)\n`;
   if (conflicts.length === 0 && staleCount === 0 && idleCount === 0)
     out += `- All sessions healthy. Standing by.\n`;
+
+  // Active worker output tails (Gap 5 — no explicit coord_watch_output needed on boot)
+  try {
+    const { RESULTS_DIR } = cfg();
+    const workerTails = [];
+    const metas = readdirSync(RESULTS_DIR).filter((f) =>
+      f.endsWith(".meta.json"),
+    );
+    for (const mf of metas) {
+      const meta = readJSON(join(RESULTS_DIR, mf));
+      if (!meta) continue;
+      const tid = mf.replace(".meta.json", "");
+      const metaFullPath = join(RESULTS_DIR, mf);
+      if (existsSync(`${metaFullPath}.done`)) continue;
+      const pidFile = join(RESULTS_DIR, `${tid}.pid`);
+      if (!existsSync(pidFile)) continue;
+      const pid = readFileSync(pidFile, "utf-8").trim();
+      if (!_isAlive(pid)) continue;
+      const resultFile = join(RESULTS_DIR, `${tid}.txt`);
+      let lastLine = "(no output yet)";
+      if (existsSync(resultFile)) {
+        const content = readFileSync(resultFile, "utf-8").trimEnd();
+        const allLines = content.split("\n");
+        lastLine = allLines[allLines.length - 1] || "(empty)";
+        if (lastLine.length > 120) lastLine = lastLine.slice(0, 117) + "...";
+      }
+      workerTails.push({ name: meta.worker_name || tid, lastLine });
+    }
+    if (workerTails.length > 0) {
+      out += `\n## Active Workers\n`;
+      for (const w of workerTails) {
+        out += `**[running] ${w.name}:** ${w.lastLine}\n`;
+      }
+    }
+  } catch {
+    /* no results dir or empty — skip */
+  }
 
   return text(out);
 }

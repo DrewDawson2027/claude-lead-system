@@ -52,6 +52,7 @@ import { handleSessionHealth } from "./lib/session-health.js";
 import {
   handleSpawnWorker,
   handleSpawnWorkers,
+  handleQuickTeam,
   handleGetResult,
   handleKillWorker,
   handleSpawnTerminal,
@@ -59,6 +60,7 @@ import {
   handleUpgradeWorker,
   handleWorkerReport,
   handleWatchOutput,
+  getActiveWorkerSummaries,
   killAllWorkers,
 } from "./lib/workers.js";
 import { handleRunPipeline, handleGetPipeline } from "./lib/pipelines.js";
@@ -240,6 +242,7 @@ const CORE_TOOLS = new Set([
   "coord_spawn_terminal",
   "coord_spawn_worker",
   "coord_spawn_workers",
+  "coord_quick_team",
   "coord_get_result",
   "coord_watch_output",
   "coord_kill_worker",
@@ -623,6 +626,59 @@ const ALL_TOOLS = [
             required: ["directory", "prompt"],
           },
           description: "Array of worker configurations (max 10)",
+        },
+      },
+      required: ["workers"],
+    },
+  },
+  {
+    name: "coord_quick_team",
+    description:
+      "Create a team and spawn multiple workers in one call. Closes Gap 1: replaces 4+ separate calls with 1. Accepts high-level role+prompt pairs; model, permission_mode, and worker_name are inferred automatically.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workers: {
+          type: "array",
+          description:
+            "Workers to spawn (max 10). Only 'prompt' is required per entry.",
+          items: {
+            type: "object",
+            properties: {
+              prompt: {
+                type: "string",
+                description: "Task description for this worker",
+              },
+              role: {
+                type: "string",
+                enum: ["researcher", "implementer", "reviewer", "planner"],
+                description:
+                  "Role preset (sets model, agent, permission_mode automatically)",
+              },
+              worker_name: {
+                type: "string",
+                description: "Override auto-generated worker name",
+              },
+              directory: {
+                type: "string",
+                description: "Override top-level directory for this worker",
+              },
+            },
+            required: ["prompt"],
+          },
+        },
+        name: {
+          type: "string",
+          description: "Team name (auto-generated if omitted)",
+        },
+        directory: {
+          type: "string",
+          description:
+            "Default working directory for all workers (defaults to cwd)",
+        },
+        notify_session_id: {
+          type: "string",
+          description: "Lead session ID to receive worker completion notices",
         },
       },
       required: ["workers"],
@@ -2007,6 +2063,9 @@ function handleToolCall(name, args = {}) {
       case "coord_spawn_workers":
         result = handleSpawnWorkers(args);
         break;
+      case "coord_quick_team":
+        result = handleQuickTeam(args);
+        break;
       case "coord_get_result":
         result = handleGetResult(args);
         break;
@@ -2281,6 +2340,8 @@ export const __test__ = {
   handleResumeWorker,
   handleUpgradeWorker,
   handleSpawnWorkers,
+  handleQuickTeam,
+  getActiveWorkerSummaries,
   handleApprovePlan,
   handleRejectPlan,
   handleShutdownRequest,
