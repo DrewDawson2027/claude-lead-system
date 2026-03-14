@@ -18,11 +18,71 @@ Lead gives Claude Code one local control room for heavier workflows: active term
 
 Use it when you want more local control, visibility, and conflict prevention around heavier Claude Code workflows. Do not read it as an Agent Teams replacement, a native-team parity layer, or a subscription-cost reducer.
 
-**Best fit:** You routinely run several active Claude Code terminals, reassign work mid-flight, or want conflict detection and observability around heavier workflows.
+## Quick Start
 
-**Not the right tool:** You only need 1-2 collaborators and native Agent Teams already covers your workflow with less setup.
+```bash
+# 1. Install (one command — signed default path)
+VERSION=v1.0.0
+bash <(curl -fsSL "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/install.sh")
 
-## Canonical claim posture
+# 2. Launch Claude
+claudex
+
+# 3. Enter coordinator mode
+/lead
+```
+
+That's it. You'll see a live dashboard of your active Claude terminals.
+
+## When to use Lead vs Native Agent Teams
+
+| Situation                                               | Use Lead | Use Native Agent Teams |
+| ------------------------------------------------------- | -------- | ---------------------- |
+| 4+ active workers you want to control from one terminal | ✓        |                        |
+| Pre-edit conflict detection before sessions collide     | ✓        |                        |
+| Operator-grade dashboard, audit trail, and governance   | ✓        |                        |
+| Budget/spawn caps and approval workflows                | ✓        |                        |
+| 1-2 collaborators with in-context coordination          |          | ✓                      |
+| Tightest first-party UX consistency                     |          | ✓                      |
+| Minimum-setup, no external coordinator                  |          | ✓                      |
+
+## Lead-exclusive capabilities
+
+These are delivered by the coordinator, not available in native Agent Teams:
+
+| Capability                             | What it does                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------------- |
+| Pre-edit conflict detection            | Flags when two sessions are about to edit the same file — before the collision   |
+| Conflict lifecycle visibility          | Track, resolve, and recheck conflicts across active sessions                     |
+| Operator dashboard                     | Live table of all sessions: status, branch, files touched, last active           |
+| Worker spawn + kill + resume           | Start, stop, and re-enter workers from one control point                         |
+| Session resumption with prior context  | `coord_resume_worker` re-enters the prior Claude conversation, not a fresh start |
+| P2P worker messaging                   | Workers send messages directly to named peers via inbox files                    |
+| Broadcast                              | Send one message to all active workers simultaneously                            |
+| Plan approval protocol                 | Workers in plan mode pause; lead approves or revises before execution            |
+| Quality gates with actionable feedback | Gate failures return a checklist of what the worker must fix                     |
+| Exit-code-2 hook feedback              | Hook exits return feedback to the worker inbox without interrupting flow         |
+| Budget gating                          | Cap tokens or turns per worker before spawning                                   |
+| Permission mode control                | Set `plan`, `auto`, or `bypassPermissions` per worker at spawn time              |
+| Pipeline orchestration                 | Run multi-step flows (lint → test → build) tracked from one place                |
+| Team and task management               | Create teams, assign tasks, claim and complete with full audit trail             |
+| Worktree isolation                     | Each worker can run in its own git worktree — no branch conflicts                |
+| Graceful shutdown protocol             | Coordinate clean shutdowns across all active workers                             |
+| Checkpoint / restore                   | Save and restore worker state mid-task                                           |
+| Activity log (audit trail)             | Append-only log of every coordination event                                      |
+| Worker metadata and role presets       | Assign roles, track teams, store custom metadata per worker                      |
+| Peer discovery via session files       | Workers find each other by name without coordinator polling                      |
+| Zero API-token filesystem coordination | Filesystem path carries coordination overhead with no API token cost             |
+| Live worker status watch               | `scripts/lead-status-watch.sh` — continuously-refreshing terminal table          |
+| Context store                          | Shared key/value store accessible to all workers in a session                    |
+| GC for results and sessions            | Auto-clean old result files, session state, and pipeline artifacts               |
+| Rate limiting and input validation     | Bounded, hardened local control surface                                          |
+| Secure state directory hardening       | 0700/0600 permissions, symlink checks, ownership validation                      |
+| Windows ACL hardening                  | `icacls` verification with broad-principal stripping                             |
+| Cross-platform terminal launch         | macOS (tmux/iTerm2/Terminal), Linux (gnome-terminal/kitty/xterm)                 |
+| Operator runbook and cheat sheet       | `docs/OPERATOR_RUNBOOK.md`, `docs/OPERATOR_CHEATSHEET.md`                        |
+
+<details><summary>Canonical claim posture (for contributors and reviewers)</summary>
 
 <!-- CLAIM_POSTURE:START -->
 
@@ -37,15 +97,7 @@ Use it when you want more local control, visibility, and conflict prevention aro
 - Canonical parity/economics document: `docs/PARITY_ECONOMICS_POSTURE.md`
 <!-- CLAIM_POSTURE:END -->
 
-## Start here
-
-Most users should take exactly one path:
-
-1. Run the signed default installer in [Installation](#installation). Do not pass `--mode`.
-2. Launch Claude with `claudex`.
-3. Type `/lead`.
-
-That is the mainstream path this repo documents and supports.
+</details>
 
 ## Mainstream support today
 
@@ -150,10 +202,31 @@ If you need the detailed methodology or scenario bands, use [docs/COMPARISON_MET
 
 ---
 
-## Quick try
+## What it looks like
+
+After `/lead` boots, you operate with natural language from the coordinator:
+
+```
+# Send instructions to another terminal
+tell e5f6g7h8 to write integration tests for src/auth.ts
+
+# Check for file conflicts
+conflicts
+→ ⚠ src/auth.ts touched by sessions a1b2c3d4 AND e5f6g7h8
+
+# Spawn an autonomous worker
+run "add error handling to src/api.ts" in ~/my-app
+
+# Run a tracked pipeline
+pipeline: lint, test, build in ~/my-app
+
+# Live worker status (separate terminal)
+bash scripts/lead-status-watch.sh
+```
+
+<details><summary>Full signed install (verified release path)</summary>
 
 ```bash
-# 1. Install (blessed default path)
 VERSION=v1.0.0 # replace with latest release tag
 curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/install.sh"
 curl -fsSLO "https://github.com/DrewDawson2027/claude-lead-system/releases/download/${VERSION}/checksums.txt"
@@ -172,30 +245,9 @@ bash install.sh --version "${VERSION}" \
   --release-manifest-signature release.json.sig \
   --release-manifest-cert release.json.pem \
   --source-tarball claude-lead-system.tar.gz
-
-# 2. Launch Claude with claudex
-
-# 3. Open two Claude Code terminals in the same project
-
-# 4. In terminal A, type /lead — you'll see a dashboard like:
-#    | Session  | TTY       | Project  | Status | W/E/B/R    | Recent Files          |
-#    |----------|-----------|----------|--------|------------|-----------------------|
-#    | a1b2c3d4 | ttys003   | my-app   | active | 12/8/23/5  | src/auth.ts, db.ts    |
-#    | e5f6g7h8 | ttys004   | my-app   | active | 3/1/7/2    | tests/auth.test.ts    |
-
-# 5. Send a message to the other terminal:
-#    tell e5f6g7h8 to write integration tests for src/auth.ts
-
-# 6. Check for file conflicts:
-#    conflicts
-#    → ⚠ src/auth.ts touched by sessions a1b2c3d4 AND e5f6g7h8
-
-# 7. Spawn an autonomous worker:
-#    run "add error handling to src/api.ts" in ~/my-app
-
-# 8. Run a pipeline:
-#    pipeline: lint, test, build in ~/my-app
 ```
+
+</details>
 
 ## How It Works
 
