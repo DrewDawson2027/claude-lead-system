@@ -333,7 +333,7 @@ export function buildPlatformLaunchCommand(
       command: "kitty",
       args:
         layout === "split"
-          ? ["@", "launch", "--type=window", "bash", "-c", command]
+          ? ["@", "launch", "--location=vsplit", "bash", "-c", command]
           : ["@", "launch", "--type=tab", "bash", "-c", command],
       app: "kitty",
     };
@@ -380,7 +380,9 @@ export function openTerminalWithCommand(command, layout = "tab") {
     });
     if (res.status !== 0) {
       // Headless fallback: if terminal launch fails, run as background process
-      const child = spawn("bash", ["-lc", command], {
+      const shellCmd = PLATFORM === "win32" ? "cmd" : "bash";
+      const shellFlag = PLATFORM === "win32" ? "/c" : "-lc";
+      const child = spawn(shellCmd, [shellFlag, command], {
         detached: true,
         stdio: "ignore",
       });

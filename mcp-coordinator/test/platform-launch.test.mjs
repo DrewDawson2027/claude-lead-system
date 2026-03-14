@@ -23,7 +23,7 @@ test('linux kitty split uses kitty launch window', () => {
   const launch = __test__.buildPlatformLaunchCommand('linux', 'kitty', 'echo hi', 'split');
   assert.equal(launch.app, 'kitty');
   assert.equal(launch.command, 'kitty');
-  assert.deepEqual(launch.args.slice(0, 4), ['@', 'launch', '--type=window', 'bash']);
+  assert.deepEqual(launch.args.slice(0, 4), ['@', 'launch', '--location=vsplit', 'bash']);
 });
 
 test('fallback uses nohup background', () => {
