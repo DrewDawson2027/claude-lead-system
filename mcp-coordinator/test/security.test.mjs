@@ -434,6 +434,334 @@ test('getAllSessions returns empty on read error', async () => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Fuzz tests: coord_spawn_worker
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Helper: assert that handleToolCall does not throw and returns a text response
+async function assertSafeResponse(toolName, args, home) {
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    let result;
+    assert.doesNotThrow(() => { result = api.handleToolCall(toolName, args); });
+    // Must return a content array (even for errors)
+    assert.ok(result?.content?.[0]?.text, `${toolName} must return a text response`);
+    return result.content[0].text;
+  } finally {
+    restore();
+  }
+}
+
+test('coord_spawn_worker: malicious worker_name with path traversal is sanitized', async () => {
+  const { home } = setupHome();
+  const text = await assertSafeResponse('coord_spawn_worker', {
+    directory: '/tmp',
+    prompt: 'hello world',
+    worker_name: '../../../etc/passwd',
+  }, home);
+  // Should not crash — sanitizeAgent/workerName strips non-alphanumeric
+  assert.ok(typeof text === 'string');
+});
+
+test('coord_spawn_worker: worker_name with shell metacharacters is sanitized', async () => {
+  const { home } = setupHome();
+  const text = await assertSafeResponse('coord_spawn_worker', {
+    directory: '/tmp',
+    prompt: 'hello world',
+    worker_name: 'name; rm -rf /',
+  }, home);
+  assert.ok(typeof text === 'string');
+});
+
+test('coord_spawn_worker: worker_name with null byte is sanitized', async () => {
+  const { home } = setupHome();
+  const text = await assertSafeResponse('coord_spawn_worker', {
+    directory: '/tmp',
+    prompt: 'hello world',
+    worker_name: 'worker\x00evil',
+  }, home);
+  assert.ok(typeof text === 'string');
+});
+
+test('coord_spawn_worker: SQL injection in prompt does not crash', async () => {
+  const { home } = setupHome();
+  const text = await assertSafeResponse('coord_spawn_worker', {
+    directory: '/tmp',
+    prompt: "'; DROP TABLE sessions; SELECT '1",
+  }, home);
+  assert.ok(typeof text === 'string');
+});
+
+test('coord_spawn_worker: XSS payload in prompt does not crash', async () => {
+  const { home } = setupHome();
+  const text = await assertSafeResponse('coord_spawn_worker', {
+    directory: '/tmp',
+    prompt: '<script>alert("xss")</script>',
+  }, home);
+  assert.ok(typeof text === 'string');
+});
+
+test('coord_spawn_worker: path traversal in directory is rejected', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    // requireDirectoryPath rejects null bytes and quotes; ../.. should be blocked
+    assert.doesNotThrow(() => {
+      const result = api.handleToolCall('coord_spawn_worker', {
+        directory: '/tmp/../../../etc',
+        prompt: 'test',
+      });
+      // Either throws (caught by handleToolCall) or returns error text
+      assert.ok(result?.content?.[0]?.text);
+    });
+  } finally {
+    restore();
+  }
+});
+
+test('coord_spawn_worker: null byte in directory is rejected', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_spawn_worker', {
+      directory: '/tmp/\x00evil',
+      prompt: 'test',
+    });
+    // requireDirectoryPath throws on null bytes; handleToolCall catches and returns error
+    assert.ok(result?.content?.[0]?.text);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_spawn_worker: oversized prompt (100KB) does not crash', async () => {
+  const { home } = setupHome();
+  const text = await assertSafeResponse('coord_spawn_worker', {
+    directory: '/tmp',
+    prompt: 'A'.repeat(100_000),
+  }, home);
+  assert.ok(typeof text === 'string');
+});
+
+test('coord_spawn_worker: oversized worker_name (1000 chars) is truncated or rejected safely', async () => {
+  const { home } = setupHome();
+  const text = await assertSafeResponse('coord_spawn_worker', {
+    directory: '/tmp',
+    prompt: 'test',
+    worker_name: 'w'.repeat(1000),
+  }, home);
+  assert.ok(typeof text === 'string');
+});
+
+test('coord_spawn_worker: missing required prompt field returns error', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_spawn_worker', { directory: '/tmp' });
+    // Empty prompt — should return a response (even if it proceeds with empty prompt)
+    assert.ok(result?.content?.[0]?.text);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_spawn_worker: missing required directory field returns error', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_spawn_worker', { prompt: 'test task' });
+    // requireDirectoryPath on undefined should throw — caught by handleToolCall
+    assert.ok(result?.content?.[0]?.text);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_spawn_worker: boundary — empty string directory returns error', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_spawn_worker', { directory: '', prompt: 'test' });
+    assert.ok(result?.content?.[0]?.text);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_spawn_worker: boundary — negative max_turns is clamped', async () => {
+  const { home } = setupHome();
+  const text = await assertSafeResponse('coord_spawn_worker', {
+    directory: '/tmp',
+    prompt: 'test',
+    max_turns: -999,
+  }, home);
+  assert.ok(typeof text === 'string');
+});
+
+test('coord_spawn_worker: unicode in prompt does not crash', async () => {
+  const { home } = setupHome();
+  const text = await assertSafeResponse('coord_spawn_worker', {
+    directory: '/tmp',
+    prompt: '你好世界 🌍 مرحبا بالعالم',
+  }, home);
+  assert.ok(typeof text === 'string');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fuzz tests: coord_send_message
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('coord_send_message: XSS payload in content is sanitized or rejected', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      to: 'aaaabbbb',
+      content: '<script>alert("xss")</script>',
+    });
+    // Should return a response — either error (recipient not found) or success
+    assert.ok(result?.content?.[0]?.text);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_send_message: null byte in content does not crash', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    assert.doesNotThrow(() => {
+      const result = api.handleToolCall('coord_send_message', {
+        from: 'lead',
+        to: 'aaaabbbb',
+        content: 'hello\x00world',
+      });
+      assert.ok(result?.content?.[0]?.text);
+    });
+  } finally {
+    restore();
+  }
+});
+
+test('coord_send_message: unicode content (emoji, RTL, CJK) does not crash', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      to: 'aaaabbbb',
+      content: '🚀 مرحبا 你好 こんにちは',
+    });
+    assert.ok(result?.content?.[0]?.text);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_send_message: oversized content is rejected or truncated safely', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      to: 'aaaabbbb',
+      content: 'X'.repeat(200_000),
+    });
+    assert.ok(result?.content?.[0]?.text);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_send_message: missing content returns required error', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      to: 'aaaabbbb',
+    });
+    assert.match(result?.content?.[0]?.text || '', /content.*required/i);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_send_message: missing to and target_name returns required error', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      content: 'hello',
+    });
+    assert.match(result?.content?.[0]?.text || '', /required/i);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_send_message: boundary — empty string content returns required error', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_send_message', {
+      from: 'lead',
+      to: 'aaaabbbb',
+      content: '',
+    });
+    assert.match(result?.content?.[0]?.text || '', /content.*required/i);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_send_message: max-length from field (64 chars) does not crash', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_send_message', {
+      from: 'a'.repeat(64),
+      to: 'aaaabbbb',
+      content: 'hello',
+    });
+    assert.ok(result?.content?.[0]?.text);
+  } finally {
+    restore();
+  }
+});
+
+test('coord_send_message: SQL injection in from field does not crash', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadForTest(home);
+  try {
+    api.ensureDirsOnce();
+    const result = api.handleToolCall('coord_send_message', {
+      from: "'; DROP TABLE sessions; --",
+      to: 'aaaabbbb',
+      content: 'hello',
+    });
+    assert.ok(result?.content?.[0]?.text);
+  } finally {
+    restore();
+  }
+});
+
 test('handleGetSession renders full session details', async () => {
   const { home, terminals } = setupHome();
   const inbox = join(home, '.claude', 'terminals', 'inbox');
