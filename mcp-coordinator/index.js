@@ -58,6 +58,7 @@ import {
   handleResumeWorker,
   handleUpgradeWorker,
   handleWorkerReport,
+  handleWatchOutput,
   killAllWorkers,
 } from "./lib/workers.js";
 import { handleRunPipeline, handleGetPipeline } from "./lib/pipelines.js";
@@ -240,6 +241,7 @@ const CORE_TOOLS = new Set([
   "coord_spawn_worker",
   "coord_spawn_workers",
   "coord_get_result",
+  "coord_watch_output",
   "coord_kill_worker",
   "coord_resume_worker",
   "coord_upgrade_worker",
@@ -642,6 +644,28 @@ const ALL_TOOLS = [
         },
       },
       required: ["task_id"],
+    },
+  },
+  {
+    name: "coord_watch_output",
+    description:
+      "Live-monitor worker output — equivalent to native Shift+Down. Call with no args to see all active workers' latest line. Call with worker_name to focus on one worker's full output.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        worker_name: {
+          type: "string",
+          description: "Worker name to watch (e.g. 'alpha')",
+        },
+        task_id: {
+          type: "string",
+          description: "Task ID (alternative to worker_name)",
+        },
+        lines: {
+          type: "number",
+          description: "Number of lines to return (default: 50, max: 500)",
+        },
+      },
     },
   },
   {
@@ -1986,6 +2010,9 @@ function handleToolCall(name, args = {}) {
       case "coord_get_result":
         result = handleGetResult(args);
         break;
+      case "coord_watch_output":
+        result = handleWatchOutput(args);
+        break;
       case "coord_wake_session":
         result = handleWakeSession(args);
         break;
@@ -2269,6 +2296,7 @@ export const __test__ = {
   handleSyncAgentManifest,
   handleBootSnapshot,
   handleWorkerReport,
+  handleWatchOutput,
   handleSessionHealth,
   PROFILE,
   CORE_TOOLS,
