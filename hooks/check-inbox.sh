@@ -225,4 +225,23 @@ if [ -f "$INBOX" ] && [ -s "$INBOX" ]; then
   rm -f "$INBOX" "$TMP_INBOX"
 fi
 
+# ─── Worker Completion Notices ───
+# Surfaces recently completed workers without requiring coord_watch_output
+COMPLETIONS_FOUND=false
+for donefile in "$RESULTS_DIR"/*.meta.json.done; do
+  [ -f "$donefile" ] || continue
+  FILE_AGE=$(( $(date +%s) - $(get_file_mtime_epoch "$donefile") ))
+  [ "$FILE_AGE" -gt 60 ] && continue
+  TASK_ID=$(basename "$donefile" .meta.json.done)
+  ANNOUNCED=~/.claude/terminals/.announced-"${TASK_ID}"
+  [ -f "$ANNOUNCED" ] && continue
+  META_FILE="$RESULTS_DIR/${TASK_ID}.meta.json"
+  WORKER_NAME="unknown"
+  [ -f "$META_FILE" ] && WORKER_NAME=$(jq -r '.worker_name // "unknown"' "$META_FILE" 2>/dev/null || echo "unknown")
+  echo "Worker '${WORKER_NAME}' completed task ${TASK_ID}"
+  touch "$ANNOUNCED"
+  COMPLETIONS_FOUND=true
+done
+[ "$COMPLETIONS_FOUND" = true ] && exit 2
+
 exit 0
