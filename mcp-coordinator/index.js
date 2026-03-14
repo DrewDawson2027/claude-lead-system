@@ -48,6 +48,7 @@ import {
   handleDrainNativeQueue,
 } from "./lib/messaging.js";
 import { handleDetectConflicts } from "./lib/conflicts.js";
+import { handleSessionHealth } from "./lib/session-health.js";
 import {
   handleSpawnWorker,
   handleSpawnWorkers,
@@ -292,6 +293,7 @@ const OPS_TOOLS = new Set([
   "coord_sidecar_status",
   "coord_cost_comparison",
   "coord_worker_report",
+  "coord_session_health",
 ]);
 
 function toolVisibleInProfile(toolName) {
@@ -308,6 +310,28 @@ function toolVisibleInProfile(toolName) {
 
 /* c8 ignore start — tool schemas are declarative data, tested via dispatch */
 const ALL_TOOLS = [
+  {
+    name: "coord_session_health",
+    description:
+      "Check session enrichment health for cheap /lead boot: sparse ratio, repair coverage, and no-transcript-read readiness.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        include_closed: {
+          type: "boolean",
+          description: "Include closed sessions (default: false)",
+        },
+        warn_sparse_ratio: {
+          type: "number",
+          description: "Warning threshold as fraction (default: 0.10)",
+        },
+        fail_sparse_ratio: {
+          type: "number",
+          description: "Fail threshold as fraction (default: 0.25)",
+        },
+      },
+    },
+  },
   {
     name: "coord_list_sessions",
     description:
@@ -1935,6 +1959,9 @@ function handleToolCall(name, args = {}) {
   try {
     let result;
     switch (name) {
+      case "coord_session_health":
+        result = handleSessionHealth(args);
+        break;
       case "coord_list_sessions":
         result = handleListSessions(args);
         break;
@@ -2242,6 +2269,7 @@ export const __test__ = {
   handleSyncAgentManifest,
   handleBootSnapshot,
   handleWorkerReport,
+  handleSessionHealth,
   PROFILE,
   CORE_TOOLS,
   TEAMS_TOOLS,
