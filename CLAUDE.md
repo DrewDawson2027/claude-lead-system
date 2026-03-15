@@ -134,7 +134,7 @@ const result = api.handleToolCall("coord_send_message", {
 
 ## Branch Conventions
 
-- Branch prefix: `codex/` (e.g. `codex/team-recover-budget-auto`)
+- Branch prefixes: `feature/`, `fix/`, `docs/`, `test/`, `ci/`, `refactor/`, `chore/`
 - Main is protected: no direct pushes, requires PR + CI passing
 - Commits: micro-commit after every individual change
 
