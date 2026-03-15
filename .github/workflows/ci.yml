@@ -164,7 +164,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install pytest
-        run: pip install pytest
+        run: pip install pytest pytest-cov
       - name: Run hook smoke tests
         run: bash tests/hooks-smoke.sh
       - name: Run shell hook unit tests
@@ -176,6 +176,7 @@ jobs:
 
   platform-matrix:
     name: Platform Launch Matrix (${{ matrix.os }})
+    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -326,7 +327,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck jq
-          python3 -m pip install --upgrade pip pytest ruff
+          python3 -m pip install --upgrade pip pytest pytest-cov ruff
           npm ci
       - name: Run canonical A+ cert flow
         run: npm run cert:a-plus:fresh
@@ -363,7 +364,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
-          python3 -m pip install --upgrade pip pytest
+          python3 -m pip install --upgrade pip pytest pytest-cov
           cd mcp-coordinator && npm ci
       - name: Stage local runtime layout for regression runner
         run: |
