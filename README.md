@@ -48,11 +48,11 @@ You'll see a live dashboard of every active Claude terminal — what it's workin
 
 ## Platform Support
 
-| Platform | Status    | Notes                                                       |
-| -------- | --------- | ----------------------------------------------------------- |
-| macOS    | Verified  | Full support. iTerm2 or tmux recommended for split-pane.    |
-| Linux    | Supported | Requires bash + tmux or kitty for split-pane.               |
-| Windows  | Supported | Requires Windows Terminal. Codex runtime not yet supported. |
+| Platform | Status       | Notes                                                    |
+| -------- | ------------ | -------------------------------------------------------- |
+| macOS    | Verified     | Full support. iTerm2 or tmux recommended for split-pane. |
+| Linux    | Supported    | Requires bash + tmux or kitty for split-pane.            |
+| Windows  | Experimental | Requires Windows Terminal. Some tests may fail.          |
 
 **Requirements:** Node.js 18+, bash (macOS/Linux), Python 3.10+ (for hooks)
 

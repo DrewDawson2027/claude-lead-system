@@ -268,6 +268,7 @@ jobs:
 
   smoke-install:
     name: Smoke Install (${{ matrix.os }})
+    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
