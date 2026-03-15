@@ -4,6 +4,10 @@
 
 ### One control room for all your Claude Code terminals.
 
+<div align="center">
+<img src="demo.gif" alt="Claude Lead System demo" width="800" />
+</div>
+
 Detect file conflicts before they collide. Spawn, redirect, and message workers. Run tracked multi-step pipelines. All from a single local coordinator — no API tokens spent on coordination.
 
 > **One terminal to rule them all.** Spawn workers, detect conflicts,
