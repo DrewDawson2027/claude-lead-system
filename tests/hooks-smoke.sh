@@ -94,6 +94,7 @@ if grep -q "WORKER COMPLETED" /tmp/check-inbox-other.out; then
 fi
 grep -q "\[WORKER COMPLETED\] WROUTE" "$HOME/.claude/terminals/inbox/abcd1234.jsonl"
 [ -f "$HOME/.claude/terminals/results/WROUTE.reported" ]
+touch "$HOME/.claude/terminals/.announced-WROUTE"
 
 # If no target session is declared, completion must not be dropped as reported.
 cat > "$HOME/.claude/terminals/results/WUNTARGETED.meta.json" <<JSON
@@ -107,5 +108,6 @@ untargeted
 TXT
 printf '%s' "$other_session_input" | bash "$ROOT/hooks/check-inbox.sh" >/tmp/check-inbox-untargeted.out 2>/tmp/check-inbox-untargeted.err
 [ ! -f "$HOME/.claude/terminals/results/WUNTARGETED.reported" ]
+touch "$HOME/.claude/terminals/.announced-WUNTARGETED"
 
 echo "hooks smoke tests passed"
