@@ -60,6 +60,9 @@ import {
   handleUpgradeWorker,
   handleWorkerReport,
   handleWatchOutput,
+  handleFocusWorker,
+  handleFocusNext,
+  handleUnfocus,
   getActiveWorkerSummaries,
   killAllWorkers,
 } from "./lib/workers.js";
@@ -262,6 +265,9 @@ const CORE_TOOLS = new Set([
   "coord_update_agent",
   "coord_delete_agent",
   "coord_sync_agent_manifest",
+  "coord_focus_worker",
+  "coord_focus_next",
+  "coord_unfocus",
 ]);
 
 const TEAMS_TOOLS = new Set([
@@ -722,6 +728,39 @@ const ALL_TOOLS = [
           description: "Number of lines to return (default: 50, max: 500)",
         },
       },
+    },
+  },
+  {
+    name: "coord_focus_worker",
+    description:
+      "Focus on a specific worker to auto-stream their output. Like pressing Enter on a teammate in native Agent Teams.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        worker_name: {
+          type: "string",
+          description: "Name of the worker to focus on",
+        },
+      },
+      required: ["worker_name"],
+    },
+  },
+  {
+    name: "coord_focus_next",
+    description:
+      "Cycle focus to the next active worker. Like Shift+Down in native Agent Teams. Wraps around.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "coord_unfocus",
+    description:
+      "Stop auto-streaming worker output. Like pressing Escape in native Agent Teams.",
+    inputSchema: {
+      type: "object",
+      properties: {},
     },
   },
   {
@@ -2072,6 +2111,15 @@ function handleToolCall(name, args = {}) {
       case "coord_watch_output":
         result = handleWatchOutput(args);
         break;
+      case "coord_focus_worker":
+        result = handleFocusWorker(args);
+        break;
+      case "coord_focus_next":
+        result = handleFocusNext(args);
+        break;
+      case "coord_unfocus":
+        result = handleUnfocus(args);
+        break;
       case "coord_wake_session":
         result = handleWakeSession(args);
         break;
@@ -2358,6 +2406,9 @@ export const __test__ = {
   handleBootSnapshot,
   handleWorkerReport,
   handleWatchOutput,
+  handleFocusWorker,
+  handleFocusNext,
+  handleUnfocus,
   handleSessionHealth,
   PROFILE,
   CORE_TOOLS,

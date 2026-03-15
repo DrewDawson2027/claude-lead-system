@@ -999,6 +999,16 @@ Remove-Item -Path $PidFile -ErrorAction SilentlyContinue
       usedApp = openTerminalWithCommand(workerScript, layout);
     }
 
+    // Auto-focus the lead on the newly spawned worker
+    if (workerName) {
+      const focusFile = join(TERMINALS_DIR, ".focus-state");
+      try {
+        writeFileSync(focusFile, workerName, { mode: 0o600 });
+      } catch {
+        /* non-fatal — focus is a convenience feature */
+      }
+    }
+
     return text(
       `Worker spawned: **${taskId}**\n` +
         `- Directory: ${workerDir}\n- Model: ${model}\n- Agent: ${agent || "default"}\n` +
@@ -1810,6 +1820,158 @@ export function handleWorkerReport(args) {
  * Kill every worker whose PID file is present and whose process is alive.
  * Called on coordinator exit to prevent orphaned worker processes.
  */
+/**
+ * Handle coord_focus_worker tool call.
+ * @param {object} args - { worker_name: string }
+ * @returns {object} MCP text response
+ */
+export function handleFocusWorker(args) {
+  const { RESULTS_DIR, TERMINALS_DIR } = cfg();
+  const workerName = sanitizeName(args.worker_name || "");
+  if (!workerName) return text("worker_name is required.");
+
+  // Verify worker exists
+  let taskId = null;
+  try {
+    const metas = readdirSync(RESULTS_DIR).filter((f) =>
+      f.endsWith(".meta.json"),
+    );
+    for (const mf of metas) {
+      const meta = readJSON(join(RESULTS_DIR, mf));
+      if (meta && meta.worker_name === workerName) {
+        taskId = mf.replace(".meta.json", "");
+        break;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  if (!taskId) return text(`Worker "${workerName}" not found.`);
+
+  const focusFile = join(TERMINALS_DIR, ".focus-state");
+  try {
+    writeFileSync(focusFile, workerName, { mode: 0o600 });
+  } catch (err) {
+    return text(`Failed to write focus state: ${err.message}`);
+  }
+
+  const resultFile = join(RESULTS_DIR, `${taskId}.txt`);
+  const pidFile = join(RESULTS_DIR, `${taskId}.pid`);
+  const metaFile = join(RESULTS_DIR, `${taskId}.meta.json`);
+  const isRunning =
+    existsSync(pidFile) &&
+    isProcessAlive(readFileSync(pidFile, "utf-8").trim());
+  const isDone = existsSync(`${metaFile}.done`);
+  const status = isDone ? "done" : isRunning ? "running" : "idle";
+
+  let output = "(no output yet)";
+  if (existsSync(resultFile)) {
+    const allLines = readFileSync(resultFile, "utf-8").split("\n");
+    output = allLines.slice(-10).join("\n");
+  }
+
+  return text(
+    `Focused on **${workerName}** [${status}]\n\`\`\`\n${output}\n\`\`\``,
+  );
+}
+
+/**
+ * Handle coord_focus_next tool call — cycle focus to next active worker.
+ * @param {object} _args - (unused)
+ * @returns {object} MCP text response
+ */
+export function handleFocusNext(_args) {
+  const { RESULTS_DIR, TERMINALS_DIR } = cfg();
+
+  // Collect active workers
+  const active = [];
+  try {
+    const metas = readdirSync(RESULTS_DIR).filter((f) =>
+      f.endsWith(".meta.json"),
+    );
+    for (const mf of metas) {
+      const meta = readJSON(join(RESULTS_DIR, mf));
+      if (!meta || !meta.worker_name) continue;
+      const tid = mf.replace(".meta.json", "");
+      const pidFile = join(RESULTS_DIR, `${tid}.pid`);
+      const isRunning =
+        existsSync(pidFile) &&
+        isProcessAlive(readFileSync(pidFile, "utf-8").trim());
+      const isDone = existsSync(join(RESULTS_DIR, `${tid}.meta.json.done`));
+      if (isRunning || (!isDone && existsSync(join(RESULTS_DIR, mf)))) {
+        active.push({ name: meta.worker_name, taskId: tid });
+      }
+    }
+  } catch {
+    /* empty dir */
+  }
+
+  if (active.length === 0) return text("No active workers to focus on.");
+
+  // Sort alphabetically for deterministic cycle order
+  active.sort((a, b) => a.name.localeCompare(b.name));
+
+  const focusFile = join(TERMINALS_DIR, ".focus-state");
+  let currentFocus = null;
+  try {
+    if (existsSync(focusFile)) {
+      currentFocus = readFileSync(focusFile, "utf-8").trim();
+    }
+  } catch {
+    /* ignore */
+  }
+
+  let nextIdx = 0;
+  if (currentFocus) {
+    const idx = active.findIndex((w) => w.name === currentFocus);
+    if (idx !== -1) nextIdx = (idx + 1) % active.length;
+  }
+
+  const next = active[nextIdx];
+  try {
+    writeFileSync(focusFile, next.name, { mode: 0o600 });
+  } catch (err) {
+    return text(`Failed to write focus state: ${err.message}`);
+  }
+
+  const resultFile = join(RESULTS_DIR, `${next.taskId}.txt`);
+  const pidFile = join(RESULTS_DIR, `${next.taskId}.pid`);
+  const metaFile = join(RESULTS_DIR, `${next.taskId}.meta.json`);
+  const isRunning =
+    existsSync(pidFile) &&
+    isProcessAlive(readFileSync(pidFile, "utf-8").trim());
+  const isDone = existsSync(`${metaFile}.done`);
+  const status = isDone ? "done" : isRunning ? "running" : "idle";
+
+  let output = "(no output yet)";
+  if (existsSync(resultFile)) {
+    const allLines = readFileSync(resultFile, "utf-8").split("\n");
+    output = allLines.slice(-10).join("\n");
+  }
+
+  return text(
+    `Focused on **${next.name}** [${status}] (${nextIdx + 1}/${active.length})\n\`\`\`\n${output}\n\`\`\``,
+  );
+}
+
+/**
+ * Handle coord_unfocus tool call — clear focus state.
+ * @param {object} _args - (unused)
+ * @returns {object} MCP text response
+ */
+export function handleUnfocus(_args) {
+  const { TERMINALS_DIR } = cfg();
+  const focusFile = join(TERMINALS_DIR, ".focus-state");
+  try {
+    if (existsSync(focusFile)) unlinkSync(focusFile);
+  } catch (err) {
+    return text(`Failed to clear focus: ${err.message}`);
+  }
+  return text(
+    "Focus cleared. Use coord_focus_worker or coord_focus_next to resume.",
+  );
+}
+
 export function killAllWorkers() {
   try {
     const { RESULTS_DIR } = cfg();
