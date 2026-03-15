@@ -1,0 +1,15 @@
+capability: lead_boot
+description: Lead boot snapshot semantics proof
+started_at: 2026-03-15T21:43:22.771Z
+ended_at: 2026-03-15T21:43:22.870Z
+duration_ms: 99
+command: node scripts/proof/check-lead-boot.mjs
+exit_status: 0
+signal: null
+error: null
+
+--- stdout ---
+lead boot snapshot proof passed
+
+
+--- stderr ---
