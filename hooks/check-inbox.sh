@@ -231,6 +231,69 @@ if [ -f "$INBOX" ] && [ -s "$INBOX" ]; then
   rm -f "$INBOX" "$TMP_INBOX"
 fi
 
+# ─── Focused Worker Auto-Stream ───
+# When a worker is focused (via coord_focus_worker or coord_focus_next),
+# show their latest output on each tool call. Emulates native Agent Teams'
+# in-process output display.
+FOCUS_STATE="$HOME/.claude/terminals/.focus-state"
+FOCUS_DISPLAY_STAMP="$HOME/.claude/terminals/.focus-display.stamp"
+FOCUS_DISPLAY_COOLDOWN="${CLAUDE_LEAD_FOCUS_COOLDOWN:-8}"
+FOCUS_SHOWN=false
+
+if [ -f "$FOCUS_STATE" ] && [ -z "$WORKER_TASK_ID" ]; then
+  FOCUSED_NAME=$(cat "$FOCUS_STATE" 2>/dev/null)
+  if [ -n "$FOCUSED_NAME" ]; then
+    DO_FOCUS_DISPLAY=true
+
+    # Cooldown check
+    if [ -e "$FOCUS_DISPLAY_STAMP" ]; then
+      FOCUS_AGE=$(( $(date +%s) - $(get_file_mtime_epoch "$FOCUS_DISPLAY_STAMP") ))
+      if [ "$FOCUS_AGE" -ge 0 ] && [ "$FOCUS_AGE" -lt "$FOCUS_DISPLAY_COOLDOWN" ]; then
+        DO_FOCUS_DISPLAY=false
+      fi
+    fi
+
+    if $DO_FOCUS_DISPLAY; then
+      touch "$FOCUS_DISPLAY_STAMP"
+      # Find the focused worker's result file
+      FOCUS_TASK_ID=""
+      for meta in "$RESULTS_DIR"/*.meta.json; do
+        [ -f "$meta" ] || continue
+        WN=$(jq -r '.worker_name // ""' "$meta" 2>/dev/null)
+        if [ "$WN" = "$FOCUSED_NAME" ]; then
+          FOCUS_TASK_ID=$(basename "$meta" .meta.json)
+          break
+        fi
+      done
+
+      if [ -n "$FOCUS_TASK_ID" ]; then
+        FOCUS_RESULT="$RESULTS_DIR/${FOCUS_TASK_ID}.txt"
+        FOCUS_PID="$RESULTS_DIR/${FOCUS_TASK_ID}.pid"
+        FOCUS_STATUS="idle"
+        if [ -f "$FOCUS_PID" ] && kill -0 "$(cat "$FOCUS_PID" 2>/dev/null)" 2>/dev/null; then
+          FOCUS_STATUS="running"
+        fi
+        if [ -f "$RESULTS_DIR/${FOCUS_TASK_ID}.meta.json.done" ]; then
+          FOCUS_STATUS="done"
+        fi
+
+        if [ -f "$FOCUS_RESULT" ]; then
+          echo "─── ${FOCUSED_NAME} [${FOCUS_STATUS}] ───"
+          tail -8 "$FOCUS_RESULT" | tr -d '\000-\010\013\014\016-\037\177\200-\237' | head -c 2000
+          echo ""
+          echo "─── /cycle next | /unfocus to stop ───"
+          FOCUS_SHOWN=true
+        fi
+
+        # Auto-unfocus if worker is done
+        if [ "$FOCUS_STATUS" = "done" ]; then
+          rm -f "$FOCUS_STATE"
+        fi
+      fi
+    fi
+  fi
+fi
+
 # ─── Worker Completion Notices ───
 # Surfaces recently completed workers without requiring coord_watch_output
 COMPLETIONS_FOUND=false
@@ -249,5 +312,5 @@ for donefile in "$RESULTS_DIR"/*.meta.json.done; do
   COMPLETIONS_FOUND=true
 done
 [ "$COMPLETIONS_FOUND" = true ] && exit 2
-
+[ "$FOCUS_SHOWN" = true ] && exit 2
 exit 0

@@ -110,4 +110,22 @@ touch "$HOME/.claude/terminals/.announced-WUNTARGETED"
 printf '%s' "$other_session_input" | bash "$ROOT/hooks/check-inbox.sh" >/tmp/check-inbox-untargeted.out 2>/tmp/check-inbox-untargeted.err
 [ ! -f "$HOME/.claude/terminals/results/WUNTARGETED.reported" ]
 
+# Focused worker auto-stream test
+echo "test-worker" > "$HOME/.claude/terminals/.focus-state"
+cat > "$HOME/.claude/terminals/results/WFOCUS.meta.json" <<JSON
+{"task_id":"WFOCUS","worker_name":"test-worker","status":"running"}
+JSON
+echo "line1" > "$HOME/.claude/terminals/results/WFOCUS.txt"
+echo "line2" >> "$HOME/.claude/terminals/results/WFOCUS.txt"
+echo "line3" >> "$HOME/.claude/terminals/results/WFOCUS.txt"
+echo $ > "$HOME/.claude/terminals/results/WFOCUS.pid"
+# Clear any cooldown stamp
+rm -f "$HOME/.claude/terminals/.focus-display.stamp"
+printf '%s' "$session_input" | bash "$ROOT/hooks/check-inbox.sh" > /tmp/focus-stream.out 2>/tmp/focus-stream.err || true
+grep -q "test-worker" /tmp/focus-stream.out
+# Clean up
+rm -f "$HOME/.claude/terminals/.focus-state" "$HOME/.claude/terminals/.focus-display.stamp"
+rm -f "$HOME/.claude/terminals/results/WFOCUS."*
+touch "$HOME/.claude/terminals/.announced-WFOCUS"
+
 echo "hooks smoke tests passed"
