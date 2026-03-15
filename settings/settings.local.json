@@ -58,7 +58,10 @@
       "mcp__coordinator__coord_check_quality_gates",
       "mcp__coordinator__coord_delete_team",
       "mcp__coordinator__coord_update_team_policy",
-      "mcp__coordinator__coord_cost_comparison"
+      "mcp__coordinator__coord_cost_comparison",
+      "mcp__coordinator__coord_focus_worker",
+      "mcp__coordinator__coord_focus_next",
+      "mcp__coordinator__coord_unfocus"
     ],
     "deny": []
   },
