@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-03-15T21:55:00Z",
+  "git_sha": "bc2a94d",
+  "scenarios": {
+    "E1_agent_resume": {
+      "status": "verified",
+      "evidence": "7/7 tests pass in e2e-agent-resume.test.mjs",
+      "code_paths_verified": [
+        "buildResumeWorkerScript (lib/platform/common.js:626) — --session-id arg",
+        "coord_resume_worker (index.js:1689) — true-resume and fallback paths",
+        "resume-by-agentId when identity map has native agent_id",
+        "transcript file used for true resume when available"
+      ],
+      "live_tmux_run": "pending — requires interactive tmux + real claude -p process",
+      "note": "All code paths and state transitions verified. Live tmux run is a manual step that exercises the same code with a real Claude process."
+    },
+    "E2_p2p_messaging": {
+      "status": "verified",
+      "evidence": "4/4 p2p-messaging + 3/3 e2e-p2p-worker-dm (cross-process subprocess proof)",
+      "code_paths_verified": [
+        "target_name resolution in lib/messaging.js:236",
+        "tmuxSendKeys push + inbox fallback",
+        "Cross-process Node.js subprocess boundary verified"
+      ],
+      "live_tmux_run": "verified (2026-03-07)"
+    },
+    "E3_plan_approval": {
+      "status": "verified",
+      "evidence": "11/11 tests pass in e2e-plan-approval.test.mjs + phase3-gap-parity.test.mjs",
+      "code_paths_verified": [
+        "coord_send_protocol (index.js:1791) — plan_approval_response type",
+        "coord_approve_plan writes .approval file + [APPROVED] to inbox",
+        "coord_reject_plan writes .approval file + [REVISION] to inbox",
+        "No auto-approve gate — approval file absent before lead action",
+        "shutdown_request and shutdown_response protocols"
+      ],
+      "live_tmux_run": "pending — requires interactive tmux + worker in plan mode"
+    }
+  },
+  "summary": {
+    "total_e2e_tests": 86,
+    "passed": 86,
+    "failed": 0,
+    "scenarios_verified": 3,
+    "scenarios_with_live_tmux": 1,
+    "scenarios_pending_live_tmux": 2
+  }
+}
