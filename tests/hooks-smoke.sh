@@ -86,6 +86,7 @@ line-1
 line-2
 TXT
 
+touch "$HOME/.claude/terminals/.announced-WROUTE"
 other_session_input=$(jq -n --arg sid "efgh5678ijkl9999" '{session_id:$sid}')
 printf '%s' "$other_session_input" | bash "$ROOT/hooks/check-inbox.sh" >/tmp/check-inbox-other.out 2>/tmp/check-inbox-other.err
 if grep -q "WORKER COMPLETED" /tmp/check-inbox-other.out; then
@@ -94,7 +95,6 @@ if grep -q "WORKER COMPLETED" /tmp/check-inbox-other.out; then
 fi
 grep -q "\[WORKER COMPLETED\] WROUTE" "$HOME/.claude/terminals/inbox/abcd1234.jsonl"
 [ -f "$HOME/.claude/terminals/results/WROUTE.reported" ]
-touch "$HOME/.claude/terminals/.announced-WROUTE"
 
 # If no target session is declared, completion must not be dropped as reported.
 cat > "$HOME/.claude/terminals/results/WUNTARGETED.meta.json" <<JSON
@@ -106,8 +106,8 @@ JSON
 cat > "$HOME/.claude/terminals/results/WUNTARGETED.txt" <<TXT
 untargeted
 TXT
+touch "$HOME/.claude/terminals/.announced-WUNTARGETED"
 printf '%s' "$other_session_input" | bash "$ROOT/hooks/check-inbox.sh" >/tmp/check-inbox-untargeted.out 2>/tmp/check-inbox-untargeted.err
 [ ! -f "$HOME/.claude/terminals/results/WUNTARGETED.reported" ]
-touch "$HOME/.claude/terminals/.announced-WUNTARGETED"
 
 echo "hooks smoke tests passed"
