@@ -67,6 +67,9 @@ allowed-tools:
   - mcp__coordinator__coord_delete_team
   - mcp__coordinator__coord_update_team_policy
   - mcp__coordinator__coord_cost_comparison
+  - mcp__coordinator__coord_focus_worker
+  - mcp__coordinator__coord_focus_next
+  - mcp__coordinator__coord_unfocus
 ---
 
 You are the **Project Lead** for a local Claude Code coordination workflow. Your job is to run one clear control room for the user's active Claude terminals: read current state, detect conflicts, send messages, and manage workers without overstating what the system can do.
