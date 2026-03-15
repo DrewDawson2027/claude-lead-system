@@ -13,8 +13,8 @@ Detect file conflicts before they collide. Spawn, redirect, and message workers.
 > **One terminal to rule them all.** Spawn workers, detect conflicts,
 > message sessions, track pipelines — no API tokens for coordination.
 
-[![Tests](https://img.shields.io/badge/tests-996%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
-[![Coverage](https://img.shields.io/badge/coverage-85.1%25-green)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![Tests](https://img.shields.io/badge/tests-795%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![Coverage](https://img.shields.io/badge/coverage-85%25%20lines-green)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Why you'd use it:**
@@ -55,7 +55,7 @@ You'll see a live dashboard of every active Claude terminal — what it's workin
 | Platform | Status       | Notes                                                    |
 | -------- | ------------ | -------------------------------------------------------- |
 | macOS    | Verified     | Full support. iTerm2 or tmux recommended for split-pane. |
-| Linux    | Supported    | Requires bash + tmux or kitty for split-pane.            |
+| Linux    | Experimental | Requires bash + tmux. No proof artifacts yet.            |
 | Windows  | Experimental | Requires Windows Terminal. Some tests may fail.          |
 
 **Requirements:** Node.js 18+, bash (macOS/Linux), Python 3.10+ (for hooks)
@@ -89,6 +89,7 @@ coord_send_message    # Send instructions to a named worker
 | **Session resumption**           | Re-enter a prior Claude conversation, not a fresh start                        |
 | **Context store**                | Shared key/value store accessible to all workers in a session                  |
 | **Worktree isolation**           | Each worker can run in its own git branch — no conflicts                       |
+| **Live output streaming**        | Worker output streamed via SSE — <1ms teammate switching in TUI                |
 | **Activity audit log**           | Append-only record of every coordination event                                 |
 | **81 MCP tools**                 | Full tool surface for coordination, governance, and orchestration              |
 
@@ -114,17 +115,18 @@ Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.
 
 ## By the Numbers
 
-- **996** automated tests (730 JS + 223 Python + 43 shell)
-- **85.1%** test coverage
+- **795** automated tests (428 coordinator + 308 sidecar + 59 Python hooks)
+- **85%** line coverage (coordinator + sidecar)
 - **81** MCP coordination tools
-- **22** lib modules
+- **24** lib modules
 - **Zero** API tokens spent on coordination (filesystem path)
+- **8/8** macOS platform proofs passing
 
 ---
 
 ## The Story
 
-> _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 81 tools, 996 tests, SLSA supply chain security — entirely through Claude Code."_
+> _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 81 tools, 795 tests, SLSA supply chain security — entirely through Claude Code."_
 
 ---
 
