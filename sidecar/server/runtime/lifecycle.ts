@@ -1,3 +1,4 @@
+import { join } from "path";
 import type { BootRuntimeDeps, RuntimeLifecycleDeps } from "./types.js";
 
 export async function bootRuntime({
@@ -23,6 +24,7 @@ export function startRuntimeLifecycle({
   maintenanceSweep,
   clients,
   sseBroadcast,
+  outputStream,
 }: RuntimeLifecycleDeps) {
   const hookStream = new HookStreamAdapter(paths, (evt) => {
     store.emitTimeline({ type: "filesystem.change", ...evt });
@@ -39,6 +41,16 @@ export function startRuntimeLifecycle({
     Number(process.env.LEAD_SIDECAR_MAINTENANCE_MS || 60_000),
   );
   if (typeof maintenanceTimer.unref === "function") maintenanceTimer.unref();
+
+  // Wire OutputStreamManager: broadcast worker output deltas via SSE
+  if (outputStream) {
+    outputStream.onOutput((data) =>
+      sseBroadcast(clients, "worker.output", data),
+    );
+  }
+
+  // Track which task IDs the output stream is watching
+  const watchedTaskIds = new Set<string>();
 
   store.on("snapshot", (snap: any) => {
     sseBroadcast(clients, "team.updated", {
@@ -57,6 +69,45 @@ export function startRuntimeLifecycle({
       latest: (snap.timeline || []).slice(-10),
       generated_at: snap.generated_at,
     });
+
+    // Diff active tasks and update output stream watchers
+    if (outputStream) {
+      const teammates: any[] = snap.teammates || [];
+      const activeTaskIds = new Set<string>();
+      for (const t of teammates) {
+        const taskId = t.current_task_ref || t.worker_task_id;
+        if (taskId) activeTaskIds.add(taskId);
+      }
+
+      // Start watching new tasks
+      for (const taskId of activeTaskIds) {
+        if (!watchedTaskIds.has(taskId)) {
+          const resultsDir =
+            (paths as any).resultsDir ||
+            join(
+              String((paths as any).root || ""),
+              "..",
+              "terminals",
+              "results",
+            );
+          const filePath = join(resultsDir, `${taskId}.txt`);
+          const teammate = teammates.find(
+            (t: any) => (t.current_task_ref || t.worker_task_id) === taskId,
+          );
+          const workerName = teammate?.name || teammate?.worker_name || taskId;
+          outputStream.startWatching(taskId, filePath, workerName);
+          watchedTaskIds.add(taskId);
+        }
+      }
+
+      // Stop watching completed tasks
+      for (const taskId of watchedTaskIds) {
+        if (!activeTaskIds.has(taskId)) {
+          outputStream.stopWatching(taskId);
+          watchedTaskIds.delete(taskId);
+        }
+      }
+    }
   });
   for (const evt of [
     "adapter.health",
@@ -79,6 +130,7 @@ export function startRuntimeLifecycle({
     maintenanceTimer,
     stop() {
       hookStream.stop();
+      if (outputStream) outputStream.stopAll();
       try {
         clearInterval(maintenanceTimer);
       } catch {}

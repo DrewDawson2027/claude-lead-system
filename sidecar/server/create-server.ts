@@ -125,6 +125,7 @@ import {
   createBatchTriageRunner,
 } from "./runtime/actions.js";
 import { bootRuntime, startRuntimeLifecycle } from "./runtime/lifecycle.js";
+import { OutputStreamManager } from "../core/output-stream.js";
 
 import type {
   ParsedArgs,
@@ -517,6 +518,9 @@ export async function startSidecarServer(
     runTrackedAction,
   });
 
+  // --- Output stream manager (event-driven worker output) ---
+  const outputStream = new OutputStreamManager();
+
   // --- Route registry ---
   const routeRegistry = buildServerRouter();
 
@@ -602,6 +606,7 @@ export async function startSidecarServer(
     runHookSelftest,
     listBackups,
     restoreFromBackup,
+    outputStream,
   });
 
   // --- Middleware config ---
@@ -709,6 +714,7 @@ export async function startSidecarServer(
       maintenanceSweep,
       clients,
       sseBroadcast,
+      outputStream,
     });
   } catch (err) {
     try {
@@ -783,5 +789,6 @@ export async function startSidecarServer(
     close: () => cleanup(false),
     maintenanceSweep,
     diagnosticsBundle,
+    outputStream,
   };
 }

@@ -357,6 +357,23 @@ export interface HookStreamAdapterLike {
   };
 }
 
+export interface OutputStreamLike {
+  startWatching(taskId: string, filePath: string, workerName?: string): void;
+  stopWatching(taskId: string): void;
+  getBuffer(taskId: string): string[];
+  onOutput(callback: (data: OutputStreamEvent) => void): void;
+  stopAll(): void;
+  workers: Map<string, unknown>;
+}
+
+export interface OutputStreamEvent {
+  task_id: string;
+  worker_name: string;
+  lines: string[];
+  total_lines: number;
+  timestamp: string;
+}
+
 export interface RuntimeLifecycleDeps {
   HookStreamAdapter: HookStreamAdapterLike;
   paths: SidecarPaths;
@@ -369,6 +386,7 @@ export interface RuntimeLifecycleDeps {
     event: string,
     data: unknown,
   ) => void;
+  outputStream?: OutputStreamLike;
 }
 
 // ---------------------------------------------------------------------------

@@ -115,6 +115,9 @@ export interface ServerScopedDeps {
   runHookSelftest: RouteContext["runHookSelftest"];
   listBackups: RouteContext["listBackups"];
   restoreFromBackup: RouteContext["restoreFromBackup"];
+
+  // Output streaming
+  outputStream?: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -220,6 +223,7 @@ export function createRouteContextFactory(deps: ServerScopedDeps) {
       runHookSelftest: deps.runHookSelftest,
       listBackups: deps.listBackups,
       restoreFromBackup: deps.restoreFromBackup,
+      outputStream: deps.outputStream || null,
     };
   };
 }

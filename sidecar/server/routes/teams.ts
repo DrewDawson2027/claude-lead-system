@@ -208,6 +208,43 @@ export function registerTeamRoutes(registry: any): void {
     return true;
   });
 
+  registry.add("teams:worker-output", (ctx: any) => {
+    const { req, res, url } = ctx;
+    if (
+      !(
+        req.method === "GET" &&
+        /^\/teams\/[^/]+\/workers\/[^/]+\/output$/.test(url.pathname)
+      )
+    )
+      return false;
+    const parts = pathParts(url.pathname);
+    const taskId = decodeURIComponent(parts[4] || "");
+    const outputStream = ctx.outputStream;
+    if (!outputStream) {
+      ctx.sendJson(
+        res,
+        200,
+        { task_id: taskId, lines: [], total_lines: 0, source: "unavailable" },
+        req,
+      );
+      return true;
+    }
+    const lines = outputStream.getBuffer(taskId);
+    ctx.sendJson(
+      res,
+      200,
+      {
+        task_id: taskId,
+        lines,
+        total_lines: lines.length,
+        source: "output-stream",
+        generated_at: new Date().toISOString(),
+      },
+      req,
+    );
+    return true;
+  });
+
   registry.add("teams:interrupts", (ctx: any) => {
     const { req, res, url, snapshot } = ctx;
     if (
