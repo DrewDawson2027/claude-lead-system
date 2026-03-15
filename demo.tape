@@ -3,53 +3,57 @@ Set Width 1200
 Set Height 600
 Set FontSize 14
 Set Theme "Catppuccin Mocha"
-Set TypingSpeed 50ms
+Set TypingSpeed 40ms
 Set Padding 20
 
-# Title frame
-Type "# Claude Lead System — One control room for all your Claude Code terminals"
+# ── Scene 1: Title ──
+Type "printf '\\033[1;36m═══════════════════════════════════════\\033[0m\\n'"
+Enter
+Type "echo '  Claude Lead System  |  One control room for all your Claude Code terminals'"
+Enter
+Type "printf '\\033[1;36m═══════════════════════════════════════\\033[0m\\n'"
 Enter
 Sleep 2s
 
-# Show the quick install
-Type "git clone https://github.com/DrewDawson2027/claude-lead-system.git"
-Sleep 1s
+# ── Scene 2: Real tests ──
+Type "echo '── Test Suite ──'"
 Enter
-Sleep 1s
-Type "cd claude-lead-system && bash install.sh"
+Type "cd ~/claude-lead-system && npm run test:coordinator 2>&1 | tail -6"
 Enter
-Sleep 3s
+Sleep 35s
 
-# Show test suite
-Type "npm test 2>&1 | tail -15"
+# ── Scene 3: Tool count ──
+Type "echo '── MCP Tool Registry ──'"
 Enter
-Sleep 4s
-
-# Show tool count
-Type "echo '81 MCP coordination tools'"
+Type "bash scripts/demo-count-tools.sh"
 Enter
 Sleep 2s
 
-# Show the key feature — conflict detection
-Type "# Key Feature: Pre-edit conflict detection"
+# ── Scene 4: Conflict detection (real past data) ──
+Type "echo '── Conflict Detection (from live log) ──'"
 Enter
-Sleep 1s
-Type "# Two sessions editing the same file? Lead catches it BEFORE the collision."
-Enter
-Sleep 2s
-
-# Show focus/cycle
-Type "# In-process UX: auto-stream worker output"
-Enter
-Type "# /focus researcher — see their output live"
-Enter
-Type "# /cycle — rotate through active workers"
-Enter
-Type "# /unfocus — stop streaming"
+Type "bash scripts/demo-last-conflict.sh"
 Enter
 Sleep 3s
 
-# End frame
-Type "# 996 tests | 81 tools | All CI green | Zero API tokens for coordination"
+# ── Scene 5: Health check ──
+Type "echo '── System Health ──'"
 Enter
-Sleep 3s
+Type "bash hooks/health-check.sh 2>&1 | tail -4"
+Enter
+Sleep 5s
+
+# ── Final banner ──
+Type "echo ''"
+Enter
+Type "printf '\\033[1;32m═══════════════════════════════════════════════════════\\033[0m\\n'"
+Enter
+Type "echo '  428 tests  |  81 tools  |  All CI green'"
+Enter
+Type "echo '  Zero API tokens for coordination'"
+Enter
+Type "echo '  github.com/DrewDawson2027/claude-lead-system'"
+Enter
+Type "printf '\\033[1;32m═══════════════════════════════════════════════════════\\033[0m\\n'"
+Enter
+Sleep 5s
