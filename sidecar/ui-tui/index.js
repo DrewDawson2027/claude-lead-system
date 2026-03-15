@@ -63,6 +63,7 @@ const state = {
   sseConnected: false,
   sseRequest: null,
   sseReconnectTimer: null,
+  workerOutputBuffers: new Map(), // taskId → string[] (populated by worker.output SSE events)
 };
 
 // ── HTTP Client ──
@@ -623,6 +624,13 @@ function renderApprovalView() {
 // Used by both renderTeammateView (full-screen) and renderSplit (right panel).
 function getTeammateOutput(m) {
   let output = null;
+  // Primary path: use SSE-fed buffer (instant, no subprocess, <1ms)
+  const taskId = m.current_task_ref || m.worker_task_id;
+  if (taskId && state.workerOutputBuffers.has(taskId)) {
+    const buf = state.workerOutputBuffers.get(taskId);
+    if (buf.length > 0) return buf.join("\n");
+  }
+  // Fallback: tmux capture-pane (100-1000ms, requires tmux)
   if (m.tmux_pane_id) {
     try {
       output = execFileSync(
@@ -1254,6 +1262,25 @@ function handleLiveEvent(eventName, data) {
         state.selectedTeamIdx = Math.max(0, state.teams.length - 1);
       }
       if (state.viewMode === "main") render();
+    }
+    return;
+  }
+  if (eventName === "worker.output") {
+    // Streaming worker output — append to local buffer for instant teammate display
+    const taskId = data?.task_id;
+    const lines = Array.isArray(data?.lines) ? data.lines : [];
+    if (taskId && lines.length > 0) {
+      const buf = state.workerOutputBuffers.get(taskId) || [];
+      buf.push(...lines);
+      // Cap at 200 lines (ring buffer) to match server-side OutputStreamManager
+      if (buf.length > 200) buf.splice(0, buf.length - 200);
+      state.workerOutputBuffers.set(taskId, buf);
+      // Re-render if we're viewing this teammate
+      if (state.viewMode === "teammate" || state.viewMode === "split") {
+        const m = selectedTeammate();
+        const viewTaskId = m?.current_task_ref || m?.worker_task_id;
+        if (viewTaskId === taskId) render();
+      }
     }
     return;
   }
