@@ -58,7 +58,15 @@
       "mcp__coordinator__coord_check_quality_gates",
       "mcp__coordinator__coord_delete_team",
       "mcp__coordinator__coord_update_team_policy",
-      "mcp__coordinator__coord_cost_comparison"
+      "mcp__coordinator__coord_cost_comparison",
+      "mcp__coordinator__coord_quick_team",
+      "mcp__coordinator__coord_watch_output",
+      "mcp__coordinator__coord_list_agents",
+      "mcp__coordinator__coord_get_agent",
+      "mcp__coordinator__coord_create_agent",
+      "mcp__coordinator__coord_update_agent",
+      "mcp__coordinator__coord_delete_agent",
+      "mcp__coordinator__coord_sync_agent_manifest"
     ],
     "deny": []
   },
