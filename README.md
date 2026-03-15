@@ -9,7 +9,7 @@ Detect file conflicts before they collide. Spawn, redirect, and message workers.
 > **One terminal to rule them all.** Spawn workers, detect conflicts,
 > message sessions, track pipelines — no API tokens for coordination.
 
-[![Tests](https://img.shields.io/badge/tests-990%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![Tests](https://img.shields.io/badge/tests-996%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![Coverage](https://img.shields.io/badge/coverage-85.1%25-green)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -86,7 +86,7 @@ coord_send_message    # Send instructions to a named worker
 | **Context store**                | Shared key/value store accessible to all workers in a session                  |
 | **Worktree isolation**           | Each worker can run in its own git branch — no conflicts                       |
 | **Activity audit log**           | Append-only record of every coordination event                                 |
-| **78 MCP tools**                 | Full tool surface for coordination, governance, and orchestration              |
+| **81 MCP tools**                 | Full tool surface for coordination, governance, and orchestration              |
 
 ---
 
@@ -98,7 +98,8 @@ coord_send_message    # Send instructions to a named worker
 | Operator dashboard (all sessions)       | —                  | ✅ verified |
 | Zero API-token coordination path        | —                  | ✅ verified |
 | Budget/spawn/approval governance        | —                  | ✅ verified |
-| In-context teammate lifecycle           | ✅ verified        | partial     |
+| In-process worker output streaming      | —                  | ✅ verified |
+| In-context teammate lifecycle           | ✅ verified        | ✅ verified |
 | First-party cross-platform UX           | ✅ verified        | partial     |
 | Minimum-setup (no external coordinator) | ✅ verified        | —           |
 
@@ -109,9 +110,9 @@ Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.
 
 ## By the Numbers
 
-- **990** automated tests (724 JS + 223 Python + 43 shell)
+- **996** automated tests (730 JS + 223 Python + 43 shell)
 - **85.1%** test coverage
-- **78** MCP coordination tools
+- **81** MCP coordination tools
 - **22** lib modules
 - **Zero** API tokens spent on coordination (filesystem path)
 
@@ -119,7 +120,7 @@ Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.
 
 ## The Story
 
-> _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 78 tools, 990 tests, SLSA supply chain security — entirely through Claude Code."_
+> _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 81 tools, 996 tests, SLSA supply chain security — entirely through Claude Code."_
 
 ---
 
