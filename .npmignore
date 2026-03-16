@@ -45,6 +45,12 @@ scripts/release/
 scripts/run_*.py
 scripts/trust_*.py
 
+# node_modules (nested — npm auto-excludes root but not subdirs in files[])
+node_modules
+node_modules/
+**/node_modules
+**/node_modules/
+
 # Dev files
 *.test.*
 .env*

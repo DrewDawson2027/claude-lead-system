@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "description": "One control room for all your Claude Code terminals — conflict detection, worker orchestration, and operator dashboard.",
   "bin": {
-    "claudex": "./sidecar/bin/claudex",
-    "sidecarctl": "./sidecar/bin/sidecarctl"
+    "claudex": "sidecar/bin/claudex",
+    "sidecarctl": "sidecar/bin/sidecarctl"
   },
   "files": [
     "sidecar/",
-    "mcp-coordinator/",
+    "mcp-coordinator/index.js",
+    "mcp-coordinator/lib/",
+    "mcp-coordinator/package.json",
     "hooks/",
     "agents/",
     "install.sh",
