@@ -149,7 +149,7 @@ Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.
 | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
 | macOS    | Verified     | Full support. iTerm2 or tmux recommended for split-pane. 8/8 proofs passing.                        |
 | Linux    | Verified     | 8/8 proofs passing. Requires bash + tmux. See [compatibility matrix](docs/COMPATIBILITY_MATRIX.md). |
-| Windows  | Experimental | Requires Windows Terminal. No proof artifacts yet.                                                  |
+| Windows  | Experimental | Advisory CI. Some features may not work.                                                            |
 
 **Requirements:** Node.js 18+, bash (macOS/Linux), Python 3.10+ (for hooks)
 
