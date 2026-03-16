@@ -24,7 +24,7 @@ RUN npm install --workspaces --include-workspace-root
 COPY . .
 
 # Run install (registers MCP server, sets up hooks and commands)
-RUN bash install.sh --mode full
+RUN bash install.sh --mode full --allow-unsigned-release
 
 EXPOSE 8080
 
