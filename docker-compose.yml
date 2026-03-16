@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  coordinator:
+    build: .
+    image: ghcr.io/drewdawson2027/claude-lead-system:latest
+    container_name: claude-lead-system
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persist runtime state across restarts
+      - coordinator-state:/root/.claude/terminals
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+volumes:
+  coordinator-state:

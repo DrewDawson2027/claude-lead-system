@@ -1,6 +1,25 @@
 {
-  "name": "claude-lead-system-workspace",
-  "private": true,
+  "name": "claude-lead-system",
+  "version": "1.0.0",
+  "description": "One control room for all your Claude Code terminals — conflict detection, worker orchestration, and operator dashboard.",
+  "bin": {
+    "claudex": "./sidecar/bin/claudex",
+    "sidecarctl": "./sidecar/bin/sidecarctl"
+  },
+  "files": [
+    "sidecar/",
+    "mcp-coordinator/",
+    "hooks/",
+    "agents/",
+    "install.sh",
+    "scripts/install-quick.sh",
+    "commands/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "workspaces": [
     "mcp-coordinator",
     "sidecar"

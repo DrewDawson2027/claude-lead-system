@@ -1,0 +1,51 @@
+# Python cache (trailing-slash form AND no-slash form for npm minimatch compat)
+__pycache__
+__pycache__/
+**/__pycache__
+**/__pycache__/
+hooks/__pycache__
+*.pyc
+*.pyo
+
+# Test artifacts
+tests/
+test/
+**/*.test.mjs
+**/*.test.js
+**/*.spec.js
+__tests__/
+
+# Docs and reporting
+docs/
+reports/
+bench/
+
+# Planning and CI
+.planning/
+.github/
+.claude/
+
+# Demo assets
+demo.gif
+demo-*.cast
+
+# Scripts not needed in published package (keep install-quick.sh)
+scripts/audit-*.mjs
+scripts/certify-*.mjs
+scripts/check-*.mjs
+scripts/check-*.sh
+scripts/ci-*.mjs
+scripts/claim-*.mjs
+scripts/demo-*.mjs
+scripts/demo-*.sh
+scripts/policy/
+scripts/proof/
+scripts/record-*.sh
+scripts/release/
+scripts/run_*.py
+scripts/trust_*.py
+
+# Dev files
+*.test.*
+.env*
+*.lock
