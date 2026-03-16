@@ -1,0 +1,60 @@
+capability: install
+description: Install smoke
+started_at: 2026-03-16T00:26:10.334Z
+ended_at: 2026-03-16T00:27:00.526Z
+duration_ms: 50192
+command: bash tests/smoke-install.sh --ref HEAD --mode full
+exit_status: 0
+signal: null
+error: null
+
+--- stdout ---
+  [smoke] Isolated HOME: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif
+  [smoke] Mode: full | Ref: HEAD
+  [smoke] Building local tarball from working tree...
+  [smoke] Running install.sh --mode full --source-tarball /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/local-source.tar.gz --checksum-file /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/checksums.txt
+  PASS  master-architect.md
+  PASS  master-workflow.md
+  PASS  MANIFEST.md
+  INFO  17 mode files found (expected 17)
+
+Session Files:
+  INFO  0 session file(s) on disk
+
+Activity Log:
+  WARN  no activity log yet
+
+─────────────────────────────────
+  Results: 30 passed, 0 failed, 1 warnings
+  STATUS: HEALTHY
+
+  ✅  Installation complete!
+  Launch with: claudex   (wrapper starts sidecar + patches settings idempotently)
+  Or type /lead in any Claude Code session to use coordinator tools.
+  Note: ~/.local/bin is not on PATH in this shell. Add it to use 'claudex' directly.
+
+  [smoke] install.sh exited with code 0
+  [smoke] 
+  [smoke] Verifying installed files...
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/mcp-coordinator/
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/mcp-coordinator/index.js
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/lead-sidecar/
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/commands/
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/agents/
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/lead-sidecar/bin/claudex (executable)
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/lead-sidecar/bin/sidecarctl (executable)
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/hooks/
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/hooks/health-check.sh (executable)
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/hooks/session-register.sh (executable)
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/hooks/terminal-heartbeat.sh (executable)
+  [smoke] OK: /var/folders/80/wnr_9sws4_j1qhjfvw7144bh0000gn/T//smoke-install-81cTif/.claude/settings.local.json
+  [smoke] OK: coordinator syntax valid (node --check)
+  [smoke] OK: claudex symlink in ~/.local/bin
+  [smoke] 
+  [smoke] Results: 14 / 14 checks passed
+  [smoke] Smoke install PASSED
+  [smoke] Verifying uninstall...
+  [smoke] Smoke uninstall PASSED
+
+
+--- stderr ---

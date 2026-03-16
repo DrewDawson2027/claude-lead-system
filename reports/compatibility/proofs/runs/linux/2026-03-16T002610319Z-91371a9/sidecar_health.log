@@ -1,0 +1,33 @@
+capability: sidecar_health
+description: Sidecar health proof
+started_at: 2026-03-16T00:27:04.176Z
+ended_at: 2026-03-16T00:27:04.467Z
+duration_ms: 291
+command: npm --workspace sidecar exec -- node --test test/terminal-health.test.mjs test/bridge-health.test.mjs
+exit_status: 0
+signal: null
+error: null
+
+--- stdout ---
+✔ bridge health prioritizes freshness even when pid is missing (2.408ms)
+✔ bridge health transitions stale and degraded based on heartbeat age (0.866ms)
+✔ bridge health reports degraded when process is alive but no freshness signal exists (0.852458ms)
+✔ bridge controller heartbeat persists pid to heartbeat file (1.086875ms)
+✔ detects zombie sessions (dead PID) (2.241458ms)
+✔ detects stale sessions (old timestamp) (0.605333ms)
+✔ healthy sessions pass detection (0.659584ms)
+✔ skips closed and stale-status sessions (0.743667ms)
+✔ detects dead worker shells (0.666334ms)
+✔ suggestRecovery generates suggestions (0.092333ms)
+✔ handles empty terminals directory (0.449791ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 76.639709
+
+
+--- stderr ---

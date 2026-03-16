@@ -1,0 +1,29 @@
+capability: resume
+description: Worker resume path proof
+started_at: 2026-03-16T00:27:03.586Z
+ended_at: 2026-03-16T00:27:04.176Z
+duration_ms: 590
+command: npm --workspace mcp-coordinator exec -- node --test test/e2e-agent-resume.test.mjs
+exit_status: 0
+signal: null
+error: null
+
+--- stdout ---
+✔ E2E Resume: coord_resume_worker takes true-resume path when claude_session_id is present (96.153083ms)
+✔ E2E Resume: new meta file records resumed_from_session = original claude_session_id (30.838542ms)
+✔ E2E Resume: fallback continuation-spawn when no claude_session_id (39.528708ms)
+✔ E2E Resume: resume-by-agentId when identity map has native agent_id (40.934458ms)
+✔ E2E Resume: resume-by-agentId wins when task identity is partial but session identity has agent_id (48.31625ms)
+✔ E2E Resume: returns task-not-found when meta file does not exist (3.187458ms)
+✔ E2E Resume: uses transcript file for true resume when transcript exists (28.313ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 359.042209
+
+
+--- stderr ---

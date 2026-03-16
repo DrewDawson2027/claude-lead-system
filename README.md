@@ -10,57 +10,70 @@
 
 Detect file conflicts before they collide. Spawn, redirect, and message workers. Run tracked multi-step pipelines. All from a single local coordinator — no API tokens spent on coordination.
 
-> **One terminal to rule them all.** Spawn workers, detect conflicts,
-> message sessions, track pipelines — no API tokens for coordination.
-
 [![Tests](https://img.shields.io/badge/tests-795%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![Coverage](https://img.shields.io/badge/coverage-85%25%20lines-green)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+</div>
+
+---
+
+## The Problem
+
+Two Claude terminals. Same file. Neither knows the other is there.
+
+```
+Terminal A: editing src/auth/login.ts
+Terminal B: editing src/auth/login.ts  ← collision in 3... 2... 1...
+```
+
+One overwrites the other. You find out when the build breaks.
+
+**With Lead:**
+
+```
+Lead: "check conflicts"
+→ CONFLICT: login.ts — terminal-a (editing) ↔ terminal-b (editing)
+→ Both sessions notified. Collision blocked.
+```
+
+---
+
+## Quick Start
+
+### Quick (npm)
+
+```bash
+npm install -g claude-lead-system && claudex
+```
+
+### Standard (git)
+
+```bash
+git clone https://github.com/DrewDawson2027/claude-lead-system.git
+cd claude-lead-system && bash install.sh
+claudex
+```
+
+### Try without installing (Docker)
+
+```bash
+docker run -it ghcr.io/drewdawson2027/claude-lead-system
+```
+
+Then in any install method, enter coordinator mode:
+
+```bash
+/lead
+```
+
+You'll see a live dashboard of every active Claude terminal — what it's working on, what files it's touching, and whether any two sessions are about to collide.
 
 **Why you'd use it:**
 
 - You run 3+ Claude terminals and need one place to see what each is touching
 - You've had two sessions clobber the same file — and want to prevent it
 - You want to redirect, wake, or spawn workers without opening a new window
-
-```bash
-git clone https://github.com/DrewDawson2027/claude-lead-system.git
-cd claude-lead-system && bash install.sh
-```
-
-</div>
-
----
-
-## Quick Start
-
-```bash
-# 1. Install
-git clone https://github.com/DrewDawson2027/claude-lead-system.git
-cd claude-lead-system && bash install.sh
-
-# 2. Launch
-claudex
-
-# 3. Enter coordinator mode
-/lead
-```
-
-You'll see a live dashboard of every active Claude terminal — what it's working on, what files it's touching, and whether any two sessions are about to collide.
-
----
-
-## Platform Support
-
-| Platform | Status       | Notes                                                    |
-| -------- | ------------ | -------------------------------------------------------- |
-| macOS    | Verified     | Full support. iTerm2 or tmux recommended for split-pane. |
-| Linux    | Experimental | Requires bash + tmux. No proof artifacts yet.            |
-| Windows  | Experimental | Requires Windows Terminal. Some tests may fail.          |
-
-**Requirements:** Node.js 18+, bash (macOS/Linux), Python 3.10+ (for hooks)
-
----
 
 **Common MCP tools (usable from any Claude session):**
 
@@ -120,13 +133,25 @@ Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.
 - **81** MCP coordination tools
 - **24** lib modules
 - **Zero** API tokens spent on coordination (filesystem path)
-- **8/8** macOS platform proofs passing
+- **8/8** macOS platform proofs passing · **8/8** Linux platform proofs passing
 
 ---
 
 ## The Story
 
 > _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 81 tools, 795 tests, SLSA supply chain security — entirely through Claude Code."_
+
+---
+
+## Platform Support
+
+| Platform | Status       | Notes                                                                                               |
+| -------- | ------------ | --------------------------------------------------------------------------------------------------- |
+| macOS    | Verified     | Full support. iTerm2 or tmux recommended for split-pane. 8/8 proofs passing.                        |
+| Linux    | Verified     | 8/8 proofs passing. Requires bash + tmux. See [compatibility matrix](docs/COMPATIBILITY_MATRIX.md). |
+| Windows  | Experimental | Requires Windows Terminal. No proof artifacts yet.                                                  |
+
+**Requirements:** Node.js 18+, bash (macOS/Linux), Python 3.10+ (for hooks)
 
 ---
 
@@ -137,8 +162,11 @@ Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.
 - `jq` (`brew install jq` / `apt install jq`)
 - `bash`, `python3`
 
+> Docker users: all dependencies are bundled in the image.
+
 ## More
 
+- [Getting Started](docs/GETTING_STARTED.md) — step-by-step first use walkthrough
 - [Docs](docs/) — architecture, API contract, MCP tool reference
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Security](docs/SECURITY.md)
