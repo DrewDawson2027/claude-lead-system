@@ -28,6 +28,25 @@ SOURCE=$(echo "$INPUT" | jq -r '.source // "startup"')
 
 mkdir -p ~/.claude/terminals
 
+# 1A: One-time first-run welcome message
+FIRST_RUN_MARKER=~/.claude/terminals/.lead-first-run-done
+if [ ! -f "$FIRST_RUN_MARKER" ]; then
+  cat <<'EOF'
+
+Lead System installed.
+Type /lead to see your active terminals,
+detect file conflicts, and coordinate
+workers.
+
+Quick commands after /lead:
+  "what's running?" → see all terminals
+  "check conflicts" → find file overlaps
+  "spawn a reviewer" → start a worker
+
+EOF
+  touch "$FIRST_RUN_MARKER"
+fi
+
 # Structured debug logging — no raw input (avoids logging sensitive data)
 DEBUG_LOG=~/.claude/terminals/debug-session-register.log
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) session=$SESSION_ID cwd=$CWD source=$SOURCE" >> "$DEBUG_LOG"
