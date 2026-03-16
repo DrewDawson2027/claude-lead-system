@@ -4,5 +4,6 @@
   "exclude": ["test/**", "node_modules/**", "coverage/**"],
   "reporter": ["text", "html"],
   "check-coverage": true,
-  "lines": 80
+  "lines": 80,
+  "branches": 75
 }
