@@ -377,7 +377,13 @@ export function handleUpdateTask(args) {
     const changes = [];
 
     if (args.status) {
-      const valid = ["pending", "in_progress", "completed", "cancelled"];
+      const valid = [
+        "pending",
+        "in_progress",
+        "completed",
+        "cancelled",
+        "needs_review",
+      ];
       if (!valid.includes(args.status))
         return text(`Invalid status. Use: ${valid.join(", ")}`);
       task.status = args.status;
@@ -502,9 +508,52 @@ export function handleUpdateTask(args) {
 
     if (changes.length === 0) return text("No changes specified.");
 
+    // C3: Quality gates — auto-check when transitioning to completed
+    let gateFailInfo = null;
+    if (args.status === "completed") {
+      const gates = Array.isArray(task.metadata?.quality_gates)
+        ? task.metadata.quality_gates
+        : [];
+      const criteria = Array.isArray(task.metadata?.acceptance_criteria)
+        ? task.metadata.acceptance_criteria
+        : [];
+      if (gates.length > 0 || criteria.length > 0) {
+        const gateResults = task.metadata?.gate_results || {};
+        const criteriaResults = task.metadata?.criteria_results || [];
+        const failedGates = gates.filter((g) => gateResults[g] !== true);
+        const failedCriteria = criteria.filter(
+          (c) => !criteriaResults.includes(c),
+        );
+        if (!task.metadata) task.metadata = {};
+        task.metadata.quality_gate_check = {
+          at: new Date().toISOString(),
+          result:
+            failedGates.length === 0 && failedCriteria.length === 0
+              ? "pass"
+              : "fail",
+          ...(failedGates.length === 0 && failedCriteria.length === 0
+            ? {}
+            : { failedGates, failedCriteria }),
+        };
+        if (failedGates.length > 0 || failedCriteria.length > 0) {
+          task.status = "needs_review";
+          gateFailInfo = { failedGates, failedCriteria };
+        }
+      }
+    }
+
     task.updated = new Date().toISOString();
     writeFileSecure(taskFile, JSON.stringify(task, null, 2));
-    if (args.status === "completed") {
+    if (gateFailInfo) {
+      appendAuditEntry(
+        taskId,
+        "quality_gate_fail",
+        "completed",
+        "needs_review",
+        gateFailInfo,
+      );
+    }
+    if (task.status === "completed") {
       autoUnblockDependents(taskId, dir);
     }
     // C2: Audit trail for updates
@@ -517,9 +566,15 @@ export function handleUpdateTask(args) {
         appendAuditEntry(taskId, "assigned", null, task.assignee, { change });
       else appendAuditEntry(taskId, "updated", null, null, { change });
     }
-    return text(
-      `Task ${taskId} updated:\n${changes.map((c) => `- ${c}`).join("\n")}`,
-    );
+    let responseText = `Task ${taskId} updated:\n${changes.map((c) => `- ${c}`).join("\n")}`;
+    if (gateFailInfo) {
+      responseText += `\n\n**Quality gates failed** — status set to \`needs_review\``;
+      if (gateFailInfo.failedGates.length)
+        responseText += `\n- Failed gates: ${gateFailInfo.failedGates.join(", ")}`;
+      if (gateFailInfo.failedCriteria.length)
+        responseText += `\n- Failed criteria: ${gateFailInfo.failedCriteria.join(", ")}`;
+    }
+    return text(responseText);
   });
 }
 
