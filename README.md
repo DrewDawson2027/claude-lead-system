@@ -10,7 +10,7 @@
 
 Detect file conflicts before they collide. Spawn, redirect, and message workers. Run tracked multi-step pipelines. All from a single local coordinator — no API tokens spent on coordination.
 
-[![Tests](https://img.shields.io/badge/tests-795%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![Tests](https://img.shields.io/badge/tests-847%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![Coverage](https://img.shields.io/badge/coverage-85%25%20lines-green)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -128,7 +128,7 @@ Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.
 
 ## By the Numbers
 
-- **795** automated tests (428 coordinator + 308 sidecar + 59 Python hooks)
+- **847** automated tests (480 coordinator + 308 sidecar + 59 Python hooks)
 - **85%** line coverage (coordinator + sidecar)
 - **81** MCP coordination tools
 - **24** lib modules
@@ -139,7 +139,7 @@ Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.
 
 ## The Story
 
-> _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 81 tools, 795 tests, SLSA supply chain security — entirely through Claude Code."_
+> _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 81 tools, 847 tests, SLSA supply chain security — entirely through Claude Code."_
 
 ---
 
