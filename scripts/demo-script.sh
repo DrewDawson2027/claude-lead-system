@@ -12,68 +12,84 @@ print_slow() {
   echo
 }
 
+clear
 sleep 0.5
 
 print_slow "# Claude Lead System — One control room for all your Claude Code terminals"
 sleep 1.5
 
 echo ""
-print_slow "$ git clone https://github.com/DrewDawson2027/claude-lead-system.git"
+print_slow '$ claudex'
 sleep 0.5
-echo "Cloning into 'claude-lead-system'..."
-echo "remote: Enumerating objects: 1247, done."
-echo "remote: Counting objects: 100% (1247/1247), done."
-echo "✓ Cloned"
+echo "Starting Lead background service..."
+echo "✓ Sidecar running on https://127.0.0.1:8443"
+echo "✓ Settings synced (81 MCP tools)"
+echo ""
+echo "Claude Code ready."
 sleep 1
 
 echo ""
-print_slow "$ cd claude-lead-system && bash install.sh"
+print_slow '$ /lead'
 sleep 0.5
-echo "✓ Hooks installed → ~/.claude/hooks/"
-echo "✓ Commands installed → ~/.claude/commands/"
-echo "✓ Settings applied"
-echo "✓ MCP coordinator ready (81 tools)"
+echo ""
+echo "┌─────────────────────────────────────────────────────────────┐"
+echo "│  Lead Dashboard — 3 active terminals                       │"
+echo "├──────────┬────────────┬──────────────────────┬─────────────┤"
+echo "│ Session  │ Status     │ Project              │ Files       │"
+echo "├──────────┼────────────┼──────────────────────┼─────────────┤"
+echo "│ lead     │ ● active   │ claude-lead-system   │ —           │"
+echo "│ worker-a │ ● active   │ trust-engine         │ src/auth.ts │"
+echo "│ worker-b │ ● active   │ trust-engine         │ src/auth.ts │"
+echo "└──────────┴────────────┴──────────────────────┴─────────────┘"
+sleep 2
+
+echo ""
+print_slow '> "check conflicts"'
+sleep 0.8
+echo ""
+echo "  ⚠  CONFLICT DETECTED"
+echo "  ────────────────────────────────────────────────"
+echo "  src/auth.ts"
+echo "    worker-a (editing) ↔ worker-b (editing)"
+echo "    Both sessions touching the same file."
+echo "    Risk: one will overwrite the other."
+echo "  ────────────────────────────────────────────────"
+sleep 2.5
+
+echo ""
+print_slow '> "tell worker-b to switch to src/middleware.ts instead"'
+sleep 0.5
+echo ""
+echo "  ✓ Message delivered to worker-b"
+echo "  worker-b acknowledged: switching to src/middleware.ts"
 sleep 1.5
 
 echo ""
-print_slow "$ npm test 2>&1 | tail -8"
+print_slow '> "check conflicts"'
 sleep 0.5
-echo "  ✓ 730 coordinator unit tests passed"
-echo "  ✓ 223 Python hook tests passed"
-echo "  ✓ 43 shell integration tests passed"
-echo "  ─────────────────────────────────"
-echo "  Tests:      996 passed, 0 failed"
-echo "  Coverage:   85.1%"
-echo "  Duration:   12.4s"
-sleep 1.5
+echo ""
+echo "  ✓ No conflicts detected across 3 sessions."
+sleep 2
 
 echo ""
-print_slow "$ echo '81 MCP coordination tools'"
-echo "81 MCP coordination tools"
+print_slow '> "spawn a reviewer to check the test suite"'
+sleep 0.5
+echo ""
+echo "  ✓ Worker 'reviewer' spawned (model: sonnet, role: reviewer)"
+echo "  ✓ Running in worktree: ~/.claude/worktrees/slot-3"
 sleep 1
 
 echo ""
-print_slow "# Key Feature: Pre-edit conflict detection"
-sleep 0.8
-print_slow "# Two sessions editing the same file? Lead catches it BEFORE the collision."
-sleep 1.5
-
+print_slow '> "check on reviewer"'
+sleep 0.5
 echo ""
-echo "  [session-a] → editing src/api/routes.ts"
-echo "  [session-b] → wants to edit src/api/routes.ts"
-echo "  ⚠  CONFLICT DETECTED — session-b paused, waiting for session-a"
+echo "  reviewer [running] — 12s elapsed"
+echo "  Last output: Reading mcp-coordinator/test/... analyzing 480 tests"
+echo "  Files touched: none (read-only mode)"
 sleep 2
 
 echo ""
-print_slow "# In-process UX: auto-stream worker output"
-sleep 0.8
-print_slow "# /focus researcher  — see their output live in your conversation"
-sleep 0.6
-print_slow "# /cycle             — rotate through active workers"
-sleep 0.6
-print_slow "# /unfocus           — stop streaming"
-sleep 2
-
+echo "──────────────────────────────────────────────────────────────"
 echo ""
-print_slow "# 996 tests  |  81 tools  |  All CI green  |  Zero API tokens for coordination"
+print_slow "# 847 tests  |  81 tools  |  macOS + Linux verified  |  Zero API tokens for coordination"
 sleep 3
