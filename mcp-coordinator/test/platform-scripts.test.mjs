@@ -234,10 +234,10 @@ const BASE_OPTS = {
   platformName: "linux",
 };
 
-test("buildWorkerScript background layout uses >> redirect (silent)", () => {
+test("buildWorkerScript background layout uses tee > /dev/null (line-by-line but silent)", () => {
   const cmd = __test__.buildWorkerScript({ ...BASE_OPTS, layout: "background" });
-  assert.match(cmd, />> '\/tmp\/r\.txt' 2>&1/);
-  assert.ok(!cmd.includes("tee"), "background must not use tee");
+  assert.match(cmd, /2>&1 \| tee -a '\/tmp\/r\.txt' > \/dev\/null/);
+  assert.ok(!cmd.includes(">> '/tmp/r.txt' 2>&1"), "background must not use old >> redirect");
 });
 
 test("buildWorkerScript tmux layout uses tee (visible in pane)", () => {
@@ -256,8 +256,8 @@ test("buildWorkerScript split layout uses tee (visible in terminal)", () => {
   assert.match(cmd, /2>&1 \| tee -a '\/tmp\/r\.txt'/);
 });
 
-test("buildWorkerScript no layout defaults to silent redirect", () => {
+test("buildWorkerScript no layout defaults to tee with /dev/null (background)", () => {
   const { layout: _omit, ...noLayout } = BASE_OPTS;
   const cmd = __test__.buildWorkerScript(noLayout);
-  assert.match(cmd, />> '\/tmp\/r\.txt' 2>&1/);
+  assert.match(cmd, /2>&1 \| tee -a '\/tmp\/r\.txt' > \/dev\/null/);
 });
