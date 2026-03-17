@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import net from "net";
 import { OutputStreamManager } from "../core/output-stream.js";
 
 function tmpFile(dir) {
@@ -104,4 +105,74 @@ test("stopAll clears all watchers", () => {
   assert.equal(mgr.workers.size, 0);
 
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("socket streaming: receives output via Unix socket when available", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "osm-sock-"));
+  const filePath = path.join(dir, "output.txt");
+  fs.writeFileSync(filePath, "");
+  const taskId = "sock-test-" + Date.now();
+  const socketPath = `/tmp/claude-worker-${taskId}.sock`;
+
+  // Clean up stale socket if any
+  try { fs.unlinkSync(socketPath); } catch {}
+
+  // Create a mock Unix socket server (simulates the output-forwarder)
+  const server = net.createServer();
+  const connections = [];
+  server.on("connection", (conn) => connections.push(conn));
+
+  await new Promise((resolve) => server.listen(socketPath, resolve));
+
+  const mgr = new OutputStreamManager();
+  const received = [];
+  mgr.onOutput((data) => received.push(data));
+  mgr.startWatching(taskId, filePath, "socket-worker");
+
+  // Wait for the socket connection to be established
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
+  // Send lines through the socket (simulating worker output)
+  for (const conn of connections) {
+    conn.write("line 1\nline 2\nline 3\n");
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  mgr.stopAll();
+  server.close();
+  try { fs.unlinkSync(socketPath); } catch {}
+  fs.rmSync(dir, { recursive: true, force: true });
+
+  assert.ok(received.length > 0, "Should have received output events");
+  const allLines = received.flatMap((r) => r.lines);
+  assert.ok(allLines.includes("line 1"), "Should contain line 1");
+  assert.ok(allLines.includes("line 2"), "Should contain line 2");
+  assert.ok(allLines.includes("line 3"), "Should contain line 3");
+  assert.equal(received[0].worker_name, "socket-worker");
+});
+
+test("socket streaming: falls back to file watching when no socket exists", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "osm-nosock-"));
+  const filePath = path.join(dir, "output.txt");
+  fs.writeFileSync(filePath, "");
+
+  const mgr = new OutputStreamManager();
+  const received = [];
+  mgr.onOutput((data) => received.push(data));
+  mgr.startWatching("nosock-test", filePath, "file-worker");
+
+  // No socket exists — should fall back to file watching immediately
+  // Write to file and wait for watcher to pick it up
+  // fs.watch can be slow on macOS — give it time to set up + detect change
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  fs.appendFileSync(filePath, "file line 1\nfile line 2\n");
+  await new Promise((resolve) => setTimeout(resolve, 600));
+
+  mgr.stopAll();
+  fs.rmSync(dir, { recursive: true, force: true });
+
+  assert.ok(received.length > 0, "Should receive output from file watcher fallback");
+  const allLines = received.flatMap((r) => r.lines);
+  assert.ok(allLines.includes("file line 1"), "Should contain file line 1");
 });
