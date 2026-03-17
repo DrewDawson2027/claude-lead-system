@@ -1,6 +1,6 @@
 # GAP #1 — In-Process Display: Integration Plan
 
-**Status:** PLAN — awaiting approval before implementation
+**Status:** DONE — Phase 1 + Phase 2 fully implemented (2026-03-16)
 **Impact:** HIGH — closes the display gap from C+ to A
 **Goal:** Replace `tmux capture-pane` polling with event-driven output streaming
 
