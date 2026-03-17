@@ -985,13 +985,15 @@ export function buildWorkerScript(opts) {
       .filter(Boolean)
       .join(" && ");
     const parentSessionSetup = buildParentSessionSetup(qClaudeBin);
-    // Visible layouts (tmux pane, tab, split) use tee so output appears in the terminal
-    // AND is saved to the result file. Background stays silent — no terminal to show in.
+    // All workers use tee for incremental output writing. Visible layouts get terminal
+    // output + file. Background workers pipe to tee > /dev/null so only the file updates,
+    // but crucially, output is written line-by-line (not buffered until process exit).
+    // This enables coord_watch_output to show progress during execution.
     const visibleLayout =
       opts.layout && opts.layout !== "background" ? true : false;
     const claudeCmd = visibleLayout
       ? `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} $CLAUDE_PARENT_ARG ${agentArgs} ${settingsArgs} < ${qPrompt} 2>&1 | tee -a ${qResult}`
-      : `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} $CLAUDE_PARENT_ARG ${agentArgs} ${settingsArgs} < ${qPrompt} >> ${qResult} 2>&1`;
+      : `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} $CLAUDE_PARENT_ARG ${agentArgs} ${settingsArgs} < ${qPrompt} 2>&1 | tee -a ${qResult} > /dev/null`;
     return [
       `cd ${qDir}`,
       `echo "Worker ${qTaskId} starting at $(date)" > ${qResult}`,

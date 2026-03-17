@@ -142,6 +142,7 @@ export function enforceWorkerPolicy({
     tool_name: "Task",
     session_id: String(sessionId || "coordinator-unknown"),
     tool_input: toolInput,
+    coordinator_spawn: true,
   };
 
   const scripts = [

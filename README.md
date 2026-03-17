@@ -8,7 +8,7 @@
 <img src="demo.gif" alt="Claude Lead System — live demo: real test suite, conflict detection, health check" width="800" />
 </div>
 
-Detect file conflicts before they collide. Spawn, redirect, and message workers. Run tracked multi-step pipelines. All from a single local coordinator — no API tokens spent on coordination.
+Detect file conflicts before they collide. Spawn and monitor workers. Message interactive workers mid-execution. Run tracked multi-step pipelines. All from a single local coordinator — no API tokens spent on coordination.
 
 [![npm](https://img.shields.io/npm/v/claude-lead-system)](https://www.npmjs.com/package/claude-lead-system)
 [![Tests](https://img.shields.io/badge/tests-847%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)

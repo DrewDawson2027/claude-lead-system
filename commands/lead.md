@@ -168,6 +168,42 @@ The user should NEVER have to say "spawn a worker" or "use coord_spawn_worker." 
 
 ---
 
+## HARD RULE: Auto-Monitor After Every Spawn (MANDATORY — never spawn and go silent)
+
+**After EVERY `coord_spawn_worker` or `coord_spawn_workers` call, you MUST do ALL of the following:**
+
+1. **Immediately tell the user what's happening** — "I've started a [role] worker on [task]. Watching for output..."
+2. **Call `coord_watch_output worker_name=[name]`** within 5 seconds of spawn to check initial status
+3. **Continue checking** — call `coord_watch_output` again every 10-15 seconds while the worker runs. Show new output lines each time. If there's no new output, say "Still working..." (don't go silent)
+4. **Auto-detect completion** — when `coord_watch_output` shows status `[done]`, OR when `coord_get_result` returns content, immediately present the full result to the user
+5. **Never make the user ask** — "is it done?", "what happened?", "show me the result" should NEVER be necessary. The lead surfaces everything proactively.
+
+**What the user should experience:**
+
+```
+User: "review the README"
+Lead: "Starting a reviewer worker on your README... watching for output."
+Lead: [5s later] "Worker is running — analyzing file structure..."
+Lead: [15s later] "Worker found 3 issues so far — still analyzing..."
+Lead: [30s later] "Worker finished. Here's the review: [full result]"
+```
+
+**What the user should NEVER experience:**
+
+```
+User: "review the README"
+Lead: "Worker spawned, task ID: W123"
+[silence]
+User: "...is it done?"
+Lead: "Let me check..."
+```
+
+**For multiple workers:** When spawning 2+ workers, cycle through them — call `coord_watch_output` for each one in rotation, showing which worker is producing what. When any worker finishes, immediately present its result.
+
+**For pipe mode workers:** Pipe workers write output to a file incrementally. `coord_watch_output` reads that file. Even though you can't message pipe workers, you CAN watch them and show their output to the user in real time. This is the minimum viable experience.
+
+---
+
 ## Natural Language Patterns (MANDATORY — translate intent, NEVER ask for parameters)
 
 When the user says anything like the patterns below, call the mapped tool immediately. Do NOT ask for model, role, permission_mode, contextLevel, task_id, session_id, or worker_name — infer ALL from the task description and role presets. Use cwd for directory unless the user specifies a project.
@@ -190,12 +226,22 @@ When the user says anything like the patterns below, call the mapped tool immedi
 
 ## Messaging Shortcuts (MANDATORY — never expose raw parameters)
 
-| When the user says…                | You call…                                                                                                      |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| "tell [name] to [instruction]"     | `coord_send_directive target_name=[name] directive="[instruction]"`                                            |
-| "message the [role] about [topic]" | `coord_send_message target_name=[resolve role→name] content="[topic context]" from="lead" summary="[5 words]"` |
-| "broadcast: [message]"             | `coord_broadcast content="[message]"`                                                                          |
-| "redirect [worker] to [new task]"  | `coord_send_directive target_name=[worker] directive="[new task]" priority="urgent"`                           |
+**MODE CHECK REQUIRED:** Before using ANY messaging shortcut, check the target worker's mode from its `.meta.json`. If the worker is `mode: "pipe"`, messaging will NOT work — pipe workers are deaf. Tell the user: "That worker is running in pipe mode (fire-and-forget) — it can't receive messages. I can watch its output or kill it, but I can't redirect it."
+
+| When the user says…                | Mode required | You call…                                                                                                      |
+| ---------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------- |
+| "tell [name] to [instruction]"     | interactive   | `coord_send_directive target_name=[name] directive="[instruction]"`                                            |
+| "message the [role] about [topic]" | interactive   | `coord_send_message target_name=[resolve role→name] content="[topic context]" from="lead" summary="[5 words]"` |
+| "broadcast: [message]"             | any\*         | `coord_broadcast content="[message]"` (\*only interactive workers will receive it)                             |
+| "redirect [worker] to [new task]"  | interactive   | `coord_send_directive target_name=[worker] directive="[new task]" priority="urgent"`                           |
+| "check on [worker]"                | any           | `coord_watch_output worker_name=[worker]` (works for both pipe and interactive)                                |
+| "what's [worker] doing?"           | any           | `coord_watch_output worker_name=[worker]` (works for both pipe and interactive)                                |
+
+**If the user tries to message a pipe worker, offer these alternatives:**
+
+1. "I can show you what it's working on right now" → `coord_watch_output`
+2. "I can kill it and restart with interactive mode so you can redirect it" → `coord_kill_worker` + `coord_spawn_worker mode=interactive`
+3. "I can wait for it to finish and then start a new worker for the redirect" → wait + new spawn
 
 Infer automatically:
 
@@ -362,6 +408,8 @@ Default worker posture:
 
 ### Sending Directives to Workers (mid-execution control)
 
+**REQUIRES INTERACTIVE MODE.** Directives only work for workers spawned with `mode=interactive`. Pipe workers are deaf — they never check their inbox. Before attempting any directive, check the worker's mode. If pipe, tell the user and offer alternatives (see Messaging Shortcuts above).
+
 | Need                           | Say                                                                       |
 | ------------------------------ | ------------------------------------------------------------------------- |
 | **Send instruction to worker** | "tell [worker] to [instruction]" → `coord_send_directive`                 |
@@ -369,7 +417,7 @@ Default worker posture:
 | **Stop and pivot**             | "tell [worker] to stop and do [X]" → `coord_send_directive` (urgent)      |
 | **Augment task**               | "also tell [worker] to [additional instruction]" → `coord_send_directive` |
 
-`coord_send_directive` is the lead's primary control tool. It:
+`coord_send_directive` is the lead's primary control tool for **interactive** workers. It:
 
 1. Writes to the target's inbox
 2. Checks session status

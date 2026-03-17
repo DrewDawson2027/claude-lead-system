@@ -382,8 +382,15 @@ export function handleSpawnWorker(args) {
     : validModes.includes(args.permission_mode)
       ? args.permission_mode
       : rolePreset?.permissionMode || "acceptEdits";
-  // Map planOnly → plan for CLI execution (keep original in metadata)
-  const cliPermissionMode = rawPermMode === "planOnly" ? "plan" : rawPermMode;
+  // Map coordinator permission modes → valid CLI modes (keep original in metadata)
+  // Valid CLI modes: acceptEdits, bypassPermissions, default, dontAsk, plan, auto
+  // Coordinator extras: planOnly→plan, readOnly→default, editOnly→default
+  const CLI_PERMISSION_MAP = {
+    planOnly: "plan",
+    readOnly: "default",
+    editOnly: "default",
+  };
+  const cliPermissionMode = CLI_PERMISSION_MAP[rawPermMode] || rawPermMode;
   const budgetPolicy = ["off", "warn", "enforce"].includes(
     teamPolicy.budget_policy,
   )
