@@ -18,6 +18,9 @@ import { shellQuote } from "../helpers.js";
 const AUTOCLAIM_SCRIPT = fileURLToPath(
   new URL("../../scripts/claim-next-task.mjs", import.meta.url),
 );
+const OUTPUT_FORWARDER = fileURLToPath(
+  new URL("./output-forwarder.js", import.meta.url),
+);
 const AUTOCLAIM_NODE = process.execPath || "node";
 
 function buildAutoClaimPayload(opts = {}) {
@@ -985,36 +988,34 @@ export function buildWorkerScript(opts) {
       .filter(Boolean)
       .join(" && ");
     const parentSessionSetup = buildParentSessionSetup(qClaudeBin);
-    // All workers use tee for incremental output writing. Visible layouts get terminal
-    // output + file. Background workers pipe to tee > /dev/null so only the file updates,
-    // but crucially, output is written line-by-line (not buffered until process exit).
-    // This enables coord_watch_output to show progress during execution.
-    const visibleLayout =
-      opts.layout && opts.layout !== "background" ? true : false;
-    const claudeCmd = visibleLayout
-      ? `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} $CLAUDE_PARENT_ARG ${agentArgs} ${settingsArgs} < ${qPrompt} 2>&1 | tee -a ${qResult}`
-      : `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} $CLAUDE_PARENT_ARG ${agentArgs} ${settingsArgs} < ${qPrompt} 2>&1 | tee -a ${qResult} > /dev/null`;
-    // Split into setup (must succeed) and cleanup (must always run).
-    // The claude command may exit non-zero (hook failures, tool errors, etc.)
-    // but the .done marker and .pid cleanup MUST still execute — otherwise the
-    // coordinator thinks the worker is still running forever.
-    const setupCmds = [
-      `cd ${qDir}`,
-      `echo "Worker ${qTaskId} starting at $(date)" > ${qResult}`,
-      `echo $$ > ${qPid}`,
-      autoClaimEnv,
-      parentSessionSetup,
+    // Use the Node.js output-forwarder for pipe-mode workers.
+    // The forwarder spawns claude as a child process, streams stdout/stderr to
+    // BOTH the result file AND a Unix domain socket at /tmp/claude-worker-{taskId}.sock.
+    // This enables sub-10ms streaming to the sidecar (vs ~50-200ms from fs.watch).
+    // The forwarder also handles PID file, result file, and .done marker — so we only
+    // need setup (cd, env) and post-exit autoclaim in the shell script.
+    const qForwarder = shellQuote(OUTPUT_FORWARDER);
+    const qNode = shellQuote(process.execPath || "node");
+    const claudeArgs = [
+      qClaudeBin,
+      "-p",
+      "--model",
+      qModel,
+      "$CLAUDE_PARENT_ARG",
+      agentArgs,
+      settingsArgs,
     ]
+      .filter(Boolean)
+      .join(" ");
+    // The forwarder reads the prompt from stdin, so pipe the prompt file to the whole command.
+    // Format: node forwarder.js <taskId> <resultFile> <metaDoneFile> <pidFile> -- claude -p ...
+    const forwarderCmd = `${qNode} ${qForwarder} ${qTaskId} ${qResult} ${qMetaDone} ${qPid} -- ${claudeArgs} < ${qPrompt}`;
+    const setupCmds = [`cd ${qDir}`, autoClaimEnv, parentSessionSetup]
       .filter(Boolean)
       .join(" && ");
-    const cleanupCmds = [
-      `printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}`,
-      `rm -f ${qPid}`,
-      autoClaimShellCommand(),
-    ]
-      .filter(Boolean)
-      .join("; ");
-    // Use ; before cleanup so it runs regardless of claude's exit code
-    return `${setupCmds} && ${claudeCmd}; ${cleanupCmds}`;
+    // Autoclaim runs after forwarder exits (forwarder handles .done + PID cleanup itself)
+    const cleanupCmds = autoClaimShellCommand();
+    // Use ; before cleanup so it runs regardless of forwarder's exit code
+    return `${setupCmds} && ${forwarderCmd}; ${cleanupCmds}`;
   }
 }

@@ -221,7 +221,7 @@ test("buildCodexInteractiveWorkerScript win32 returns unsupported message", () =
   assert.match(cmd, /not supported on Windows/);
 });
 
-// ─── buildWorkerScript layout → tee vs redirect ─────────────────────────────
+// ─── buildWorkerScript layout → output-forwarder (Unix socket + file) ────────
 
 const BASE_OPTS = {
   taskId: "W_TEE",
@@ -234,30 +234,30 @@ const BASE_OPTS = {
   platformName: "linux",
 };
 
-test("buildWorkerScript background layout uses tee > /dev/null (line-by-line but silent)", () => {
+test("buildWorkerScript uses output-forwarder instead of tee", () => {
   const cmd = __test__.buildWorkerScript({ ...BASE_OPTS, layout: "background" });
-  assert.match(cmd, /2>&1 \| tee -a '\/tmp\/r\.txt' > \/dev\/null/);
-  assert.ok(!cmd.includes(">> '/tmp/r.txt' 2>&1"), "background must not use old >> redirect");
+  assert.match(cmd, /output-forwarder\.js/);
+  assert.match(cmd, /'W_TEE'/); // taskId passed to forwarder
+  assert.match(cmd, /-- 'claude' -p/); // separator + claude command
+  assert.ok(!cmd.includes("tee"), "forwarder replaces tee entirely");
 });
 
-test("buildWorkerScript tmux layout uses tee (visible in pane)", () => {
-  const cmd = __test__.buildWorkerScript({ ...BASE_OPTS, layout: "tmux" });
-  assert.match(cmd, /2>&1 \| tee -a '\/tmp\/r\.txt'/);
-  assert.ok(!cmd.includes(">> '/tmp/r.txt' 2>&1"), "tmux must not use silent redirect");
+test("buildWorkerScript forwarder receives all required positional args", () => {
+  const cmd = __test__.buildWorkerScript({ ...BASE_OPTS, layout: "background" });
+  // Format: node forwarder.js <taskId> <resultFile> <metaDoneFile> <pidFile> -- claude ...
+  assert.match(cmd, /'W_TEE' '\/tmp\/r\.txt' '\/tmp\/m\.json\.done' '\/tmp\/p\.pid'/);
 });
 
-test("buildWorkerScript tab layout uses tee (visible in terminal)", () => {
-  const cmd = __test__.buildWorkerScript({ ...BASE_OPTS, layout: "tab" });
-  assert.match(cmd, /2>&1 \| tee -a '\/tmp\/r\.txt'/);
+test("buildWorkerScript all layouts use forwarder (no layout-specific tee)", () => {
+  for (const layout of ["background", "tmux", "tab", "split"]) {
+    const cmd = __test__.buildWorkerScript({ ...BASE_OPTS, layout });
+    assert.match(cmd, /output-forwarder\.js/, `${layout} layout must use forwarder`);
+    assert.ok(!cmd.includes("tee"), `${layout} layout must not use tee`);
+  }
 });
 
-test("buildWorkerScript split layout uses tee (visible in terminal)", () => {
-  const cmd = __test__.buildWorkerScript({ ...BASE_OPTS, layout: "split" });
-  assert.match(cmd, /2>&1 \| tee -a '\/tmp\/r\.txt'/);
-});
-
-test("buildWorkerScript no layout defaults to tee with /dev/null (background)", () => {
+test("buildWorkerScript no layout defaults to forwarder", () => {
   const { layout: _omit, ...noLayout } = BASE_OPTS;
   const cmd = __test__.buildWorkerScript(noLayout);
-  assert.match(cmd, /2>&1 \| tee -a '\/tmp\/r\.txt' > \/dev\/null/);
+  assert.match(cmd, /output-forwarder\.js/);
 });

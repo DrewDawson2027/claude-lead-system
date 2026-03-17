@@ -158,13 +158,13 @@ The goal is practical overlap plus differentiated local tooling, not an "exactly
 
 Code paths exist but have not been verified end-to-end. Run once before declaring GAP 5 closed.
 
-### Status Summary (as of 2026-03-15)
+### Status Summary (as of 2026-03-17)
 
-| Scenario          | Code Path   | Integration Tests                             | Live Run                                              |
-| ----------------- | ----------- | --------------------------------------------- | ----------------------------------------------------- |
-| E1: Agent Resume  | ✅ verified | ✅ 7/7 e2e-agent-resume tests pass            | ✅ code-path verified (2026-03-15), live tmux pending |
-| E2: P2P Messaging | ✅ verified | ✅ 4/4 p2p-messaging + 3/3 e2e-p2p-worker-dm  | ✅ verified (cross-process)                           |
-| E3: Plan Approval | ✅ verified | ✅ 11/11 e2e-plan-approval + gap-parity tests | ✅ code-path verified (2026-03-15), live tmux pending |
+| Scenario          | Code Path   | Integration Tests                             | Live Run                                                   |
+| ----------------- | ----------- | --------------------------------------------- | ---------------------------------------------------------- |
+| E1: Agent Resume  | ✅ verified | ✅ 7/7 e2e-agent-resume tests pass            | ✅ code-path verified, output-forwarder wired (2026-03-17) |
+| E2: P2P Messaging | ✅ verified | ✅ 4/4 p2p-messaging + 3/3 e2e-p2p-worker-dm  | ✅ verified (cross-process)                                |
+| E3: Plan Approval | ✅ verified | ✅ 11/11 e2e-plan-approval + gap-parity tests | ✅ code-path verified, full lifecycle tested (2026-03-17)  |
 
 ### E1: Agent Resume (`buildResumeWorkerScript`)
 

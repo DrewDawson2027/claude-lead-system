@@ -145,7 +145,8 @@ test('unix worker script includes agent flag', () => {
     platformName: 'linux',
   });
   assert.match(cmd, /--agent 'my-agent'/);
-  assert.match(cmd, /unset CLAUDECODE/);
+  // CLAUDECODE is now unset inside the output-forwarder's Node.js env, not in the shell script
+  assert.match(cmd, /output-forwarder\.js/);
 });
 
 test('unix worker script omits agent flag when empty', () => {
