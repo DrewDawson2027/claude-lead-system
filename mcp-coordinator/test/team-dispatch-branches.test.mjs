@@ -296,6 +296,42 @@ test('team-dispatch: native team with member.session_id triggers identityFromSes
   }
 });
 
+test('team-dispatch: native resume text counts as successful dispatch status', async () => {
+  const { home } = setupHome();
+  const { api, restore } = await loadCoord(home);
+  try {
+    api.ensureDirsOnce();
+    createTeam(home, {
+      team_name: 'td-native-resume',
+      execution_path: 'native',
+      members: [{ name: 'resume-worker', role: 'coder', agentId: 'agent-native-123' }],
+    });
+    const result = api.handleTeamDispatch({
+      team_name: 'td-native-resume',
+      subject: 'Resume native worker',
+      prompt: 'Continue previous work.',
+      directory: home,
+      assignee: 'resume-worker',
+      task_id: 'T_NATIVE_RESUME',
+      worker_task_id: 'W_NATIVE_RESUME',
+    });
+    const txt = contentText(result);
+    assert.match(txt, /Worker resumed \(native agent\)/i);
+    assert.match(txt, /Status:\s+dispatched/i);
+
+    const task = JSON.parse(
+      readFileSync(
+        join(home, '.claude', 'terminals', 'tasks', 'T_NATIVE_RESUME.json'),
+        'utf8',
+      ),
+    );
+    assert.equal(task.status, 'in_progress');
+    assert.equal(task.metadata?.dispatch_status, 'spawned');
+  } finally {
+    restore();
+  }
+});
+
 test('team-dispatch: context_summary equal to prompt returns null (sanitizeContextSummary)', async () => {
   const { home } = setupHome();
   const { api, restore } = await loadCoord(home);

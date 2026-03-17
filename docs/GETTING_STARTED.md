@@ -81,7 +81,7 @@ That's a collision that would have silently overwritten work. Lead caught it bef
 
 ## Step 5: Spawn Your First Worker (2 minutes)
 
-Workers are Claude sessions that run a specific task and stop when they're done. You don't need to babysit them.
+Workers are Claude sessions that run a task in the background and stop when they're done. You don't need to babysit them — but they don't automatically show you what they're doing either. You have to ask.
 
 In your Lead terminal, type:
 
@@ -89,15 +89,18 @@ In your Lead terminal, type:
 start a worker to review the README
 ```
 
-Watch your dashboard — a new row appears for the reviewer worker. It's now reading the README and writing its analysis.
+Lead spawns the worker and confirms it started. The worker is now running in the background — you won't see a new terminal pop open by default. Its output is being written to a local file as it works.
 
-To check on it while it runs:
+**To see what it's doing:**
 
 ```
 check on reviewer
 ```
 
-You'll see live output: what the worker is reading, what it's finding, where it is in the task.
+This pulls the latest output lines from the worker's result file and shows you where it is in the task. Run it again whenever you want an update — each call returns the current state.
+
+**Want a visible terminal?**
+Workers spawn as a background process by default, which is the fastest option. If you want to watch output in a visible pane, run `claudex` from inside a tmux session — Lead will automatically split a new pane for each worker instead.
 
 ---
 
@@ -109,7 +112,7 @@ You can redirect a worker mid-task without stopping it.
 tell the reviewer to focus on the install section
 ```
 
-The message lands in the worker's inbox. On its next check cycle (usually within a few seconds), it reads it and adjusts what it's doing.
+The instruction is queued in the worker's inbox file. On its next tool call (usually within a few seconds), the worker reads the inbox and adjusts what it's doing.
 
 This is how you steer multiple workers from one place — no switching windows, no re-prompting.
 
@@ -131,13 +134,6 @@ Cap how many turns a worker can take before it stops:
 
 ```
 start a worker with a 10-turn budget to refactor auth.ts
-```
-
-**Split-pane view**
-See all workers running at the same time:
-
-```
-open split view
 ```
 
 **Plan approval**

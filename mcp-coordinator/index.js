@@ -1846,7 +1846,18 @@ const ALL_TOOLS = [
         from: { type: "string", description: "Sender identifier" },
         to: {
           type: "string",
-          description: "Target session ID (first 8 chars)",
+          description:
+            "Target session ID (first 8 chars). Use this OR target_name.",
+        },
+        target_name: {
+          type: "string",
+          description:
+            "Worker name to direct (resolves to session ID). Use this OR to.",
+        },
+        team_name: {
+          type: "string",
+          description:
+            "Optional team scope for disambiguating target_name/native identities.",
         },
         content: {
           type: "string",
@@ -1858,7 +1869,7 @@ const ALL_TOOLS = [
           description: "Priority (default: normal)",
         },
       },
-      required: ["from", "to", "content"],
+      required: ["content"],
     },
   },
   // ── Send Message (MCP tool version) ──

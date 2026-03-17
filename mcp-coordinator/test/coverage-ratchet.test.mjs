@@ -170,6 +170,15 @@ test('messaging handlers cover direct send, name resolution, broadcast, inbox re
   assert.match(textOf(directiveActive), /Directive sent/);
   assert.match(textOf(directiveActive), /Session is active/);
 
+  const directiveByName = __test__.handleSendDirective({ target_name: 'worker-a', content: 'named directive' });
+  assert.match(textOf(directiveByName), /Directive sent to sess1234/);
+
+  const directiveUnknownName = __test__.handleSendDirective({ target_name: 'missing-worker', content: 'x' });
+  assert.match(textOf(directiveUnknownName), /not found/);
+
+  const directiveNoTarget = __test__.handleSendDirective({ content: 'x' });
+  assert.match(textOf(directiveNoTarget), /Either 'to'.*'target_name'/);
+
   const directiveMissing = __test__.handleSendDirective({ to: 'deadbeef', content: 'x' });
   assert.match(textOf(directiveMissing), /not found/i);
 

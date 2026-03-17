@@ -146,6 +146,28 @@ Stay on the standard Lead workflow after boot. Only reach for native APIs if the
 
 ---
 
+## HARD RULE: Lead Never Does Work. Workers Do Work.
+
+**The lead session is a dispatcher, not a doer. This is non-negotiable.**
+
+When the user gives you ANY task — review code, write a feature, debug an issue, analyze a file, run tests, research something — your ONLY valid response is to spawn one or more workers to do it.
+
+- ❌ WRONG: Claude (as lead) reads files and does the review itself
+- ✅ RIGHT: Claude spawns a reviewer worker in a new terminal, worker does the review, lead collects result
+
+**This applies to everything.** No matter how small the task seems. The lead's job is:
+
+1. Boot and show state
+2. Spawn workers for tasks
+3. Monitor workers and surface results
+4. Detect conflicts
+
+If you catch yourself reading source files, writing code, or doing analysis directly in the lead session — stop. Spawn a worker instead.
+
+The user should NEVER have to say "spawn a worker" or "use coord_spawn_worker." When they say "do X," that IS the spawn trigger. Infer role and prompt from context. Act immediately.
+
+---
+
 ## Natural Language Patterns (MANDATORY — translate intent, NEVER ask for parameters)
 
 When the user says anything like the patterns below, call the mapped tool immediately. Do NOT ask for model, role, permission_mode, contextLevel, task_id, session_id, or worker_name — infer ALL from the task description and role presets. Use cwd for directory unless the user specifies a project.

@@ -985,14 +985,20 @@ export function buildWorkerScript(opts) {
       .filter(Boolean)
       .join(" && ");
     const parentSessionSetup = buildParentSessionSetup(qClaudeBin);
+    // Visible layouts (tmux pane, tab, split) use tee so output appears in the terminal
+    // AND is saved to the result file. Background stays silent — no terminal to show in.
+    const visibleLayout =
+      opts.layout && opts.layout !== "background" ? true : false;
+    const claudeCmd = visibleLayout
+      ? `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} $CLAUDE_PARENT_ARG ${agentArgs} ${settingsArgs} < ${qPrompt} 2>&1 | tee -a ${qResult}`
+      : `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} $CLAUDE_PARENT_ARG ${agentArgs} ${settingsArgs} < ${qPrompt} >> ${qResult} 2>&1`;
     return [
       `cd ${qDir}`,
       `echo "Worker ${qTaskId} starting at $(date)" > ${qResult}`,
       `echo $$ > ${qPid}`,
       autoClaimEnv,
       parentSessionSetup,
-      // unset CLAUDECODE: prevent child claude process from inheriting parent's session env
-      `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} $CLAUDE_PARENT_ARG ${agentArgs} ${settingsArgs} < ${qPrompt} >> ${qResult} 2>&1`,
+      claudeCmd,
       `printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}`,
       `rm -f ${qPid}`,
       autoClaimShellCommand(),

@@ -29,7 +29,6 @@ import {
 } from "./security.js";
 import { readJSON, shellQuote, text } from "./helpers.js";
 import { readTeamConfig, handleCreateTeam } from "./teams.js";
-import { handleTeamRebalance } from "./team-tasking.js";
 import { enforceWorkerPolicy } from "./worker-policy.js";
 import {
   isProcessAlive,
@@ -50,9 +49,6 @@ import {
   findIdentityRecord,
   upsertIdentityRecord,
 } from "./identity-map.js";
-
-// Cooldown tracker: prevents rebalance storms when multiple workers finish at once
-const rebalanceCooldowns = new Map();
 
 const ROLE_PRESETS = {
   researcher: {
@@ -321,11 +317,11 @@ export function handleSpawnWorker(args) {
   const files = (args.files || []).map((f) => String(f).trim()).filter(Boolean);
   let layout = ["split", "background", "tab", "tmux"].includes(args.layout)
     ? args.layout
-    : "background";
-  // Auto-tmux: when in a team and inside tmux, default to tmux pane (Gap 6)
-  if (requestedTeamName && layout === "background" && isInsideTmux()) {
-    layout = "tmux";
-  }
+    : isInsideTmux()
+      ? "tmux"
+      : "background";
+  // Auto-tmux: when no layout specified and inside tmux, always default to tmux pane.
+  // Removed team requirement — tmux is the right default for any spawn inside tmux.
   const mode =
     args.mode === "interactive"
       ? "interactive"
@@ -1073,33 +1069,6 @@ export function handleGetResult(args) {
   if (!meta) return text(`Task ${task_id} not found.`);
 
   const isDone = existsSync(doneFile);
-
-  // Auto-rebalance: when lead detects a worker is done, wake up pending team work
-  if (isDone && meta?.team_name) {
-    const teamName = meta.team_name;
-    const now = Date.now();
-    if (now - (rebalanceCooldowns.get(teamName) || 0) > 60_000) {
-      try {
-        const tasksDirectory = join(cfg().TERMINALS_DIR, "tasks");
-        const pending = existsSync(tasksDirectory)
-          ? readdirSync(tasksDirectory)
-              .filter((f) => f.endsWith(".json"))
-              .map((f) => readJSON(join(tasksDirectory, f)))
-              .filter(Boolean)
-              .filter((t) => t.team_name === teamName && t.status === "pending")
-          : [];
-        if (pending.length > 0) {
-          rebalanceCooldowns.set(teamName, now);
-          handleTeamRebalance({
-            team_name: teamName,
-            apply: true,
-            dispatch_next: true,
-          });
-        }
-      } catch {}
-    }
-  }
-
   let isRunning = false;
   if (existsSync(pidFile)) {
     const pid = readFileSync(pidFile, "utf-8").trim();

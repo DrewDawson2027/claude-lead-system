@@ -83,6 +83,7 @@ fi
 INBOX_DIR=~/.claude/terminals/inbox
 INBOX="${INBOX_DIR}/${SESSION_ID}.jsonl"
 RESULTS_DIR=~/.claude/terminals/results
+INTERRUPT_ON_NOTICES="${CLAUDE_LEAD_INTERRUPT_ON_NOTICES:-0}"
 
 mkdir -p "$INBOX_DIR"
 
@@ -311,6 +312,11 @@ for donefile in "$RESULTS_DIR"/*.meta.json.done; do
   touch "$ANNOUNCED"
   COMPLETIONS_FOUND=true
 done
-[ "$COMPLETIONS_FOUND" = true ] && exit 2
-[ "$FOCUS_SHOWN" = true ] && exit 2
+# Advisory notices should not veto tool calls. Keep optional legacy interrupt
+# behavior behind an explicit opt-in env flag.
+if [ "$COMPLETIONS_FOUND" = true ] || [ "$FOCUS_SHOWN" = true ]; then
+  if [ "$INTERRUPT_ON_NOTICES" = "1" ]; then
+    exit 2
+  fi
+fi
 exit 0

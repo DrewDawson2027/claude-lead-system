@@ -16,6 +16,7 @@ cp "$ROOT/hooks/model-router.py" "$HOME/.claude/hooks/"
 cp "$ROOT/hooks/read-efficiency-guard.py" "$HOME/.claude/hooks/"
 cp "$ROOT/hooks/hook_utils.py" "$HOME/.claude/hooks/"
 cp "$ROOT/hooks/health-check.sh" "$HOME/.claude/hooks/"
+cp -R "$ROOT/hooks/lib" "$HOME/.claude/hooks/"
 chmod +x "$HOME/.claude/hooks/"*.sh
 cp "$ROOT/mcp-coordinator/index.js" "$HOME/.claude/mcp-coordinator/index.js"
 

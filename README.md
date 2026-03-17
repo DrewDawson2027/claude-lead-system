@@ -79,48 +79,50 @@ You'll see a live dashboard of every active Claude terminal — what it's workin
 **Common MCP tools (usable from any Claude session):**
 
 ```bash
-coord_spawn_worker    # Start a new Claude worker on a task
-coord_watch_output    # Stream a worker's live output
+coord_spawn_worker    # Start a new Claude worker on a task (runs in background)
+coord_watch_output    # Check what a worker is currently doing
 coord_send_message    # Send instructions to a named worker
 ```
+
+> **Worker visibility:** Workers run as background processes by default — output goes to a local file, not a visible terminal. Use `coord_watch_output <worker_name>` to see what any worker is doing. For a split-pane view of workers as they run, launch `claudex` from inside a tmux session.
 
 ---
 
 ## What It Does
 
-| Feature                          | What It Does                                                                   |
-| -------------------------------- | ------------------------------------------------------------------------------ |
-| **Pre-edit conflict detection**  | Flags when two sessions are about to edit the same file — before the collision |
-| **Conflict lifecycle tracking**  | Track, resolve, and recheck conflicts across sessions                          |
-| **Worker spawn + kill + resume** | Start, stop, and re-enter workers from one control point                       |
-| **P2P worker messaging**         | Workers send messages directly to named peers via inbox files                  |
-| **Broadcast**                    | Send one message to all active workers simultaneously                          |
-| **Operator dashboard**           | Live table: session, status, branch, files touched, last active                |
-| **Plan approval protocol**       | Workers pause in plan mode; lead approves before execution                     |
-| **Pipeline orchestration**       | Run lint → test → build tracked from one place                                 |
-| **Budget gating**                | Cap tokens or turns per worker before spawning                                 |
-| **Zero API-token coordination**  | Filesystem carries coordination — no token cost for inter-worker comms         |
-| **Session resumption**           | Re-enter a prior Claude conversation, not a fresh start                        |
-| **Context store**                | Shared key/value store accessible to all workers in a session                  |
-| **Worktree isolation**           | Each worker can run in its own git branch — no conflicts                       |
-| **Live output streaming**        | Worker output streamed via SSE — <1ms teammate switching in TUI                |
-| **Activity audit log**           | Append-only record of every coordination event                                 |
-| **81 MCP tools**                 | Full tool surface for coordination, governance, and orchestration              |
+| Feature                          | What It Does                                                                               |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| **Pre-edit conflict detection**  | Flags when two sessions are about to edit the same file — before the collision             |
+| **Conflict lifecycle tracking**  | Track, resolve, and recheck conflicts across sessions                                      |
+| **Worker spawn + kill + resume** | Start, stop, and re-enter workers from one control point                                   |
+| **P2P worker messaging**         | Workers send messages directly to named peers via inbox files                              |
+| **Broadcast**                    | Send one message to all active workers simultaneously                                      |
+| **Operator dashboard**           | Live table: session, status, branch, files touched, last active                            |
+| **Plan approval protocol**       | Workers pause in plan mode; lead approves before execution                                 |
+| **Pipeline orchestration**       | Run lint → test → build tracked from one place                                             |
+| **Budget gating**                | Cap tokens or turns per worker before spawning                                             |
+| **Zero API-token coordination**  | Filesystem carries coordination — no token cost for inter-worker comms                     |
+| **Session resumption**           | Re-enter a prior Claude conversation, not a fresh start                                    |
+| **Context store**                | Shared key/value store accessible to all workers in a session                              |
+| **Worktree isolation**           | Each worker can run in its own git branch — no conflicts                                   |
+| **Worker output monitoring**     | Poll the latest N lines of any running worker's output on demand; use tmux for a live pane |
+| **Activity audit log**           | Append-only record of every coordination event                                             |
+| **81 MCP tools**                 | Full tool surface for coordination, governance, and orchestration                          |
 
 ---
 
 ## Lead vs. Native Agent Teams
 
-| Capability                              | Native Agent Teams | Lead System |
-| --------------------------------------- | ------------------ | ----------- |
-| Pre-edit conflict detection             | —                  | ✅ verified |
-| Operator dashboard (all sessions)       | —                  | ✅ verified |
-| Zero API-token coordination path        | —                  | ✅ verified |
-| Budget/spawn/approval governance        | —                  | ✅ verified |
-| In-process worker output streaming      | —                  | ✅ verified |
-| In-context teammate lifecycle           | ✅ verified        | ✅ verified |
-| First-party cross-platform UX           | ✅ verified        | partial     |
-| Minimum-setup (no external coordinator) | ✅ verified        | —           |
+| Capability                              | Native Agent Teams | Lead System                                                    |
+| --------------------------------------- | ------------------ | -------------------------------------------------------------- |
+| Pre-edit conflict detection             | —                  | ✅ verified                                                    |
+| Operator dashboard (all sessions)       | —                  | ✅ verified                                                    |
+| Zero API-token coordination path        | —                  | ✅ verified                                                    |
+| Budget/spawn/approval governance        | —                  | ✅ verified                                                    |
+| In-process worker output streaming      | ✅ verified        | partial (poll via coord_watch_output; live pane requires tmux) |
+| In-context teammate lifecycle           | ✅ verified        | ✅ verified                                                    |
+| First-party cross-platform UX           | ✅ verified        | partial                                                        |
+| Minimum-setup (no external coordinator) | ✅ verified        | —                                                              |
 
 Use Lead when you need conflict detection, observability, and governance across 4+ terminals.
 Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.

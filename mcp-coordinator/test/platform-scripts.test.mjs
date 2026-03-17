@@ -220,3 +220,44 @@ test("buildCodexInteractiveWorkerScript win32 returns unsupported message", () =
   });
   assert.match(cmd, /not supported on Windows/);
 });
+
+// ─── buildWorkerScript layout → tee vs redirect ─────────────────────────────
+
+const BASE_OPTS = {
+  taskId: "W_TEE",
+  workDir: "/tmp/work",
+  resultFile: "/tmp/r.txt",
+  pidFile: "/tmp/p.pid",
+  metaFile: "/tmp/m.json",
+  model: "haiku",
+  promptFile: "/tmp/prompt.txt",
+  platformName: "linux",
+};
+
+test("buildWorkerScript background layout uses >> redirect (silent)", () => {
+  const cmd = __test__.buildWorkerScript({ ...BASE_OPTS, layout: "background" });
+  assert.match(cmd, />> '\/tmp\/r\.txt' 2>&1/);
+  assert.ok(!cmd.includes("tee"), "background must not use tee");
+});
+
+test("buildWorkerScript tmux layout uses tee (visible in pane)", () => {
+  const cmd = __test__.buildWorkerScript({ ...BASE_OPTS, layout: "tmux" });
+  assert.match(cmd, /2>&1 \| tee -a '\/tmp\/r\.txt'/);
+  assert.ok(!cmd.includes(">> '/tmp/r.txt' 2>&1"), "tmux must not use silent redirect");
+});
+
+test("buildWorkerScript tab layout uses tee (visible in terminal)", () => {
+  const cmd = __test__.buildWorkerScript({ ...BASE_OPTS, layout: "tab" });
+  assert.match(cmd, /2>&1 \| tee -a '\/tmp\/r\.txt'/);
+});
+
+test("buildWorkerScript split layout uses tee (visible in terminal)", () => {
+  const cmd = __test__.buildWorkerScript({ ...BASE_OPTS, layout: "split" });
+  assert.match(cmd, /2>&1 \| tee -a '\/tmp\/r\.txt'/);
+});
+
+test("buildWorkerScript no layout defaults to silent redirect", () => {
+  const { layout: _omit, ...noLayout } = BASE_OPTS;
+  const cmd = __test__.buildWorkerScript(noLayout);
+  assert.match(cmd, />> '\/tmp\/r\.txt' 2>&1/);
+});

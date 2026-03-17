@@ -670,17 +670,44 @@ export function handleBroadcast(args) {
  * Handle coord_send_directive tool call.
  * Sends instruction to a worker/session + auto-wakes if idle.
  * Combined "send + verify delivery" — the lead's primary mid-execution control tool.
- * @param {object} args - { from, to, content, priority }
+ * @param {object} args - { from, to, target_name, team_name, content, priority }
  * @returns {object} MCP text response
  */
 export function handleSendDirective(args) {
   const { INBOX_DIR, TERMINALS_DIR } = cfg();
   const from = String(args.from || "lead").trim();
-  const to = sanitizeShortSessionId(args.to);
+  const teamName = args.team_name ? String(args.team_name).trim() : null;
   const content = String(args.content || "").trim();
   const priority = args.priority === "urgent" ? "urgent" : "normal";
   if (!content) return text("Directive content is required.");
   assertMessageBudget(content);
+
+  let to;
+  const targetName = args.target_name ? String(args.target_name).trim() : null;
+  if (targetName) {
+    const resolved = resolveWorkerName(targetName, teamName);
+    if (!resolved)
+      return text(
+        `Worker name "${targetName}" not found. Use coord_list_sessions to find active workers.`,
+      );
+    to = resolved;
+  } else if (args.to) {
+    const rawTo = String(args.to).trim();
+    to =
+      resolveNativeIdentitySession(rawTo, teamName) ||
+      sanitizeShortSessionId(rawTo);
+  } else {
+    return text(
+      "Either 'to' (session ID) or 'target_name' (worker name) is required.",
+    );
+  }
+
+  const recipientCheck = checkRecipientExists(to);
+  if (!recipientCheck.exists) {
+    return text(
+      `Recipient session '${to}' not found. Available sessions: ${listAvailableSessions()}`,
+    );
+  }
 
   // Write to inbox
   const inboxFile = join(INBOX_DIR, `${to}.jsonl`);

@@ -192,6 +192,33 @@ RESULT=$(echo '{"session_id":"bad!"}' | HOME="$TEST_HOME" bash "$HOOK_DIR/check-
 assert_match "rejects invalid session_id" "BLOCKED" "$RESULT"
 restore_home "$TEST_HOME"
 
+# Test: focused worker stream is advisory-only (must not block tools)
+TEST_HOME=$(new_home)
+echo "focus-worker" > "$TEST_HOME/.claude/terminals/.focus-state"
+jq -n '{"task_id":"W_FOCUS_OK","worker_name":"focus-worker","status":"running"}' > "$TEST_HOME/.claude/terminals/results/W_FOCUS_OK.meta.json"
+printf "line1\nline2\n" > "$TEST_HOME/.claude/terminals/results/W_FOCUS_OK.txt"
+echo $$ > "$TEST_HOME/.claude/terminals/results/W_FOCUS_OK.pid"
+set +e
+FOCUS_OUTPUT=$(echo '{"session_id":"focus1234abcd","tool_name":"Agent","tool_input":{}}' | HOME="$TEST_HOME" bash "$HOOK_DIR/check-inbox.sh" 2>/dev/null)
+FOCUS_EXIT=$?
+set -e
+assert_eq "focused worker stream does not veto tool calls" "0" "$FOCUS_EXIT"
+assert_match "focused worker stream still renders output" "focus-worker" "$FOCUS_OUTPUT"
+restore_home "$TEST_HOME"
+
+# Test: worker completion notice is advisory-only (must not block tools)
+TEST_HOME=$(new_home)
+jq -n '{"task_id":"W_DONE_OK","worker_name":"done-worker","status":"running"}' > "$TEST_HOME/.claude/terminals/results/W_DONE_OK.meta.json"
+echo '{"status":"completed"}' > "$TEST_HOME/.claude/terminals/results/W_DONE_OK.meta.json.done"
+echo "done output" > "$TEST_HOME/.claude/terminals/results/W_DONE_OK.txt"
+set +e
+DONE_OUTPUT=$(echo '{"session_id":"done1234abcd","tool_name":"Agent","tool_input":{}}' | HOME="$TEST_HOME" bash "$HOOK_DIR/check-inbox.sh" 2>/dev/null)
+DONE_EXIT=$?
+set -e
+assert_eq "completion notice does not veto tool calls" "0" "$DONE_EXIT"
+assert_match "completion notice still renders output" "completed task W_DONE_OK" "$DONE_OUTPUT"
+restore_home "$TEST_HOME"
+
 # ─── conflict-guard.sh tests ───
 echo ""
 echo "=== conflict-guard.sh ==="

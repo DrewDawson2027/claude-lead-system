@@ -359,12 +359,24 @@ PY
  check "terminal-heartbeat" ~/.claude/hooks/terminal-heartbeat.sh required
  check "session-register" ~/.claude/hooks/session-register.sh required
  check "check-inbox" ~/.claude/hooks/check-inbox.sh required
+ check "hook-lib-portable" ~/.claude/hooks/lib/portable.sh required
  check "session-end" ~/.claude/hooks/session-end.sh required
  check "teammate-lifecycle" ~/.claude/hooks/teammate-lifecycle.sh required
  check "token-guard" ~/.claude/hooks/token-guard.py required
  check "model-router" ~/.claude/hooks/model-router.py required
  check "read-efficiency-guard" ~/.claude/hooks/read-efficiency-guard.py required
  check "hook-utils" ~/.claude/hooks/hook_utils.py required
+
+ if [ -x ~/.claude/hooks/check-inbox.sh ]; then
+   if printf '%s' '{"session_id":"healthchk1234abcd","tool_name":"Read","tool_input":{}}' | \
+     CLAUDE_LEAD_INTERRUPT_ON_NOTICES=0 bash ~/.claude/hooks/check-inbox.sh >/dev/null 2>&1; then
+     echo "  PASS  check-inbox runtime self-test"
+     PASS=$((PASS + 1))
+   else
+     echo "  FAIL  check-inbox runtime self-test (valid payload returned non-zero)"
+     FAIL=$((FAIL + 1))
+   fi
+ fi
 
  echo ""
  echo "MCP Coordinator:"

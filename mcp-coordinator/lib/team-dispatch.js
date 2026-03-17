@@ -190,7 +190,7 @@ export function handleTeamDispatch(args) {
     ...(canNativeResume && { resume_agent_id: resolvedAgentId }),
   });
   const spawnTxt = contentText(spawnRes);
-  const spawned = /Worker spawned:/i.test(spawnTxt);
+  const spawned = /Worker (spawned|resumed)/i.test(spawnTxt);
   const resumedAgentId =
     spawnTxt.match(/Resumed agentId:\s*([^\n]+)/i)?.[1]?.trim() ||
     resolvedAgentId ||

@@ -121,7 +121,14 @@ echo "line3" >> "$HOME/.claude/terminals/results/WFOCUS.txt"
 echo $ > "$HOME/.claude/terminals/results/WFOCUS.pid"
 # Clear any cooldown stamp
 rm -f "$HOME/.claude/terminals/.focus-display.stamp"
-printf '%s' "$session_input" | bash "$ROOT/hooks/check-inbox.sh" > /tmp/focus-stream.out 2>/tmp/focus-stream.err || true
+set +e
+printf '%s' "$session_input" | bash "$ROOT/hooks/check-inbox.sh" > /tmp/focus-stream.out 2>/tmp/focus-stream.err
+focus_exit=$?
+set -e
+if [ "$focus_exit" -ne 0 ]; then
+  echo "focused worker stream should be advisory-only and return exit 0"
+  exit 1
+fi
 grep -q "test-worker" /tmp/focus-stream.out
 # Clean up
 rm -f "$HOME/.claude/terminals/.focus-state" "$HOME/.claude/terminals/.focus-display.stamp"
