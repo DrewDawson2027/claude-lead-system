@@ -994,18 +994,27 @@ export function buildWorkerScript(opts) {
     const claudeCmd = visibleLayout
       ? `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} $CLAUDE_PARENT_ARG ${agentArgs} ${settingsArgs} < ${qPrompt} 2>&1 | tee -a ${qResult}`
       : `unset CLAUDECODE && ${qClaudeBin} -p --model ${qModel} $CLAUDE_PARENT_ARG ${agentArgs} ${settingsArgs} < ${qPrompt} 2>&1 | tee -a ${qResult} > /dev/null`;
-    return [
+    // Split into setup (must succeed) and cleanup (must always run).
+    // The claude command may exit non-zero (hook failures, tool errors, etc.)
+    // but the .done marker and .pid cleanup MUST still execute — otherwise the
+    // coordinator thinks the worker is still running forever.
+    const setupCmds = [
       `cd ${qDir}`,
       `echo "Worker ${qTaskId} starting at $(date)" > ${qResult}`,
       `echo $$ > ${qPid}`,
       autoClaimEnv,
       parentSessionSetup,
-      claudeCmd,
+    ]
+      .filter(Boolean)
+      .join(" && ");
+    const cleanupCmds = [
       `printf '{"status":"completed","finished":"%s","task_id":"%s"}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${qTaskId} > ${qMetaDone}`,
       `rm -f ${qPid}`,
       autoClaimShellCommand(),
     ]
       .filter(Boolean)
-      .join(" && ");
+      .join("; ");
+    // Use ; before cleanup so it runs regardless of claude's exit code
+    return `${setupCmds} && ${claudeCmd}; ${cleanupCmds}`;
   }
 }
