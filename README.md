@@ -1,137 +1,124 @@
+<p align="center">
+  <picture>
+    <img src="assets/banner.svg" alt="Claude Lead System" width="800">
+  </picture>
+</p>
+
+<h1 align="center">Claude Lead System</h1>
+
+<p align="center">
+  <strong>One control room for all your Claude Code terminals.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/claude-lead-system">
+    <img src="https://img.shields.io/npm/v/claude-lead-system?style=flat-square&color=bb9af7" alt="npm" style="border: 2px solid #bb9af7; border-radius: 4px;">
+  </a>
+  <a href="https://github.com/DrewDawson2027/claude-lead-system/actions">
+    <img src="https://img.shields.io/badge/tests-594_passing-9ece6a?style=flat-square" alt="tests">
+  </a>
+  <a href="https://github.com/DrewDawson2027/claude-lead-system/actions">
+    <img src="https://img.shields.io/badge/coverage-85%25-9ece6a?style=flat-square" alt="coverage">
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/license-MIT-7aa2f7?style=flat-square" alt="license">
+  </a>
+</p>
+
 <div align="center">
-
-# Claude Lead System
-
-### One control room for all your Claude Code terminals.
-
-<div align="center">
-<img src="assets/demo-hero.gif" alt="Claude Lead System — conflict detection, cross-terminal messaging, persistent tasks" width="800" />
-</div>
-
-Detect file conflicts before they collide. Message and coordinate across terminals. Persistent tasks, shared context, team management. All from a single local coordinator — no API tokens spent on coordination.
-
-[![npm](https://img.shields.io/npm/v/claude-lead-system)](https://www.npmjs.com/package/claude-lead-system)
-[![Tests](https://img.shields.io/badge/tests-594%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
-[![Coverage](https://img.shields.io/badge/coverage-85%25%20lines-green)](https://github.com/DrewDawson2027/claude-lead-system/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
+  <img src="assets/ticker.svg" alt="Claude Lead System features" width="100%">
 </div>
 
 ---
 
-## The Problem
-
-Two Claude terminals. Same file. Neither knows the other is there.
+Two Claude terminals. Same file. Neither knows.
 
 ```
-Terminal A: editing src/auth/login.ts
-Terminal B: editing src/auth/login.ts  ← collision in 3... 2... 1...
+Terminal A → editing src/auth/login.ts
+Terminal B → editing src/auth/login.ts  ← about to collide
 ```
 
 One overwrites the other. You find out when the build breaks.
 
-**With Lead:**
-
 ```
-Lead: "check conflicts"
-→ CONFLICT: login.ts — terminal-a (editing) ↔ terminal-b (editing)
-→ Both sessions notified. Collision blocked.
+> /lead
+→ ⚠ CONFLICT: login.ts — frontend ↔ backend
+→ Both terminals notified. Collision blocked. 0 tokens used.
 ```
 
 ---
 
-## Quick Start
-
-### Quick (npm)
+## Install 📦
 
 ```bash
 npm install -g claude-lead-system
 ```
 
-### Standard (git)
-
-```bash
-git clone https://github.com/DrewDawson2027/claude-lead-system.git
-cd claude-lead-system && bash install.sh
-```
-
-Then open Claude Code normally and type `/lead`:
+Open Claude Code. Type `/lead`. That's it.
 
 ```bash
 claude
 > /lead
 ```
 
-That's it. The install wires the coordinator into your Claude settings automatically. No special launcher needed.
+The coordinator wires itself into your Claude settings automatically on first run — no special launcher, no extra config file to edit.
 
-You'll see a live dashboard of every active Claude terminal — what it's working on, what files it's touching, and whether any two sessions are about to collide.
+> **Prefer git?** `git clone https://github.com/DrewDawson2027/claude-lead-system.git && bash install.sh`
 
-**Why you'd use it:**
+---
 
-- You run 3+ Claude terminals and need one place to see what each is touching
-- You've had two sessions clobber the same file — and want to prevent it
-- You want to redirect, wake, or message other terminals from one control room
+## What It Does 🎯
 
-**Common MCP tools (usable from any Claude session):**
+If you've ever had two Claude sessions silently clobber each other's work and only found out when the build exploded — this is for you.
 
-```bash
-coord_send_message    # Send instructions to any Claude terminal
-coord_detect_conflicts # Check if two terminals are editing the same files
-coord_boot_snapshot   # Live dashboard of all active terminals
-coord_create_task     # Persistent task that survives sessions
+**Conflict detection** — Flags when two terminals are about to edit the same file, before the collision. Both sessions get notified. You get to intervene. The build stays green.
+
+**Cross-terminal messaging** — Tell any running terminal what to do, by name, from the lead session. "Backend, hold on `auth.ts` — frontend owns it right now." Message delivered. Zero API tokens spent — coordination runs on the filesystem, not through Claude's context window.
+
+**Persistent task board** — Create tasks that survive terminal restarts. Close a session, reopen it, the board is still there. Tasks don't vanish because a context window did.
+
+**Live dashboard** — Every active terminal, what branch it's on, what files it's touching, when it was last active. All of it, the moment you type `/lead`.
+
+**Plan approval protocol** — Workers pause before executing plans. Lead reviews and approves. You stay in control of what actually runs.
+
+---
+
+## Demo 🖥️
+
+<div align="center">
+  <img src="assets/demo-hero.svg" alt="Claude Lead System — conflict detection in action" width="700">
+</div>
+
+---
+
+## MCP Tools 🔧
+
+Available from any Claude session after install:
+
+```
+coord_detect_conflicts    # flag when two terminals are about to edit the same file
+coord_send_message        # send instructions to any terminal by name or session ID
+coord_boot_snapshot       # live dashboard — all active terminals at a glance
+coord_create_task         # create a persistent task on the shared board
+coord_broadcast           # send one message to all active terminals simultaneously
+```
+
+48 tools total. Full reference → [docs/MCP_TOOLS.md](docs/MCP_TOOLS.md)
+
+---
+
+## By the Numbers 📊
+
+```
+594 tests  ·  85% coverage  ·  48 MCP tools  ·  24 lib modules
+macOS verified (8/8)  ·  Linux verified (8/8)  ·  0 coordination tokens
 ```
 
 ---
 
-## What It Does
+## The Story ✍️
 
-| Feature                         | What It Does                                                                               |
-| ------------------------------- | ------------------------------------------------------------------------------------------ |
-| **Pre-edit conflict detection** | Flags when two sessions are about to edit the same file — before the collision             |
-| **Conflict lifecycle tracking** | Track, resolve, and recheck conflicts across sessions                                      |
-| **Cross-terminal messaging**    | Send instructions to any Claude terminal by name or session ID                             |
-| **P2P messaging**               | Terminals send messages directly to named peers via inbox files                            |
-| **Broadcast**                   | Send one message to all active terminals simultaneously                                    |
-| **Operator dashboard**          | Live table: session, status, branch, files touched, last active                            |
-| **Plan approval protocol**      | Workers pause in plan mode; lead approves before execution                                 |
-| **Persistent task board**       | Tasks survive sessions — track work across terminal restarts                               |
-| **Team management**             | Create teams, assign tasks, track completion across terminals                              |
-| **Zero API-token coordination** | Filesystem carries coordination — no token cost for inter-worker comms                     |
-| **Agent templates**             | Define reusable agent configs with role presets                                            |
-| **Context store**               | Shared key/value store accessible to all workers in a session                              |
-| **Worktree isolation**          | Each worker can run in its own git branch — no conflicts                                   |
-| **Worker output monitoring**    | Poll the latest N lines of any running worker's output on demand; use tmux for a live pane |
-| **Activity audit log**          | Append-only record of every coordination event                                             |
-| **35+ MCP tools**               | Full tool surface for coordination, governance, and orchestration                          |
-
----
-
-## By the Numbers
-
-- **594** automated tests (284 coordinator + 310 sidecar)
-- **85%** line coverage (coordinator + sidecar)
-- **35+** MCP coordination tools
-- **24** lib modules
-- **Zero** API tokens spent on coordination (filesystem path)
-- **8/8** macOS platform proofs passing · **8/8** Linux platform proofs passing
-
----
-
-## The Story
-
-I'm a Philosophy, Politics & Economics student at USC with no prior programming background. I built this entire system through Claude Code. 48 tools. 594 tests. A complete local coordination layer for multi-terminal Claude workflows. All of it written in natural language.
-
----
-
-## Platform Support
-
-| Platform | Status       | Notes                                                                                               |
-| -------- | ------------ | --------------------------------------------------------------------------------------------------- |
-| macOS    | Verified     | Full support. iTerm2 or tmux recommended for split-pane. 8/8 proofs passing.                        |
-| Linux    | Verified     | 8/8 proofs passing. Requires bash + tmux. See [compatibility matrix](docs/COMPATIBILITY_MATRIX.md). |
-| Windows  | Experimental | Advisory CI. Some features may not work.                                                            |
-
-**Requirements:** Node.js 18+, bash (macOS/Linux), Python 3.10+ (for hooks)
+I'm a Philosophy, Politics & Economics student at USC — no prior programming background. I built this entire system through Claude Code. 48 tools. 594 tests. A complete local coordination layer for multi-terminal Claude workflows. Every line of it written in natural language.
 
 ---
 
@@ -139,19 +126,17 @@ I'm a Philosophy, Politics & Economics student at USC with no prior programming 
 
 - [Claude Code](https://claude.ai/code) installed and authenticated
 - Node.js ≥ 18
-- `jq` (`brew install jq` / `apt install jq`)
+- `jq` — `brew install jq` / `apt install jq`
 - `bash`, `python3`
 
-> Docker users: all dependencies are bundled in the image.
+---
 
-## More
+## Docs 📄
 
-- [Getting Started](docs/GETTING_STARTED.md) — step-by-step first use walkthrough
-- [Docs](docs/) — architecture, API contract, MCP tool reference
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Security](docs/SECURITY.md)
-- [Contributing](CONTRIBUTING.md)
+[Getting Started](docs/GETTING_STARTED.md) · [MCP Tool Reference](docs/MCP_TOOLS.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Security](docs/SECURITY.md) · [Contributing](CONTRIBUTING.md)
 
-**Author:** Drew Dawson — [@DrewDawson2027](https://github.com/DrewDawson2027)
+---
 
-MIT License
+<p align="center">
+  MIT License · Made by <a href="https://github.com/DrewDawson2027">@DrewDawson2027</a>
+</p>
