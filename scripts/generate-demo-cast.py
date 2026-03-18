@@ -115,45 +115,34 @@ pause(0.25)
 spinner("coord_boot_snapshot", duration=0.7)
 nl(0.05)
 
-# Real coord_boot_snapshot output (verbatim from live tool call)
-line(f"  {W}# Lead — Online{R}")
-nl(0.03)
-line(f"  {W}## Sessions (3){R}", 0.04)
-line(
-    f"  {DIM}| Session  | TTY          | Project      | Status | W/E/B/R | Recent Files        | Last Op        |{R}",
-    0.03,
-)
-line(
-    f"  {DIM}|----------|--------------|--------------|--------|---------|---------------------|----------------|{R}",
-    0.02,
-)
-line(
-    f"  | de0cafe1 | /dev/ttys010 | my-saas-app  | {G}active{R} | 0/3/0/2 | {Y}Login.tsx{R}           | Edit Login.tsx |",
-    0.04,
-)
-line(
-    f"  | de0babe2 | /dev/ttys011 | my-saas-app  | {G}active{R} | 1/2/0/4 | {Y}Login.tsx{R}, auth.ts | Edit Login.tsx |",
-    0.04,
-)
-line(
-    f"  | de0test3 | /dev/ttys012 | my-saas-app  | {G}active{R} | 0/0/8/0 | —                   | Bash npm test  |",
-    0.04,
-)
+# Dashboard — clean names, no hex IDs, no TTY noise
+line(f"  {W}Lead — Online  ·  3 terminals active{R}")
 nl(0.05)
-line(f"  {W}## Conflicts{R}", 0.04)
-line(f"  {Y}⚠  Login.tsx:{R} de0cafe1, de0babe2", 0.04)
-nl(0.03)
-line(f"  {RED}## Recommended{R}", 0.04)
-line(f"  {RED}URGENT:{R} Resolve 1 conflict — message affected sessions")
+line(
+    f"  {G}●{R}  {W}frontend{R}   my-saas-app   {Y}Login.tsx{R}            {DIM}editing{R}",
+    0.05,
+)
+line(
+    f"  {G}●{R}  {W}backend{R}    my-saas-app   {Y}Login.tsx{R}, auth.ts   {DIM}editing{R}",
+    0.05,
+)
+line(
+    f"  {G}●{R}  {W}tests{R}      my-saas-app   —                   {DIM}npm test --watch{R}",
+    0.05,
+)
+nl(0.06)
+line(f"  {DIM}──────────────────────────────────────────────────────{R}", 0.04)
+line(f"  {Y}!  CONFLICT — src/components/Login.tsx{R}", 0.05)
+line(f"     {W}frontend{R}  is editing this file", 0.04)
+line(f"     {W}backend{R}   is editing this file", 0.04)
+line(f"     {DIM}one will overwrite the other{R}", 0.04)
+line(f"  {DIM}──────────────────────────────────────────────────────{R}")
 nl()
 pause(2.2)
 
 # Claude summary
-line(
-    f"  {GRAY}Two terminals editing Login.tsx simultaneously — one will overwrite the other.{R}",
-    0.03,
-)
-line(f"  {GRAY}frontend (de0cafe1) and backend (de0babe2) are both on it.{R}")
+line(f"  {GRAY}Caught it before either terminal made the change.{R}", 0.04)
+line(f"  {GRAY}Message backend to stand down?{R}")
 nl()
 pause(1.5)
 
@@ -170,17 +159,16 @@ spinner("coord_send_message(target_name: backend)", duration=0.5)
 nl(0.04)
 
 # Real coord_send_message output
-line(f"  Message sent to {W}de0babe2{R}", 0.04)
-line(f"  {DIM}· From: lead{R}", 0.03)
+line(f"  Message sent to {W}backend{R}", 0.04)
 line(
     f'  {DIM}· Content: "Hold off on Login.tsx — frontend terminal is taking it"{R}',
     0.03,
 )
-line(f"  {DIM}· 0 API tokens used.{R}")
+line(f"  {DIM}· 0 API tokens used — filesystem delivery only{R}")
 nl()
 pause(0.4)
 
-line(f"  {G}✓{R}  {GRAY}Delivered. Backend will see it on their next tool call.{R}")
+line(f"  {G}✓{R}  {GRAY}Delivered. Backend reads it on their next tool call.{R}")
 nl()
 pause(1.8)
 
