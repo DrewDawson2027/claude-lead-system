@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&amp;display=swap');
+      .bg { fill: #1a1b26; }
+      .titlebar { fill: #24283b; }
+      .text { font-family: 'JetBrains Mono', 'Menlo', monospace; font-size: 13px; fill: #c0caf5; }
+      .dim { fill: #565f89; }
+      .green { fill: #9ece6a; }
+      .yellow { fill: #e0af68; }
+      .red { fill: #f7768e; }
+      .blue { fill: #7aa2f7; }
+      .cyan { fill: #7dcfff; }
+      .prompt { fill: #bb9af7; }
+      .bold { font-weight: 700; }
+      .dot-red { fill: #ff5f57; }
+      .dot-yellow { fill: #febc2e; }
+      .dot-green { fill: #28c840; }
+    </style>
+  </defs>
+
+  <!-- Window -->
+  <rect class="bg" width="800" height="520" rx="10" />
+  <rect class="titlebar" width="800" height="36" rx="10" />
+  <rect class="bg" y="26" width="800" height="10" />
+
+  <!-- Traffic lights -->
+  <circle class="dot-red" cx="20" cy="18" r="6" />
+  <circle class="dot-yellow" cx="40" cy="18" r="6" />
+  <circle class="dot-green" cx="60" cy="18" r="6" />
+
+  <!-- Title -->
+  <text class="text dim" x="360" y="22" text-anchor="middle">claude — lead</text>
+
+  <!-- Prompt 1 -->
+  <text class="prompt" x="20" y="62">❯</text>
+  <text class="text" x="36" y="62">/lead</text>
+
+  <!-- Boot snapshot -->
+  <text class="text bold green" x="20" y="92">✓ Lead — Online</text>
+
+  <!-- Session table header -->
+  <text class="text dim" x="20" y="122">Session     Project        Status   Files</text>
+  <text class="text dim" x="20" y="136">─────────────────────────────────────────────────────────</text>
+
+  <!-- Sessions -->
+  <text class="text cyan" x="20" y="156">frontend</text>
+  <text class="text" x="132" y="156">my-saas-app    active</text>
+  <text class="text dim" x="380" y="156">Login.tsx, AuthProvider.tsx</text>
+
+  <text class="text cyan" x="20" y="176">backend</text>
+  <text class="text" x="132" y="176">my-saas-app    active</text>
+  <text class="text dim" x="380" y="176">auth.ts, Login.tsx, session.ts</text>
+
+  <text class="text cyan" x="20" y="196">tests</text>
+  <text class="text" x="132" y="196">my-saas-app    active</text>
+  <text class="text dim" x="380" y="196">auth.test.ts, api.test.ts</text>
+
+  <!-- Conflict alert -->
+  <text class="text bold red" x="20" y="230">⚠ CONFLICT: Login.tsx — frontend ↔ backend</text>
+
+  <!-- Prompt 2 -->
+  <text class="prompt" x="20" y="270">❯</text>
+  <text class="text" x="36" y="270">"tell backend to hold on Login.tsx"</text>
+
+  <text class="text green" x="20" y="300">✓ Message delivered to backend</text>
+  <text class="text dim" x="20" y="320">"Hold on Login.tsx — frontend is editing it. Switch to session.ts."</text>
+  <text class="text dim" x="20" y="340">0 API tokens used.</text>
+
+  <!-- Prompt 3 -->
+  <text class="prompt" x="20" y="380">❯</text>
+  <text class="text" x="36" y="380">"create a task for the auth migration"</text>
+
+  <text class="text green" x="20" y="410">✓ Task created: AUTH-001 — auth migration</text>
+  <text class="text dim" x="20" y="430">Persisted to task board. Survives session restarts.</text>
+
+  <!-- Status bar -->
+  <rect fill="#24283b" y="460" width="800" height="60" rx="0" />
+  <text class="text dim" x="20" y="485">3 sessions</text>
+  <text class="text red" x="130" y="485">1 conflict</text>
+  <text class="text dim" x="240" y="485">48 tools</text>
+  <text class="text dim" x="340" y="485">594 tests</text>
+  <text class="text green" x="460" y="485">0 coordination tokens</text>
+</svg>

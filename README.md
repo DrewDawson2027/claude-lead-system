@@ -5,7 +5,7 @@
 ### One control room for all your Claude Code terminals.
 
 <div align="center">
-<img src="demo.gif" alt="Claude Lead System — live demo: real test suite, conflict detection, health check" width="800" />
+<img src="assets/demo-hero.svg" alt="Claude Lead System — conflict detection, cross-terminal messaging, persistent tasks" width="800" />
 </div>
 
 Detect file conflicts before they collide. Message and coordinate across terminals. Persistent tasks, shared context, team management. All from a single local coordinator — no API tokens spent on coordination.
@@ -137,7 +137,7 @@ coord_create_task     # Persistent task that survives sessions
 
 ## The Story
 
-> _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 81 tools, 847 tests, SLSA supply chain security — entirely through Claude Code."_
+> _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 48 tools, 594 tests — entirely through Claude Code."_
 
 ---
 
