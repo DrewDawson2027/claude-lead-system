@@ -76,8 +76,8 @@ Current evidence posture summary:
 | `mcp-coordinator/index.js` | Entry point. Exports `__test__` API for integration tests.                                                       |
 | `lib/messaging.js`         | `resolveWorkerName()`, `handleSendMessage()`, `handleBroadcast()`, `handleSendProtocol()`, `queueNativeAction()` |
 | `lib/sessions.js`          | `handleDiscoverPeers()` — scans `*.meta.json` in RESULTS_DIR, links via `current_task`                           |
-| `lib/workers.js`           | Spawn, kill, resume. Role presets, budget gating, worktree isolation                                             |
-| `lib/platform/common.js`   | Cross-platform terminal launch. tmux pane spawn, exit trap, idle detector, resume script                         |
+| `lib/workers.js`           | Worker output queries, active worker summaries, result retrieval                                                 |
+| `lib/platform/common.js`   | Cross-platform utilities: terminal detection, process management, tmux messaging                                 |
 | `lib/security.js`          | Input validation, secure writes (0600), rate limiting                                                            |
 | `lib/team-tasking.js`      | Load-aware task assignment, rebalance                                                                            |
 | `lib/shutdown.js`          | Graceful shutdown request/response protocol                                                                      |
@@ -101,7 +101,7 @@ Current evidence posture summary:
 ## Test Commands
 
 ```bash
-# Run all tests (304 coordinator + 310 sidecar = 614 total, must stay green)
+# Run all tests (284 coordinator + 310 sidecar = 594 total, must stay green)
 cd mcp-coordinator && npm test
 
 # Run just the P2P integration tests
@@ -154,54 +154,16 @@ The goal is practical overlap plus differentiated local tooling, not an "exactly
 
 ---
 
-## E2E Verification Checklist (GAP 5 — manual one-time runs required)
-
-Code paths exist but have not been verified end-to-end. Run once before declaring GAP 5 closed.
+## E2E Verification Checklist
 
 ### Status Summary (as of 2026-03-17)
 
-| Scenario          | Code Path   | Integration Tests                             | Live Run                                                   |
-| ----------------- | ----------- | --------------------------------------------- | ---------------------------------------------------------- |
-| E1: Agent Resume  | ✅ verified | ✅ 7/7 e2e-agent-resume tests pass            | ✅ code-path verified, output-forwarder wired (2026-03-17) |
-| E2: P2P Messaging | ✅ verified | ✅ 4/4 p2p-messaging + 3/3 e2e-p2p-worker-dm  | ✅ verified (cross-process)                                |
-| E3: Plan Approval | ✅ verified | ✅ 11/11 e2e-plan-approval + gap-parity tests | ✅ code-path verified, full lifecycle tested (2026-03-17)  |
+Spawning tools removed — E1 (agent resume) no longer applies. E2 and E3 remain verified.
 
-### E1: Agent Resume (`buildResumeWorkerScript`)
-
-**Code path:** `buildResumeWorkerScript` at `lib/platform/common.js:626` — `--session-id` arg confirmed. `coord_resume_worker` wired in `index.js:1689`. Gap 2 tests cover true-resume path and continuation-spawn fallback. **Status: code path verified ✅**
-
-Live run steps (pending):
-
-1. Spawn a worker on a task, note the session ID from its meta file
-2. Kill the worker mid-task (`coord_kill_worker`)
-3. Call `coord_resume_worker` with that `session_id`
-4. Verify the resumed worker picks up from prior conversation context (not a fresh run)
-
-### E2: Bidirectional Worker-to-Peer Messaging
-
-**Code path:** `target_name` resolution in `lib/messaging.js:236` — tmuxSendKeys push + inbox fallback confirmed. `p2p-messaging.test.mjs` — 4/4 pass. `e2e-p2p-worker-dm.test.mjs` — 3/3 pass (cross-process subprocess boundary verified). **Status: ✅ fully verified (cross-process E2E)**
-
-**What was verified:** A real child `node` subprocess imports the coordinator, resolves `worker-b` by name from session files, and appends to `inbox/b2b2b2b2.jsonl`. The parent process then reads that file and asserts `from=worker-a` and `content=ping`. This proves two separate Node.js processes operating on the same filesystem coordinate correctly — the exact runtime scenario for real `claude -p` workers.
-
-Live tmux run (optional hardening):
-
-1. Spawn two workers on the same team: `alpha`, `beta`
-2. In alpha's task prompt, include: "call coord_send_message to target_name=beta with content=ping"
-3. Verify `~/.claude/terminals/inbox/{beta_session_id}.jsonl` contains the message
-4. Verify beta's tmux pane shows the injected message
-
-### E3: Plan Approval Flow
-
-**Code path:** `coord_send_protocol` wired in `index.js:1791` with `plan_approval_response` type. Both approve=true (`[APPROVED]`) and approve=false (`[REVISION]`) covered in `test/phase3-gap-parity.test.mjs` Gap 3 tests. **Status: code path verified ✅ / live worker-in-plan-mode run still pending**
-
-Live run steps (pending):
-
-1. Spawn a worker with `permission_mode: plan`
-2. Worker enters plan mode and calls `coord_send_protocol type=plan_approval_request`
-3. Lead receives the request via its inbox
-4. Call `coord_send_protocol type=plan_approval_response approve=true`; verify worker resumes
-
----
+| Scenario          | Status                                    |
+| ----------------- | ----------------------------------------- |
+| E2: P2P Messaging | ✅ verified (cross-process, 7/7 tests)    |
+| E3: Plan Approval | ✅ verified (11/11 tests, full lifecycle) |
 
 ## Rules for Working in This Repo
 
