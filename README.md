@@ -7,21 +7,24 @@
 <h1 align="center">The Lead System</h1>
 
 <p align="center">
-  <strong>One control room for all your AI coding terminals.</strong>
+  <strong>One control room for all your AI coding terminals.<br>Conflict detection · Cross-terminal messaging · Persistent task board · 0 coordination tokens.</strong>
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/claude-lead-system">
-    <img src="https://img.shields.io/npm/v/claude-lead-system?style=flat-square&color=ffffff&labelColor=000000" alt="npm">
+    <img src="https://img.shields.io/npm/v/claude-lead-system?style=flat-square&color=ffffff&labelColor=000000" alt="npm version">
   </a>
-  <a href="https://github.com/DrewDawson2027/lead-system/actions">
-    <img src="https://img.shields.io/badge/tests-594_passing-ffffff?style=flat-square&labelColor=000000" alt="tests">
+  <a href="https://github.com/DrewDawson2027/claude-lead-system/actions">
+    <img src="https://img.shields.io/badge/tests-594_passing-00c853?style=flat-square&labelColor=1a1a1a" alt="594 tests passing">
   </a>
-  <a href="https://github.com/DrewDawson2027/lead-system/actions">
-    <img src="https://img.shields.io/badge/coverage-85%25-ffffff?style=flat-square&labelColor=000000" alt="coverage">
+  <a href="https://github.com/DrewDawson2027/claude-lead-system/actions">
+    <img src="https://img.shields.io/badge/coverage-85%25-00c853?style=flat-square&labelColor=1a1a1a" alt="85% coverage">
   </a>
   <a href="https://opensource.org/licenses/MIT">
-    <img src="https://img.shields.io/badge/license-MIT-ffffff?style=flat-square&labelColor=000000" alt="license">
+    <img src="https://img.shields.io/badge/license-MIT-ffffff?style=flat-square&labelColor=000000" alt="MIT license">
+  </a>
+  <a href="docs/COMPATIBILITY_MATRIX.md">
+    <img src="https://img.shields.io/badge/platform-macOS_%7C_Linux-0077ff?style=flat-square&labelColor=1a1a1a" alt="macOS | Linux">
   </a>
 </p>
 
@@ -31,55 +34,67 @@
 
 ---
 
+## The Problem
+
 Two Claude terminals. Same file. Neither knows.
 
 ```
-Terminal A → editing src/auth/login.ts
-Terminal B → editing src/auth/login.ts  ← about to collide
+Terminal A  →  editing src/auth/login.ts
+Terminal B  →  editing src/auth/login.ts   ← collision incoming
 ```
 
-One overwrites the other. You find out when the build breaks.
+One silently overwrites the other. You find out when the build breaks — or worse, when a bug ships.
+
+## The Solution
 
 ```
-> /lead
-→ ⚠ CONFLICT: login.ts — frontend ↔ backend
-→ Both terminals notified. Collision blocked. 0 tokens used.
+claude > /lead
+
+→ ⚠  CONFLICT: src/auth/login.ts — frontend ↔ backend
+→  Both terminals notified. Collision blocked. 0 tokens used.
 ```
+
+The Lead System intercepts the collision **before** it happens. It runs entirely on the filesystem — no API round-trips, no extra token cost, no context window pollution.
 
 ---
 
-## Install 📦
+## Quick Start ⚡
+
+**Option A — npm (recommended)**
 
 ```bash
 npm install -g claude-lead-system
 ```
 
-Open Claude Code. Type `/lead`. That's it.
+**Option B — git**
 
 ```bash
-claude
-> /lead
+git clone https://github.com/DrewDawson2027/claude-lead-system.git
+cd claude-lead-system && bash install.sh
 ```
 
-The coordinator wires itself into your Claude settings automatically on first run — no special launcher, no extra config file to edit.
+Then launch Claude and type `/lead`:
 
-> **Prefer git?** `git clone https://github.com/DrewDawson2027/claude-lead-system.git && bash install.sh`
+```bash
+claudex        # starts Claude Code with the Lead System active
+> /lead        # boots the coordinator dashboard
+```
+
+The coordinator wires itself into your Claude settings on first run. No extra config files to edit.
 
 ---
 
 ## What It Does 🎯
 
-If you've ever had two Claude sessions silently clobber each other's work and only found out when the build exploded — this is for you.
-
-**Conflict detection** — Flags when two terminals are about to edit the same file, before the collision. Both sessions get notified. You get to intervene. The build stays green.
-
-**Cross-terminal messaging** — Tell any running terminal what to do, by name, from the lead session. "Backend, hold on `auth.ts` — frontend owns it right now." Message delivered. Zero API tokens spent — coordination runs on the filesystem, not through Claude's context window.
-
-**Persistent task board** — Create tasks that survive terminal restarts. Close a session, reopen it, the board is still there. Tasks don't vanish because a context window did.
-
-**Live dashboard** — Every active terminal, what branch it's on, what files it's touching, when it was last active. All of it, the moment you type `/lead`.
-
-**Plan approval protocol** — Workers pause before executing plans. Lead reviews and approves. You stay in control of what actually runs.
+| Capability | What happens |
+|---|---|
+| **Conflict detection** | Flags files touched by two sessions simultaneously — before either overwrites the other. Both sessions get notified. |
+| **Cross-terminal messaging** | Send instructions to any named terminal directly from the lead session. Delivered via the local filesystem inbox — zero API tokens. |
+| **Persistent task board** | Tasks survive terminal restarts. Close a session, reopen it — the board is still there. |
+| **Live dashboard** | Every active terminal: branch, files touched, last-active time. Refreshes on demand. |
+| **Plan approval protocol** | Workers pause before executing plans. Lead reviews and approves. You stay in control of what actually runs. |
+| **Budget governance** | Cap how many turns a worker can take before it stops. Prevents runaway sessions. |
+| **Session resumption** | Re-enter a prior worker conversation by session ID. Preserves context across restarts. |
 
 ---
 
@@ -91,34 +106,68 @@ If you've ever had two Claude sessions silently clobber each other's work and on
 
 ---
 
+## Lead-Exclusive Capabilities
+
+These features are not available in vanilla Claude Code multi-session workflows:
+
+| # | Capability | Detail |
+|---|---|---|
+| 1 | Real-time conflict detection | File-level, cross-session, pre-collision |
+| 2 | Zero-token coordination | All coordination uses local filesystem, not the API |
+| 3 | Named terminal messaging | Send to `frontend`, `backend`, `reviewer` — by name |
+| 4 | Persistent task board | Survives context-window resets and terminal restarts |
+| 5 | Plan approval gate | Workers wait for explicit lead sign-off before executing |
+| 6 | Turn budget caps | Hard limits on worker session length |
+| 7 | Session resumption by ID | Re-enter prior worker conversation |
+| 8 | Broadcast to all terminals | One message → all active workers simultaneously |
+| 9 | Live activity log | Append-only audit trail of all cross-terminal activity |
+
+---
+
 ## MCP Tools 🔧
 
-Available from any Claude session after install:
+48 coordinator tools available from any Claude session after install. Key tools:
 
-```
-coord_detect_conflicts    # flag when two terminals are about to edit the same file
-coord_send_message        # send instructions to any terminal by name or session ID
+```bash
+coord_detect_conflicts    # detect files touched by two sessions simultaneously
+coord_wake_session        # send a message to any terminal by session ID
 coord_boot_snapshot       # live dashboard — all active terminals at a glance
-coord_create_task         # create a persistent task on the shared board
-coord_broadcast           # send one message to all active terminals simultaneously
+coord_create_task         # add a persistent task to the shared board
+coord_broadcast           # send one message to all active terminals at once
+coord_spawn_worker        # launch a background worker with a task prompt
+coord_spawn_workers       # launch multiple workers in parallel
+coord_get_result          # retrieve the latest output from a worker
+coord_check_inbox         # check a session's inbox for pending messages
+coord_list_sessions       # list all active sessions with metadata
 ```
 
-48 tools total. Full reference → [docs/MCP_TOOLS.md](docs/MCP_TOOLS.md)
+Full reference → [docs/MCP_TOOL_REFERENCE.md](docs/MCP_TOOL_REFERENCE.md)
 
 ---
 
 ## By the Numbers 📊
 
-```
-594 tests  ·  85% coverage  ·  48 MCP tools  ·  24 lib modules
-macOS verified (8/8)  ·  Linux verified (8/8)  ·  0 coordination tokens
-```
+| Metric | Value |
+|---|---|
+| Tests | 594 passing |
+| Coverage | 85%+ |
+| MCP tools | 48 |
+| Library modules | 24 |
+| macOS capabilities verified | 8 / 8 |
+| Linux capabilities verified | 8 / 8 |
+| Coordination API tokens | 0 |
 
 ---
 
-## The Story ✍️
+## Platform Support
 
-I'm a Philosophy, Politics & Economics student at USC — no prior programming background. I built this entire system through Claude Code. 48 tools. 594 tests. A complete local coordination layer for multi-terminal Claude workflows. Every line of it written in natural language.
+| Platform | Status | Details |
+|---|---|---|
+| macOS | ✅ Verified | iTerm2, Terminal.app — all 8 capabilities |
+| Linux | ✅ Verified | gnome-terminal, konsole, kitty, alacritty, xterm — all 8 capabilities |
+| Windows | ⚪ Canary | Windows Terminal / PowerShell — CI canary, not yet verified |
+
+Full matrix → [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)
 
 ---
 
@@ -131,9 +180,39 @@ I'm a Philosophy, Politics & Economics student at USC — no prior programming b
 
 ---
 
+## The Story ✍️
+
+Built entirely through Claude Code by a Philosophy, Politics & Economics student at USC — no prior programming background. 48 tools. 594 tests. A complete local coordination layer for multi-terminal Claude workflows. Every line written in natural language, verified in CI.
+
+---
+
 ## Docs 📄
 
-[Getting Started](docs/GETTING_STARTED.md) · [MCP Tool Reference](docs/MCP_TOOLS.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Security](docs/SECURITY.md) · [Contributing](CONTRIBUTING.md)
+| Document | Description |
+|---|---|
+| [Getting Started](docs/GETTING_STARTED.md) | First 10 minutes walkthrough |
+| [MCP Tool Reference](docs/MCP_TOOL_REFERENCE.md) | All 48 coordinator tools |
+| [Architecture](docs/ARCHITECTURE.md) | System design and coordination layers |
+| [Compatibility Matrix](docs/COMPATIBILITY_MATRIX.md) | Evidence-backed platform support |
+| [Known Limitations](docs/KNOWN_LIMITATIONS.md) | What doesn't work yet and why |
+| [Security](docs/SECURITY.md) | Threat model, filesystem hardening, token guard |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common failure modes and fixes |
+| [Contributing](CONTRIBUTING.md) | Setup instructions and contribution areas |
+
+<details>
+<summary>Advanced install — signed release verification</summary>
+
+For production or verified release installs:
+
+```bash
+# Install a specific signed release (requires --version + signed metadata)
+# e.g. bash install.sh --version v1.2.0
+bash install.sh --version <version>
+```
+
+`--ref` installs are dev-only and require `--allow-unsigned-release`. See [docs/RELEASE_HARDENING.md](docs/RELEASE_HARDENING.md) for full verification steps.
+
+</details>
 
 ---
 
