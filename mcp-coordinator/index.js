@@ -88,7 +88,6 @@ import {
   handleListTeams,
   handleDeleteTeam,
   handleUpdateTeamPolicy,
-  _setSpawnWorkerFn,
 } from "./lib/teams.js";
 import {
   handleTeamStatusCompact,
@@ -1810,7 +1809,6 @@ export const __test__ = {
   handleGetTaskAudit,
   handleCheckQualityGates,
   handleCreateTeam,
-  _setSpawnWorkerFn,
   handleUpdateTeamPolicy,
   handleGetTeam,
   handleListTeams,
