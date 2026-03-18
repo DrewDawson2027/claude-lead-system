@@ -40,29 +40,20 @@ The Lead System intercepts the collision **before** it happens. It runs entirely
 
 ---
 
-## Quick Start ⚡
-
-**Option A — npm (recommended)**
+## Install
 
 ```bash
 npm install -g claude-lead-system
 ```
 
-**Option B — git**
-
-```bash
-git clone https://github.com/DrewDawson2027/claude-lead-system.git
-cd claude-lead-system && bash install.sh
-```
-
-Then launch Claude and type `/lead`:
+Open Claude Code. Type `/lead`. Done — the coordinator wires itself into your Claude settings on first run.
 
 ```bash
 claude
-> /lead        # boots the coordinator dashboard
+> /lead
 ```
 
-The coordinator wires itself into your Claude settings on first run. No extra config files to edit.
+> **Prefer git?** `git clone https://github.com/DrewDawson2027/claude-lead-system.git && bash install.sh`
 
 ---
 
