@@ -156,9 +156,7 @@
   "mcpServers": {
     "coordinator": {
       "command": "node",
-      "args": [
-        "__HOME__/.claude/mcp-coordinator/index.js"
-      ]
+      "args": ["__HOME__/.claude/mcp-coordinator/index.js"]
     }
   }
 }

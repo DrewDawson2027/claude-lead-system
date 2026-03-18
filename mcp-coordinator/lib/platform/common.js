@@ -149,7 +149,6 @@ export function spawnTmuxPaneWorker(script) {
     throw new Error(`tmux split-window returned unexpected pane ID: ${paneId}`);
   }
 
-
   return { paneId, app: "tmux" };
 }
 
@@ -511,7 +510,9 @@ export function buildInteractiveWorkerScript(opts) {
   const qModel = shellQuote(model);
   const qClaudeBin = shellQuote(CLAUDE_BIN);
   const agentArgs = agent ? `--agent ${shellQuote(agent)}` : "";
-  const workerSettingsFile = existsSync(WORKER_SETTINGS_FILE) ? WORKER_SETTINGS_FILE : SETTINGS_FILE;
+  const workerSettingsFile = existsSync(WORKER_SETTINGS_FILE)
+    ? WORKER_SETTINGS_FILE
+    : SETTINGS_FILE;
   const settingsArgs = existsSync(workerSettingsFile)
     ? `--settings ${shellQuote(workerSettingsFile)}`
     : "";
@@ -673,7 +674,9 @@ export function buildResumeWorkerScript(opts) {
   const qMetaDone = shellQuote(`${metaFile}.done`);
   const qClaudeBin = shellQuote(CLAUDE_BIN);
   const qSessionId = shellQuote(sessionId);
-  const workerSettingsFile = existsSync(WORKER_SETTINGS_FILE) ? WORKER_SETTINGS_FILE : SETTINGS_FILE;
+  const workerSettingsFile = existsSync(WORKER_SETTINGS_FILE)
+    ? WORKER_SETTINGS_FILE
+    : SETTINGS_FILE;
   const settingsArgs = existsSync(workerSettingsFile)
     ? `--settings ${shellQuote(workerSettingsFile)}`
     : "";
@@ -950,7 +953,9 @@ export function buildWorkerScript(opts) {
     const qModel = shellQuote(model);
     const qClaudeBin = shellQuote(CLAUDE_BIN);
     const agentArgs = agent ? `--agent ${shellQuote(agent)}` : "";
-    const workerSettingsFile = existsSync(WORKER_SETTINGS_FILE) ? WORKER_SETTINGS_FILE : SETTINGS_FILE;
+    const workerSettingsFile = existsSync(WORKER_SETTINGS_FILE)
+      ? WORKER_SETTINGS_FILE
+      : SETTINGS_FILE;
     const settingsArgs = existsSync(workerSettingsFile)
       ? `--settings ${shellQuote(workerSettingsFile)}`
       : "";
