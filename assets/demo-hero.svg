@@ -1,17 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520">
   <defs>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&amp;display=swap');
-      .bg { fill: #1a1b26; }
-      .titlebar { fill: #24283b; }
-      .text { font-family: 'JetBrains Mono', 'Menlo', monospace; font-size: 13px; fill: #c0caf5; }
-      .dim { fill: #565f89; }
-      .green { fill: #9ece6a; }
-      .yellow { fill: #e0af68; }
-      .red { fill: #f7768e; }
-      .blue { fill: #7aa2f7; }
-      .cyan { fill: #7dcfff; }
-      .prompt { fill: #bb9af7; }
+      .bg { fill: #0d1117; }
+      .titlebar { fill: #161b22; }
+      .text { font-family: 'Menlo', 'Monaco', 'Courier New', monospace; font-size: 13px; fill: #e6edf3; }
+      .dim { fill: #7d8590; }
+      .green { fill: #3fb950; }
+      .yellow { fill: #d29922; }
+      .red { fill: #f85149; }
+      .blue { fill: #58a6ff; }
+      .cyan { fill: #79c0ff; }
+      .prompt { fill: #d2a8ff; }
       .bold { font-weight: 700; }
       .dot-red { fill: #ff5f57; }
       .dot-yellow { fill: #febc2e; }
@@ -75,7 +74,7 @@
   <text class="text dim" x="20" y="430">Persisted to task board. Survives session restarts.</text>
 
   <!-- Status bar -->
-  <rect fill="#24283b" y="460" width="800" height="60" rx="0" />
+  <rect fill="#161b22" y="460" width="800" height="60" rx="0" />
   <text class="text dim" x="20" y="485">3 sessions</text>
   <text class="text red" x="130" y="485">1 conflict</text>
   <text class="text dim" x="240" y="485">48 tools</text>
