@@ -251,10 +251,8 @@ export function readTeamConfig(teamNameRaw) {
  * @returns {object|Promise<object>} MCP text response
  */
 export function handleCreateTeam(args) {
-  // If workers array is supplied, delegate to the async atomic path.
-  if (Array.isArray(args.workers) && args.workers.length > 0) {
-    return _handleCreateTeamAtomic(args);
-  }
+  // Workers array is stored as team metadata only — no process spawning.
+  // Users open terminals manually; the coordinator tracks and coordinates them.
   return _handleCreateTeamSync(args);
 }
 

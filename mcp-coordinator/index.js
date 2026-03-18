@@ -90,7 +90,6 @@ import {
   handleUpdateTeamPolicy,
   _setSpawnWorkerFn,
 } from "./lib/teams.js";
-import { handleTeamDispatch } from "./lib/team-dispatch.js";
 import {
   handleTeamStatusCompact,
   handleTeamQueueTask,
@@ -256,7 +255,6 @@ const TEAMS_TOOLS = new Set([
   "coord_list_teams",
   "coord_delete_team",
   "coord_update_team_policy",
-  "coord_team_dispatch",
   "coord_team_status_compact",
   "coord_team_queue_task",
   "coord_claim_next_task",
@@ -744,86 +742,6 @@ const ALL_TOOLS = [
         },
       },
       required: ["team_name"],
-    },
-  },
-  {
-    name: "coord_team_dispatch",
-    description:
-      "Create a team-scoped task and dispatch a worker using team policy defaults in one call.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        team_name: { type: "string", description: "Existing team name" },
-        subject: {
-          type: "string",
-          description: "Task title for the team task board",
-        },
-        prompt: { type: "string", description: "Worker prompt" },
-        directory: { type: "string", description: "Worker working directory" },
-        description: { type: "string" },
-        assignee: {
-          type: "string",
-          description: "Preferred team member name (auto-picked if omitted)",
-        },
-        priority: { type: "string", enum: ["low", "normal", "high"] },
-        files: { type: "array", items: { type: "string" } },
-        blocked_by: { type: "array", items: { type: "string" } },
-        metadata: { type: "object" },
-        create_task: {
-          type: "boolean",
-          description: "Create a task board record (default true)",
-        },
-        task_id: {
-          type: "string",
-          description: "Optional explicit task board ID",
-        },
-        worker_task_id: {
-          type: "string",
-          description: "Optional explicit worker task ID",
-        },
-        model: { type: "string" },
-        agent: { type: "string" },
-        role: {
-          type: "string",
-          enum: ["researcher", "implementer", "reviewer", "planner"],
-        },
-        mode: { type: "string", enum: ["pipe", "interactive"] },
-        runtime: { type: "string", enum: ["claude"] },
-        layout: { type: "string", enum: ["tab", "split", "background"] },
-        isolate: { type: "boolean" },
-        worker_name: { type: "string" },
-        notify_session_id: { type: "string" },
-        require_plan: { type: "boolean" },
-        permission_mode: {
-          type: "string",
-          enum: [
-            "acceptEdits",
-            "bypassPermissions",
-            "default",
-            "dontAsk",
-            "plan",
-            "planOnly",
-            "readOnly",
-            "editOnly",
-          ],
-        },
-        context_level: {
-          type: "string",
-          enum: ["minimal", "standard", "full"],
-        },
-        budget_policy: { type: "string", enum: ["off", "warn", "enforce"] },
-        budget_tokens: { type: "integer" },
-        global_budget_policy: {
-          type: "string",
-          enum: ["off", "warn", "enforce"],
-        },
-        global_budget_tokens: { type: "integer" },
-        max_active_workers: { type: "integer" },
-        max_turns: { type: "integer" },
-        context_summary: { type: "string" },
-        parent_session_id: { type: "string" },
-      },
-      required: ["team_name", "subject", "prompt", "directory"],
     },
   },
   {
@@ -1708,9 +1626,6 @@ function handleToolCall(name, args = {}) {
       case "coord_update_team_policy":
         result = handleUpdateTeamPolicy(args);
         break;
-      case "coord_team_dispatch":
-        result = handleTeamDispatch(args);
-        break;
       case "coord_team_status_compact":
         result = handleTeamStatusCompact(args);
         break;
@@ -1899,7 +1814,6 @@ export const __test__ = {
   handleUpdateTeamPolicy,
   handleGetTeam,
   handleListTeams,
-  handleTeamDispatch,
   handleTeamStatusCompact,
   handleTeamQueueTask,
   handleClaimNextTask,

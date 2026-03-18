@@ -63,33 +63,7 @@ function textOf(result) {
 // Team dispatch response
 // ═══════════════════════════════════════════════════════════════════════════════
 
-test('coord_team_dispatch success response contains team name', async () => {
-  const { home } = setupHome();
-  const projectDir = join(home, 'project');
-  mkdirSync(projectDir, { recursive: true });
 
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    api.handleCreateTeam({
-      team_name: 'dispatch-team',
-      members: [{ name: 'worker-a', role: 'implementer' }],
-    });
-
-    const result = api.handleToolCall('coord_team_dispatch', {
-      team_name: 'dispatch-team',
-      subject: 'Implement login',
-      prompt: 'Build the login page',
-      directory: projectDir,
-    });
-    const txt = textOf(result);
-    assert.match(txt, /dispatch-team|Dispatched/i, 'Should reference the team or dispatch action');
-    assert.match(txt, /login/i, 'Should reference the task subject');
-    assert.match(txt, /Dispatch Profile: low-overhead|Dispatch Profile: standard/i);
-  } finally {
-    restore();
-  }
-});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Session listing response

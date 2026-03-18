@@ -7,7 +7,7 @@
  *   3. fs.watchFile() polling at 150ms (~150-300ms latency)
  *
  * Workers write to ~/.claude/terminals/results/{taskId}.txt.
- * When the output-forwarder is active, it also streams to a Unix domain socket.
+ * Output streaming via file watching with fs.watch() and polling fallback.
  * We prefer the socket when available (real-time, no file I/O in critical path).
  */
 
@@ -56,7 +56,7 @@ export class OutputStreamManager extends EventEmitter {
 
     // Try socket first (if it exists on disk), fall back to file watching.
     // Synchronous existence check avoids async delays for the common case
-    // where no forwarder is running and no socket exists.
+    // where no socket exists.
     const socketPath = `/tmp/claude-worker-${taskId}.sock`;
     try {
       if (fs.existsSync(socketPath)) {
