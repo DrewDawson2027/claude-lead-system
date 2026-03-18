@@ -45,7 +45,7 @@ Lead: "check conflicts"
 ### Quick (npm)
 
 ```bash
-npm install -g claude-lead-system && claudex
+npm install -g claude-lead-system
 ```
 
 ### Standard (git)
@@ -53,20 +53,16 @@ npm install -g claude-lead-system && claudex
 ```bash
 git clone https://github.com/DrewDawson2027/claude-lead-system.git
 cd claude-lead-system && bash install.sh
-claudex
 ```
 
-### Try without installing (Docker)
+Then open Claude Code normally and type `/lead`:
 
 ```bash
-docker run -it ghcr.io/drewdawson2027/claude-lead-system
+claude
+> /lead
 ```
 
-Then in any install method, enter coordinator mode:
-
-```bash
-/lead
-```
+That's it. The install wires the coordinator into your Claude settings automatically. No special launcher needed.
 
 You'll see a live dashboard of every active Claude terminal — what it's working on, what files it's touching, and whether any two sessions are about to collide.
 
