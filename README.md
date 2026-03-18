@@ -1,32 +1,32 @@
 <p align="center">
   <picture>
-    <img src="assets/banner.svg" alt="Claude Lead System" width="800">
+    <img src="assets/banner.svg" alt="The Lead System" width="800">
   </picture>
 </p>
 
-<h1 align="center">Claude Lead System</h1>
+<h1 align="center">The Lead System</h1>
 
 <p align="center">
-  <strong>One control room for all your Claude Code terminals.</strong>
+  <strong>One control room for all your AI coding terminals.</strong>
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/claude-lead-system">
-    <img src="https://img.shields.io/npm/v/claude-lead-system?style=flat-square&color=bb9af7" alt="npm" style="border: 2px solid #bb9af7; border-radius: 4px;">
+    <img src="https://img.shields.io/npm/v/claude-lead-system?style=flat-square&color=ffffff&labelColor=000000" alt="npm">
   </a>
-  <a href="https://github.com/DrewDawson2027/claude-lead-system/actions">
-    <img src="https://img.shields.io/badge/tests-594_passing-9ece6a?style=flat-square" alt="tests">
+  <a href="https://github.com/DrewDawson2027/lead-system/actions">
+    <img src="https://img.shields.io/badge/tests-594_passing-ffffff?style=flat-square&labelColor=000000" alt="tests">
   </a>
-  <a href="https://github.com/DrewDawson2027/claude-lead-system/actions">
-    <img src="https://img.shields.io/badge/coverage-85%25-9ece6a?style=flat-square" alt="coverage">
+  <a href="https://github.com/DrewDawson2027/lead-system/actions">
+    <img src="https://img.shields.io/badge/coverage-85%25-ffffff?style=flat-square&labelColor=000000" alt="coverage">
   </a>
   <a href="https://opensource.org/licenses/MIT">
-    <img src="https://img.shields.io/badge/license-MIT-7aa2f7?style=flat-square" alt="license">
+    <img src="https://img.shields.io/badge/license-MIT-ffffff?style=flat-square&labelColor=000000" alt="license">
   </a>
 </p>
 
 <div align="center">
-  <img src="assets/ticker.svg" alt="Claude Lead System features" width="100%">
+  <img src="assets/ticker.svg" alt="The Lead System features" width="100%">
 </div>
 
 ---

@@ -1,40 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="38" viewBox="0 0 800 38">
-  <rect fill="#0d1117" width="800" height="38"/>
-  <line x1="0" y1="0" x2="800" y2="0" stroke="#21262d" stroke-width="1"/>
-  <line x1="0" y1="37" x2="800" y2="37" stroke="#21262d" stroke-width="1"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="36" viewBox="0 0 800 36">
+  <rect fill="#000000" width="800" height="36"/>
+  <line x1="0" y1="0"  x2="800" y2="0"  stroke="#1a1a1a" stroke-width="1"/>
+  <line x1="0" y1="35" x2="800" y2="35" stroke="#1a1a1a" stroke-width="1"/>
 
   <g>
     <animateTransform attributeName="transform" type="translate"
-      from="0,0" to="-1240,0"
-      dur="32s" repeatCount="indefinite"/>
+      from="0,0" to="-1260,0"
+      dur="34s" repeatCount="indefinite"/>
 
-    <!-- First copy -->
-    <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="12" y="24" x="20">
-      <tspan fill="#bb9af7">·</tspan><tspan fill="#4a5180" dx="8">Conflict Detection</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Cross-Terminal Messaging</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Persistent Tasks</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Live Dashboard</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">48 MCP Tools</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">594 Tests Passing</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Zero Coordination Tokens</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">macOS + Linux Verified</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Plan Approval Protocol</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Worktree Isolation</tspan>
-      <tspan dx="24"/>
+    <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="12" y="23" x="20">
+      <tspan fill="#333333">·</tspan><tspan fill="#444444" dx="10">Conflict Detection</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Cross-Terminal Messaging</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Persistent Tasks</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Live Dashboard</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">48 MCP Tools</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">594 Tests</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Zero Coordination Tokens</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">macOS + Linux</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Plan Approval Protocol</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Worktree Isolation</tspan>
+      <tspan dx="30"/>
     </text>
 
-    <!-- Second copy (seamless loop) -->
-    <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="12" y="24" x="1260">
-      <tspan fill="#bb9af7">·</tspan><tspan fill="#4a5180" dx="8">Conflict Detection</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Cross-Terminal Messaging</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Persistent Tasks</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Live Dashboard</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">48 MCP Tools</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">594 Tests Passing</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Zero Coordination Tokens</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">macOS + Linux Verified</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Plan Approval Protocol</tspan>
-      <tspan fill="#bb9af7" dx="16">·</tspan><tspan fill="#4a5180" dx="8">Worktree Isolation</tspan>
+    <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="12" y="23" x="1280">
+      <tspan fill="#333333">·</tspan><tspan fill="#444444" dx="10">Conflict Detection</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Cross-Terminal Messaging</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Persistent Tasks</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Live Dashboard</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">48 MCP Tools</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">594 Tests</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Zero Coordination Tokens</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">macOS + Linux</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Plan Approval Protocol</tspan>
+      <tspan fill="#333333" dx="18">·</tspan><tspan fill="#444444" dx="10">Worktree Isolation</tspan>
     </text>
   </g>
 </svg>
