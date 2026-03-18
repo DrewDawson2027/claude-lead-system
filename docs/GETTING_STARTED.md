@@ -24,7 +24,7 @@ When you see `Install complete`, you're done.
 In the same terminal window, run:
 
 ```bash
-claudex
+claude
 ```
 
 This starts Claude Code with the Lead System active. You'll see Claude's normal interface — but now it has the coordinator running in the background.
@@ -100,7 +100,7 @@ check on reviewer
 This pulls the latest output lines from the worker's result file and shows you where it is in the task. Run it again whenever you want an update — each call returns the current state.
 
 **Want a visible terminal?**
-Workers spawn as a background process by default, which is the fastest option. If you want to watch output in a visible pane, run `claudex` from inside a tmux session — Lead will automatically split a new pane for each worker instead.
+Workers spawn as a background process by default, which is the fastest option. If you want to watch output in a visible pane, run `claude` from inside a tmux session — Lead will automatically split a new pane for each worker instead.
 
 ---
 

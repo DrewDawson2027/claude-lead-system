@@ -15,7 +15,7 @@ On the blessed public path, Lead can:
 ## Verified public lane
 
 - **Install path** — `install.sh` with the default profile
-- **Launch path** — `claudex`
+- **Launch path** — `claude`
 - **Command path** — `/lead`
 - **Runtime posture** — coordinator mode
 - **Strongest verified public environment** — macOS coordinator path
