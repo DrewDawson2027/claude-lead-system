@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "coordinator": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/Users/drewdawson/.claude/mcp-coordinator/index.js"],
+      "env": {}
+    }
+  }
+}

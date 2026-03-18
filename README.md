@@ -83,7 +83,7 @@ The coordinator wires itself into your Claude settings on first run. No extra co
 ## Demo 🖥️
 
 <div align="center">
-  <img src="assets/demo-hero.svg" alt="Claude Lead System — conflict detection in action" width="700" />
+  <img src="assets/demo-hero-v2.svg" alt="Claude Lead System — conflict detection in action" width="700" />
 </div>
 
 ---
