@@ -1,35 +1,17 @@
-<p align="center">
-  <picture>
-    <img src="assets/banner.svg" alt="The Lead System" width="800">
-  </picture>
-</p>
-
-<h1 align="center">The Lead System</h1>
-
-<p align="center">
-  <strong>One control room for all your AI coding terminals.<br>Conflict detection · Cross-terminal messaging · Persistent task board · 0 coordination tokens.</strong>
-</p>
-
-<p align="center">
-  <a href="https://www.npmjs.com/package/claude-lead-system">
-    <img src="https://img.shields.io/npm/v/claude-lead-system?style=flat-square&color=ffffff&labelColor=000000" alt="npm version">
-  </a>
-  <a href="https://github.com/DrewDawson2027/claude-lead-system/actions">
-    <img src="https://img.shields.io/badge/tests-594_passing-00c853?style=flat-square&labelColor=1a1a1a" alt="594 tests passing">
-  </a>
-  <a href="https://github.com/DrewDawson2027/claude-lead-system/actions">
-    <img src="https://img.shields.io/badge/coverage-85%25-00c853?style=flat-square&labelColor=1a1a1a" alt="85% coverage">
-  </a>
-  <a href="https://opensource.org/licenses/MIT">
-    <img src="https://img.shields.io/badge/license-MIT-ffffff?style=flat-square&labelColor=000000" alt="MIT license">
-  </a>
-  <a href="docs/COMPATIBILITY_MATRIX.md">
-    <img src="https://img.shields.io/badge/platform-macOS_%7C_Linux-0077ff?style=flat-square&labelColor=1a1a1a" alt="macOS | Linux">
-  </a>
-</p>
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1117,100:161b22&height=220&section=header&text=Claude%20Lead%20System&fontSize=58&fontColor=e6edf3&animation=fadeIn&fontAlignY=40&desc=One%20control%20room%20for%20all%20your%20Claude%20Code%20terminals.&descAlignY=62&descSize=18&descColor=8b949e" />
 
 <div align="center">
-  <img src="assets/ticker.svg" alt="The Lead System features" width="100%">
+
+[![npm](https://img.shields.io/npm/v/claude-lead-system?style=flat-square&color=7aa2f7&labelColor=0d1117)](https://www.npmjs.com/package/claude-lead-system)
+[![Tests](https://img.shields.io/badge/tests-594_passing-9ece6a?style=flat-square&labelColor=0d1117)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![Coverage](https://img.shields.io/badge/coverage-85%25-9ece6a?style=flat-square&labelColor=0d1117)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![License](https://img.shields.io/badge/license-MIT-bb9af7?style=flat-square&labelColor=0d1117)](https://opensource.org/licenses/MIT)
+[![Platform](https://img.shields.io/badge/platform-macOS_%7C_Linux-7aa2f7?style=flat-square&labelColor=0d1117)](docs/COMPATIBILITY_MATRIX.md)
+
+<br/>
+
+[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=16&duration=2500&pause=1000&color=7AA2F7&center=true&vCenter=true&width=500&lines=Conflict+detection+before+collision;Cross-terminal+messaging%2C+zero+tokens;Persistent+tasks+that+survive+restarts;Live+dashboard+for+all+terminals)](https://git.io/typing-svg)
+
 </div>
 
 ---
@@ -101,7 +83,7 @@ The coordinator wires itself into your Claude settings on first run. No extra co
 ## Demo 🖥️
 
 <div align="center">
-  <img src="assets/demo-hero.svg" alt="Claude Lead System — conflict detection in action" width="700">
+  <img src="assets/demo-hero.svg" alt="Claude Lead System — conflict detection in action" width="700" />
 </div>
 
 ---
@@ -147,15 +129,19 @@ Full reference → [docs/MCP_TOOL_REFERENCE.md](docs/MCP_TOOL_REFERENCE.md)
 
 ## By the Numbers 📊
 
+<div align="center">
+
 | Metric | Value |
-|---|---|
-| Tests | 594 passing |
-| Coverage | 85%+ |
-| MCP tools | 48 |
-| Library modules | 24 |
-| macOS capabilities verified | 8 / 8 |
-| Linux capabilities verified | 8 / 8 |
-| Coordination API tokens | 0 |
+|:---|:---|
+| Tests | **594 passing** |
+| Coverage | **85%+** |
+| MCP tools | **48** |
+| Library modules | **24** |
+| macOS capabilities verified | **8 / 8** |
+| Linux capabilities verified | **8 / 8** |
+| Coordination API tokens | **0** |
+
+</div>
 
 ---
 
@@ -216,6 +202,8 @@ bash install.sh --version <version>
 
 ---
 
-<p align="center">
+<div align="center">
   MIT License · Made by <a href="https://github.com/DrewDawson2027">@DrewDawson2027</a>
-</p>
+</div>
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:161b22,100:0d1117&height=100&section=footer" />
