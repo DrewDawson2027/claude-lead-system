@@ -1,16 +1,28 @@
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1117,100:161b22&height=220&section=header&text=Claude%20Lead%20System&fontSize=58&fontColor=e6edf3&animation=fadeIn&fontAlignY=40&desc=One%20control%20room%20for%20all%20your%20Claude%20Code%20terminals.&descAlignY=62&descSize=18&descColor=8b949e" />
-
 <div align="center">
 
-[![npm](https://img.shields.io/npm/v/claude-lead-system?style=flat-square&color=7aa2f7&labelColor=0d1117)](https://www.npmjs.com/package/claude-lead-system)
-[![Tests](https://img.shields.io/badge/tests-594_passing-9ece6a?style=flat-square&labelColor=0d1117)](https://github.com/DrewDawson2027/claude-lead-system/actions)
-[![Coverage](https://img.shields.io/badge/coverage-85%25-9ece6a?style=flat-square&labelColor=0d1117)](https://github.com/DrewDawson2027/claude-lead-system/actions)
-[![License](https://img.shields.io/badge/license-MIT-bb9af7?style=flat-square&labelColor=0d1117)](https://opensource.org/licenses/MIT)
-[![Platform](https://img.shields.io/badge/platform-macOS_%7C_Linux-7aa2f7?style=flat-square&labelColor=0d1117)](docs/COMPATIBILITY_MATRIX.md)
+<br />
 
-<br/>
+# claude-lead-system
 
-[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=16&duration=2500&pause=1000&color=7AA2F7&center=true&vCenter=true&width=500&lines=Conflict+detection+before+collision;Cross-terminal+messaging%2C+zero+tokens;Persistent+tasks+that+survive+restarts;Live+dashboard+for+all+terminals)](https://git.io/typing-svg)
+**Local coordination for Claude Code.**  
+Conflict detection · Cross-terminal messaging · Persistent tasks · Shared context.  
+**Zero API tokens for coordination.**
+
+<br />
+
+[![npm](https://img.shields.io/npm/v/claude-lead-system?style=for-the-badge&color=7aa2f7&labelColor=0d1117&logo=npm&logoColor=white)](https://www.npmjs.com/package/claude-lead-system)
+[![Tests](https://img.shields.io/badge/tests-594_passing-9ece6a?style=for-the-badge&labelColor=0d1117&logo=checkmarx&logoColor=white)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![Coverage](https://img.shields.io/badge/coverage-85%25-9ece6a?style=for-the-badge&labelColor=0d1117&logo=codecov&logoColor=white)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![License](https://img.shields.io/badge/license-MIT-bb9af7?style=for-the-badge&labelColor=0d1117)](https://opensource.org/licenses/MIT)
+[![Platform](https://img.shields.io/badge/macOS%20%7C%20Linux-verified-7aa2f7?style=for-the-badge&labelColor=0d1117&logo=apple&logoColor=white)](docs/COMPATIBILITY_MATRIX.md)
+
+<br />
+
+[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=15&duration=2500&pause=1000&color=7AA2F7&center=true&vCenter=true&width=520&lines=Conflict+detection+before+collision;Cross-terminal+messaging%2C+zero+tokens;Persistent+tasks+that+survive+restarts;Live+dashboard+for+all+terminals;48+MCP+tools.+594+tests.+0+token+cost.)](https://git.io/typing-svg)
+
+<br />
+
+[**Install**](#install) · [**How It Works**](#what-it-does) · [**MCP Tools**](#mcp-tools) · [**Docs**](#docs)
 
 </div>
 
@@ -57,25 +69,17 @@ claude
 
 ---
 
-## What It Does 🎯
+## What It Does
 
-| Capability                   | What happens                                                                                                                        |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Conflict detection**       | Flags files touched by two sessions simultaneously — before either overwrites the other. Both sessions get notified.                |
+| Capability | What happens |
+|---|---|
+| **Conflict detection** | Flags files touched by two sessions simultaneously — before either overwrites the other. Both sessions get notified. |
 | **Cross-terminal messaging** | Send instructions to any named terminal directly from the lead session. Delivered via the local filesystem inbox — zero API tokens. |
-| **Persistent task board**    | Tasks survive terminal restarts. Close a session, reopen it — the board is still there.                                             |
-| **Live dashboard**           | Every active terminal: branch, files touched, last-active time. Refreshes on demand.                                                |
-| **Plan approval protocol**   | Workers pause before executing plans. Lead reviews and approves. You stay in control of what actually runs.                         |
-| **Budget governance**        | Cap how many turns a worker can take before it stops. Prevents runaway sessions.                                                    |
-| **Session resumption**       | Re-enter a prior worker conversation by session ID. Preserves context across restarts.                                              |
-
----
-
-## Demo 🖥️
-
-<div align="center">
-  <img src="assets/demo-hero-v2.svg" alt="Claude Lead System — conflict detection in action" width="700" />
-</div>
+| **Persistent task board** | Tasks survive terminal restarts. Close a session, reopen it — the board is still there. |
+| **Live dashboard** | Every active terminal: branch, files touched, last-active time. Refreshes on demand. |
+| **Plan approval protocol** | Workers pause before executing plans. Lead reviews and approves. You stay in control of what actually runs. |
+| **Budget governance** | Cap how many turns a worker can take before it stops. Prevents runaway sessions. |
+| **Session resumption** | Re-enter a prior worker conversation by session ID. Preserves context across restarts. |
 
 ---
 
@@ -83,21 +87,21 @@ claude
 
 These features are not available in vanilla Claude Code multi-session workflows:
 
-| #   | Capability                   | Detail                                                   |
-| --- | ---------------------------- | -------------------------------------------------------- |
-| 1   | Real-time conflict detection | File-level, cross-session, pre-collision                 |
-| 2   | Zero-token coordination      | All coordination uses local filesystem, not the API      |
-| 3   | Named terminal messaging     | Send to `frontend`, `backend`, `reviewer` — by name      |
-| 4   | Persistent task board        | Survives context-window resets and terminal restarts     |
-| 5   | Plan approval gate           | Workers wait for explicit lead sign-off before executing |
-| 6   | Turn budget caps             | Hard limits on worker session length                     |
-| 7   | Session resumption by ID     | Re-enter prior worker conversation                       |
-| 8   | Broadcast to all terminals   | One message → all active workers simultaneously          |
-| 9   | Live activity log            | Append-only audit trail of all cross-terminal activity   |
+| # | Capability | Detail |
+|---|---|---|
+| 1 | Real-time conflict detection | File-level, cross-session, pre-collision |
+| 2 | Zero-token coordination | All coordination uses local filesystem, not the API |
+| 3 | Named terminal messaging | Send to `frontend`, `backend`, `reviewer` — by name |
+| 4 | Persistent task board | Survives context-window resets and terminal restarts |
+| 5 | Plan approval gate | Workers wait for explicit lead sign-off before executing |
+| 6 | Turn budget caps | Hard limits on worker session length |
+| 7 | Session resumption by ID | Re-enter prior worker conversation |
+| 8 | Broadcast to all terminals | One message → all active workers simultaneously |
+| 9 | Live activity log | Append-only audit trail of all cross-terminal activity |
 
 ---
 
-## MCP Tools 🔧
+## MCP Tools
 
 48 coordinator tools available from any Claude session after install. Key tools:
 
@@ -118,19 +122,19 @@ Full reference → [docs/MCP_TOOL_REFERENCE.md](docs/MCP_TOOL_REFERENCE.md)
 
 ---
 
-## By the Numbers 📊
+## By the Numbers
 
 <div align="center">
 
-| Metric                      | Value           |
-| :-------------------------- | :-------------- |
-| Tests                       | **594 passing** |
-| Coverage                    | **85%+**        |
-| MCP tools                   | **48**          |
-| Library modules             | **24**          |
-| macOS capabilities verified | **8 / 8**       |
-| Linux capabilities verified | **8 / 8**       |
-| Coordination API tokens     | **0**           |
+| Metric | Value |
+|:---|:---:|
+| Tests | **594 passing** |
+| Coverage | **85%+** |
+| MCP tools | **48** |
+| Library modules | **24** |
+| macOS capabilities verified | **8 / 8** |
+| Linux capabilities verified | **8 / 8** |
+| Coordination API tokens | **0** |
 
 </div>
 
@@ -138,11 +142,11 @@ Full reference → [docs/MCP_TOOL_REFERENCE.md](docs/MCP_TOOL_REFERENCE.md)
 
 ## Platform Support
 
-| Platform | Status      | Details                                                               |
-| -------- | ----------- | --------------------------------------------------------------------- |
-| macOS    | ✅ Verified | iTerm2, Terminal.app — all 8 capabilities                             |
-| Linux    | ✅ Verified | gnome-terminal, konsole, kitty, alacritty, xterm — all 8 capabilities |
-| Windows  | ⚪ Canary   | Windows Terminal / PowerShell — CI canary, not yet verified           |
+| Platform | Status | Details |
+|---|---|---|
+| macOS | ✅ Verified | iTerm2, Terminal.app — all 8 capabilities |
+| Linux | ✅ Verified | gnome-terminal, konsole, kitty, alacritty, xterm — all 8 capabilities |
+| Windows | ⚪ Canary | Windows Terminal / PowerShell — CI canary, not yet verified |
 
 Full matrix → [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)
 
@@ -157,27 +161,32 @@ Full matrix → [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)
 
 ---
 
-## The Story ✍️
+## The Story
 
-Built entirely through Claude Code by a Philosophy, Politics & Economics student at USC — no prior programming background. 48 tools. 594 tests. A complete local coordination layer for multi-terminal Claude workflows. Every line written in natural language, verified in CI.
+> Built entirely through Claude Code by a Philosophy, Politics & Economics student at USC — no prior programming background.
+>
+> 48 tools. 594 tests. A complete local coordination layer for multi-terminal Claude workflows.
+>
+> Every line written in natural language, verified in CI.
 
 ---
 
-## Docs 📄
+## Docs
 
-| Document                                             | Description                                     |
-| ---------------------------------------------------- | ----------------------------------------------- |
-| [Getting Started](docs/GETTING_STARTED.md)           | First 10 minutes walkthrough                    |
-| [MCP Tool Reference](docs/MCP_TOOL_REFERENCE.md)     | All 48 coordinator tools                        |
-| [Architecture](docs/ARCHITECTURE.md)                 | System design and coordination layers           |
-| [Compatibility Matrix](docs/COMPATIBILITY_MATRIX.md) | Evidence-backed platform support                |
-| [Known Limitations](docs/KNOWN_LIMITATIONS.md)       | What doesn't work yet and why                   |
-| [Security](docs/SECURITY.md)                         | Threat model, filesystem hardening, token guard |
-| [Troubleshooting](docs/TROUBLESHOOTING.md)           | Common failure modes and fixes                  |
-| [Contributing](CONTRIBUTING.md)                      | Setup instructions and contribution areas       |
+| Document | Description |
+|---|---|
+| [Getting Started](docs/GETTING_STARTED.md) | First 10 minutes walkthrough |
+| [MCP Tool Reference](docs/MCP_TOOL_REFERENCE.md) | All 48 coordinator tools |
+| [Architecture](docs/ARCHITECTURE.md) | System design and coordination layers |
+| [Compatibility Matrix](docs/COMPATIBILITY_MATRIX.md) | Evidence-backed platform support |
+| [Known Limitations](docs/KNOWN_LIMITATIONS.md) | What doesn't work yet and why |
+| [Security](docs/SECURITY.md) | Threat model, filesystem hardening, token guard |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common failure modes and fixes |
+| [Contributing](CONTRIBUTING.md) | Setup instructions and contribution areas |
 
 <details>
 <summary>Advanced install — signed release verification</summary>
+<br />
 
 For production or verified release installs:
 
@@ -194,7 +203,7 @@ bash install.sh --version <version>
 ---
 
 <div align="center">
-  MIT License · Made by <a href="https://github.com/DrewDawson2027">@DrewDawson2027</a>
-</div>
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:161b22,100:0d1117&height=100&section=footer" />
+MIT License · Made by [@DrewDawson2027](https://github.com/DrewDawson2027)
+
+</div>
