@@ -58,7 +58,7 @@ cd claude-lead-system && bash install.sh
 Then launch Claude and type `/lead`:
 
 ```bash
-claudex        # starts Claude Code with the Lead System active
+claude
 > /lead        # boots the coordinator dashboard
 ```
 
