@@ -208,7 +208,7 @@ bash install.sh --version <version>
 
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:7aa2f7,30:1a1f35,70:0d1117,100:0d1117&height=120&section=footer" width="100%" />
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:7aa2f7,50:6272a4,100:bd93f9&height=120&section=footer" width="100%" />
 
 MIT License · Made by [@DrewDawson2027](https://github.com/DrewDawson2027)
 
