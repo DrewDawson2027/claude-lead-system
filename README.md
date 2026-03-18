@@ -11,7 +11,7 @@
 Detect file conflicts before they collide. Message and coordinate across terminals. Persistent tasks, shared context, team management. All from a single local coordinator — no API tokens spent on coordination.
 
 [![npm](https://img.shields.io/npm/v/claude-lead-system)](https://www.npmjs.com/package/claude-lead-system)
-[![Tests](https://img.shields.io/badge/tests-614%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![Tests](https://img.shields.io/badge/tests-594%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![Coverage](https://img.shields.io/badge/coverage-85%25%20lines-green)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -130,7 +130,7 @@ coord_create_task     # Persistent task that survives sessions
 
 ## By the Numbers
 
-- **614** automated tests (304 coordinator + 310 sidecar)
+- **594** automated tests (284 coordinator + 310 sidecar)
 - **85%** line coverage (coordinator + sidecar)
 - **35+** MCP coordination tools
 - **24** lib modules
