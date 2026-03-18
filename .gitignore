@@ -31,3 +31,5 @@ Thumbs.db
 
 # Generated test output
 mcp-coordinator/coverage/
+.mcp.json
+.claude/worktrees/
