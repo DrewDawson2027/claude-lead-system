@@ -1,107 +1,84 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520">
   <defs>
-    <linearGradient id="win-bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1e1f2e"/>
-      <stop offset="100%" stop-color="#16171f"/>
-    </linearGradient>
-    <linearGradient id="bar-bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#2a2b3d"/>
-      <stop offset="100%" stop-color="#242535"/>
-    </linearGradient>
-    <linearGradient id="status-bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1f2035"/>
-      <stop offset="100%" stop-color="#1a1b2a"/>
-    </linearGradient>
-    <filter id="glow-red">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&amp;display=swap');
+      .bg { fill: #1a1b26; }
+      .titlebar { fill: #24283b; }
+      .text { font-family: 'JetBrains Mono', 'Menlo', monospace; font-size: 13px; fill: #c0caf5; }
+      .dim { fill: #565f89; }
+      .green { fill: #9ece6a; }
+      .yellow { fill: #e0af68; }
+      .red { fill: #f7768e; }
+      .blue { fill: #7aa2f7; }
+      .cyan { fill: #7dcfff; }
+      .prompt { fill: #bb9af7; }
+      .bold { font-weight: 700; }
+      .dot-red { fill: #ff5f57; }
+      .dot-yellow { fill: #febc2e; }
+      .dot-green { fill: #28c840; }
+    </style>
   </defs>
 
-  <!-- Window shadow -->
-  <rect fill="#000000" fill-opacity="0.4" x="4" y="6" width="792" height="490" rx="13"/>
-
   <!-- Window -->
-  <rect fill="url(#win-bg)" width="800" height="494" rx="12"/>
-
-  <!-- Title bar -->
-  <rect fill="url(#bar-bg)" width="800" height="42" rx="12"/>
-  <rect fill="#242535" y="30" width="800" height="12"/>
+  <rect class="bg" width="800" height="520" rx="10" />
+  <rect class="titlebar" width="800" height="36" rx="10" />
+  <rect class="bg" y="26" width="800" height="10" />
 
   <!-- Traffic lights -->
-  <circle fill="#ff5f57" cx="24" cy="21" r="7"/>
-  <circle fill="#febc2e" cx="48" cy="21" r="7"/>
-  <circle fill="#28c840" cx="72" cy="21" r="7"/>
-
-  <!-- Tab bar separator -->
-  <line x1="0" y1="42" x2="800" y2="42" stroke="#2f3150" stroke-width="1"/>
+  <circle class="dot-red" cx="20" cy="18" r="6" />
+  <circle class="dot-yellow" cx="40" cy="18" r="6" />
+  <circle class="dot-green" cx="60" cy="18" r="6" />
 
   <!-- Title -->
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="12" fill="#4a4f7a" x="400" y="26" text-anchor="middle" letter-spacing="0.5">claude — /lead</text>
+  <text class="text dim" x="360" y="22" text-anchor="middle">claude — lead</text>
 
-  <!-- ── Prompt 1 ── -->
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#bb9af7" x="24" y="76">❯</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#c0caf5" x="42" y="76">/lead</text>
+  <!-- Prompt 1 -->
+  <text class="prompt" x="20" y="62">❯</text>
+  <text class="text" x="36" y="62">/lead</text>
 
-  <!-- Online banner -->
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#9ece6a" font-weight="bold" x="24" y="102">✓  Lead — Online</text>
+  <!-- Boot snapshot -->
+  <text class="text bold green" x="20" y="92">✓ Lead — Online</text>
 
   <!-- Session table header -->
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="11" fill="#3d4166" x="24" y="132">SESSION         PROJECT          STATUS    FILES TOUCHED</text>
-  <line x1="24" y1="140" x2="776" y2="140" stroke="#2a2d50" stroke-width="1"/>
+  <text class="text dim" x="20" y="122">Session     Project        Status   Files</text>
+  <text class="text dim" x="20" y="136">─────────────────────────────────────────────────────────</text>
 
-  <!-- Session rows -->
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#7aa2f7" x="24" y="162">frontend</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#c0caf5" x="152" y="162">my-saas-app</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#9ece6a" x="310" y="162">active</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#565f89" x="400" y="162">Login.tsx, AuthProvider.tsx</text>
+  <!-- Sessions -->
+  <text class="text cyan" x="20" y="156">frontend</text>
+  <text class="text" x="132" y="156">my-saas-app    active</text>
+  <text class="text dim" x="380" y="156">Login.tsx, AuthProvider.tsx</text>
 
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#7aa2f7" x="24" y="184">backend</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#c0caf5" x="152" y="184">my-saas-app</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#9ece6a" x="310" y="184">active</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#565f89" x="400" y="184">auth.ts, Login.tsx, session.ts</text>
+  <text class="text cyan" x="20" y="176">backend</text>
+  <text class="text" x="132" y="176">my-saas-app    active</text>
+  <text class="text dim" x="380" y="176">auth.ts, Login.tsx, session.ts</text>
 
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#7aa2f7" x="24" y="206">tests</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#c0caf5" x="152" y="206">my-saas-app</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#9ece6a" x="310" y="206">active</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#565f89" x="400" y="206">auth.test.ts, api.test.ts</text>
+  <text class="text cyan" x="20" y="196">tests</text>
+  <text class="text" x="132" y="196">my-saas-app    active</text>
+  <text class="text dim" x="380" y="196">auth.test.ts, api.test.ts</text>
 
-  <!-- Conflict alert background -->
-  <rect fill="#2d1a1f" x="16" y="222" width="768" height="26" rx="4"/>
-  <rect fill="#f7768e" x="16" y="222" width="3" height="26" rx="2"/>
+  <!-- Conflict alert -->
+  <text class="text bold red" x="20" y="230">⚠ CONFLICT: Login.tsx — frontend ↔ backend</text>
 
-  <!-- Conflict alert text -->
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#f7768e" font-weight="bold" x="28" y="239" filter="url(#glow-red)">⚠  CONFLICT: Login.tsx — frontend ↔ backend (both editing)</text>
+  <!-- Prompt 2 -->
+  <text class="prompt" x="20" y="270">❯</text>
+  <text class="text" x="36" y="270">"tell backend to hold on Login.tsx"</text>
 
-  <!-- ── Prompt 2 ── -->
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#bb9af7" x="24" y="276">❯</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#c0caf5" x="42" y="276">"tell backend to hold on Login.tsx"</text>
+  <text class="text green" x="20" y="300">✓ Message delivered to backend</text>
+  <text class="text dim" x="20" y="320">"Hold on Login.tsx — frontend is editing it. Switch to session.ts."</text>
+  <text class="text dim" x="20" y="340">0 API tokens used.</text>
 
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#9ece6a" x="24" y="300">✓  Message delivered to backend</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#4a5180" x="24" y="320">"Hold on Login.tsx — frontend is editing it. Switch to session.ts."</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="12" fill="#3d4166" x="24" y="338">0 API tokens used</text>
+  <!-- Prompt 3 -->
+  <text class="prompt" x="20" y="380">❯</text>
+  <text class="text" x="36" y="380">"create a task for the auth migration"</text>
 
-  <!-- ── Prompt 3 ── -->
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#bb9af7" x="24" y="370">❯</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#c0caf5" x="42" y="370">"create a task for the auth migration"</text>
-
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#9ece6a" x="24" y="394">✓  Task created: AUTH-001 — auth migration</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="13" fill="#4a5180" x="24" y="412">Persisted to task board. Survives session restarts.</text>
-
-  <!-- Status bar separator -->
-  <line x1="0" y1="432" x2="800" y2="432" stroke="#252640" stroke-width="1"/>
+  <text class="text green" x="20" y="410">✓ Task created: AUTH-001 — auth migration</text>
+  <text class="text dim" x="20" y="430">Persisted to task board. Survives session restarts.</text>
 
   <!-- Status bar -->
-  <rect fill="url(#status-bg)" y="432" width="800" height="62" rx="0"/>
-  <rect fill="url(#status-bg)" y="450" width="800" height="44" rx="12"/>
-
-  <!-- Status bar content -->
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="12" fill="#4a5180" x="24" y="460">3 sessions</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="12" fill="#f7768e" x="130" y="460">1 conflict</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="12" fill="#4a5180" x="236" y="460">48 tools</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="12" fill="#4a5180" x="326" y="460">594 tests</text>
-  <text font-family="Menlo, Monaco, 'Courier New', monospace" font-size="12" fill="#9ece6a" x="434" y="460">0 coordination tokens</text>
+  <rect fill="#24283b" y="460" width="800" height="60" rx="0" />
+  <text class="text dim" x="20" y="485">3 sessions</text>
+  <text class="text red" x="130" y="485">1 conflict</text>
+  <text class="text dim" x="240" y="485">48 tools</text>
+  <text class="text dim" x="340" y="485">594 tests</text>
+  <text class="text green" x="460" y="485">0 coordination tokens</text>
 </svg>
