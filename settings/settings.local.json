@@ -18,16 +18,8 @@
       "mcp__coordinator__coord_get_session",
       "mcp__coordinator__coord_check_inbox",
       "mcp__coordinator__coord_detect_conflicts",
-      "mcp__coordinator__coord_spawn_terminal",
-      "mcp__coordinator__coord_spawn_worker",
-      "mcp__coordinator__coord_spawn_workers",
       "mcp__coordinator__coord_get_result",
       "mcp__coordinator__coord_wake_session",
-      "mcp__coordinator__coord_kill_worker",
-      "mcp__coordinator__coord_resume_worker",
-      "mcp__coordinator__coord_upgrade_worker",
-      "mcp__coordinator__coord_run_pipeline",
-      "mcp__coordinator__coord_get_pipeline",
       "mcp__coordinator__coord_create_task",
       "mcp__coordinator__coord_update_task",
       "mcp__coordinator__coord_list_tasks",
@@ -58,10 +50,7 @@
       "mcp__coordinator__coord_check_quality_gates",
       "mcp__coordinator__coord_delete_team",
       "mcp__coordinator__coord_update_team_policy",
-      "mcp__coordinator__coord_cost_comparison",
-      "mcp__coordinator__coord_focus_worker",
-      "mcp__coordinator__coord_focus_next",
-      "mcp__coordinator__coord_unfocus"
+      "mcp__coordinator__coord_cost_comparison"
     ],
     "deny": []
   },
@@ -167,7 +156,9 @@
   "mcpServers": {
     "coordinator": {
       "command": "node",
-      "args": ["__HOME__/.claude/mcp-coordinator/index.js"]
+      "args": [
+        "__HOME__/.claude/mcp-coordinator/index.js"
+      ]
     }
   }
 }

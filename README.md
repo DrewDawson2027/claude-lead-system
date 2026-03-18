@@ -8,10 +8,10 @@
 <img src="demo.gif" alt="Claude Lead System — live demo: real test suite, conflict detection, health check" width="800" />
 </div>
 
-Detect file conflicts before they collide. Spawn and monitor workers. Message interactive workers mid-execution. Run tracked multi-step pipelines. All from a single local coordinator — no API tokens spent on coordination.
+Detect file conflicts before they collide. Message and coordinate across terminals. Persistent tasks, shared context, team management. All from a single local coordinator — no API tokens spent on coordination.
 
 [![npm](https://img.shields.io/npm/v/claude-lead-system)](https://www.npmjs.com/package/claude-lead-system)
-[![Tests](https://img.shields.io/badge/tests-847%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
+[![Tests](https://img.shields.io/badge/tests-614%20passing-brightgreen)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![Coverage](https://img.shields.io/badge/coverage-85%25%20lines-green)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -74,66 +74,65 @@ You'll see a live dashboard of every active Claude terminal — what it's workin
 
 - You run 3+ Claude terminals and need one place to see what each is touching
 - You've had two sessions clobber the same file — and want to prevent it
-- You want to redirect, wake, or spawn workers without opening a new window
+- You want to redirect, wake, or message other terminals from one control room
 
 **Common MCP tools (usable from any Claude session):**
 
 ```bash
-coord_spawn_worker    # Start a new Claude worker on a task (runs in background)
-coord_watch_output    # Check what a worker is currently doing
-coord_send_message    # Send instructions to a named worker
+coord_send_message    # Send instructions to any Claude terminal
+coord_detect_conflicts # Check if two terminals are editing the same files
+coord_boot_snapshot   # Live dashboard of all active terminals
+coord_create_task     # Persistent task that survives sessions
 ```
-
-> **Worker visibility:** Workers run as background processes by default — output goes to a local file, not a visible terminal. Use `coord_watch_output <worker_name>` to see what any worker is doing. For a split-pane view of workers as they run, launch `claudex` from inside a tmux session.
 
 ---
 
 ## What It Does
 
-| Feature                          | What It Does                                                                               |
-| -------------------------------- | ------------------------------------------------------------------------------------------ |
-| **Pre-edit conflict detection**  | Flags when two sessions are about to edit the same file — before the collision             |
-| **Conflict lifecycle tracking**  | Track, resolve, and recheck conflicts across sessions                                      |
-| **Worker spawn + kill + resume** | Start, stop, and re-enter workers from one control point                                   |
-| **P2P worker messaging**         | Workers send messages directly to named peers via inbox files                              |
-| **Broadcast**                    | Send one message to all active workers simultaneously                                      |
-| **Operator dashboard**           | Live table: session, status, branch, files touched, last active                            |
-| **Plan approval protocol**       | Workers pause in plan mode; lead approves before execution                                 |
-| **Pipeline orchestration**       | Run lint → test → build tracked from one place                                             |
-| **Budget gating**                | Cap tokens or turns per worker before spawning                                             |
-| **Zero API-token coordination**  | Filesystem carries coordination — no token cost for inter-worker comms                     |
-| **Session resumption**           | Re-enter a prior Claude conversation, not a fresh start                                    |
-| **Context store**                | Shared key/value store accessible to all workers in a session                              |
-| **Worktree isolation**           | Each worker can run in its own git branch — no conflicts                                   |
-| **Worker output monitoring**     | Poll the latest N lines of any running worker's output on demand; use tmux for a live pane |
-| **Activity audit log**           | Append-only record of every coordination event                                             |
-| **81 MCP tools**                 | Full tool surface for coordination, governance, and orchestration                          |
+| Feature                         | What It Does                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------ |
+| **Pre-edit conflict detection** | Flags when two sessions are about to edit the same file — before the collision             |
+| **Conflict lifecycle tracking** | Track, resolve, and recheck conflicts across sessions                                      |
+| **Cross-terminal messaging**    | Send instructions to any Claude terminal by name or session ID                             |
+| **P2P messaging**               | Terminals send messages directly to named peers via inbox files                            |
+| **Broadcast**                   | Send one message to all active terminals simultaneously                                    |
+| **Operator dashboard**          | Live table: session, status, branch, files touched, last active                            |
+| **Plan approval protocol**      | Workers pause in plan mode; lead approves before execution                                 |
+| **Persistent task board**       | Tasks survive sessions — track work across terminal restarts                               |
+| **Team management**             | Create teams, assign tasks, track completion across terminals                              |
+| **Zero API-token coordination** | Filesystem carries coordination — no token cost for inter-worker comms                     |
+| **Agent templates**             | Define reusable agent configs with role presets                                            |
+| **Context store**               | Shared key/value store accessible to all workers in a session                              |
+| **Worktree isolation**          | Each worker can run in its own git branch — no conflicts                                   |
+| **Worker output monitoring**    | Poll the latest N lines of any running worker's output on demand; use tmux for a live pane |
+| **Activity audit log**          | Append-only record of every coordination event                                             |
+| **35+ MCP tools**               | Full tool surface for coordination, governance, and orchestration                          |
 
 ---
 
 ## Lead vs. Native Agent Teams
 
-| Capability                              | Native Agent Teams | Lead System                                                    |
-| --------------------------------------- | ------------------ | -------------------------------------------------------------- |
-| Pre-edit conflict detection             | —                  | ✅ verified                                                    |
-| Operator dashboard (all sessions)       | —                  | ✅ verified                                                    |
-| Zero API-token coordination path        | —                  | ✅ verified                                                    |
-| Budget/spawn/approval governance        | —                  | ✅ verified                                                    |
-| In-process worker output streaming      | ✅ verified        | partial (poll via coord_watch_output; live pane requires tmux) |
-| In-context teammate lifecycle           | ✅ verified        | ✅ verified                                                    |
-| First-party cross-platform UX           | ✅ verified        | partial                                                        |
-| Minimum-setup (no external coordinator) | ✅ verified        | —                                                              |
+| Capability                            | Native Agent Teams  | Lead System    |
+| ------------------------------------- | ------------------- | -------------- |
+| Pre-edit conflict detection           | —                   | ✅             |
+| Persistent task board across sessions | —                   | ✅             |
+| Shared context store                  | —                   | ✅             |
+| Zero API-token coordination path      | —                   | ✅             |
+| Cross-terminal messaging              | —                   | ✅             |
+| Operator dashboard (all sessions)     | —                   | ✅             |
+| Multiple simultaneous teams           | — (one per session) | ✅             |
+| In-process teammate spawning          | ✅                  | —              |
+| First-party cross-platform UX         | ✅                  | macOS verified |
 
-Use Lead when you need conflict detection, observability, and governance across 4+ terminals.
-Use Native Agent Teams for 1-2 collaborators where first-party UX matters most.
+**Use together:** Lead fills the gaps Agent Teams can't — persistent state, conflict detection, cross-session messaging. Use Agent Teams for in-process teammates, Lead for everything around them.
 
 ---
 
 ## By the Numbers
 
-- **847** automated tests (480 coordinator + 308 sidecar + 59 Python hooks)
+- **614** automated tests (304 coordinator + 310 sidecar)
 - **85%** line coverage (coordinator + sidecar)
-- **81** MCP coordination tools
+- **35+** MCP coordination tools
 - **24** lib modules
 - **Zero** API tokens spent on coordination (filesystem path)
 - **8/8** macOS platform proofs passing · **8/8** Linux platform proofs passing
