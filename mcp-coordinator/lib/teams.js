@@ -205,7 +205,7 @@ function normalizeTeamPolicy(policy = {}) {
   ]);
   bool("require_plan");
   strEnum("default_mode", ["pipe", "interactive"]);
-  strEnum("default_runtime", ["claude", "codex"]);
+  strEnum("default_runtime", ["claude"]);
   strEnum("default_context_level", ["minimal", "standard", "full"]);
   strEnum("budget_policy", ["off", "warn", "enforce"]);
   posInt("budget_tokens");

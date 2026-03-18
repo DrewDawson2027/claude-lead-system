@@ -251,7 +251,7 @@ export function handleBootSnapshot(args = {}) {
   const sessions = getAllSessions().filter((s) => s.status !== "closed");
   if (sessions.length === 0)
     return text(
-      "# Lead — Online\n\nNo active sessions. Use `coord_spawn_worker` to start work.",
+      "# Lead — Online\n\nNo active sessions. Open additional Claude terminals to coordinate.",
     );
 
   // Build session table

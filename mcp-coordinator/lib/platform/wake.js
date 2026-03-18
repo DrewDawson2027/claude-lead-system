@@ -166,7 +166,7 @@ export function handleWakeSession(args) {
       `Platform: ${PLATFORM} \u2014 AppleScript not available.\n` +
         `Sent URGENT inbox message instead. Session will receive it on next tool call.\n` +
         `Message: "${message}"\n\n` +
-        `If the session is idle (not making tool calls), use coord_spawn_worker to dispatch autonomous work instead.`,
+        `If the session is idle (not making tool calls), send a message via coord_send_message instead.`,
     );
   }
 
@@ -270,7 +270,7 @@ return found`.trim();
       content: `[WAKE] ${message}`,
     });
     return text(
-      `Could not find session in ${termApp}. Sent inbox message as fallback.\nUse coord_spawn_worker if session is truly dead.`,
+      `Could not find session in ${termApp}. Sent inbox message as fallback.\nSend a message via coord_send_message instead.`,
     );
   } catch (err) {
     const inboxFile = join(INBOX_DIR, `${session_id}.jsonl`);
