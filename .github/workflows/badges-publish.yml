@@ -26,7 +26,7 @@ jobs:
           npx c8 \
             --check-coverage --lines 0 --functions 0 --branches 0 --statements 0 \
             --reporter=json-summary \
-            node --test test/validation.test.mjs test/platform-launch.test.mjs test/inbox-fuzz.test.mjs
+            node --test test/validation.test.mjs test/inbox-fuzz.test.mjs
       - name: Build badge JSON files
         run: |
           mkdir -p badges
