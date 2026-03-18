@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1117,40:161b22,100:58a6ff&height=220&section=header&text=claude-lead-system&fontSize=52&fontColor=ffffff&animation=fadeIn&fontAlignY=42&desc=Local%20coordination%20for%20Claude%20Code.%20Zero%20API%20tokens.&descAlignY=64&descSize=15&descColor=79c0ff" width="100%" />
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1117,40:1a1f35,100:7aa2f7&height=220&section=header&text=claude-lead-system&fontSize=52&fontColor=ffffff&animation=fadeIn&fontAlignY=42&desc=Local%20coordination%20for%20Claude%20Code.%20Zero%20API%20tokens.&descAlignY=64&descSize=15&descColor=7aa2f7" width="100%" />
 
 </div>
 
 <div align="center">
 
-[![npm](https://img.shields.io/npm/v/claude-lead-system?style=for-the-badge&color=58a6ff&labelColor=161b22&logo=npm&logoColor=white)](https://www.npmjs.com/package/claude-lead-system)
+[![npm](https://img.shields.io/npm/v/claude-lead-system?style=for-the-badge&color=7aa2f7&labelColor=0d1117&logo=npm&logoColor=white)](https://www.npmjs.com/package/claude-lead-system)
 [![Tests](https://img.shields.io/badge/tests-594_passing-3fb950?style=for-the-badge&labelColor=161b22&logo=checkmarx&logoColor=white)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![Coverage](https://img.shields.io/badge/coverage-85%25-3fb950?style=for-the-badge&labelColor=161b22&logo=codecov&logoColor=white)](https://github.com/DrewDawson2027/claude-lead-system/actions)
 [![License](https://img.shields.io/badge/license-MIT-d2a8ff?style=for-the-badge&labelColor=161b22)](https://opensource.org/licenses/MIT)
@@ -14,7 +14,7 @@
 
 <br />
 
-[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=15&duration=2500&pause=1000&color=58A6FF&center=true&vCenter=true&width=560&lines=Conflict+detection+before+collision;Cross-terminal+messaging%2C+zero+tokens;Persistent+tasks+that+survive+restarts;Live+dashboard+for+all+terminals;48+MCP+tools.+594+tests.+0+token+cost.)](https://git.io/typing-svg)
+[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=15&duration=2500&pause=1000&color=7AA2F7&center=true&vCenter=true&width=560&lines=Conflict+detection+before+collision;Cross-terminal+messaging%2C+zero+tokens;Persistent+tasks+that+survive+restarts;Live+dashboard+for+all+terminals;48+MCP+tools.+594+tests.+0+token+cost.)](https://git.io/typing-svg)
 
 <br />
 
@@ -208,7 +208,7 @@ bash install.sh --version <version>
 
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:3fb950,50:161b22,100:58a6ff&height=120&section=footer" width="100%" />
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:7aa2f7,50:6272a4,100:bb9af7&height=120&section=footer" width="100%" />
 
 MIT License · Made by [@DrewDawson2027](https://github.com/DrewDawson2027)
 
