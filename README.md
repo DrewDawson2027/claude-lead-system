@@ -119,7 +119,7 @@ coord_create_task     # Persistent task that survives sessions
 
 ## The Story
 
-Built by a Philosophy, Politics & Economics student at USC, starting from zero programming background. Every component of this system — 48 tools, 594 tests, a complete multi-terminal coordination layer — was built entirely through Claude Code, using natural language to design, implement, and iterate on the full stack.
+I'm a Philosophy, Politics & Economics student at USC with no prior programming background. I built this entire system through Claude Code. 48 tools. 594 tests. A complete local coordination layer for multi-terminal Claude workflows. All of it written in natural language.
 
 ---
 
