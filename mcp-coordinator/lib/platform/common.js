@@ -128,6 +128,7 @@ export function spawnTmuxPaneWorker(script) {
     "tmux",
     [
       "split-window",
+      "-h", // horizontal split (side-by-side) — matches native Agent Teams layout
       "-d", // don't switch focus to new pane
       "-P",
       "-F",
@@ -148,8 +149,9 @@ export function spawnTmuxPaneWorker(script) {
     throw new Error(`tmux split-window returned unexpected pane ID: ${paneId}`);
   }
 
-  // Auto-tile after creating pane for balanced layout
-  spawnSync("tmux", ["select-layout", "tiled"], {
+  // Horizontal split layout — workers appear side-by-side with the lead,
+  // matching native Agent Teams visual behavior.
+  spawnSync("tmux", ["select-layout", "even-horizontal"], {
     stdio: "ignore",
     timeout: 3000,
   });

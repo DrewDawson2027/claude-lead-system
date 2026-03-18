@@ -315,12 +315,12 @@ export function handleSpawnWorker(args) {
     );
   }
   const files = (args.files || []).map((f) => String(f).trim()).filter(Boolean);
-  let layout = ["split", "background", "tab", "tmux"].includes(args.layout)
-    ? args.layout
-    : isInsideTmux()
-      ? "tmux"
+  let layout = isInsideTmux()
+    ? "tmux" // Inside tmux: ALWAYS use tmux split pane — tabs/splits don't work here
+    : ["split", "background", "tab"].includes(args.layout)
+      ? args.layout
       : "background";
-  // Auto-tmux: when no layout specified and inside tmux, always default to tmux pane.
+  // Inside tmux → forced to tmux panes (native Agent Teams behavior: split next to lead).
   // Removed team requirement — tmux is the right default for any spawn inside tmux.
   const mode =
     args.mode === "interactive"
