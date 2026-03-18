@@ -2,21 +2,6 @@
 
 Registry of all agents, hooks, coordinator modules, and native integration. Source of truth for the lead system architecture.
 
-## Canonical claim posture
-
-<!-- CLAIM_POSTURE:START -->
-
-- Canonical taxonomy: `verified`, `partial`, `experimental`
-- Parity posture (canonical): Do not claim exact UX parity or exact feature parity with native Agent Teams. Do not publish single-number parity percentages. Use only evidence-labeled capability claims using the canonical taxonomy. Hybrid/native execution paths remain experimental until current end-to-end evidence exists.
-- Native advantages (canonical): In-process teammate lifecycle semantics in a single runtime. Tighter first-party cross-platform UX consistency. Integrated native UI and runtime linkage without external coordinator polling.
-- Lead advantages (canonical): Pre-edit conflict detection and conflict lifecycle visibility across active sessions. Operator-grade dashboard and API orchestration for multi-terminal workflows. Filesystem coordination path with zero API-token coordination overhead. Policy and governance controls around worker execution (budget/spawn/approval/checkpoint).
-- Economics posture (canonical): Do not claim universal savings or blanket cheaper-than-native outcomes. Filesystem coordination can claim zero API-token coordination overhead on that path. Throughput and economics claims beyond that path must stay evidence-scoped to the workflow under discussion.
-- Economics verdicts (canonical): Filesystem coordination overhead claim = verified; Workflow-scoped token-pressure delta claim = partial; Universal cheaper-than-native or universal savings claim = experimental.
-- Release blocker posture (canonical): Release blockers are failing release-quality gates, not unresolved parity/economics ambitions. Parity and economics gaps remain posture limits until promoted by fresh evidence.
-- Canonical source: `docs/CLAIM_POSTURE_SOURCE.json`
-- Canonical parity/economics document: `docs/PARITY_ECONOMICS_POSTURE.md`
-<!-- CLAIM_POSTURE:END -->
-
 ---
 
 ## Agents
@@ -45,17 +30,17 @@ Registry of all agents, hooks, coordinator modules, and native integration. Sour
 
 ## Lifecycle Hooks
 
-| Hook Event        | Script                     | Purpose                                                                 |
-| ----------------- | -------------------------- | ----------------------------------------------------------------------- |
-| SubagentStart     | `agent-lifecycle.sh`       | Logs agent spawn timestamp for duration tracking                        |
-| SubagentStop      | `agent-lifecycle.sh`       | Logs agent completion with duration calculation                         |
-| PreCompact        | `pre-compact-save.sh`      | Saves session state before context compaction                           |
-| PreToolUse (Task) | `token-guard.py`           | Enforces agent caps, necessity scoring, cooldowns                       |
-| PreToolUse (Read) | `read-efficiency-guard.py` | Blocks duplicate/sequential reads                                       |
-| SessionStart      | `session-register.sh`      | Registers session, bootstraps cache                                     |
-| SessionStart      | `self-heal.py`             | Validates 60+ checks, auto-repairs config                               |
-| TeammateIdle      | `teammate-lifecycle.sh`    | Logs native Agent Teams idle events to activity/session telemetry       |
-| TaskCompleted     | `teammate-lifecycle.sh`    | Logs native Agent Teams completion events to activity/session telemetry |
+| Hook Event        | Script                     | Purpose                                                   |
+| ----------------- | -------------------------- | --------------------------------------------------------- |
+| SubagentStart     | `agent-lifecycle.sh`       | Logs agent spawn timestamp for duration tracking          |
+| SubagentStop      | `agent-lifecycle.sh`       | Logs agent completion with duration calculation           |
+| PreCompact        | `pre-compact-save.sh`      | Saves session state before context compaction             |
+| PreToolUse (Task) | `token-guard.py`           | Enforces agent caps, necessity scoring, cooldowns         |
+| PreToolUse (Read) | `read-efficiency-guard.py` | Blocks duplicate/sequential reads                         |
+| SessionStart      | `session-register.sh`      | Registers session, bootstraps cache                       |
+| SessionStart      | `self-heal.py`             | Validates 60+ checks, auto-repairs config                 |
+| TeammateIdle      | `teammate-lifecycle.sh`    | Logs teammate idle events to activity/session telemetry   |
+| TaskCompleted     | `teammate-lifecycle.sh`    | Logs task completion events to activity/session telemetry |
 
 Metrics log: `~/.claude/hooks/session-state/agent-metrics.jsonl`
 Compaction log: `~/.claude/session-cache/compaction-log.jsonl`
@@ -68,34 +53,31 @@ The lead system uses lightweight agent files (`~/.claude/agents/*.md`) with YAML
 
 ---
 
-## Native Agent Teams Integration
+## Execution Paths
 
-The lead system supports three execution paths for teams:
+The lead system supports two execution paths for teams:
 
-| Execution Path | Evidence Label | How Workers Run                   | Messaging          | P2P | Resume                   |
-| -------------- | -------------- | --------------------------------- | ------------------ | --- | ------------------------ |
-| `coordinator`  | `verified`     | MCP-spawned `claude -p` processes | Inbox files (poll) | No  | Summary re-injection     |
-| `hybrid`       | `experimental` | MCP-spawned with native team join | Push + inbox       | Yes | agentId when available   |
-| `native`       | `experimental` | Native Agent Team members         | Push + inbox       | Yes | Full context via agentId |
+| Execution Path | Evidence Label | How Workers Run                   | Messaging          | P2P | Resume                 |
+| -------------- | -------------- | --------------------------------- | ------------------ | --- | ---------------------- |
+| `coordinator`  | `verified`     | MCP-spawned `claude -p` processes | Inbox files (poll) | No  | Summary re-injection   |
+| `hybrid`       | `experimental` | MCP-spawned with extended events  | Push + inbox       | Yes | agentId when available |
 
-### Hook Dual-Schema Support
+### Hook Event Schemas
 
-Hooks accept both coordinator and native Agent Teams event payloads:
+Hooks accept two event payload schemas from Claude Code:
 
-| Hook                | Coordinator Fields                                                      | Native Fields                                                  |
+| Hook                | Coordinator Fields                                                      | Extended Fields                                                |
 | ------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `teammate-idle.py`  | `teammate_id`, `task`, `output`, `files_changed`                        | `teammate_name`, `task_in_progress`, `idle_reason`             |
 | `task-completed.py` | `task`, `task_id`, `completion_message`, `files_changed`, `teammate_id` | `task_title`, `task_id`, `assignee`, `completion_time_seconds` |
 
-Native events skip checks requiring `files_changed` or `output` (not in native payloads).
-
 ### Push-Based Message Delivery
 
-When a team uses `native` or `hybrid` execution path, `handleSendMessage` queues a native action at `~/.claude/lead-sidecar/runtime/actions/pending/` in addition to writing the inbox file. The lead session picks up queued actions and translates them to native `SendMessage` calls.
+On `hybrid` path, `handleSendMessage` queues a native action at `~/.claude/lead-sidecar/runtime/actions/pending/` in addition to writing the inbox file. The lead session picks up queued actions and translates them to `SendMessage` calls.
 
 ### Agent Resume via agentId
 
-Team members store an `agentId` field. When re-dispatching to a member with an existing `agentId` on a `native` or `hybrid` team, the system passes `resume_agent_id` to preserve full context instead of re-injecting summaries.
+Team members store an `agentId` field. When re-dispatching to a member with an existing `agentId` on a `hybrid` team, the system passes `resume_agent_id` to preserve full context instead of re-injecting summaries.
 
 ---
 

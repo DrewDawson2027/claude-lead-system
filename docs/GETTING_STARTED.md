@@ -148,6 +148,6 @@ start a worker in plan mode to redesign the database schema
 ## Full Reference
 
 - [MCP Tool Reference](MCP_TOOL_REFERENCE.md) — all 81 coordinator tools
-- [Architecture Comparison](ARCHITECTURE-COMPARISON.md) — how Lead differs from native Agent Teams
+- [Architecture](ARCHITECTURE.md) — system design and coordination layers
 - [Compatibility Matrix](COMPATIBILITY_MATRIX.md) — platform support evidence
 - [Known Limitations](KNOWN_LIMITATIONS.md) — what doesn't work yet and why

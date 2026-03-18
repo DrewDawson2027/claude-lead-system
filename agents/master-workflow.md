@@ -43,22 +43,22 @@ You have access to MCP tools via ToolSearch for workflow-related operations:
 | GitHub PRs, issues, checks               | **gh CLI**     | Use Bash: `gh pr create`, `gh pr view`, `gh issue list`, `gh api` |
 | Prior session context, persistent memory | **claude-mem** | `ToolSearch("claude-mem")` → search for prior work                |
 
-## Agent Teams (multi-session orchestration)
+## Multi-Session Orchestration
 
-When tasks require parallel work across multiple domains, use Agent Teams:
+When tasks require parallel work across multiple domains, use the coordinator:
 
-| Capability      | How                                                              |
-| --------------- | ---------------------------------------------------------------- |
-| Create a team   | `TeamCreate` tool with team name and description                 |
-| Spawn teammates | `Task` tool with `team_name` parameter — teammates join the team |
-| Assign work     | `TaskCreate` → `TaskUpdate` with `owner` to assign               |
-| Communicate     | `SendMessage` for DMs, `broadcast` for team-wide                 |
-| Coordinate      | Shared task list at `~/.claude/tasks/{team-name}/`               |
-| Shutdown        | `SendMessage` with `type: "shutdown_request"` to each teammate   |
+| Capability    | How                                                            |
+| ------------- | -------------------------------------------------------------- |
+| Create a team | `TeamCreate` tool with team name and description               |
+| Spawn workers | `Task` tool with `team_name` parameter — workers join the team |
+| Assign work   | `TaskCreate` → `TaskUpdate` with `owner` to assign             |
+| Communicate   | `SendMessage` for DMs, `broadcast` for team-wide               |
+| Coordinate    | Shared task list at `~/.claude/tasks/{team-name}/`             |
+| Shutdown      | `SendMessage` with `type: "shutdown_request"` to each worker   |
 
 **When to use teams vs sequential agents:**
 
-- 2-3 independent tasks in different domains → Agent Teams (parallel)
+- 2-3 independent tasks in different domains → parallel workers via coordinator
 - Sequential dependent tasks → single agent, then next agent
 - Single-domain deep work → one master agent, no team needed
 

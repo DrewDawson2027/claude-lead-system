@@ -24,11 +24,11 @@ Here’s the demo.
 ## Tweet 2 (The Core Problem) — no media
 
 ```
-Agent Teams is the right default if you want first-party collaboration inside Claude Code.
+Lead is for heavier multi-terminal workflows where you want coordination state outside the model context.
 
-Lead is for a different job: heavier multi-terminal workflows where you want coordination state outside the model context.
+Local session state. Inbox files. Conflict detection before edits land. Worker control across terminals.
 
-That means local session state, inbox files, conflict checks, and worker control without treating it like a native-team replacement.
+The kind of operator layer that doesn't make sense to rebuild in-context every time.
 ```
 
 ---

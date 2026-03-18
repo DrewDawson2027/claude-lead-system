@@ -24,7 +24,7 @@ On the blessed public path, Lead can:
 
 This proof pack does **not** claim:
 
-- native Agent Teams parity
+- universal cross-platform UX equivalence
 - identical runtime maturity across macOS, Linux, and Windows
 - broad cross-platform UX equivalence
 - generic multi-agent superiority claims

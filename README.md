@@ -106,24 +106,6 @@ coord_create_task     # Persistent task that survives sessions
 
 ---
 
-## Lead vs. Native Agent Teams
-
-| Capability                            | Native Agent Teams  | Lead System    |
-| ------------------------------------- | ------------------- | -------------- |
-| Pre-edit conflict detection           | —                   | ✅             |
-| Persistent task board across sessions | —                   | ✅             |
-| Shared context store                  | —                   | ✅             |
-| Zero API-token coordination path      | —                   | ✅             |
-| Cross-terminal messaging              | —                   | ✅             |
-| Operator dashboard (all sessions)     | —                   | ✅             |
-| Multiple simultaneous teams           | — (one per session) | ✅             |
-| In-process teammate spawning          | ✅                  | —              |
-| First-party cross-platform UX         | ✅                  | macOS verified |
-
-**Use together:** Lead fills the gaps Agent Teams can't — persistent state, conflict detection, cross-session messaging. Use Agent Teams for in-process teammates, Lead for everything around them.
-
----
-
 ## By the Numbers
 
 - **594** automated tests (284 coordinator + 310 sidecar)
@@ -137,7 +119,7 @@ coord_create_task     # Persistent task that survives sessions
 
 ## The Story
 
-> _"I'm a Philosophy, Politics & Economics student at USC. I've never written a line of code in my life. I built this entire system — 48 tools, 594 tests — entirely through Claude Code."_
+Built by a Philosophy, Politics & Economics student at USC, starting from zero programming background. Every component of this system — 48 tools, 594 tests, a complete multi-terminal coordination layer — was built entirely through Claude Code, using natural language to design, implement, and iterate on the full stack.
 
 ---
 

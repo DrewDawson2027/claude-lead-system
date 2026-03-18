@@ -2,7 +2,7 @@
 
 ## Goal
 
-Complement Claude Code Agent Teams with capabilities they lack — pre-edit conflict detection, enriched session observability, native terminal spawning, sequential pipelines, persistent state management, and recovery tooling — by externalizing state into filesystem primitives at zero token cost.
+A local coordination layer for Claude Code that provides pre-edit conflict detection, enriched session observability, native terminal spawning, sequential pipelines, persistent state management, and recovery tooling — by externalizing state into filesystem primitives at zero token cost.
 
 ## Layers
 

@@ -6,21 +6,6 @@ Build and maintain a local coordination layer around Claude Code. The strongest 
 
 The user does not write code. Everything in this repo was built through Claude Code. Keep that in mind: prioritize clarity in explanations, verify before claiming anything works, and never overstate parity.
 
-## Canonical claim posture
-
-<!-- CLAIM_POSTURE:START -->
-
-- Canonical taxonomy: `verified`, `partial`, `experimental`
-- Parity posture (canonical): Do not claim exact UX parity or exact feature parity with native Agent Teams. Do not publish single-number parity percentages. Use only evidence-labeled capability claims using the canonical taxonomy. Hybrid/native execution paths remain experimental until current end-to-end evidence exists.
-- Native advantages (canonical): In-process teammate lifecycle semantics in a single runtime. Tighter first-party cross-platform UX consistency. Integrated native UI and runtime linkage without external coordinator polling.
-- Lead advantages (canonical): Pre-edit conflict detection and conflict lifecycle visibility across active sessions. Operator-grade dashboard and API orchestration for multi-terminal workflows. Filesystem coordination path with zero API-token coordination overhead. Policy and governance controls around worker execution (budget/spawn/approval/checkpoint).
-- Economics posture (canonical): Do not claim universal savings or blanket cheaper-than-native outcomes. Filesystem coordination can claim zero API-token coordination overhead on that path. Throughput and economics claims beyond that path must stay evidence-scoped to the workflow under discussion.
-- Economics verdicts (canonical): Filesystem coordination overhead claim = verified; Workflow-scoped token-pressure delta claim = partial; Universal cheaper-than-native or universal savings claim = experimental.
-- Release blocker posture (canonical): Release blockers are failing release-quality gates, not unresolved parity/economics ambitions. Parity and economics gaps remain posture limits until promoted by fresh evidence.
-- Canonical source: `docs/CLAIM_POSTURE_SOURCE.json`
-- Canonical parity/economics document: `docs/PARITY_ECONOMICS_POSTURE.md`
-<!-- CLAIM_POSTURE:END -->
-
 ---
 
 ## Core Architecture Principle
@@ -54,18 +39,6 @@ Do not surface `lite`, `hybrid`, `native`, or other non-default paths as peer ch
 | `native`      | Experimental | Sidecar/native bridge code exists, but parity is not asserted here |
 
 ---
-
-## Parity Posture (truth pass, 2026-03-12)
-
-Use canonical posture statements from `docs/CLAIM_POSTURE_SOURCE.json` and `docs/PARITY_ECONOMICS_POSTURE.md`.
-Do not publish percentage parity scores.
-
-Current evidence posture summary:
-
-- **Verified overlap:** team creation, task CRUD, local inbox messaging, worker spawning, dashboards, pipelines, context store, and conflict detection are evidenced in current code/tests.
-- **Native canonical advantages:** in-process teammate lifecycle semantics in one runtime, tighter first-party cross-platform UX consistency, and integrated native UI/runtime linkage without coordinator polling.
-- **Lead canonical advantages:** pre-edit conflict detection, operator-grade dashboard/API orchestration, filesystem coordination with zero API-token coordination overhead, and policy governance (budget/spawn/approval/checkpoint).
-- **Partial/experimental areas:** hybrid/native execution paths and non-macOS maturity claims remain evidence-limited until fresh end-to-end proof exists.
 
 ---
 
