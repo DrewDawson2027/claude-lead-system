@@ -5,7 +5,7 @@
 ### One control room for all your Claude Code terminals.
 
 <div align="center">
-<img src="assets/demo-hero.svg" alt="Claude Lead System — conflict detection, cross-terminal messaging, persistent tasks" width="800" />
+<img src="assets/demo-hero.gif" alt="Claude Lead System — conflict detection, cross-terminal messaging, persistent tasks" width="800" />
 </div>
 
 Detect file conflicts before they collide. Message and coordinate across terminals. Persistent tasks, shared context, team management. All from a single local coordinator — no API tokens spent on coordination.
