@@ -50,23 +50,11 @@ import {
 import { handleDetectConflicts } from "./lib/conflicts.js";
 import { handleSessionHealth } from "./lib/session-health.js";
 import {
-  handleSpawnWorker,
-  handleSpawnWorkers,
-  handleQuickTeam,
   handleGetResult,
-  handleKillWorker,
-  handleSpawnTerminal,
-  handleResumeWorker,
-  handleUpgradeWorker,
   handleWorkerReport,
   handleWatchOutput,
-  handleFocusWorker,
-  handleFocusNext,
-  handleUnfocus,
   getActiveWorkerSummaries,
-  killAllWorkers,
 } from "./lib/workers.js";
-import { handleRunPipeline, handleGetPipeline } from "./lib/pipelines.js";
 import {
   handleCreateTask,
   handleUpdateTask,
@@ -121,11 +109,6 @@ import {
   isProcessAlive,
   killProcess,
   isSafeTTYPath,
-  buildWorkerScript,
-  buildInteractiveWorkerScript,
-  buildCodexWorkerScript,
-  buildCodexInteractiveWorkerScript,
-  buildResumeWorkerScript,
 } from "./lib/platform/common.js";
 
 // Legacy cost MCP deprecation metadata (compat helpers for tests and envelope wrappers)
@@ -242,15 +225,8 @@ const CORE_TOOLS = new Set([
   "coord_get_session",
   "coord_check_inbox",
   "coord_detect_conflicts",
-  "coord_spawn_terminal",
-  "coord_spawn_worker",
-  "coord_spawn_workers",
-  "coord_quick_team",
   "coord_get_result",
   "coord_watch_output",
-  "coord_kill_worker",
-  "coord_resume_worker",
-  "coord_upgrade_worker",
   "coord_wake_session",
   "coord_broadcast",
   "coord_send_message",
@@ -265,9 +241,6 @@ const CORE_TOOLS = new Set([
   "coord_update_agent",
   "coord_delete_agent",
   "coord_sync_agent_manifest",
-  "coord_focus_worker",
-  "coord_focus_next",
-  "coord_unfocus",
 ]);
 
 const TEAMS_TOOLS = new Set([
@@ -292,8 +265,6 @@ const TEAMS_TOOLS = new Set([
 ]);
 
 const OPS_TOOLS = new Set([
-  "coord_run_pipeline",
-  "coord_get_pipeline",
   "coord_write_context",
   "coord_read_context",
   "coord_export_context",
@@ -405,292 +376,6 @@ const ALL_TOOLS = [
     },
   },
   {
-    name: "coord_spawn_terminal",
-    description:
-      "Open a new interactive Claude Code terminal. Cross-platform: macOS (iTerm2/Terminal.app), Windows (Windows Terminal/cmd), Linux (gnome-terminal/konsole/kitty/etc).",
-    inputSchema: {
-      type: "object",
-      properties: {
-        directory: { type: "string", description: "Directory to open in" },
-        initial_prompt: {
-          type: "string",
-          description: "Optional initial prompt for the new terminal",
-        },
-        layout: {
-          type: "string",
-          enum: ["tab", "split"],
-          description:
-            "'tab' (default) or 'split' (side-by-side where supported: iTerm2, Windows Terminal, kitty)",
-        },
-      },
-      required: ["directory"],
-    },
-  },
-  {
-    name: "coord_spawn_worker",
-    description:
-      "Spawn a worker in pipe mode (fire-and-forget) or interactive mode (lead can message mid-execution). Returns task_id.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        directory: { type: "string", description: "Working directory" },
-        prompt: {
-          type: "string",
-          description: "Full task instructions (worker has no prior context)",
-        },
-        model: { type: "string", description: "Model (default: sonnet)" },
-        agent: { type: "string", description: "Agent name (optional)" },
-        task_id: {
-          type: "string",
-          description: "Custom task ID (auto-generated if not provided)",
-        },
-        mode: {
-          type: "string",
-          enum: ["pipe", "interactive"],
-          description:
-            "pipe (fire-and-forget, cheapest) or interactive (lead can message mid-execution via inbox hooks, 3-5x more tokens). Default: pipe",
-        },
-        runtime: {
-          type: "string",
-          enum: ["claude", "codex"],
-          description:
-            "claude (Claude Code CLI, default) or codex (OpenAI Codex CLI — uses ChatGPT Plus plan). Default: claude",
-        },
-        notify_session_id: {
-          type: "string",
-          description:
-            "Session ID (first 8 chars) to receive worker completion inbox notifications.",
-        },
-        session_id: {
-          type: "string",
-          description: "Alias for notify_session_id (first 8 chars).",
-        },
-        files: {
-          type: "array",
-          items: { type: "string" },
-          description: "Files to edit (checked for conflicts)",
-        },
-        layout: {
-          type: "string",
-          enum: ["tab", "split", "background"],
-          description:
-            "'tab', 'split', or 'background' (no terminal, fastest spawn)",
-        },
-        isolate: {
-          type: "boolean",
-          description:
-            "Create git worktree for isolated execution (default: false)",
-        },
-        role: {
-          type: "string",
-          enum: ["researcher", "implementer", "reviewer", "planner"],
-          description:
-            "Role preset. Applies default model/agent/permission/isolation unless explicitly overridden.",
-        },
-        require_plan: {
-          type: "boolean",
-          description:
-            "Require worker to submit plan for approval before editing files. ENFORCED by hook — Edit/Write/Bash physically blocked until approved. (default: false). Alias: use permission_mode='planOnly'.",
-        },
-        permission_mode: {
-          type: "string",
-          enum: [
-            "acceptEdits",
-            "bypassPermissions",
-            "default",
-            "dontAsk",
-            "plan",
-            "planOnly",
-            "readOnly",
-            "editOnly",
-          ],
-          description:
-            "Worker permission mode. acceptEdits (default, full access), planOnly (plan approval required before edits), readOnly (Read/Grep/Glob only — for research workers), editOnly (Read/Edit/Write only, no Bash — safe editing). ENFORCED by hook.",
-        },
-        context_level: {
-          type: "string",
-          enum: ["minimal", "standard", "full"],
-          description:
-            "How much prior context to include: minimal (3KB), standard (10KB + lead files), full (30KB + plan + lead context). Default: standard",
-        },
-        budget_policy: {
-          type: "string",
-          enum: ["off", "warn", "enforce"],
-          description:
-            "Budget behavior for estimated token spend. off=ignore, warn=annotate, enforce=reject over-budget spawns. Default: warn",
-        },
-        budget_tokens: {
-          type: "integer",
-          description:
-            "Estimated token budget cap for this worker (default from COORDINATOR_WORKER_BUDGET_TOKENS or 60000).",
-        },
-        global_budget_policy: {
-          type: "string",
-          enum: ["off", "warn", "enforce"],
-          description:
-            "Global fleet budget policy for active workers. enforce blocks spawn when global limits are exceeded. Default from COORDINATOR_GLOBAL_BUDGET_POLICY or warn.",
-        },
-        global_budget_tokens: {
-          type: "integer",
-          description:
-            "Global estimated token cap across active workers (default from COORDINATOR_GLOBAL_BUDGET_TOKENS or 240000).",
-        },
-        max_active_workers: {
-          type: "integer",
-          description:
-            "Global max concurrent running workers (default from COORDINATOR_MAX_ACTIVE_WORKERS or 8).",
-        },
-        team_name: {
-          type: "string",
-          description: "Team name — enables peer messaging and shared context",
-        },
-        worker_name: {
-          type: "string",
-          description:
-            "Human-readable worker name for name-based messaging (e.g., 'alpha', 'reviewer'). Workers can be messaged by name instead of session ID.",
-        },
-        max_turns: {
-          type: "integer",
-          description:
-            "Maximum tool calls before auto-termination. Worker is killed when limit reached.",
-        },
-        context_summary: {
-          type: "string",
-          description:
-            "Lead's conversation context summary. Injected into worker prompt so worker inherits lead's knowledge. Use this to share decisions, requirements, and findings.",
-        },
-        parent_session_id: {
-          type: "string",
-          description:
-            "Optional full Claude session UUID for native parent/child session linking when the local Claude CLI supports --parent-session-id.",
-        },
-      },
-      required: ["directory", "prompt"],
-    },
-  },
-  {
-    name: "coord_spawn_workers",
-    description:
-      "Spawn multiple workers in parallel from a single call. Fastest way to launch N workers. Each entry uses same params as coord_spawn_worker.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        workers: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              directory: { type: "string" },
-              prompt: { type: "string" },
-              model: { type: "string" },
-              agent: { type: "string" },
-              task_id: { type: "string" },
-              mode: { type: "string", enum: ["pipe", "interactive"] },
-              runtime: { type: "string", enum: ["claude", "codex"] },
-              notify_session_id: { type: "string" },
-              worker_name: { type: "string" },
-              max_turns: { type: "integer" },
-              context_summary: { type: "string" },
-              layout: { type: "string", enum: ["tab", "split", "background"] },
-              isolate: { type: "boolean" },
-              role: {
-                type: "string",
-                enum: ["researcher", "implementer", "reviewer", "planner"],
-              },
-              require_plan: { type: "boolean" },
-              permission_mode: {
-                type: "string",
-                enum: [
-                  "acceptEdits",
-                  "bypassPermissions",
-                  "default",
-                  "dontAsk",
-                  "plan",
-                  "planOnly",
-                  "readOnly",
-                  "editOnly",
-                ],
-              },
-              context_level: {
-                type: "string",
-                enum: ["minimal", "standard", "full"],
-              },
-              budget_policy: {
-                type: "string",
-                enum: ["off", "warn", "enforce"],
-              },
-              budget_tokens: { type: "integer" },
-              global_budget_policy: {
-                type: "string",
-                enum: ["off", "warn", "enforce"],
-              },
-              global_budget_tokens: { type: "integer" },
-              max_active_workers: { type: "integer" },
-              team_name: { type: "string" },
-              parent_session_id: { type: "string" },
-            },
-            required: ["directory", "prompt"],
-          },
-          description: "Array of worker configurations (max 10)",
-        },
-      },
-      required: ["workers"],
-    },
-  },
-  {
-    name: "coord_quick_team",
-    description:
-      "Create a team and spawn multiple workers in one call. Closes Gap 1: replaces 4+ separate calls with 1. Accepts high-level role+prompt pairs; model, permission_mode, and worker_name are inferred automatically.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        workers: {
-          type: "array",
-          description:
-            "Workers to spawn (max 10). Only 'prompt' is required per entry.",
-          items: {
-            type: "object",
-            properties: {
-              prompt: {
-                type: "string",
-                description: "Task description for this worker",
-              },
-              role: {
-                type: "string",
-                enum: ["researcher", "implementer", "reviewer", "planner"],
-                description:
-                  "Role preset (sets model, agent, permission_mode automatically)",
-              },
-              worker_name: {
-                type: "string",
-                description: "Override auto-generated worker name",
-              },
-              directory: {
-                type: "string",
-                description: "Override top-level directory for this worker",
-              },
-            },
-            required: ["prompt"],
-          },
-        },
-        name: {
-          type: "string",
-          description: "Team name (auto-generated if omitted)",
-        },
-        directory: {
-          type: "string",
-          description:
-            "Default working directory for all workers (defaults to cwd)",
-        },
-        notify_session_id: {
-          type: "string",
-          description: "Lead session ID to receive worker completion notices",
-        },
-      },
-      required: ["workers"],
-    },
-  },
-  {
     name: "coord_get_result",
     description: "Check worker output and completion status.",
     inputSchema: {
@@ -698,7 +383,7 @@ const ALL_TOOLS = [
       properties: {
         task_id: {
           type: "string",
-          description: "Task ID from coord_spawn_worker",
+          description: "Task ID to check",
         },
         tail_lines: {
           type: "number",
@@ -731,39 +416,6 @@ const ALL_TOOLS = [
     },
   },
   {
-    name: "coord_focus_worker",
-    description:
-      "Focus on a specific worker to auto-stream their output. Like pressing Enter on a teammate in native Agent Teams.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        worker_name: {
-          type: "string",
-          description: "Name of the worker to focus on",
-        },
-      },
-      required: ["worker_name"],
-    },
-  },
-  {
-    name: "coord_focus_next",
-    description:
-      "Cycle focus to the next active worker. Like Shift+Down in native Agent Teams. Wraps around.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-    },
-  },
-  {
-    name: "coord_unfocus",
-    description:
-      "Stop auto-streaming worker output. Like pressing Escape in native Agent Teams.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-    },
-  },
-  {
     name: "coord_wake_session",
     description:
       "Wake an idle session. macOS: AppleScript by tty/title. Linux: direct safe TTY write when available. Windows: AppActivate+SendKeys best effort. All platforms fallback to urgent inbox message.",
@@ -781,99 +433,6 @@ const ALL_TOOLS = [
         },
       },
       required: ["session_id", "message"],
-    },
-  },
-  {
-    name: "coord_kill_worker",
-    description:
-      "Kill a running worker. Cross-platform (kill on Unix, taskkill on Windows).",
-    inputSchema: {
-      type: "object",
-      properties: {
-        task_id: {
-          type: "string",
-          description: "Task ID of the worker to kill",
-        },
-      },
-      required: ["task_id"],
-    },
-  },
-  {
-    name: "coord_resume_worker",
-    description:
-      "Resume a dead/failed worker. Reads its prior output and original prompt, spawns a new worker with continuation context.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        task_id: {
-          type: "string",
-          description: "Task ID of the dead worker to resume",
-        },
-        mode: {
-          type: "string",
-          enum: ["pipe", "interactive"],
-          description:
-            "Mode for the resumed worker (default: same as original)",
-        },
-        resume_agent_id: {
-          type: "string",
-          description:
-            "Optional native agent ID override. When present, resume-by-agentId is attempted before session/transcript fallback paths.",
-        },
-      },
-      required: ["task_id"],
-    },
-  },
-  {
-    name: "coord_upgrade_worker",
-    description:
-      "Upgrade a pipe (deaf) worker to interactive mode. Kills the pipe worker and respawns with message-receiving capability, carrying over progress.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        task_id: {
-          type: "string",
-          description: "Task ID of the pipe worker to upgrade",
-        },
-      },
-      required: ["task_id"],
-    },
-  },
-  {
-    name: "coord_run_pipeline",
-    description:
-      "Run a sequence of tasks as a pipeline. Each step runs after the previous completes.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        directory: { type: "string", description: "Working directory" },
-        tasks: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              prompt: { type: "string" },
-              model: { type: "string" },
-              agent: { type: "string" },
-            },
-            required: ["name", "prompt"],
-          },
-        },
-        pipeline_id: { type: "string" },
-      },
-      required: ["directory", "tasks"],
-    },
-  },
-  {
-    name: "coord_get_pipeline",
-    description: "Check pipeline status and read step outputs.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        pipeline_id: { type: "string", description: "Pipeline ID" },
-      },
-      required: ["pipeline_id"],
     },
   },
   // ── Task Board ──
@@ -1127,7 +686,7 @@ const ALL_TOOLS = [
             required: ["name", "task"],
           },
           description:
-            "Optional: spawn workers atomically with team creation. On any spawn failure, all spawned workers are killed and the team config is removed (full rollback).",
+            "Optional: define worker roles for the team (metadata only, does not spawn processes).",
         },
       },
       required: ["team_name"],
@@ -1229,7 +788,7 @@ const ALL_TOOLS = [
           enum: ["researcher", "implementer", "reviewer", "planner"],
         },
         mode: { type: "string", enum: ["pipe", "interactive"] },
-        runtime: { type: "string", enum: ["claude", "codex"] },
+        runtime: { type: "string", enum: ["claude"] },
         layout: { type: "string", enum: ["tab", "split", "background"] },
         isolate: { type: "boolean" },
         worker_name: { type: "string" },
@@ -1340,7 +899,7 @@ const ALL_TOOLS = [
           enum: ["researcher", "implementer", "reviewer", "planner"],
         },
         mode: { type: "string", enum: ["pipe", "interactive"] },
-        runtime: { type: "string", enum: ["claude", "codex"] },
+        runtime: { type: "string", enum: ["claude"] },
         layout: {
           type: "string",
           enum: ["tab", "split", "background", "tmux"],
@@ -1378,7 +937,7 @@ const ALL_TOOLS = [
           enum: ["researcher", "implementer", "reviewer", "planner"],
         },
         mode: { type: "string", enum: ["pipe", "interactive"] },
-        runtime: { type: "string", enum: ["claude", "codex"] },
+        runtime: { type: "string", enum: ["claude"] },
         layout: { type: "string", enum: ["tab", "split", "background"] },
         isolate: { type: "boolean" },
         notify_session_id: { type: "string" },
@@ -1420,7 +979,7 @@ const ALL_TOOLS = [
         },
         worker_task_id: { type: "string" },
         mode: { type: "string", enum: ["pipe", "interactive"] },
-        runtime: { type: "string", enum: ["claude", "codex"] },
+        runtime: { type: "string", enum: ["claude"] },
         layout: { type: "string", enum: ["tab", "split", "background"] },
         isolate: { type: "boolean" },
         notify_session_id: { type: "string" },
@@ -2104,50 +1663,14 @@ function handleToolCall(name, args = {}) {
       case "coord_detect_conflicts":
         result = handleDetectConflicts(args);
         break;
-      case "coord_spawn_terminal":
-        result = handleSpawnTerminal(args);
-        break;
-      case "coord_spawn_worker":
-        result = handleSpawnWorker(args);
-        break;
-      case "coord_spawn_workers":
-        result = handleSpawnWorkers(args);
-        break;
-      case "coord_quick_team":
-        result = handleQuickTeam(args);
-        break;
       case "coord_get_result":
         result = handleGetResult(args);
         break;
       case "coord_watch_output":
         result = handleWatchOutput(args);
         break;
-      case "coord_focus_worker":
-        result = handleFocusWorker(args);
-        break;
-      case "coord_focus_next":
-        result = handleFocusNext(args);
-        break;
-      case "coord_unfocus":
-        result = handleUnfocus(args);
-        break;
       case "coord_wake_session":
         result = handleWakeSession(args);
-        break;
-      case "coord_kill_worker":
-        result = handleKillWorker(args);
-        break;
-      case "coord_resume_worker":
-        result = handleResumeWorker(args);
-        break;
-      case "coord_upgrade_worker":
-        result = handleUpgradeWorker(args);
-        break;
-      case "coord_run_pipeline":
-        result = handleRunPipeline(args);
-        break;
-      case "coord_get_pipeline":
-        result = handleGetPipeline(args);
         break;
       case "coord_create_task":
         result = handleCreateTask(args);
@@ -2311,15 +1834,12 @@ async function main() {
     }
   }, 30_000).unref();
 
-  // Kill all spawned workers when the coordinator exits so they don't
-  // accumulate as orphaned processes and exhaust RAM over long sessions.
+  // Clean exit handlers
   const cleanExit = (code = 0) => {
-    killAllWorkers();
     process.exit(code);
   };
   process.on("SIGTERM", () => cleanExit(0));
   process.on("SIGINT", () => cleanExit(0));
-  process.on("exit", () => killAllWorkers());
 }
 
 const isDirectRun =
@@ -2345,11 +1865,6 @@ export const __test__ = {
   },
   ensureDirsOnce,
   handleToolCall,
-  buildWorkerScript,
-  buildInteractiveWorkerScript,
-  buildCodexWorkerScript,
-  buildCodexInteractiveWorkerScript,
-  buildResumeWorkerScript,
   buildPlatformLaunchCommand,
   isProcessAlive,
   killProcess,
@@ -2396,10 +1911,6 @@ export const __test__ = {
   handleSendMessage,
   handleBroadcast,
   handleSendDirective,
-  handleResumeWorker,
-  handleUpgradeWorker,
-  handleSpawnWorkers,
-  handleQuickTeam,
   getActiveWorkerSummaries,
   handleApprovePlan,
   handleRejectPlan,
@@ -2417,9 +1928,6 @@ export const __test__ = {
   handleBootSnapshot,
   handleWorkerReport,
   handleWatchOutput,
-  handleFocusWorker,
-  handleFocusNext,
-  handleUnfocus,
   handleSessionHealth,
   PROFILE,
   CORE_TOOLS,

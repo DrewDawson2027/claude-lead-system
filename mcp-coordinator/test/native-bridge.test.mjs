@@ -273,28 +273,4 @@ test('coord_drain_native_queue: empty queue returns clean message', async () => 
 
 // ─── Resume Agent Tests ───────────────────────────────────────────────────────
 
-test('coord_spawn_worker: uses --resume when resume_agent_id is provided', async () => {
-  const { home, terminals } = setupHome();
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleToolCall('coord_spawn_worker', {
-      directory: home,
-      prompt: 'continue your work',
-      resume_agent_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-    });
-    const text = result?.content?.[0]?.text || '';
-    assert.match(text, /Worker resumed \(native agent\)/i);
-    assert.match(text, /a1b2c3d4-e5f6-7890-abcd-ef1234567890/);
-    assert.match(text, /Full conversation history preserved/i);
 
-    // Meta file should record the resumed agentId
-    const results = join(home, '.claude', 'terminals', 'results');
-    const metaFiles = readdirSync(results).filter((f) => f.endsWith('.meta.json'));
-    assert.ok(metaFiles.length >= 1, 'meta file should be created');
-    const meta = JSON.parse(readFileSync(join(results, metaFiles[0]), 'utf8'));
-    assert.equal(meta.resumed_from_agent, 'a1b2c3d4-e5f6-7890-abcd-ef1234567890');
-  } finally {
-    restore();
-  }
-});

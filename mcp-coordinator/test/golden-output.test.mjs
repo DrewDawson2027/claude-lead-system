@@ -55,52 +55,9 @@ function textOf(result) {
 // Worker spawn responses
 // ═══════════════════════════════════════════════════════════════════════════════
 
-test('coord_spawn_worker success response has expected structure', async () => {
-  const { home } = setupHome();
-  const projectDir = join(home, 'project');
-  mkdirSync(projectDir, { recursive: true });
 
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleToolCall('coord_spawn_worker', {
-      directory: projectDir,
-      prompt: 'Build the API',
-      model: 'sonnet',
-    });
-    const txt = textOf(result);
-    // Must contain key elements
-    assert.match(txt, /Worker spawned/i, 'Should contain "Worker spawned"');
-    assert.match(txt, /task_id|Task ID|W_/i, 'Should contain task ID reference');
-    assert.match(txt, /sonnet/i, 'Should mention the model');
-  } finally {
-    restore();
-  }
-});
 
-test('coord_spawn_worker budget-blocked response has clear message', async () => {
-  const { home } = setupHome();
-  const projectDir = join(home, 'project');
-  mkdirSync(projectDir, { recursive: true });
 
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    // Use per-worker budget enforce with 1 token — estimate always exceeds 1
-    const result = api.handleToolCall('coord_spawn_worker', {
-      directory: projectDir,
-      prompt: 'Should be blocked',
-      model: 'sonnet',
-      budget_policy: 'enforce',
-      budget_tokens: 1,
-    });
-    const txt = textOf(result);
-    assert.match(txt, /budget/i, 'Budget-blocked response should mention "budget"');
-    assert.match(txt, /blocked/i, 'Should indicate the spawn was prevented');
-  } finally {
-    restore();
-  }
-});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Team dispatch response

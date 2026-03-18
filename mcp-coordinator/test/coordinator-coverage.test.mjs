@@ -66,207 +66,25 @@ function readJsonl(path) {
 // workers.js coverage
 // ═══════════════════════════════════════════════════════════════════════════════
 
-test('handleResumeWorker returns not found for missing task', async () => {
-  const { home } = setupHome();
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleResumeWorker({ task_id: 'W_MISSING_RESUME' });
-    assert.match(textOf(result), /not found/i);
-  } finally {
-    restore();
-  }
-});
 
-test('handleResumeWorker resumes a completed worker', async () => {
-  const { home } = setupHome();
-  const projectDir = join(home, 'project');
-  mkdirSync(projectDir, { recursive: true });
-  const results = join(home, '.claude', 'terminals', 'results');
 
-  // Write meta for a "completed" worker
-  writeFileSync(join(results, 'W_RESUME1.meta.json'), JSON.stringify({
-    task_id: 'W_RESUME1',
-    directory: projectDir,
-    original_directory: projectDir,
-    model: 'sonnet',
-    mode: 'pipe',
-    prompt: 'Build the feature',
-    resume_count: 0,
-  }));
-  writeFileSync(join(results, 'W_RESUME1.meta.json.done'), JSON.stringify({ status: 'completed' }));
-  writeFileSync(join(results, 'W_RESUME1.txt'), 'Partial work done here');
 
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleResumeWorker({ task_id: 'W_RESUME1' });
-    const txt = textOf(result);
-    // Should spawn a new worker (in test mode it returns spawned text)
-    assert.match(txt, /Worker spawned|CONTINUATION/i);
-  } finally {
-    restore();
-  }
-});
 
-test('handleResumeWorker detects still-running worker', async () => {
-  const { home } = setupHome();
-  const results = join(home, '.claude', 'terminals', 'results');
 
-  writeFileSync(join(results, 'W_RUNNING.meta.json'), JSON.stringify({
-    task_id: 'W_RUNNING',
-    directory: '/tmp',
-  }));
-  // Write a PID file with the current process PID (which IS alive)
-  writeFileSync(join(results, 'W_RUNNING.pid'), String(process.pid));
 
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleResumeWorker({ task_id: 'W_RUNNING' });
-    assert.match(textOf(result), /still running/i);
-  } finally {
-    restore();
-  }
-});
 
-test('handleUpgradeWorker returns not found for missing task', async () => {
-  const { home } = setupHome();
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleUpgradeWorker({ task_id: 'W_MISSING_UPGRADE' });
-    assert.match(textOf(result), /not found/i);
-  } finally {
-    restore();
-  }
-});
 
-test('handleUpgradeWorker rejects already-interactive worker', async () => {
-  const { home } = setupHome();
-  const results = join(home, '.claude', 'terminals', 'results');
-  writeFileSync(join(results, 'W_INTERACTIVE.meta.json'), JSON.stringify({
-    task_id: 'W_INTERACTIVE',
-    mode: 'interactive',
-    directory: '/tmp',
-  }));
 
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleUpgradeWorker({ task_id: 'W_INTERACTIVE' });
-    assert.match(textOf(result), /already.*interactive/i);
-  } finally {
-    restore();
-  }
-});
 
-test('handleUpgradeWorker upgrades pipe worker to interactive', async () => {
-  const { home } = setupHome();
-  const projectDir = join(home, 'project');
-  mkdirSync(projectDir, { recursive: true });
-  const results = join(home, '.claude', 'terminals', 'results');
 
-  writeFileSync(join(results, 'W_PIPE.meta.json'), JSON.stringify({
-    task_id: 'W_PIPE',
-    mode: 'pipe',
-    directory: projectDir,
-    original_directory: projectDir,
-    model: 'sonnet',
-    prompt: 'Do the thing',
-  }));
-  // No PID file = worker already dead, so kill step is a no-op
-  writeFileSync(join(results, 'W_PIPE.meta.json.done'), JSON.stringify({ status: 'completed' }));
 
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleUpgradeWorker({ task_id: 'W_PIPE' });
-    const txt = textOf(result);
-    assert.match(txt, /Worker Upgraded/i);
-    assert.match(txt, /interactive/i);
-  } finally {
-    restore();
-  }
-});
 
-test('handleSpawnWorkers spawns multiple workers', async () => {
-  const { home } = setupHome();
-  const projectDir = join(home, 'project');
-  mkdirSync(projectDir, { recursive: true });
 
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleSpawnWorkers({
-      workers: [
-        { directory: projectDir, prompt: 'Task A', model: 'sonnet' },
-        { directory: projectDir, prompt: 'Task B', model: 'haiku' },
-      ],
-    });
-    const txt = textOf(result);
-    assert.match(txt, /Multi-Spawn: 2 workers/);
-    assert.match(txt, /Worker 1/);
-    assert.match(txt, /Worker 2/);
-  } finally {
-    restore();
-  }
-});
 
-test('handleSpawnWorkers rejects empty workers array', async () => {
-  const { home } = setupHome();
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const result = api.handleSpawnWorkers({ workers: [] });
-    assert.match(textOf(result), /required/i);
-  } finally {
-    restore();
-  }
-});
 
-test('handleSpawnWorker reviewer role uses lower-cost default model and context', async () => {
-  const { home } = setupHome();
-  const projectDir = join(home, 'project');
-  mkdirSync(projectDir, { recursive: true });
 
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const taskId = 'W_REVIEWER_PRESET';
-    const result = api.handleToolCall('coord_spawn_worker', {
-      task_id: taskId,
-      directory: projectDir,
-      prompt: 'Review the proposed changes and identify risks.',
-      role: 'reviewer',
-      isolate: false,
-    });
-    assert.match(textOf(result), /Worker spawned/i);
 
-    const meta = readJson(join(home, '.claude', 'terminals', 'results', `${taskId}.meta.json`));
-    assert.equal(meta.model, 'sonnet');
-    assert.equal(meta.context_level, 'standard');
-    assert.equal(meta.permission_mode, 'readOnly');
-    assert.equal(meta.require_plan, true);
-  } finally {
-    restore();
-  }
-});
 
-test('handleSpawnWorkers rejects more than 10 workers', async () => {
-  const { home } = setupHome();
-  const { api, restore } = await loadForTest(home);
-  try {
-    api.ensureDirsOnce();
-    const workers = Array.from({ length: 11 }, () => ({
-      directory: '/tmp', prompt: 'x', model: 'sonnet',
-    }));
-    const result = api.handleSpawnWorkers({ workers });
-    assert.match(textOf(result), /Maximum 10/);
-  } finally {
-    restore();
-  }
-});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // tasks.js coverage
