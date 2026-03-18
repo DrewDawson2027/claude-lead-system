@@ -148,23 +148,22 @@ The user opens Claude terminals manually. The lead's job is:
 
 **No polling loops.** Never use `sleep` + `tail` to monitor output. Check output only when the user asks.
 
-
 ---
 
 ## Natural Language Patterns (translate intent to coordinator tools)
 
-| User says | Lead does |
-|-----------|-----------|
-| "what's happening?" / "status" | `coord_boot_snapshot` — shows all active terminals |
-| "check for conflicts" | `coord_detect_conflicts` — scans all sessions for overlapping files |
-| "tell terminal-2 to focus on auth" | `coord_send_directive` to that terminal |
-| "message everyone to stop merging" | `coord_broadcast` with the message |
-| "create a task for the login bug" | `coord_create_task` with subject and description |
-| "who's working on what?" | `coord_list_sessions` — shows current work per terminal |
-| "wake up terminal-3" | `coord_wake_session` — sends keystroke + inbox message |
-| "show me what terminal-2 produced" | `coord_watch_output` or `coord_get_result` — one-shot read |
-| "set up a team for the sprint" | `coord_create_team` with members and policies |
-| "what tasks are pending?" | `coord_list_tasks` with status filter |
+| User says                          | Lead does                                                           |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| "what's happening?" / "status"     | `coord_boot_snapshot` — shows all active terminals                  |
+| "check for conflicts"              | `coord_detect_conflicts` — scans all sessions for overlapping files |
+| "tell terminal-2 to focus on auth" | `coord_send_directive` to that terminal                             |
+| "message everyone to stop merging" | `coord_broadcast` with the message                                  |
+| "create a task for the login bug"  | `coord_create_task` with subject and description                    |
+| "who's working on what?"           | `coord_list_sessions` — shows current work per terminal             |
+| "wake up terminal-3"               | `coord_wake_session` — sends keystroke + inbox message              |
+| "show me what terminal-2 produced" | `coord_watch_output` or `coord_get_result` — one-shot read          |
+| "set up a team for the sprint"     | `coord_create_team` with members and policies                       |
+| "what tasks are pending?"          | `coord_list_tasks` with status filter                               |
 
 ---
 
@@ -185,6 +184,7 @@ Messages work with ANY Claude terminal — not just ones the coordinator created
 ## How to Identify Terminals for the User
 
 Never expose raw session IDs like `aa04f096`. Instead:
+
 - Use `worker_name` if set (e.g., "terminal-2", "reviewer")
 - Use the project directory name as context (e.g., "the terminal working on claude-lead-system")
 - Use the TTY if nothing else is available (e.g., "terminal on ttys007")
@@ -193,35 +193,35 @@ Never expose raw session IDs like `aa04f096`. Instead:
 
 ## Decision Framework
 
-| Situation | Action |
-|-----------|--------|
-| User asks to do a task | Check for other terminals → offer to message one, or do it directly |
-| Two terminals editing same file | `coord_detect_conflicts` → notify both terminals |
-| Terminal appears idle (>5min no activity) | `coord_wake_session` — nudge it |
-| Terminal stale (>30min) | Note it in the dashboard, don't take action unless asked |
+| Situation                                  | Action                                                               |
+| ------------------------------------------ | -------------------------------------------------------------------- |
+| User asks to do a task                     | Check for other terminals → offer to message one, or do it directly  |
+| Two terminals editing same file            | `coord_detect_conflicts` → notify both terminals                     |
+| Terminal appears idle (>5min no activity)  | `coord_wake_session` — nudge it                                      |
+| Terminal stale (>30min)                    | Note it in the dashboard, don't take action unless asked             |
 | User asks for output from another terminal | `coord_watch_output` or `coord_get_result` — single read, no polling |
 
 ---
 
 ## Internal Tool Routing (quick reference)
 
-| Action | Tool |
-|--------|------|
-| Dashboard | `coord_boot_snapshot` |
-| List terminals | `coord_list_sessions` |
-| Terminal details | `coord_get_session` |
-| Send message | `coord_send_message` |
-| Send instruction + wake | `coord_send_directive` |
-| Broadcast | `coord_broadcast` |
-| Check inbox | `coord_check_inbox` |
-| Detect conflicts | `coord_detect_conflicts` |
-| Read output | `coord_watch_output` / `coord_get_result` |
-| Wake terminal | `coord_wake_session` |
-| Create task | `coord_create_task` |
-| Update task | `coord_update_task` |
-| List tasks | `coord_list_tasks` |
-| Create team | `coord_create_team` |
-| List teams | `coord_list_teams` |
-| Approve plan | `coord_approve_plan` |
-| Reject plan | `coord_reject_plan` |
-| Shared context | `coord_write_context` / `coord_read_context` |
+| Action                  | Tool                                         |
+| ----------------------- | -------------------------------------------- |
+| Dashboard               | `coord_boot_snapshot`                        |
+| List terminals          | `coord_list_sessions`                        |
+| Terminal details        | `coord_get_session`                          |
+| Send message            | `coord_send_message`                         |
+| Send instruction + wake | `coord_send_directive`                       |
+| Broadcast               | `coord_broadcast`                            |
+| Check inbox             | `coord_check_inbox`                          |
+| Detect conflicts        | `coord_detect_conflicts`                     |
+| Read output             | `coord_watch_output` / `coord_get_result`    |
+| Wake terminal           | `coord_wake_session`                         |
+| Create task             | `coord_create_task`                          |
+| Update task             | `coord_update_task`                          |
+| List tasks              | `coord_list_tasks`                           |
+| Create team             | `coord_create_team`                          |
+| List teams              | `coord_list_teams`                           |
+| Approve plan            | `coord_approve_plan`                         |
+| Reject plan             | `coord_reject_plan`                          |
+| Shared context          | `coord_write_context` / `coord_read_context` |

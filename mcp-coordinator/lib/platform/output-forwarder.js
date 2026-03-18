@@ -16,12 +16,7 @@
 
 import { spawn } from "child_process";
 import { createServer } from "net";
-import {
-  createWriteStream,
-  writeFileSync,
-  unlinkSync,
-  existsSync,
-} from "fs";
+import { createWriteStream, writeFileSync, unlinkSync, existsSync } from "fs";
 
 const args = process.argv.slice(2);
 const separatorIdx = args.indexOf("--");
