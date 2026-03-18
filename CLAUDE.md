@@ -101,7 +101,7 @@ Current evidence posture summary:
 ## Test Commands
 
 ```bash
-# Run all tests (485 coordinator + 310 sidecar = 795 total, must stay green)
+# Run all tests (304 coordinator + 310 sidecar = 614 total, must stay green)
 cd mcp-coordinator && npm test
 
 # Run just the P2P integration tests
