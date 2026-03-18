@@ -37,6 +37,13 @@ export function cfg() {
     QUEUE_FILE: join(terminalsDir, "queue.jsonl"),
     SESSION_CACHE_DIR: join(claudeDir, "session-cache"),
     SETTINGS_FILE: join(claudeDir, "settings.local.json"),
+    WORKER_SETTINGS_FILE: join(
+      claudeDir,
+      "mcp-coordinator",
+      "lib",
+      "platform",
+      "worker-settings.json",
+    ),
     PLATFORM: process.env.COORDINATOR_PLATFORM || platform(),
     TEST_MODE: process.env.COORDINATOR_TEST_MODE === "1",
     CLAUDE_BIN: process.env.COORDINATOR_CLAUDE_BIN || "claude",

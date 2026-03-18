@@ -149,12 +149,6 @@ export function spawnTmuxPaneWorker(script) {
     throw new Error(`tmux split-window returned unexpected pane ID: ${paneId}`);
   }
 
-  // Horizontal split layout — workers appear side-by-side with the lead,
-  // matching native Agent Teams visual behavior.
-  spawnSync("tmux", ["select-layout", "even-horizontal"], {
-    stdio: "ignore",
-    timeout: 3000,
-  });
 
   return { paneId, app: "tmux" };
 }
@@ -481,7 +475,7 @@ export function isSafeTTYPath(pathValue) {
 }
 
 export function buildInteractiveWorkerScript(opts) {
-  const { PLATFORM, SETTINGS_FILE, CLAUDE_BIN } = cfg();
+  const { PLATFORM, SETTINGS_FILE, WORKER_SETTINGS_FILE, CLAUDE_BIN } = cfg();
   const { taskId, workDir, pidFile, metaFile, model, agent, promptFile } = opts;
   const workerName = opts.workerName || "";
   const maxTurns = opts.maxTurns || "";
@@ -517,8 +511,9 @@ export function buildInteractiveWorkerScript(opts) {
   const qModel = shellQuote(model);
   const qClaudeBin = shellQuote(CLAUDE_BIN);
   const agentArgs = agent ? `--agent ${shellQuote(agent)}` : "";
-  const settingsArgs = existsSync(SETTINGS_FILE)
-    ? `--settings ${shellQuote(SETTINGS_FILE)}`
+  const workerSettingsFile = existsSync(WORKER_SETTINGS_FILE) ? WORKER_SETTINGS_FILE : SETTINGS_FILE;
+  const settingsArgs = existsSync(workerSettingsFile)
+    ? `--settings ${shellQuote(workerSettingsFile)}`
     : "";
 
   const envExports = [
@@ -665,7 +660,7 @@ export function buildInteractiveWorkerScript(opts) {
  * @returns {string} Shell script string
  */
 export function buildResumeWorkerScript(opts) {
-  const { CLAUDE_BIN, SETTINGS_FILE } = cfg();
+  const { CLAUDE_BIN, SETTINGS_FILE, WORKER_SETTINGS_FILE } = cfg();
   const { sessionId, workDir, pidFile, metaFile, taskId } = opts;
   const leadSessionId = opts.leadSessionId || "";
   const leadPaneId = opts.leadPaneId || "";
@@ -678,8 +673,9 @@ export function buildResumeWorkerScript(opts) {
   const qMetaDone = shellQuote(`${metaFile}.done`);
   const qClaudeBin = shellQuote(CLAUDE_BIN);
   const qSessionId = shellQuote(sessionId);
-  const settingsArgs = existsSync(SETTINGS_FILE)
-    ? `--settings ${shellQuote(SETTINGS_FILE)}`
+  const workerSettingsFile = existsSync(WORKER_SETTINGS_FILE) ? WORKER_SETTINGS_FILE : SETTINGS_FILE;
+  const settingsArgs = existsSync(workerSettingsFile)
+    ? `--settings ${shellQuote(workerSettingsFile)}`
     : "";
   const parentSessionSetup = buildParentSessionSetup(qClaudeBin);
 
@@ -922,7 +918,7 @@ export function buildCodexInteractiveWorkerScript(opts) {
  * @returns {string} Shell script string
  */
 export function buildWorkerScript(opts) {
-  const { PLATFORM, SETTINGS_FILE, CLAUDE_BIN } = cfg();
+  const { PLATFORM, SETTINGS_FILE, WORKER_SETTINGS_FILE, CLAUDE_BIN } = cfg();
   const {
     taskId,
     workDir,
@@ -954,8 +950,9 @@ export function buildWorkerScript(opts) {
     const qModel = shellQuote(model);
     const qClaudeBin = shellQuote(CLAUDE_BIN);
     const agentArgs = agent ? `--agent ${shellQuote(agent)}` : "";
-    const settingsArgs = existsSync(SETTINGS_FILE)
-      ? `--settings ${shellQuote(SETTINGS_FILE)}`
+    const workerSettingsFile = existsSync(WORKER_SETTINGS_FILE) ? WORKER_SETTINGS_FILE : SETTINGS_FILE;
+    const settingsArgs = existsSync(workerSettingsFile)
+      ? `--settings ${shellQuote(workerSettingsFile)}`
       : "";
     const qTaskId = shellQuote(taskId);
     const autoClaimEnv = [
