@@ -1,6 +1,7 @@
 ---
 name: cycle
-description: Cycle focus to the next active worker (like Shift+Down in native Agent Teams)
+description: Show the latest output across active workers
 ---
 
-Call the coord_focus_next MCP tool to cycle to the next active worker. Show the result.
+Call the `coord_watch_output` MCP tool with no args to show all active workers'
+latest output lines. Show the result.

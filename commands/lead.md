@@ -28,7 +28,6 @@ allowed-tools:
   - mcp__coordinator__coord_create_team
   - mcp__coordinator__coord_get_team
   - mcp__coordinator__coord_list_teams
-  - mcp__coordinator__coord_team_dispatch
   - mcp__coordinator__coord_team_status_compact
   - mcp__coordinator__coord_team_queue_task
   - mcp__coordinator__coord_team_assign_next

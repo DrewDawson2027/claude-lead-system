@@ -45,6 +45,7 @@ declare module "*.js" {
   export const suggestRecovery: any;
   export const validateHooks: any;
   export const runHookSelftest: any;
+  export const OutputStreamManager: any;
   export const attachRouteMeta: any;
   export const currentApiVersion: any;
   export const legacyDeprecationHeaders: any;

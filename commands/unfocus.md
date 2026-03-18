@@ -1,6 +1,8 @@
 ---
 name: unfocus
-description: Stop auto-streaming worker output
+description: Clear focused output view (one-shot mode)
 ---
 
-Call the coord_unfocus MCP tool to clear the focus state and stop auto-streaming. Confirm to the user that streaming has stopped.
+This workflow now uses one-shot output reads only.
+Call `coord_watch_output` with no args so the user returns to aggregate output
+view, then confirm.

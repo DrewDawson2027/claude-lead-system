@@ -248,6 +248,7 @@ export interface RouteContext {
   runHookSelftest: (...args: any[]) => any;
   listBackups: (...args: any[]) => any;
   restoreFromBackup: (...args: any[]) => any;
+  outputStream?: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +267,7 @@ export interface SidecarServerInstance {
   close: () => void;
   maintenanceSweep: (opts: { source: string }) => unknown;
   diagnosticsBundle: unknown;
+  outputStream?: unknown;
 }
 
 // ---------------------------------------------------------------------------

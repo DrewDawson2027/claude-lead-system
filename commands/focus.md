@@ -1,6 +1,8 @@
 ---
 name: focus
-description: Focus on a specific worker to auto-stream their output
+description: Show output for one worker (or all active workers)
 ---
 
-Call coord_focus_worker with the worker name the user specified. If no name given, call coord_focus_next instead. Show the result including the worker's latest output.
+If the user provides a worker name, call `coord_watch_output` with
+`worker_name=<name>`. If no worker name is provided, call `coord_watch_output`
+with no args. Show the result.
