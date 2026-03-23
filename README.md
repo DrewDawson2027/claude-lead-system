@@ -1,16 +1,12 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1117,40:1a1f35,100:7aa2f7&height=220&section=header&text=claude-lead-system&fontSize=52&fontColor=ffffff&animation=fadeIn&fontAlignY=42&desc=Local%20coordination%20for%20Claude%20Code.%20Zero%20API%20tokens.&descAlignY=64&descSize=15&descColor=7aa2f7" width="100%" />
+<img src="assets/banner.svg" width="100%" alt="claude-lead-system — local coordination for Claude Code" />
 
 </div>
 
 <div align="center">
 
-[![npm](https://img.shields.io/npm/v/claude-lead-system?style=for-the-badge&color=7aa2f7&labelColor=0d1117&logo=npm&logoColor=white)](https://www.npmjs.com/package/claude-lead-system)
-[![Tests](https://img.shields.io/badge/tests-594_passing-3fb950?style=for-the-badge&labelColor=161b22&logo=checkmarx&logoColor=white)](https://github.com/DrewDawson2027/claude-lead-system/actions)
-[![Coverage](https://img.shields.io/badge/coverage-85%25-3fb950?style=for-the-badge&labelColor=161b22&logo=codecov&logoColor=white)](https://github.com/DrewDawson2027/claude-lead-system/actions)
-[![License](https://img.shields.io/badge/license-MIT-d2a8ff?style=for-the-badge&labelColor=161b22)](https://opensource.org/licenses/MIT)
-[![Platform](https://img.shields.io/badge/macOS%20%7C%20Linux-verified-58a6ff?style=for-the-badge&labelColor=161b22&logo=apple&logoColor=white)](docs/COMPATIBILITY_MATRIX.md)
+[![npm](https://img.shields.io/npm/v/claude-lead-system?style=flat-square&color=7aa2f7&logo=npm&logoColor=white)](https://www.npmjs.com/package/claude-lead-system) [![tests](https://img.shields.io/badge/594_tests-passing-3fb950?style=flat-square)](https://github.com/DrewDawson2027/claude-lead-system/actions) [![license](https://img.shields.io/badge/MIT-license-d2a8ff?style=flat-square)](https://opensource.org/licenses/MIT)
 
 <br />
 
@@ -21,6 +17,14 @@
 [**Install**](#install) · [**How It Works**](#what-it-does) · [**MCP Tools**](#mcp-tools) · [**Docs**](#docs)
 
 </div>
+
+---
+
+> Built entirely through Claude Code by a Philosophy, Politics & Economics student at USC — no prior programming background.
+>
+> 48 tools. 594 tests. A complete local coordination layer for multi-terminal Claude workflows.
+>
+> Every line written in natural language, verified in CI.
 
 ---
 
@@ -77,15 +81,15 @@ claude
 
 ## What It Does
 
-| Capability | What happens |
-|---|---|
-| **Conflict detection** | Flags files touched by two sessions simultaneously — before either overwrites the other. Both sessions get notified. |
+| Capability                   | What happens                                                                                                                        |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Conflict detection**       | Flags files touched by two sessions simultaneously — before either overwrites the other. Both sessions get notified.                |
 | **Cross-terminal messaging** | Send instructions to any named terminal directly from the lead session. Delivered via the local filesystem inbox — zero API tokens. |
-| **Persistent task board** | Tasks survive terminal restarts. Close a session, reopen it — the board is still there. |
-| **Live dashboard** | Every active terminal: branch, files touched, last-active time. Refreshes on demand. |
-| **Plan approval protocol** | Workers pause before executing plans. Lead reviews and approves. You stay in control of what actually runs. |
-| **Budget governance** | Cap how many turns a worker can take before it stops. Prevents runaway sessions. |
-| **Session resumption** | Re-enter a prior worker conversation by session ID. Preserves context across restarts. |
+| **Persistent task board**    | Tasks survive terminal restarts. Close a session, reopen it — the board is still there.                                             |
+| **Live dashboard**           | Every active terminal: branch, files touched, last-active time. Refreshes on demand.                                                |
+| **Plan approval protocol**   | Workers pause before executing plans. Lead reviews and approves. You stay in control of what actually runs.                         |
+| **Budget governance**        | Cap how many turns a worker can take before it stops. Prevents runaway sessions.                                                    |
+| **Session resumption**       | Re-enter a prior worker conversation by session ID. Preserves context across restarts.                                              |
 
 ---
 
@@ -93,17 +97,17 @@ claude
 
 These features are not available in vanilla Claude Code multi-session workflows:
 
-| # | Capability | Detail |
-|---|---|---|
-| 1 | Real-time conflict detection | File-level, cross-session, pre-collision |
-| 2 | Zero-token coordination | All coordination uses local filesystem, not the API |
-| 3 | Named terminal messaging | Send to `frontend`, `backend`, `reviewer` — by name |
-| 4 | Persistent task board | Survives context-window resets and terminal restarts |
-| 5 | Plan approval gate | Workers wait for explicit lead sign-off before executing |
-| 6 | Turn budget caps | Hard limits on worker session length |
-| 7 | Session resumption by ID | Re-enter prior worker conversation |
-| 8 | Broadcast to all terminals | One message → all active workers simultaneously |
-| 9 | Live activity log | Append-only audit trail of all cross-terminal activity |
+| #   | Capability                   | Detail                                                   |
+| --- | ---------------------------- | -------------------------------------------------------- |
+| 1   | Real-time conflict detection | File-level, cross-session, pre-collision                 |
+| 2   | Zero-token coordination      | All coordination uses local filesystem, not the API      |
+| 3   | Named terminal messaging     | Send to `frontend`, `backend`, `reviewer` — by name      |
+| 4   | Persistent task board        | Survives context-window resets and terminal restarts     |
+| 5   | Plan approval gate           | Workers wait for explicit lead sign-off before executing |
+| 6   | Turn budget caps             | Hard limits on worker session length                     |
+| 7   | Session resumption by ID     | Re-enter prior worker conversation                       |
+| 8   | Broadcast to all terminals   | One message → all active workers simultaneously          |
+| 9   | Live activity log            | Append-only audit trail of all cross-terminal activity   |
 
 ---
 
@@ -134,15 +138,15 @@ Full reference → [docs/MCP_TOOL_REFERENCE.md](docs/MCP_TOOL_REFERENCE.md)
 
 <div align="center">
 
-| Metric | Value |
-|:---|:---:|
-| Tests | **594 passing** |
-| Coverage | **85%+** |
-| MCP tools | **48** |
-| Library modules | **24** |
-| macOS capabilities verified | **8 / 8** |
-| Linux capabilities verified | **8 / 8** |
-| Coordination API tokens | **0** |
+| Metric                      |      Value      |
+| :-------------------------- | :-------------: |
+| Tests                       | **594 passing** |
+| Coverage                    |    **85%+**     |
+| MCP tools                   |     **48**      |
+| Library modules             |     **24**      |
+| macOS capabilities verified |    **8 / 8**    |
+| Linux capabilities verified |    **8 / 8**    |
+| Coordination API tokens     |      **0**      |
 
 </div>
 
@@ -150,11 +154,11 @@ Full reference → [docs/MCP_TOOL_REFERENCE.md](docs/MCP_TOOL_REFERENCE.md)
 
 ## Platform Support
 
-| Platform | Status | Details |
-|---|---|---|
-| macOS | ✅ Verified | iTerm2, Terminal.app — all 8 capabilities |
-| Linux | ✅ Verified | gnome-terminal, konsole, kitty, alacritty, xterm — all 8 capabilities |
-| Windows | ⚪ Canary | Windows Terminal / PowerShell — CI canary, not yet verified |
+| Platform | Status      | Details                                                               |
+| -------- | ----------- | --------------------------------------------------------------------- |
+| macOS    | ✅ Verified | iTerm2, Terminal.app — all 8 capabilities                             |
+| Linux    | ✅ Verified | gnome-terminal, konsole, kitty, alacritty, xterm — all 8 capabilities |
+| Windows  | ⚪ Canary   | Windows Terminal / PowerShell — CI canary, not yet verified           |
 
 Full matrix → [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)
 
@@ -169,28 +173,18 @@ Full matrix → [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)
 
 ---
 
-## The Story
-
-> Built entirely through Claude Code by a Philosophy, Politics & Economics student at USC — no prior programming background.
->
-> 48 tools. 594 tests. A complete local coordination layer for multi-terminal Claude workflows.
->
-> Every line written in natural language, verified in CI.
-
----
-
 ## Docs
 
-| Document | Description |
-|---|---|
-| [Getting Started](docs/GETTING_STARTED.md) | First 10 minutes walkthrough |
-| [MCP Tool Reference](docs/MCP_TOOL_REFERENCE.md) | All 48 coordinator tools |
-| [Architecture](docs/ARCHITECTURE.md) | System design and coordination layers |
-| [Compatibility Matrix](docs/COMPATIBILITY_MATRIX.md) | Evidence-backed platform support |
-| [Known Limitations](docs/KNOWN_LIMITATIONS.md) | What doesn't work yet and why |
-| [Security](docs/SECURITY.md) | Threat model, filesystem hardening, token guard |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common failure modes and fixes |
-| [Contributing](CONTRIBUTING.md) | Setup instructions and contribution areas |
+| Document                                             | Description                                     |
+| ---------------------------------------------------- | ----------------------------------------------- |
+| [Getting Started](docs/GETTING_STARTED.md)           | First 10 minutes walkthrough                    |
+| [MCP Tool Reference](docs/MCP_TOOL_REFERENCE.md)     | All 48 coordinator tools                        |
+| [Architecture](docs/ARCHITECTURE.md)                 | System design and coordination layers           |
+| [Compatibility Matrix](docs/COMPATIBILITY_MATRIX.md) | Evidence-backed platform support                |
+| [Known Limitations](docs/KNOWN_LIMITATIONS.md)       | What doesn't work yet and why                   |
+| [Security](docs/SECURITY.md)                         | Threat model, filesystem hardening, token guard |
+| [Troubleshooting](docs/TROUBLESHOOTING.md)           | Common failure modes and fixes                  |
+| [Contributing](CONTRIBUTING.md)                      | Setup instructions and contribution areas       |
 
 <details>
 <summary>Advanced install — signed release verification</summary>
