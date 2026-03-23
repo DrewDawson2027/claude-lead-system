@@ -28,19 +28,19 @@ for ref in $doc_refs; do
   fi
 done
 
-# 2. Feature comparison table has exactly 13 rows
+# 2. Lead-exclusive capability table has exactly 9 rows
 echo ""
 echo "Checking feature table row count..."
-feature_rows=$(sed -n '/^| Feature | Agent Teams | Lead System |$/,/^$/p' "$README" | grep -c '^|'; true)
+feature_rows=$(sed -n '/^| # | Capability | Detail |$/,/^$/p' "$README" | grep -c '^|'; true)
 feature_rows=${feature_rows:-0}
 # Subtract 2 for header + separator rows
 feature_count=$((feature_rows - 2))
-if [ "$feature_count" -eq 13 ]; then
-  log_ok "Feature table has $feature_count rows (matches '13 features' claim)"
+if [ "$feature_count" -eq 9 ]; then
+  log_ok "Lead-exclusive capability table has $feature_count rows (matches README)"
 elif [ "$feature_count" -gt 0 ]; then
-  log_warn "Feature table has $feature_count rows (README claims 13)"
+  log_warn "Lead-exclusive capability table has $feature_count rows (README currently expects 9)"
 else
-  log_warn "Could not parse feature table"
+  log_warn "Could not parse lead-exclusive capability table"
 fi
 
 # 3. bench/latest-results.json exists and is valid JSON
@@ -57,31 +57,36 @@ else
   log_warn "bench/latest-results.json not found (may not exist until first benchmark run)"
 fi
 
-# 4. Cost comparison numbers: README $8.10 vs $3.51 match methodology doc
+# 4. Legacy cost totals (if present) must match methodology doc
 echo ""
 echo "Checking cost comparison consistency..."
 METHODOLOGY="$REPO_ROOT/docs/COMPARISON_METHODOLOGY.md"
-if [ -f "$METHODOLOGY" ]; then
-  readme_total_at=$(grep -c '\$8\.10' "$README"; true)
-  readme_total_at=${readme_total_at:-0}
-  readme_total_ls=$(grep -c '\$3\.51' "$README"; true)
-  readme_total_ls=${readme_total_ls:-0}
-  method_total_at=$(grep -c '\$8\.10' "$METHODOLOGY"; true)
-  method_total_at=${method_total_at:-0}
-  method_total_ls=$(grep -c '\$3\.51' "$METHODOLOGY"; true)
-  method_total_ls=${method_total_ls:-0}
-  if [ "$readme_total_at" -gt 0 ] && [ "$method_total_at" -gt 0 ]; then
-    log_ok "Agent Teams total (\$8.10) consistent between README and methodology"
-  else
-    log_warn "Agent Teams cost total not found (removed per economics posture)"
-  fi
-  if [ "$readme_total_ls" -gt 0 ] && [ "$method_total_ls" -gt 0 ]; then
-    log_ok "Lead System total (\$3.51) consistent between README and methodology"
-  else
-    log_warn "Lead System cost total not found (removed per economics posture)"
-  fi
+readme_total_at=$(grep -c '\$8\.10' "$README"; true)
+readme_total_at=${readme_total_at:-0}
+readme_total_ls=$(grep -c '\$3\.51' "$README"; true)
+readme_total_ls=${readme_total_ls:-0}
+
+if [ "$readme_total_at" -eq 0 ] && [ "$readme_total_ls" -eq 0 ]; then
+  log_ok "Legacy fixed cost totals are intentionally absent from README"
 else
-  log_warn "docs/COMPARISON_METHODOLOGY.md not found"
+  if [ -f "$METHODOLOGY" ]; then
+    method_total_at=$(grep -c '\$8\.10' "$METHODOLOGY"; true)
+    method_total_at=${method_total_at:-0}
+    method_total_ls=$(grep -c '\$3\.51' "$METHODOLOGY"; true)
+    method_total_ls=${method_total_ls:-0}
+    if [ "$readme_total_at" -gt 0 ] && [ "$method_total_at" -gt 0 ]; then
+      log_ok "Agent Teams total (\$8.10) consistent between README and methodology"
+    else
+      log_fail "Agent Teams cost total claim present in README but missing from methodology"
+    fi
+    if [ "$readme_total_ls" -gt 0 ] && [ "$method_total_ls" -gt 0 ]; then
+      log_ok "Lead System total (\$3.51) consistent between README and methodology"
+    else
+      log_fail "Lead System cost total claim present in README but missing from methodology"
+    fi
+  else
+    log_fail "docs/COMPARISON_METHODOLOGY.md missing while README contains fixed cost claims"
+  fi
 fi
 
 # 5. CLAIM_PROVENANCE.md exists

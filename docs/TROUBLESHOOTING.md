@@ -36,9 +36,9 @@ Common issues and solutions for the claude-lead-system.
 2. **Session is truly idle.** If the session has no pending tool calls, the inbox hook won't fire. Use `coord_wake_session` which sends an Enter keystroke to trigger the hook.
 3. **Wrong session ID.** Session IDs are the first 8 characters. Check with `coord_list_sessions`.
 
-## Workers Fail to Spawn
+## Team Task Dispatch Fails
 
-**Symptom:** `coord_spawn_worker` returns an error or the terminal doesn't open.
+**Symptom:** `coord_team_assign_next` or `coord_claim_next_task` returns an error, or no worker dispatch occurs.
 
 **Causes:**
 

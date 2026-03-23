@@ -116,9 +116,11 @@ coord_detect_conflicts    # detect files touched by two sessions simultaneously
 coord_wake_session        # send a message to any terminal by session ID
 coord_boot_snapshot       # live dashboard — all active terminals at a glance
 coord_create_task         # add a persistent task to the shared board
+coord_team_assign_next    # dispatch the best teammate for the next queued task
+coord_claim_next_task     # chain completed work into the next queued team task
 coord_broadcast           # send one message to all active terminals at once
-coord_spawn_worker        # launch a background worker with a task prompt
-coord_spawn_workers       # launch multiple workers in parallel
+coord_watch_output        # live-tail worker output across active tasks
+coord_worker_report       # worker-to-lead progress reporting channel
 coord_get_result          # retrieve the latest output from a worker
 coord_check_inbox         # check a session's inbox for pending messages
 coord_list_sessions       # list all active sessions with metadata

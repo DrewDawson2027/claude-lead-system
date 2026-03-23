@@ -113,7 +113,7 @@ Message queue: `ts`, `from`, `priority`, `content`
 
 ### Worker lifecycle
 
-`coord_spawn_worker → prompt/result/meta/pid files → terminal run → done marker → inbox notification`
+`coord_team_assign_next (or coord_claim_next_task) → prompt/result/meta/pid files → terminal run → done marker → inbox notification`
 
 ### Maintenance sweep (every 15s)
 

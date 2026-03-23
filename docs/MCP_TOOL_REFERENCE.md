@@ -1,301 +1,165 @@
 # MCP Coordinator Tool Reference
 
-All tools are prefixed with `coord_`. Each returns markdown-formatted text via the MCP `text/plain` content type.
+Canonical source of truth: `mcp-coordinator/index.js` (`ALL_TOOLS`).
 
-## Session Management
+All tools are prefixed with `coord_`. Total registered tools: **48**.
+
+## Snapshot and Sessions
+
+### `coord_boot_snapshot`
+Return a pre-formatted boot dashboard with sessions, conflicts, and recommended actions.
+
+### `coord_session_health`
+Check session enrichment health and sparse-data readiness for `/lead` boot.
 
 ### `coord_list_sessions`
-
-List all active Claude sessions with enriched metadata.
-
-- **Input**: `{ cwd?: string }`
-- **Output**: Table of sessions with status, project, branch, last active, tools used
+List sessions with enriched metadata (`tool_counts`, files touched, status, and activity).
 
 ### `coord_get_session`
-
-Get detailed info for a single session.
-
-- **Input**: `{ session_id: string }`
-- **Output**: Full session details including files touched, recent ops
-
-### `coord_wake_session`
-
-Send a message to a session's inbox to wake it.
-
-- **Input**: `{ session_id: string, message: string }`
-- **Output**: Confirmation with inbox path
+Get detailed metadata for one session.
 
 ### `coord_check_inbox`
-
-Check a session's inbox for pending messages.
-
-- **Input**: `{ session_id: string }`
-- **Output**: Inbox contents
+Read pending inbox messages for a session.
 
 ### `coord_detect_conflicts`
+Detect file overlaps across sessions.
 
-Detect file conflicts across active sessions.
-
-- **Input**: `{ cwd?: string }`
-- **Output**: List of files touched by multiple sessions
-
-## Worker Management
-
-### `coord_spawn_terminal`
-
-Open a new terminal window.
-
-- **Input**: `{ directory: string }`
-- **Output**: Terminal spawn result
-
-### `coord_spawn_worker`
-
-Spawn a single Claude worker in a new terminal.
-
-- **Input**: `{ name: string, prompt: string, directory: string, model?: string, agent_type?: string, permission_mode?: string }`
-- **Output**: Worker spawn confirmation with task ID
-
-### `coord_spawn_workers`
-
-Spawn multiple workers in parallel.
-
-- **Input**: `{ workers: [{ name, prompt, directory, model?, agent_type? }] }`
-- **Output**: Spawn results for each worker
-
-### `coord_kill_worker`
-
-Kill a running worker process.
-
-- **Input**: `{ task_id: string }`
-- **Output**: Kill confirmation
-
-### `coord_resume_worker`
-
-Resume a paused worker.
-
-- **Input**: `{ task_id: string, message?: string }`
-- **Output**: Resume confirmation
-
-### `coord_upgrade_worker`
-
-Upgrade a worker's model or prompt.
-
-- **Input**: `{ task_id: string, model?: string, prompt?: string }`
-- **Output**: Upgrade confirmation
-
-### `coord_get_result`
-
-Get the result file for a completed worker task.
-
-- **Input**: `{ task_id: string }`
-- **Output**: Result contents
-
-## Task Management
-
-### `coord_create_task`
-
-Create a task on the shared board.
-
-- **Input**: `{ task_id: string, subject: string, prompt?: string, assignee?: string, priority?: string, metadata?: object }`
-- **Output**: Creation confirmation
-
-### `coord_update_task`
-
-Update an existing task.
-
-- **Input**: `{ task_id: string, status?: string, assignee?: string, priority?: string, result?: string, metadata?: object }`
-- **Output**: Update confirmation
-
-### `coord_list_tasks`
-
-List all tasks, optionally filtered.
-
-- **Input**: `{ status?: string, assignee?: string }`
-- **Output**: Task table
-
-### `coord_get_task`
-
-Get full details for a single task.
-
-- **Input**: `{ task_id: string }`
-- **Output**: Task details
-
-### `coord_reassign_task`
-
-Reassign an in-progress task to a different worker. Creates handoff snapshot.
-
-- **Input**: `{ task_id: string, new_assignee: string, feedback?: string }`
-- **Output**: Reassignment confirmation with handoff file path
-
-### `coord_get_task_audit`
-
-Get the full audit trail for a task.
-
-- **Input**: `{ task_id: string }`
-- **Output**: Chronological event history
-
-### `coord_check_quality_gates`
-
-Check whether a task's quality gates are satisfied.
-
-- **Input**: `{ task_id: string }`
-- **Output**: Gate status (pass/fail per gate)
-
-## Team Operations
-
-### `coord_create_team`
-
-Create a new team with configuration.
-
-- **Input**: `{ team_name: string, spec: object }`
-- **Output**: Team creation confirmation
-
-### `coord_get_team`
-
-Get team snapshot.
-
-- **Input**: `{ team_name: string }`
-- **Output**: Team details with members, tasks, status
-
-### `coord_list_teams`
-
-List all teams.
-
-- **Input**: `{}`
-- **Output**: Team summary table
-
-### `coord_team_dispatch`
-
-Dispatch an action to a team's worker pool.
-
-- **Input**: `{ team_name: string, action: string, subject?: string, prompt?: string, priority?: string }`
-- **Output**: Dispatch result with chosen worker
-
-### `coord_team_status_compact`
-
-Get compact team status (one-liner per member).
-
-- **Input**: `{ team_name: string }`
-- **Output**: Compact status summary
-
-### `coord_team_queue_task`
-
-Add a task to a team's queue.
-
-- **Input**: `{ team_name: string, subject: string, prompt?: string, priority?: string, role_hint?: string }`
-- **Output**: Queue confirmation
-
-### `coord_team_assign_next`
-
-Assign the next queued task to the best available member.
-
-- **Input**: `{ team_name: string, assignee?: string }`
-- **Output**: Assignment result or "why no candidate" explanation
-
-### `coord_team_rebalance`
-
-Analyze and optionally apply work rebalancing.
-
-- **Input**: `{ team_name: string, apply?: boolean }`
-- **Output**: Rebalance analysis with recommendations
-
-## Communication
-
-### `coord_broadcast`
-
-Send a message to all team members.
-
-- **Input**: `{ team_name: string, message: string }`
-- **Output**: Broadcast confirmation
-
-### `coord_send_message`
-
-Send a direct message to a specific worker.
-
-- **Input**: `{ team_name: string, target: string, message: string }`
-- **Output**: Message delivery confirmation
-
-### `coord_send_directive`
-
-Send a priority directive to a worker.
-
-- **Input**: `{ team_name: string, target: string, directive: string }`
-- **Output**: Directive delivery confirmation
-
-## Plan Approval
-
-### `coord_approve_plan`
-
-Approve a worker's pending plan.
-
-- **Input**: `{ task_id: string }`
-- **Output**: Approval confirmation
-
-### `coord_reject_plan`
-
-Reject a worker's plan with feedback.
-
-- **Input**: `{ task_id: string, feedback: string }`
-- **Output**: Rejection confirmation
-
-### `coord_shutdown_request`
-
-Request a worker to shut down gracefully.
-
-- **Input**: `{ task_id: string, reason?: string }`
-- **Output**: Shutdown request confirmation
-
-### `coord_shutdown_response`
-
-Respond to a shutdown request.
-
-- **Input**: `{ task_id: string, approve: boolean, reason?: string }`
-- **Output**: Response confirmation
-
-## Context Sharing
-
-### `coord_write_context`
-
-Write shared context data accessible to all workers.
-
-- **Input**: `{ key: string, value: string }`
-- **Output**: Write confirmation
-
-### `coord_read_context`
-
-Read shared context data.
-
-- **Input**: `{ key: string }`
-- **Output**: Context value
-
-### `coord_export_context`
-
-Export all shared context.
-
-- **Input**: `{}`
-- **Output**: All context key-value pairs
-
-## Pipeline
-
-### `coord_run_pipeline`
-
-Run a multi-step worker pipeline.
-
-- **Input**: `{ name: string, steps: [{ name, prompt, directory, model? }] }`
-- **Output**: Pipeline execution result
-
-### `coord_get_pipeline`
-
-Get pipeline status.
-
-- **Input**: `{ name: string }`
-- **Output**: Pipeline status with step results
-
-## System
+### `coord_wake_session`
+Send an inbox message and wake a target session.
 
 ### `coord_sidecar_status`
+Return sidecar runtime/install status and latest snapshot metadata.
 
-Get sidecar process status.
+## Worker Output and Status
 
-- **Input**: `{}`
-- **Output**: Sidecar health, port, PID
+### `coord_get_result`
+Read current or final worker output for a task.
+
+### `coord_watch_output`
+Stream recent worker output (all workers or focused worker/task).
+
+### `coord_worker_report`
+Write/read worker progress reports for lead visibility.
+
+## Task Board
+
+### `coord_create_task`
+Create a task with optional assignee, dependencies, files, and metadata.
+
+### `coord_update_task`
+Update task state, assignee, metadata, and dependency links.
+
+### `coord_list_tasks`
+List tasks with optional filters (`status`, `assignee`, `team_name`).
+
+### `coord_get_task`
+Get full details for a single task.
+
+### `coord_reassign_task`
+Reassign an in-progress task and record handoff context.
+
+### `coord_get_task_audit`
+Return the full audit trail for a task.
+
+### `coord_check_quality_gates`
+Check acceptance/quality gate status for a task.
+
+## Teams
+
+### `coord_create_team`
+Create or update a team with policy, members, and execution settings.
+
+### `coord_get_team`
+Get one team's current snapshot.
+
+### `coord_list_teams`
+List all teams.
+
+### `coord_delete_team`
+Delete a team (optionally deleting associated tasks).
+
+### `coord_update_team_policy`
+Patch team policy and interrupt weighting.
+
+### `coord_team_status_compact`
+Return concise operational team status.
+
+### `coord_team_queue_task`
+Queue a team task without immediate dispatch.
+
+### `coord_claim_next_task`
+Mark a completed worker task and claim the next unblocked queued task.
+
+### `coord_team_assign_next`
+Select the best teammate and dispatch the next queued task.
+
+### `coord_team_rebalance`
+Re-score/reassign queued work; supports dry-run and optional dispatch-next.
+
+### `coord_discover_peers`
+Return teammates with session IDs, roles, and presence metadata.
+
+### `coord_drain_native_queue`
+Flush native-bridge actions from queue into coordinator delivery path.
+
+## Messaging and Control
+
+### `coord_broadcast`
+Send a message to all active sessions.
+
+### `coord_send_directive`
+Send a directive and auto-wake target session when possible.
+
+### `coord_send_message`
+Send a direct message to session ID or worker name.
+
+### `coord_send_protocol`
+Send structured protocol messages (`shutdown_*`, `plan_approval_response`).
+
+### `coord_approve_plan`
+Approve a worker plan.
+
+### `coord_reject_plan`
+Reject a worker plan with required feedback.
+
+### `coord_shutdown_request`
+Request graceful worker shutdown (with optional force-timeout).
+
+### `coord_shutdown_response`
+Respond to a shutdown request (approve/reject).
+
+## Shared Context
+
+### `coord_write_context`
+Write shared context entries (replace or append).
+
+### `coord_read_context`
+Read shared context (single key or full context).
+
+### `coord_export_context`
+Export lead conversation context for worker bootstrapping.
+
+## Agent Registry
+
+### `coord_list_agents`
+List agent files across local/project/user scopes.
+
+### `coord_get_agent`
+Resolve and read a single agent with scope precedence.
+
+### `coord_create_agent`
+Create an agent file with validated frontmatter.
+
+### `coord_update_agent`
+Update or rename an existing agent.
+
+### `coord_delete_agent`
+Delete an agent from one scope or all scopes.
+
+### `coord_sync_agent_manifest`
+Regenerate the `MANIFEST.md` agents table from discovered agents.
+
+## Economics
+
+### `coord_cost_comparison`
+Report measured A/B economics evidence with claim-safe output gating.

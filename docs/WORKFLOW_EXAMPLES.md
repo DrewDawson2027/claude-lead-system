@@ -40,7 +40,7 @@ Dashboard:
 ### Behind the Scenes
 
 1. `/lead` reads `~/.claude/terminals/session-*.json` files (0 tokens)
-2. `run ...` calls `coord_spawn_worker` → opens new terminal tab with `claude -p "fix..."`
+2. `run ...` maps to `coord_create_task` + `coord_team_assign_next` to queue and dispatch work
 3. Worker runs, writes result to `~/.claude/terminals/results/task_abc123.json`
 4. `check worker` calls `coord_get_result` → reads the JSON file (0 tokens)
 5. `conflicts` calls `coord_detect_conflicts` → compares `files_touched` arrays across sessions
@@ -90,11 +90,11 @@ $ /lead
 
 ### Behind the Scenes
 
-1. `pipeline:` calls `coord_run_pipeline` with 3 steps
-2. Each step spawns a background shell process (not a full Claude agent)
-3. Steps run sequentially — each waits for the previous to complete
-4. Status tracked in `~/.claude/terminals/pipelines/pipeline_xyz789.json`
-5. If any step fails, subsequent steps are skipped and status is `failed`
+1. `pipeline:` maps to queued team tasks via `coord_team_queue_task`
+2. `coord_team_assign_next` dispatches lint first, then subsequent steps as each task completes
+3. `coord_claim_next_task` can auto-chain step completion into the next queued task
+4. Status is tracked on the shared task board (`~/.claude/terminals/tasks/*.json`)
+5. If any step fails, the remaining queued steps can be left pending or cancelled explicitly
 
 ### Cost Estimate
 
@@ -177,5 +177,5 @@ TOTAL: ~$2.25
 ## References
 
 - `README.md` — 2-Minute Demo section
-- `docs/COMPARISON_METHODOLOGY.md` — Cost calculation details
+- `docs/CLAIM_PROVENANCE.md` — Claim evidence and provenance
 - `docs/ARCHITECTURE.md` — System architecture
