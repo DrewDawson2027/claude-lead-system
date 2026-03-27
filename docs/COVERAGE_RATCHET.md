@@ -14,6 +14,6 @@ Ratchet policy (completed for 80%, keep for future increases):
 Recommended verification:
 
 ```bash
-cd /Users/drewdawson/claude-lead-system/mcp-coordinator
+cd mcp-coordinator
 npx c8 --check-coverage --lines 80 node --test test/*.test.mjs
 ```

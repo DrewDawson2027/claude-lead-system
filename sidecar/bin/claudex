@@ -13,6 +13,19 @@ SIDECAR_ONLY=0
 NO_SIDECAR=0
 NATIVE_ENABLE="${LEAD_SIDECAR_NATIVE_ENABLE:-}"
 NATIVE_BRIDGE_AUTOSTART="${LEAD_SIDECAR_NATIVE_BRIDGE_AUTOSTART:-}"
+NODE_BIN="${NODE_BIN:-}"
+
+if [[ -z "$NODE_BIN" ]]; then
+  NODE_BIN="$(command -v node || true)"
+fi
+if [[ -z "$NODE_BIN" ]]; then
+  for candidate in /opt/homebrew/bin/node /usr/local/bin/node /usr/bin/node; do
+    if [[ -x "$candidate" ]]; then
+      NODE_BIN="$candidate"
+      break
+    fi
+  done
+fi
 
 show_recovery_help() {
   echo "Advanced recovery: $SIDECAR_DIR/bin/sidecarctl doctor" >&2
@@ -129,9 +142,19 @@ PY
     fi
     local -a tsx_cmd
     if [[ -x "$tsx_bin" ]]; then
-      tsx_cmd=("$tsx_bin" --tsconfig "$SIDECAR_DIR/tsconfig.json" "$sidecar_entry")
+      if [[ -z "$NODE_BIN" ]]; then
+        echo "Lead background-service dependency missing: node is not available for tsx." >&2
+        show_recovery_help
+        return 1
+      fi
+      tsx_cmd=("$NODE_BIN" "$tsx_module" --tsconfig "$SIDECAR_DIR/tsconfig.json" "$sidecar_entry")
     else
-      tsx_cmd=(node "$tsx_module" --tsconfig "$SIDECAR_DIR/tsconfig.json" "$sidecar_entry")
+      if [[ -z "$NODE_BIN" ]]; then
+        echo "Lead background-service dependency missing: node is not available." >&2
+        show_recovery_help
+        return 1
+      fi
+      tsx_cmd=("$NODE_BIN" "$tsx_module" --tsconfig "$SIDECAR_DIR/tsconfig.json" "$sidecar_entry")
     fi
     printf '[%s] starting Lead background service (mode=%s)\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$MODE" >> "$LOG_FILE"
     printf '[%s] launch command: %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "${tsx_cmd[*]}" >> "$LOG_FILE"
@@ -184,7 +207,10 @@ PY
 }
 
 if [[ -x "$SIDECAR_DIR/bin/merge-settings.mjs" ]]; then
-  if ! node "$SIDECAR_DIR/bin/merge-settings.mjs" --mode "$MODE" --quiet; then
+  if [[ -z "$NODE_BIN" ]]; then
+    echo "Lead settings sync failed: node is not available." >&2
+    show_recovery_help
+  elif ! "$NODE_BIN" "$SIDECAR_DIR/bin/merge-settings.mjs" --mode "$MODE" --quiet; then
     echo "Lead settings sync failed for mode=$MODE. /lead may not be fully wired." >&2
     show_recovery_help
   fi

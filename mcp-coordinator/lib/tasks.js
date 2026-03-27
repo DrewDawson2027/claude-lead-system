@@ -43,7 +43,9 @@ export function appendAuditEntry(taskId, event, from, to, details = {}) {
   };
   try {
     appendFileSync(auditFile(taskId), JSON.stringify(entry) + "\n", "utf-8");
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] audit append: ${e?.message || e}\n`);
+  }
 }
 
 export function readAuditTrail(taskId) {
@@ -189,7 +191,9 @@ function tasksDir() {
     mkdirSync(dir, { recursive: true });
     try {
       ensureSecureDirectory(dir);
-    } catch {}
+    } catch (e) {
+      process.stderr.write(`[lead-coord:sec] ensureSecureDirectory: ${e?.message || e}\n`);
+    }
   }
   return dir;
 }
@@ -262,9 +266,13 @@ function autoUnblockDependents(completedTaskId, dir) {
         for (const f of files) {
           try {
             appendJSONLineSecure(join(INBOX_DIR, f), msg);
-          } catch {}
+          } catch (e) {
+            process.stderr.write(`[lead-coord:io] inbox broadcast: ${e?.message || e}\n`);
+          }
         }
-      } catch {}
+      } catch (e) {
+        process.stderr.write(`[lead-coord:io] inbox broadcast scan: ${e?.message || e}\n`);
+      }
     }
   }
 }

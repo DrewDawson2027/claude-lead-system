@@ -28,6 +28,37 @@ HOOKS_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if HOOKS_ROOT not in sys.path:
     sys.path.insert(0, HOOKS_ROOT)
 
+
+def _resolve_regression_runner():
+    candidate_roots = []
+    env_root = os.environ.get("CLAUDE_LEAD_SYSTEM_REPO")
+    if env_root:
+        candidate_roots.append(os.path.expanduser(env_root))
+    candidate_roots.extend(
+        [
+            os.path.dirname(HOOKS_ROOT),
+            os.path.expanduser("~/lead-system/claude-lead-system"),
+            os.path.expanduser("~/claude-lead-system"),
+            os.path.expanduser("~/Projects/claude-lead-system"),
+        ]
+    )
+
+    seen = set()
+    for root in candidate_roots:
+        if not root:
+            continue
+        normalized = os.path.abspath(os.path.expanduser(root))
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        runner = os.path.join(
+            normalized, "scripts", "run_token_system_regression.py"
+        )
+        if os.path.isfile(runner):
+            return runner
+    return None
+
+
 # Files to install (relative to package data or source root)
 HOOK_FILES = [
     "token-guard.py",
@@ -418,10 +449,8 @@ def _cmd_hooks(argv):
         raise SystemExit(0)
     if sub == "verify":
         if "--full" in argv[1:]:
-            runner = os.path.expanduser(
-                "~/Projects/claude-lead-system/scripts/run_token_system_regression.py"
-            )
-            if os.path.isfile(runner):
+            runner = _resolve_regression_runner()
+            if runner:
                 cp = _run_python(runner, [], capture=True, timeout=600)
                 if cp.stdout:
                     sys.stdout.write(cp.stdout)
@@ -1102,8 +1131,8 @@ def main():
 
     if cmd in commands:
         if cmd == "verify" and "--full" in sys.argv[2:]:
-            runner = os.path.expanduser("~/Projects/claude-lead-system/scripts/run_token_system_regression.py")
-            if os.path.isfile(runner):
+            runner = _resolve_regression_runner()
+            if runner:
                 cp = _run_python(runner, [], capture=True, timeout=600)
                 if cp.stdout:
                     sys.stdout.write(cp.stdout)

@@ -58,7 +58,8 @@ export function createLogger({ format = "text" as LogFormat } = {}) {
       const duration_ms = Date.now() - startMs;
       const method = String(req.method || "GET");
       const path = String(req.url || "/");
-      const request_id = String((req as any).__requestId || "-");
+      const reqWithId = req as unknown as Record<string, unknown>;
+      const request_id = String(reqWithId.__requestId || "-");
       const ip = String(req.socket?.remoteAddress || "unknown");
       emit("info", `${method} ${path} ${status} ${duration_ms}ms`, {
         method,

@@ -106,6 +106,7 @@ function mergeHooks(existingHooks = {}, fullTemplateHooks = {}, mode = 'lite') {
 function main() {
   const { mode, write, verbose } = parseArgs(process.argv.slice(2));
   const home = process.env.HOME || homedir();
+  const nodeBin = process.execPath || 'node';
   const claudeDir = join(home, '.claude');
   const sidecarDir = join(claudeDir, 'lead-sidecar');
   const settingsPath = join(claudeDir, 'settings.local.json');
@@ -130,7 +131,7 @@ function main() {
   const existingCoordinator = out.mcpServers.coordinator || {};
   out.mcpServers.coordinator = {
     ...existingCoordinator,
-    command: 'node',
+    command: nodeBin,
     args: [join(home, '.claude', 'mcp-coordinator', 'index.js')],
   };
 

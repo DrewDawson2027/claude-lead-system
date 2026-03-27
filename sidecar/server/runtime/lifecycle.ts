@@ -82,10 +82,11 @@ export function startRuntimeLifecycle({
       // Start watching new tasks
       for (const taskId of activeTaskIds) {
         if (!watchedTaskIds.has(taskId)) {
+          const pathsData = paths as unknown as Record<string, unknown>;
           const resultsDir =
-            (paths as any).resultsDir ||
+            (pathsData.resultsDir as string | undefined) ||
             join(
-              String((paths as any).root || ""),
+              String(pathsData.root as string | undefined || ""),
               "..",
               "terminals",
               "results",

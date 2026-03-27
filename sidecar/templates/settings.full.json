@@ -161,7 +161,7 @@
   },
   "mcpServers": {
     "coordinator": {
-      "command": "node",
+      "command": "/opt/homebrew/bin/node",
       "args": ["__HOME__/.claude/mcp-coordinator/index.js"]
     }
   }

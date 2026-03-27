@@ -119,7 +119,12 @@ function readLeadSessionRecord(terminalsDir, notifySessionId) {
   const leadSessionFile = join(terminalsDir, `session-${notifySessionId}.json`);
   if (!existsSync(leadSessionFile)) return null;
   try {
-    return JSON.parse(readFileSync(leadSessionFile, "utf-8"));
+    const raw = readFileSync(leadSessionFile, "utf-8");
+    if (Buffer.byteLength(raw, "utf-8") > 1048576) {
+      process.stderr.write(`[lead-coord] readLeadSessionRecord: session file exceeds 1MB limit\n`);
+      return null;
+    }
+    return JSON.parse(raw);
   } catch {
     return null;
   }
@@ -724,7 +729,11 @@ export function handleSpawnWorker(args) {
       );
       if (existsSync(leadContextFile)) {
         try {
-          const leadCtx = JSON.parse(readFileSync(leadContextFile, "utf-8"));
+          const raw = readFileSync(leadContextFile, "utf-8");
+          if (Buffer.byteLength(raw, "utf-8") > 1048576) {
+            throw new Error("JSON input too large");
+          }
+          const leadCtx = JSON.parse(raw);
           maybePushContextSection(
             contextSections,
             "Lead's Exported Context",
@@ -745,7 +754,11 @@ export function handleSpawnWorker(args) {
       );
       if (existsSync(contextStoreFile)) {
         try {
-          const ctx = JSON.parse(readFileSync(contextStoreFile, "utf-8"));
+          const raw = readFileSync(contextStoreFile, "utf-8");
+          if (Buffer.byteLength(raw, "utf-8") > 1048576) {
+            throw new Error("JSON input too large");
+          }
+          const ctx = JSON.parse(raw);
           if (ctx.entries?.length) {
             const sharedCtx = ctx.entries
               .map((e) => `### ${e.key}\n${e.value}`)
@@ -1810,7 +1823,12 @@ export function handleWorkerReport(args) {
     .filter(Boolean);
   if (lines.length === 0) return text(`No reports found for task ${taskId}.`);
 
-  const latest = JSON.parse(lines[lines.length - 1]);
+  let latest;
+  try {
+    latest = JSON.parse(lines[lines.length - 1]);
+  } catch {
+    return text(`Failed to parse latest report for task ${taskId}.`);
+  }
   let out = `## Worker Report: ${taskId}\n\n`;
   out += `**Status:** ${latest.status}\n`;
   out += `**Last Update:** ${latest.timestamp}\n`;

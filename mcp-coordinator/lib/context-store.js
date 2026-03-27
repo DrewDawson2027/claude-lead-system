@@ -25,7 +25,9 @@ function contextDir() {
     mkdirSync(dir, { recursive: true });
     try {
       ensureSecureDirectory(dir);
-    } catch {}
+    } catch (e) {
+      process.stderr.write(`[lead-coord:sec] ensureSecureDirectory: ${e?.message || e}\n`);
+    }
   }
   return dir;
 }

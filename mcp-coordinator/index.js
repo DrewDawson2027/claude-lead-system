@@ -177,7 +177,9 @@ function applyLegacyDeprecationToOutput(toolName, data) {
         LEGACY_COST_DEPRECATIONS[toolName].canonical_command;
       return JSON.stringify(parsed, null, 2);
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord] legacy cost deprecation parse: ${e?.message || e}\n`);
+  }
   return `${raw}\n\n[DEPRECATED]\ncanonical_tool=${LEGACY_COST_DEPRECATIONS[toolName].canonical_tool}\ncanonical_command=${LEGACY_COST_DEPRECATIONS[toolName].canonical_command}\n`;
 }
 
@@ -1551,8 +1553,8 @@ function ensureDirsOnce() {
     _gcRan = true;
     try {
       runGC();
-    } catch {
-      /* GC is best-effort */
+    } catch (e) {
+      process.stderr.write(`[lead-coord] GC failed: ${e?.message || e}\n`);
     }
   }
 }
@@ -1743,8 +1745,8 @@ async function main() {
   setInterval(() => {
     try {
       handleDrainNativeQueue({});
-    } catch {
-      /* swallow — non-critical */
+    } catch (e) {
+      process.stderr.write(`[lead-coord] native queue drain: ${e?.message || e}\n`);
     }
   }, 30_000).unref();
 

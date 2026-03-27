@@ -34,7 +34,11 @@ function formatStructuralMetric(metric) {
 
 function readJson(pathValue) {
   try {
-    return JSON.parse(readFileSync(pathValue, "utf8"));
+    const raw = readFileSync(pathValue, "utf8");
+    if (Buffer.byteLength(raw, "utf-8") > 1048576) {
+      return null;
+    }
+    return JSON.parse(raw);
   } catch {
     return null;
   }

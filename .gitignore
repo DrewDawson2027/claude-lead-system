@@ -33,3 +33,16 @@ Thumbs.db
 mcp-coordinator/coverage/
 .mcp.json
 .claude/worktrees/
+.claude/settings.local.json
+
+# Benchmark reports (contain machine-specific paths)
+bench/reports/
+
+# Project history (internal development logs)
+docs/project-history/
+
+# Environment and credentials
+.env
+.env.*
+*.pem
+*.key

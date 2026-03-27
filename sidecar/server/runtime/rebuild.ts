@@ -41,7 +41,8 @@ export function createRebuildOps({
       const rebuiltAt = new Date().toISOString();
       const base = buildSidecarSnapshot();
       await enrichDynamicState();
-      const nativeSnapshot = store.getSnapshot().native as any;
+      const snapshotData = store.getSnapshot() as unknown as Record<string, unknown>;
+      const nativeSnapshot = snapshotData.native as unknown as Record<string, unknown>;
       store.setSnapshot({
         ...base,
         native: store.getSnapshot().native,
@@ -51,7 +52,7 @@ export function createRebuildOps({
         focused_teammate_live: {
           sidecar_live_at: rebuiltAt,
           native_available: Boolean(
-            nativeSnapshot?.adapter_ok ?? nativeSnapshot?.native?.available,
+            (nativeSnapshot as Record<string, unknown>)?.adapter_ok ?? ((nativeSnapshot as Record<string, unknown>)?.native as Record<string, unknown>)?.available,
           ),
           stream_fallback_order: ["native live", "sidecar live", "tmux mirror"],
           route_mode_preference: ["native-live", "sidecar-live", "tmux-mirror"],

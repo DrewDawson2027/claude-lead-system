@@ -74,7 +74,7 @@ Do not surface `lite`, `hybrid`, `native`, or other non-default paths as peer ch
 ## Test Commands
 
 ```bash
-# Run all tests (284 coordinator + 310 sidecar = 594 total, must stay green)
+# Run all tests (284 coordinator + 310 sidecar + 223 hooks = 817 total, must stay green)
 cd mcp-coordinator && npm test
 
 # Run just the P2P integration tests
@@ -145,3 +145,56 @@ Spawning tools removed — E1 (agent resume) no longer applies. E2 and E3 remain
 - **Test after every change.** `cd mcp-coordinator && npm test` must pass before committing.
 - **`current_task` IS written** via `terminal-heartbeat.sh` lines 101/177. Peer discovery works.
 - **Coordination is always filesystem.** Never suggest adding API calls for inter-agent communication.
+
+---
+
+## Project
+
+- **What it is:** Local coordination layer for multi-terminal Claude Code workflows — conflict detection, cross-terminal messaging, and task governance via filesystem hooks and 48 MCP tools, zero token cost.
+- **Stack:** Node.js (ESM), Python 3 (hooks layer), npm workspaces (`mcp-coordinator`, `sidecar`), ruff, shellcheck, pytest
+- **Repo:** https://github.com/DrewDawson2027/claude-lead-system.git
+- **npm package:** `claude-lead-system` v1.0.0
+
+---
+
+## Architecture
+
+| Directory          | Contents                                                                                 |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `mcp-coordinator/` | MCP server — 48 tools for coordination, messaging, task management, conflict detection   |
+| `sidecar/`         | Native bridge (TypeScript) — experimental path for sidecar-mode coordination             |
+| `hooks/`           | Shell + Python hooks that fire on every Claude tool call (0 tokens, filesystem-only)     |
+| `agents/`          | Agent definition markdown files (master-coder, master-architect, role-implementer, etc.) |
+| `commands/`        | Slash command definitions (cycle, lead, etc.)                                            |
+| `lead-tools/`      | Lead-specific tooling scripts                                                            |
+| `modes/`           | Mode configuration files                                                                 |
+| `scripts/`         | CI audit scripts, release tooling, proof scripts, coverage checks                        |
+| `bench/`           | A/B harness, workflow benchmarks, demo scenarios                                         |
+| `docs/`            | Architecture, API contract, runbooks, release checklists, compatibility matrix           |
+| `assets/`          | SVGs, GIFs, social preview images                                                        |
+| `tests/`           | Hook smoke tests, integration test scripts                                               |
+
+---
+
+## Environment Variables
+
+| Variable                              | Default  | Purpose                                                         |
+| ------------------------------------- | -------- | --------------------------------------------------------------- |
+| `COORDINATOR_TEST_MODE`               | `0`      | Set to `1` to run tests without live tmux/terminal dependencies |
+| `COORDINATOR_PLATFORM`                | auto     | Override platform detection (`linux`, `darwin`)                 |
+| `COORDINATOR_CLAUDE_BIN`              | `claude` | Path to Claude binary                                           |
+| `COORDINATOR_WORKER_BUDGET_TOKENS`    | `60000`  | Per-worker token budget cap                                     |
+| `COORDINATOR_GLOBAL_BUDGET_TOKENS`    | `240000` | Global token budget across all workers                          |
+| `COORDINATOR_GLOBAL_BUDGET_POLICY`    | —        | Budget enforcement policy                                       |
+| `COORDINATOR_MAX_ACTIVE_WORKERS`      | `8`      | Max concurrent workers                                          |
+| `COORDINATOR_MAX_MESSAGE_BYTES`       | `8192`   | Max bytes per inbox message                                     |
+| `COORDINATOR_MAX_INBOX_LINES`         | `500`    | Max lines in inbox before truncation                            |
+| `COORDINATOR_MAX_MESSAGES_PER_MINUTE` | `120`    | Rate limit for messaging                                        |
+| `LEAD_AB_HARNESS_SUMMARY`             | —        | Path to A/B harness summary JSON (bench only)                   |
+| `LEAD_AB_HARNESS_ROOT`                | —        | Root dir for A/B harness output (bench only)                    |
+
+---
+
+## Current Focus
+
+Recent commits are README/presentation work: tier-1 design overhaul (hero placement, badges, story layout, Tokyo Night palette). Core coordinator code and test suite are stable at 817 tests passing.

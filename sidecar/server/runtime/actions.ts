@@ -304,7 +304,8 @@ export function createTrackedActionRunner({
                 error: routed?.error || null,
               };
               if (nativeOut.ok) return nativeOut;
-              const teamPolicy = ((team as any)?.policy || {}) as Record<
+              const teamData = team as unknown as Record<string, unknown>;
+              const teamPolicy = (teamData?.policy || {}) as Record<
                 string,
                 unknown
               >;
@@ -326,9 +327,10 @@ export function createTrackedActionRunner({
               actionOrchestration.fallback_attempts += 1;
               const fallbackAction = nativeHttpAction || action;
               try {
+                const routerData = router as unknown as Record<string, unknown>;
                 const coordinatorFallback = await (
-                  router as any
-                ).coordinator.execute(fallbackAction, routedPayload);
+                  (routerData.coordinator as unknown as Record<string, unknown>).execute as Function
+                )(fallbackAction, routedPayload);
                 const fallbackReason = `native direct route failed (${routed?.error?.code || routed?.error?.message || "error"}); coordinator fallback`;
                 raiseIntervention({
                   level: "warn",
@@ -688,10 +690,12 @@ export function createBatchTriageRunner({
       });
       const currentIds = new Set(currentInterrupts.map((i) => i.id));
       let dismissed = 0;
-      const freshAlerts = ((store.getSnapshot().alerts as any[]) || []).filter(
-        (a: any) => {
-          if (a.team_name && a.team_name !== teamName) return true;
-          const matchId = `alert:${a.action_id || a.request_id || ""}`;
+      const alertsData = store.getSnapshot() as unknown as Record<string, unknown>;
+      const freshAlerts = ((alertsData.alerts as unknown[]) || []).filter(
+        (a: unknown) => {
+          const alert = a as Record<string, unknown>;
+          if (alert.team_name && alert.team_name !== teamName) return true;
+          const matchId = `alert:${alert.action_id || alert.request_id || ""}`;
           if (!currentIds.has(matchId)) {
             dismissed += 1;
             return false;

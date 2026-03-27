@@ -39,7 +39,9 @@ function listRawSessions() {
       const parsed = readJSON(fp);
       files.push({ file: f, path: fp, session: parsed });
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] session file read: ${e?.message || e}\n`);
+  }
   return files;
 }
 

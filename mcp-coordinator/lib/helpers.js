@@ -114,6 +114,25 @@ export function text(content) {
 }
 
 /**
+ * Safely parse JSON with size limit protection.
+ * @param {string} raw - Raw JSON string
+ * @param {object} options - { maxBytes?: number, label?: string }
+ * @returns {object|null} Parsed JSON or null on failure
+ */
+export function safeParseJSON(raw, { maxBytes = 1048576, label = "unknown" } = {}) {
+  if (typeof raw !== "string") return null;
+  if (Buffer.byteLength(raw, "utf-8") > maxBytes) {
+    process.stderr.write(`[lead-coord] safeParseJSON: input exceeds ${maxBytes} bytes (${label})\n`);
+    return null;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Human-readable time ago string from an ISO timestamp.
  * @param {string} ts - ISO timestamp
  * @returns {string} e.g., "5m ago", "2h ago"

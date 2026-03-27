@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="152" viewBox="0 0 800 152">
+  <!-- background -->
+  <rect fill="#0d1117" width="800" height="152"/>
+
+  <!-- card 1: tests -->
+  <rect fill="#161b22" x="0"   y="0" width="190" height="152" rx="8"/>
+  <text font-family="Menlo,Monaco,monospace" font-weight="700" font-size="44" fill="#3fb950" x="95"  y="76" text-anchor="middle">594</text>
+  <text font-family="-apple-system,Helvetica,sans-serif" font-size="13" fill="#8b949e" x="95"  y="108" text-anchor="middle">tests passing</text>
+
+  <!-- card 2: coverage -->
+  <rect fill="#161b22" x="202" y="0" width="190" height="152" rx="8"/>
+  <text font-family="Menlo,Monaco,monospace" font-weight="700" font-size="44" fill="#3fb950" x="297" y="76" text-anchor="middle">85%</text>
+  <text font-family="-apple-system,Helvetica,sans-serif" font-size="13" fill="#8b949e" x="297" y="108" text-anchor="middle">coverage</text>
+
+  <!-- card 3: MCP tools -->
+  <rect fill="#161b22" x="404" y="0" width="190" height="152" rx="8"/>
+  <text font-family="Menlo,Monaco,monospace" font-weight="700" font-size="44" fill="#7aa2f7" x="499" y="76" text-anchor="middle">48</text>
+  <text font-family="-apple-system,Helvetica,sans-serif" font-size="13" fill="#8b949e" x="499" y="108" text-anchor="middle">MCP tools</text>
+
+  <!-- card 4: 0 tokens -->
+  <rect fill="#161b22" x="606" y="0" width="194" height="152" rx="8"/>
+  <text font-family="Menlo,Monaco,monospace" font-weight="700" font-size="44" fill="#ffffff" x="703" y="76" text-anchor="middle">0</text>
+  <text font-family="-apple-system,Helvetica,sans-serif" font-size="13" fill="#8b949e" x="703" y="108" text-anchor="middle">coordination tokens</text>
+</svg>

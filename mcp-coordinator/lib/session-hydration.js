@@ -22,7 +22,12 @@ function isObject(value) {
 }
 
 function cloneSession(session) {
-  return isObject(session) ? JSON.parse(JSON.stringify(session)) : {};
+  if (!isObject(session)) return {};
+  try {
+    return JSON.parse(JSON.stringify(session));
+  } catch {
+    return {};
+  }
 }
 
 function totalToolCount(toolCounts) {

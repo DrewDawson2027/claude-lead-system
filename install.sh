@@ -536,6 +536,11 @@ else
 fi
 cp -r "$SRC/commands/."       "$CLAUDE_DIR/commands/"
 cp -r "$SRC/mcp-coordinator/." "$CLAUDE_DIR/mcp-coordinator/"
+# Resolve __HOME__ placeholders in worker-settings.json
+WORKER_SETTINGS="$CLAUDE_DIR/mcp-coordinator/lib/platform/worker-settings.json"
+if [ -f "$WORKER_SETTINGS" ]; then
+  sed -i.bak "s|__HOME__|$HOME|g" "$WORKER_SETTINGS" && rm -f "$WORKER_SETTINGS.bak"
+fi
 rm -rf "$CLAUDE_DIR/lead-sidecar"
 cp -r "$SRC/sidecar/."        "$CLAUDE_DIR/lead-sidecar/"
 chmod +x "$CLAUDE_DIR/lead-sidecar/bin/"* 2>/dev/null || true

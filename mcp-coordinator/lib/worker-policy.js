@@ -33,7 +33,9 @@ function normalizeHookLine(line) {
     if (parsed && typeof parsed.reason === "string" && parsed.reason.trim()) {
       return parsed.reason.trim();
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] parse rejection reason: ${e?.message || e}\n`);
+  }
   return text;
 }
 
@@ -115,7 +117,9 @@ function writeAuditLine(decision, reason, toolInput) {
         active_workers: activeCount,
       }) + "\n",
     );
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] policy event log: ${e?.message || e}\n`);
+  }
 }
 
 export function enforceWorkerPolicy({

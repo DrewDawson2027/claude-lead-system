@@ -107,8 +107,10 @@ export function createMaintenanceSweep({
 
     let autoRebalanced = false;
     for (const teamEntry of getTeamsSnapshot()) {
-      const autoConfig = teamEntry.policy?.auto_rebalance as any;
-      if (!autoConfig?.enabled) continue;
+      const teamEntryData = teamEntry as unknown as Record<string, unknown>;
+      const policyData = teamEntryData.policy as unknown;
+      const autoConfig = policyData as Record<string, unknown>;
+      if (!(autoConfig as Record<string, unknown>)?.enabled) continue;
       try {
         const teamSnap = getTeamsSnapshot(true)?.find(
           (t: any) => t.team_name === teamEntry.team_name,
@@ -116,7 +118,7 @@ export function createMaintenanceSweep({
         if (!teamSnap) continue;
         const check = shouldAutoRebalance(teamSnap, autoConfig);
         if (check.trigger) {
-          const cooldownMs = autoConfig.cooldown_ms || 60000;
+          const cooldownMs = (autoConfig as Record<string, unknown>).cooldown_ms as number || 60000;
           const lastTime = autoRebalanceTimes.get(teamEntry.team_name) || 0;
           if (Date.now() - lastTime > cooldownMs) {
             autoRebalanceTimes.set(teamEntry.team_name, Date.now());
@@ -275,19 +277,17 @@ export function createDiagnosticsBundle({
       lock_metrics: lockMetrics.snapshot(),
       terminal_health: checkTerminalHealth(paths),
     };
-    const redacted = redactSecrets(trimLongStrings(bundle, 2048));
+    const redacted = redactSecrets(trimLongStrings(bundle, 2048)) as unknown as Record<string, unknown>;
 
     const manifest: Record<string, number> = {};
-    for (const [section, value] of Object.entries(
-      redacted as Record<string, unknown>,
-    )) {
+    for (const [section, value] of Object.entries(redacted)) {
       manifest[section] = JSON.stringify(value).length;
     }
-    (redacted as any).manifest = manifest;
+    redacted['manifest'] = manifest;
 
     const withoutChecksum = JSON.stringify(redacted);
     const checksum = createHash("sha256").update(withoutChecksum).digest("hex");
-    (redacted as any).checksum = checksum;
+    redacted['checksum'] = checksum;
 
     const file = `${paths.diagnosticsDir}/diag-${Date.now()}.json`;
     writeJSON(file, redacted);

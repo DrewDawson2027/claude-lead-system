@@ -71,20 +71,26 @@ export function writeFileSecure(pathValue, data) {
       } finally {
         closeSync(fd);
       }
-    } catch {}
+    } catch (e) {
+      process.stderr.write(`[lead-coord:sec] fsync: ${e?.message || e}\n`);
+    }
     renameSync(tempPath, pathValue);
     renamed = true;
   } finally {
     if (!renamed) {
       try {
         unlinkSync(tempPath);
-      } catch {}
+      } catch (e) {
+        process.stderr.write(`[lead-coord:cleanup] temp cleanup: ${e?.message || e}\n`);
+      }
     }
   }
   if (PLATFORM !== "win32") {
     try {
       chmodSync(pathValue, 0o600);
-    } catch {}
+    } catch (e) {
+      process.stderr.write(`[lead-coord:cleanup] chmod: ${e?.message || e}\n`);
+    }
   } else {
     enforceWindowsAcl(pathValue, false);
   }
@@ -101,7 +107,9 @@ export function appendJSONLineSecure(pathValue, value) {
   if (PLATFORM !== "win32") {
     try {
       chmodSync(pathValue, 0o600);
-    } catch {}
+    } catch (e) {
+      process.stderr.write(`[lead-coord:cleanup] chmod: ${e?.message || e}\n`);
+    }
   } else {
     enforceWindowsAcl(pathValue, false);
   }
@@ -225,10 +233,14 @@ export function acquireExclusiveFileLock(
   return () => {
     try {
       if (lockFd !== undefined) closeSync(lockFd);
-    } catch {}
+    } catch (e) {
+      process.stderr.write(`[lead-coord:cleanup] lock release: ${e?.message || e}\n`);
+    }
     try {
       unlinkSync(lockPath);
-    } catch {}
+    } catch (e) {
+      process.stderr.write(`[lead-coord:cleanup] lock file cleanup: ${e?.message || e}\n`);
+    }
   };
 }
 
@@ -374,7 +386,9 @@ export function normalizeFilePath(filePath, cwd = "") {
     if (existsSync(candidate)) {
       candidate = realpathSync(candidate);
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] realpath resolve: ${e?.message || e}\n`);
+  }
   let normalized = candidate.replace(/\\/g, "/");
   if (PLATFORM === "win32") normalized = normalized.toLowerCase();
   return normalized;

@@ -6,11 +6,11 @@
 
 <div align="center">
 
-[![npm](https://img.shields.io/npm/v/claude-lead-system?style=flat-square&color=7aa2f7&logo=npm&logoColor=white)](https://www.npmjs.com/package/claude-lead-system) [![tests](https://img.shields.io/badge/594_tests-passing-3fb950?style=flat-square)](https://github.com/DrewDawson2027/claude-lead-system/actions) [![license](https://img.shields.io/badge/MIT-license-d2a8ff?style=flat-square)](https://opensource.org/licenses/MIT)
+[![npm](https://img.shields.io/npm/v/claude-lead-system?style=flat-square&color=7aa2f7&logo=npm&logoColor=white)](https://www.npmjs.com/package/claude-lead-system) [![tests](https://img.shields.io/badge/817_tests-passing-3fb950?style=flat-square)](https://github.com/DrewDawson2027/claude-lead-system/actions) [![license](https://img.shields.io/badge/MIT-license-d2a8ff?style=flat-square)](https://opensource.org/licenses/MIT)
 
 <br />
 
-[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=15&duration=2500&pause=1000&color=7AA2F7&center=true&vCenter=true&width=560&lines=Conflict+detection+before+collision;Cross-terminal+messaging%2C+zero+tokens;Persistent+tasks+that+survive+restarts;Live+dashboard+for+all+terminals;48+MCP+tools.+594+tests.+0+token+cost.)](https://git.io/typing-svg)
+[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=15&duration=2500&pause=1000&color=7AA2F7&center=true&vCenter=true&width=560&lines=Conflict+detection+before+collision;Cross-terminal+messaging%2C+zero+tokens;Persistent+tasks+that+survive+restarts;Live+dashboard+for+all+terminals;48+MCP+tools.+817+tests.+0+token+cost.)](https://git.io/typing-svg)
 
 <br />
 
@@ -22,7 +22,7 @@
 
 > Built entirely through Claude Code by a Philosophy, Politics & Economics student at USC — no prior programming background.
 >
-> 48 tools. 594 tests. A complete local coordination layer for multi-terminal Claude workflows.
+> 48 tools. 817 tests. A complete local coordination layer for multi-terminal Claude workflows.
 >
 > Every line written in natural language, verified in CI.
 
@@ -140,7 +140,7 @@ Full reference → [docs/MCP_TOOL_REFERENCE.md](docs/MCP_TOOL_REFERENCE.md)
 
 | Metric                      |      Value      |
 | :-------------------------- | :-------------: |
-| Tests                       | **594 passing** |
+| Tests                       | **817 passing** |
 | Coverage                    |    **85%+**     |
 | MCP tools                   |     **48**      |
 | Library modules             |     **24**      |
@@ -166,7 +166,7 @@ Full matrix → [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)
 
 ## Requirements
 
-- [Claude Code](https://claude.ai/code) installed and authenticated
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
 - Node.js ≥ 18
 - `jq` — `brew install jq` / `apt install jq`
 - `bash`, `python3`

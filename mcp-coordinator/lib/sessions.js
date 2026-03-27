@@ -226,7 +226,9 @@ export function handleDiscoverPeers(args) {
         permission_mode: meta.permission_mode,
       });
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] peer discovery: ${e?.message || e}\n`);
+  }
 
   if (peers.length === 0) {
     return text(`No peers found in team "${teamName}".`);

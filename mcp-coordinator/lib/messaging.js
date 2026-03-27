@@ -70,10 +70,14 @@ function queueNativeAction(action) {
       try {
         const mtime = statSync(join(actionsDir, f)).mtimeMs;
         if (now - mtime > TTL_MS) unlinkSync(join(actionsDir, f));
-      } catch {}
+      } catch (e) {
+        process.stderr.write(`[lead-coord:cleanup] action queue cleanup: ${e?.message || e}\n`);
+      }
     }
     files = readdirSync(actionsDir).filter((f) => f.endsWith(".json"));
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] action queue read: ${e?.message || e}\n`);
+  }
 
   if (files.length >= MAX_QUEUE_DEPTH) {
     process.stderr.write(
@@ -187,14 +191,18 @@ export function handleCheckInbox(args) {
   if (messages.length === 0) {
     try {
       if (existsSync(drainFile)) unlinkSync(drainFile);
-    } catch {}
+    } catch (e) {
+      process.stderr.write(`[lead-coord:cleanup] drain file cleanup: ${e?.message || e}\n`);
+    }
     if (!existsSync(inboxFile)) writeFileSecure(inboxFile, "");
     return text("No pending messages.");
   }
 
   try {
     if (existsSync(drainFile)) unlinkSync(drainFile);
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:cleanup] inbox drain cleanup: ${e?.message || e}\n`);
+  }
   if (!existsSync(inboxFile)) writeFileSecure(inboxFile, "");
   const sessionFile = join(TERMINALS_DIR, `session-${sid}.json`);
   if (existsSync(sessionFile)) {
@@ -204,7 +212,9 @@ export function handleCheckInbox(args) {
         s.has_messages = false;
         writeFileSecure(sessionFile, JSON.stringify(s, null, 2));
       }
-    } catch {}
+    } catch (e) {
+      process.stderr.write(`[lead-coord:io] session file update: ${e?.message || e}\n`);
+    }
   }
 
   let output = `## ${messages.length} Message(s)\n\n`;
@@ -300,7 +310,9 @@ export function resolveWorkerName(targetName, teamName = null) {
         }
       }
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] resolve worker: ${e?.message || e}\n`);
+  }
   return null;
 }
 
@@ -330,7 +342,9 @@ function resolveTargetPaneId(sessionId, targetName) {
         return meta.tmux_pane_id;
       if (meta.notify_session_id === sessionId) continue; // That's the lead, not the worker
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] session names: ${e?.message || e}\n`);
+  }
   // Also check session files for tmux_pane_id
   const sessions = getAllSessions();
   for (const s of sessions) {
@@ -381,7 +395,9 @@ function checkRecipientExists(to) {
         return { exists: true, status: meta.status || null };
       }
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] inbox write: ${e?.message || e}\n`);
+  }
   const mapped = findIdentityByToken(to);
   if (mapped?.session_id === to) {
     return { exists: true, status: null };
@@ -410,7 +426,9 @@ function listAvailableSessions() {
       if (meta.notify_session_id) names.add(meta.notify_session_id);
       if (meta.worker_name) names.add(meta.worker_name);
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] results read: ${e?.message || e}\n`);
+  }
   try {
     const map = readIdentityMap();
     for (const rec of map.records || []) {
@@ -420,7 +438,9 @@ function listAvailableSessions() {
       if (rec.worker_name) names.add(rec.worker_name);
       if (rec.task_id) names.add(rec.task_id);
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] identity map read: ${e?.message || e}\n`);
+  }
   if (names.size === 0) return "(none)";
   return [...names].join(", ");
 }
@@ -517,7 +537,9 @@ export function handleSendMessage(args) {
         sessionStatus = s.status || "unknown";
         lastActive = s.last_active || null;
       }
-    } catch {}
+    } catch (e) {
+      process.stderr.write(`[lead-coord:io] session file message mark: ${e?.message || e}\n`);
+    }
   }
 
   // Tmux push delivery: inject message into target's tmux pane (Gap 1)
@@ -750,7 +772,9 @@ export function handleSendDirective(args) {
       sessionStatus = s.status || "unknown";
       lastActive = s.last_active || null;
     }
-  } catch {}
+  } catch (e) {
+    process.stderr.write(`[lead-coord:io] session status update: ${e?.message || e}\n`);
+  }
 
   // Determine if session needs waking
   const lastActiveMs = lastActive
@@ -930,7 +954,11 @@ export function handleDrainNativeQueue(_args) {
         expired++;
         continue;
       }
-      const action = JSON.parse(readFileSync(filePath, "utf8"));
+      const raw = readFileSync(filePath, "utf8");
+      if (Buffer.byteLength(raw, "utf-8") > 1048576) {
+        throw new Error("JSON input too large");
+      }
+      const action = JSON.parse(raw);
       if (
         action.action === "native_send_message" &&
         action.recipient &&

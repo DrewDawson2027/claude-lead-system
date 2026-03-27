@@ -47,11 +47,18 @@ export function runGC() {
       )) {
         try {
           if (statSync(join(TERMINALS_DIR, f)).mtimeMs <= cutoff) {
-            const d = JSON.parse(readFileSync(join(TERMINALS_DIR, f), "utf-8"));
+            const raw = readFileSync(join(TERMINALS_DIR, f), "utf-8");
+            if (Buffer.byteLength(raw, "utf-8") > 1048576) {
+              process.stderr.write(`[lead-coord:io] gc session scan: file too large\n`);
+              continue;
+            }
+            const d = JSON.parse(raw);
             if (d.status === "stale" || d.status === "closed")
               gcTargets.push(f);
           }
-        } catch {}
+        } catch (e) {
+          process.stderr.write(`[lead-coord:io] gc session scan: ${e?.message || e}\n`);
+        }
       }
     } catch (e) {
       process.stderr.write(`[gc] session scan failed: ${e?.message ?? e}\n`);
@@ -78,7 +85,9 @@ export function runGC() {
       try {
         const mtime = statSync(fp).mtimeMs;
         if (mtime > cutoff) continue;
-        const data = JSON.parse(readFileSync(fp, "utf-8"));
+        const raw = readFileSync(fp, "utf-8");
+        if (Buffer.byteLength(raw, "utf-8") > 1048576) continue;
+        const data = JSON.parse(raw);
         if (data.status === "stale" || data.status === "closed") {
           unlinkSync(fp);
           sessions++;
@@ -98,7 +107,9 @@ export function runGC() {
       if (!f.endsWith(".meta.json.done")) continue;
       const metaFile = join(RESULTS_DIR, f.replace(".done", ""));
       try {
-        const meta = JSON.parse(readFileSync(metaFile, "utf-8"));
+        const raw = readFileSync(metaFile, "utf-8");
+        if (Buffer.byteLength(raw, "utf-8") > 1048576) continue;
+        const meta = JSON.parse(raw);
         if (!meta?.isolated || !meta.directory) continue;
         if (!existsSync(meta.directory)) continue;
         // Check for uncommitted changes in the worktree

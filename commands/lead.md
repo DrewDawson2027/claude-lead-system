@@ -21,6 +21,9 @@ allowed-tools:
   - mcp__coordinator__coord_get_result
   - mcp__coordinator__coord_wake_session
   - mcp__coordinator__coord_watch_output
+  - mcp__coordinator__coord_spawn_worker
+  - mcp__coordinator__coord_spawn_workers
+  - mcp__coordinator__coord_spawn_terminal
   - mcp__coordinator__coord_create_task
   - mcp__coordinator__coord_update_task
   - mcp__coordinator__coord_list_tasks
@@ -83,15 +86,31 @@ Only use the sections below for tool routing, recovery, and power-user support. 
 
 ### Fallback tooling when the default Lead tools are unavailable
 
-If the default Lead tools (`coord_*`) are NOT available (check by trying to use them — if they error, use bash fallbacks), use these shell scripts instead. They cover the core local coordination actions:
+Do not treat the first coordinator-tool miss during `/lead` boot as real unavailability. MCP attachment can race briefly while the command is starting.
+
+Boot rule:
+
+1. After registering the lead session, attempt `coord_boot_snapshot`.
+2. If the coordinator tools are not visible in the immediate tool list, do **not** use a fuzzy ToolSearch query. Use an exact ToolSearch selector:
+   `select:mcp__coordinator__coord_boot_snapshot,mcp__coordinator__coord_detect_conflicts,mcp__coordinator__coord_watch_output,mcp__coordinator__coord_spawn_worker,mcp__coordinator__coord_spawn_workers,mcp__coordinator__coord_spawn_terminal`
+3. If that exact selector still fails with a missing-tool / unavailable-tool / transport-startup style error, wait briefly and retry the exact coordinator path.
+4. Retry the coordinator boot path up to 3 times before declaring the coordinator unavailable.
+5. Do not announce fallback to the user during those retries.
+6. Only after repeated coordinator failures may you use bash fallbacks.
+
+If the default Lead tools (`coord_*`) are still unavailable after those retries, use these shell scripts instead. They cover the core local coordination actions:
 
 | Action           | Bash Fallback                                                                           |
 | ---------------- | --------------------------------------------------------------------------------------- |
+| Spawn worker     | `bash ~/.claude/lead-tools/spawn_worker.sh <directory> <prompt> [model] [task_id] [layout]` |
 | Send message     | `bash ~/.claude/lead-tools/send_message.sh <from> <to_session_id> <content> [priority]` |
 | Check result     | `bash ~/.claude/lead-tools/get_result.sh <task_id> [tail_lines]`                        |
 | Detect conflicts | `bash ~/.claude/lead-tools/detect_conflicts.sh [my_session_id]`                         |
 
-**Try Lead tools first.** If they fail with "tool not found", switch to bash fallbacks for the rest of the session. Do not mention these fallbacks unless you are actively troubleshooting.
+**MCP first, always.** Attempt `coord_boot_snapshot`, `coord_spawn_worker`, and `coord_spawn_workers` before any bash fallback whenever the coordinator is healthy.
+When ToolSearch is needed, use exact `select:mcp__coordinator__...` selectors, not natural-language searches like `coord_boot_snapshot coordinator`.
+Use bash fallback only after repeated explicit coordinator tool failure or repeated missing-tool error, and state the fallback reason in your internal progress notes before continuing.
+Do not mention these fallbacks to the user unless you are actively troubleshooting.
 
 ## Token Budget: ~5-8k for boot (enriched session files eliminate transcript parsing)
 
@@ -109,10 +128,31 @@ If the default Lead tools (`coord_*`) are NOT available (check by trying to use 
 
 **Normal reply posture:** describe what Lead can do in user terms first. Only expose runtime names, MCP tool names, or implementation details if the user explicitly asks for advanced detail.
 
+**User-facing brevity rule:** when you spawn a worker or perform a simple coordination action, reply in 2-4 short lines unless the user explicitly asks for a deeper explanation.
+Do not add sections like `What Just Happened`, `Technical Concepts`, `Why This Way`, or long implementation walkthroughs unless the user explicitly asks for them.
+
 **Platform posture:**
 
 - **macOS:** strongest verified mainstream path today on the macOS coordinator path
 - **Linux / Windows:** keep public language conditional until re-validated
+
+## Worker Spawn Policy
+
+When the user explicitly asks Lead to spawn a worker:
+
+- If the current Lead session is inside tmux, request `layout: "tmux"`.
+- If the current Lead session is not inside tmux on macOS, request `layout: "split"`.
+- Use `layout: "tab"` only when the user explicitly asks for a tab.
+- Use `layout: "background"` only when the user explicitly asks for background/headless execution or when a background-only automation path is clearly intended.
+- For user-visible testing of worker UX, never choose `background` unless the user explicitly asked for it.
+
+When reporting the spawn result to the user, keep it simple:
+
+- task id
+- where the worker opened or whether it is running in the background
+- one short next-step line if relevant
+
+Do not dump internal policy notes, prompt-compaction details, architecture explainers, or implementation rationale unless the user explicitly asks.
 
 ---
 
@@ -126,6 +166,9 @@ touch ~/.claude/terminals/.lead-session
 
 **Step 1:** Call `coord_boot_snapshot` (add `include_git: true` for git status per project).
 
+If `coord_boot_snapshot` fails because the coordinator tools are still attaching, retry it up to 3 times before falling back. During those retries, do not tell the user the tools are unavailable.
+If you need ToolSearch during boot, use the exact selector string from the fallback-tooling section and then call `mcp__coordinator__coord_boot_snapshot` directly from the returned tool reference.
+
 Returns pre-formatted dashboard: session table, activity summaries, conflict detection, and recommended actions. No raw JSON parsing needed.
 
 Stay on the standard Lead workflow after boot. Only reach for native APIs if the user explicitly asks for native-first behavior or first-party collaboration UX.
@@ -134,7 +177,7 @@ Stay on the standard Lead workflow after boot. Only reach for native APIs if the
 
 ## Lead Role: Coordination Dashboard
 
-**The lead session coordinates other terminals. It does NOT spawn new processes.**
+**The lead session primarily coordinates other terminals.** It should not spawn by default during simple status boot, but it may spawn workers when the user explicitly asks for a worker/task execution path or when validating worker behavior.
 
 The user opens Claude terminals manually. The lead's job is:
 
