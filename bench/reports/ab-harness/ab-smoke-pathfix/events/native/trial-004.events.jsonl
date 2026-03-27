@@ -1,5 +1,0 @@
-{"ts":"2026-03-12T00:50:15.334Z","type":"workload_started","count":1,"detail":"path=native trial=4","run_id":"ab-smoke-pathfix","trial":"4","path_id":"native","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:50:15.515Z","type":"human_intervention","count":1,"detail":"manual approvals","run_id":"ab-smoke-pathfix","trial":"4","path_id":"native","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:50:15.536Z","type":"conflict_incident","count":1,"detail":"file overlap","run_id":"ab-smoke-pathfix","trial":"4","path_id":"native","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:50:15.556Z","type":"resume_attempt","count":1,"detail":"resume invoked","run_id":"ab-smoke-pathfix","trial":"4","path_id":"native","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:50:15.576Z","type":"workload_completed","count":1,"detail":"workload success","run_id":"ab-smoke-pathfix","trial":"4","path_id":"native","workload_id":"mock-ab-workload"}
