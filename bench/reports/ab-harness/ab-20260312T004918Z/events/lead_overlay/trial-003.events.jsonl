@@ -1,5 +1,0 @@
-{"ts":"2026-03-12T00:49:20.328Z","type":"workload_started","count":1,"detail":"path=lead_overlay trial=3","run_id":"ab-20260312T004918Z","trial":"3","path_id":"lead_overlay","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:49:20.498Z","type":"human_intervention","count":1,"detail":"manual approvals","run_id":"ab-20260312T004918Z","trial":"3","path_id":"lead_overlay","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:49:20.520Z","type":"resume_attempt","count":1,"detail":"resume invoked","run_id":"ab-20260312T004918Z","trial":"3","path_id":"lead_overlay","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:49:20.541Z","type":"resume_success","count":1,"detail":"resume succeeded","run_id":"ab-20260312T004918Z","trial":"3","path_id":"lead_overlay","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:49:20.562Z","type":"workload_completed","count":1,"detail":"workload success","run_id":"ab-20260312T004918Z","trial":"3","path_id":"lead_overlay","workload_id":"mock-ab-workload"}

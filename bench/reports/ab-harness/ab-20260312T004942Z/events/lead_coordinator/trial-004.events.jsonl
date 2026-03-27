@@ -1,5 +1,0 @@
-{"ts":"2026-03-12T00:49:45.644Z","type":"workload_started","count":1,"detail":"path=lead_coordinator trial=4","run_id":"ab-20260312T004942Z","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:49:45.813Z","type":"human_intervention","count":1,"detail":"manual approvals","run_id":"ab-20260312T004942Z","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:49:45.835Z","type":"resume_attempt","count":1,"detail":"resume invoked","run_id":"ab-20260312T004942Z","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:49:45.855Z","type":"resume_success","count":1,"detail":"resume succeeded","run_id":"ab-20260312T004942Z","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
-{"ts":"2026-03-12T00:49:45.877Z","type":"workload_completed","count":1,"detail":"workload success","run_id":"ab-20260312T004942Z","trial":"4","path_id":"lead_coordinator","workload_id":"mock-ab-workload"}
