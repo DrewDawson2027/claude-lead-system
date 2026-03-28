@@ -10,13 +10,13 @@
 
 The claude-lead-system is a **production-grade, architecturally sound coordination platform** for multi-terminal Claude Code workflows. It demonstrates exceptional engineering discipline, comprehensive testing practices, and meticulous security hardening. The system is **A-level work** characterized by:
 
-- **817 integrated tests** with 80%+ code coverage and enforced ratchet  
-- **Multi-layer security** with filesystem hardening, input validation, rate limiting, and CSRF protection  
-- **Zero-token coordination** via filesystem primitives (MCP → hooks → state → inbox patterns)  
-- **Cross-platform support** (macOS/Linux/Windows) with platform-specific implementations  
-- **Fault tolerance** including checkpoints, corruption repair, and recovery tooling  
-- **Clear architectural boundaries** between hook layer, state layer, coordinator MCP, and sidecar control plane  
-- **Professional-grade documentation** with threat models, known limitations, and recovery procedures  
+- **817 integrated tests** with 80%+ code coverage and enforced ratchet
+- **Multi-layer security** with filesystem hardening, input validation, rate limiting, and CSRF protection
+- **Zero-token coordination** via filesystem primitives (MCP → hooks → state → inbox patterns)
+- **Cross-platform support** (macOS/Linux/Windows) with platform-specific implementations
+- **Fault tolerance** including checkpoints, corruption repair, and recovery tooling
+- **Clear architectural boundaries** between hook layer, state layer, coordinator MCP, and sidecar control plane
+- **Professional-grade documentation** with threat models, known limitations, and recovery procedures
 
 **COMPOSITE GRADE: A (94/100)**
 
@@ -29,6 +29,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
 **Scope:** 11,874 LOC across entry point and 10 modular library files
 
 #### Code Quality: 9/10
+
 - **Strengths:**
   - Clean separation of concerns: `index.js` is thin routing layer, all logic in `lib/` modules
   - Consistent error handling with try-catch around filesystem ops; errors logged to stderr with context
@@ -43,6 +44,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
   - Late-binding of constants via `cfg()` on every call adds micro-overhead (acceptable for non-hot paths)
 
 #### Security Posture: 9/10
+
 - **Strengths:**
   - **Filesystem hardening:** `writeFileSecure()` uses atomic write with temp files, fsync, chmod 0o600/0o700
   - **Windows ACL enforcement:** Explicit `icacls` strips inherited ACEs, validates current-user ownership
@@ -58,6 +60,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
   - No rotation of identity-map files; could grow unbounded over very long deployments
 
 #### Test Coverage Adequacy: 10/10
+
 - **Coverage Gate:** 80%+ lines enforced in CI (`npm run test:coverage`)
 - **Test Count:** 591 test cases across 30+ test suites
 - **Key Test Files:**
@@ -74,12 +77,14 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
   - Chaos testing: concurrent message delivery, rate limiting overload, stale lock cleanup
 
 #### Documentation Quality: 9/10
+
 - **Architecture Doc (`ARCHITECTURE.md`):** Detailed 159-line reference covering all 5 layers with data contracts
 - **Security Doc (`SECURITY.md`):** Comprehensive threat model, control catalog, browser-localhost security, disclosure policy
 - **Known Limitations (`KNOWN_LIMITATIONS.md`):** Honest assessment of platform boundaries, bridge limits, scale limits, documented workarounds
 - **Inline Comments:** Extensive JSDoc blocks for all public functions, module headers describing purpose
 
 #### Production Readiness: 9/10
+
 - **Strengths:**
   - Graceful degradation: missing files return null, empty results, or sensible defaults
   - No fatal process crashes from malformed JSON (all parsing is defensive)
@@ -97,6 +102,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
 **Scope:** 8,175 LOC across shell scripts and Python modules
 
 #### Code Quality: 8/10
+
 - **Strengths:**
   - Shell scripts well-commented, functions properly scoped
   - Python token guard uses defensive parsing with `guard_contracts`, `guard_events`, `guard_normalize` abstractions
@@ -109,6 +115,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
   - Type hints in Python are minimal (acceptable for hook context)
 
 #### Security Posture: 9/10
+
 - **Strengths:**
   - **Fail-closed posture:** Token guard defaults to blocking on ambiguity
   - **Session ID validation:** `^[A-Za-z0-9_-]{8,64}$` before any file access
@@ -119,16 +126,19 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
   - Pre-compiled patterns for direct-tool detection in token-guard.py are comprehensive but maintainability cost
 
 #### Test Coverage Adequacy: 8/10
+
 - **Test Files:** `tests/hooks-smoke.sh`, `tests/test-hooks.sh`, pytest integration tests
 - **Coverage:** Smoke tests and unit tests for critical paths; regression tests for health-check
 - **Gaps:** No chaos/fuzz testing of malformed JSON in hook state directories
 
 #### Documentation Quality: 8/10
+
 - **Header Comments:** Excellent docstrings on token-guard.py explaining all rules and special handling
 - **Config Structure:** Token guard README documents state directory, config path, audit log format
 - **Missing:** Example `.claude/hooks` directory structure for fresh users
 
 #### Production Readiness: 8/10
+
 - **Strengths:** Hooks are stateless functions; failures don't propagate to other hooks
 - **Operational Concerns:** Hook syntax errors during Claude Code operation are hard to debug (no immediate feedback)
 
@@ -139,6 +149,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
 **Scope:** 17,858 LOC, hybrid TypeScript (server/routes/runtime) + JavaScript (legacy core modules)
 
 #### Code Quality: 8/10
+
 - **Strengths:**
   - TypeScript migration ongoing: server, routes, runtime are strongly typed
   - HTTP response helpers (`sendJson`, `sendError`, `sendHtml`) consistent and safe
@@ -151,6 +162,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
   - Incremental migration increases cognitive load for new contributors
 
 #### Security Posture: 9/10
+
 - **Strengths:**
   - **Network binding:** 127.0.0.1 only (no 0.0.0.0)
   - **Same-origin enforcement:** Origin header validated against exact port
@@ -167,15 +179,18 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
   - Token rotation is manual (`POST /maintenance/rotate-api-token`); no auto-rotation
 
 #### Test Coverage Adequacy: 8/10
+
 - **Coverage:** Sidecar tests in `npm --workspace sidecar test`
 - **Strengths:** Unit tests for state-store, schema migration, action queue
 - **Gaps:** Limited E2E tests for full HTTP stack; most testing is unit-level
 
 #### Documentation Quality: 7/10
+
 - **Strengths:** `/health` endpoint returns detailed server state; API versioning is versioned with deprecation headers
 - **Gaps:** No OpenAPI/Swagger spec for the HTTP API; `/v1/*` routes documented in code comments only
 
 #### Production Readiness: 8/10
+
 - **Strengths:**
   - Maintenance sweep runs every 15s: recovers stale actions, ages priorities, auto-rebalances teams, validates hooks
   - Periodic checkpoints every 5 min with rotation (default 20 kept)
@@ -191,6 +206,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
 **Coverage: `.github/workflows/ci.yml`**
 
 #### Test Count & Strategy: 10/10
+
 - **Test Coverage:** 817 tests total (591 coordinator + 226 sidecar/hook)
 - **CI Jobs:**
   - `lint-shell`: Shellcheck on all shell hooks
@@ -211,12 +227,14 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
   - `token-system-regression`: Token guard regression suite
 
 #### Enforcement & Gates: 10/10
+
 - **Coverage ratchet:** 80% floor enforced; `npm run docs:audit` verifies claim freshness
 - **Performance gates:** Benchmark thresholds prevent regression
 - **Compatibility gates:** Node 18+, Python 3.10+, cross-platform verification
 - **Smoke test gates:** Install, hooks, coordinator all gated before merge
 
 #### Best Practices: 9/10
+
 - **Action pinning:** All GitHub Actions pinned to full commit SHAs (not floating tags)
 - **Artifact upload:** Coverage, platform proofs, A+ cert uploaded as artifacts
 - **Conditional steps:** Platform-specific steps for install differences
@@ -230,6 +248,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
 **Scope:** 40 markdown files covering architecture, security, workflows, agents, design patterns
 
 #### Architecture Documentation: 10/10
+
 - **`ARCHITECTURE.md` (159 lines):** 5-layer reference with data contracts and runtime flows
   - Clearly describes each layer's responsibility and inputs/outputs
   - Data contracts for session files, snapshots, checkpoints, timelines, inbox
@@ -237,6 +256,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
   - Design tradeoffs explicitly listed (pros and cons)
 
 #### Security Documentation: 10/10
+
 - **`SECURITY.md` (200 lines):** Comprehensive threat model and controls
   - Explicit threat categories: command injection, malformed JSON, path handling, config exposure, browser-localhost attacks
   - 10-point control catalog with specific implementation details
@@ -245,6 +265,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
   - Security testing checklist for reviewers
 
 #### Known Limitations: 9/10
+
 - **`KNOWN_LIMITATIONS.md` (66 lines):** Honest assessment organized by category
   - Platform boundaries (no in-process UI, no zero-install, Node 18+ required, macOS-focused terminal spawning)
   - Bridge limitations (single instance, heartbeat-based health, filesystem-based queue, latency overhead)
@@ -252,15 +273,17 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
   - Each limitation includes impact and workaround
 
 #### Design Documents: 8/10
+
 - **`modes/` directory:** Extensive guidance on architect, coder, researcher modes
   - Detailed workflows for feature implementation, refactoring, debug mode
   - References to design principles, testing practices, async patterns
   - Missing: Visual diagrams showing state transitions or message flows
 
 #### Inline Code Comments: 9/10
+
 - **Function documentation:** Consistent JSDoc blocks with `@param`, `@returns`, `@module` tags
 - **Complex algorithms:** Step-by-step comments for lock acquisition, task dependency resolution
-- **Missing:** Rationale comments explaining *why* certain patterns were chosen
+- **Missing:** Rationale comments explaining _why_ certain patterns were chosen
 
 ---
 
@@ -269,6 +292,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
 **Score: 9/10**
 
 #### Strengths:
+
 1. **Clear separation of layers:** Hook → State → Coordinator → Sidecar, each with single responsibility
 2. **Dependency flow is acyclic:** Hooks write state, coordinator reads state, sidecar aggregates
 3. **Zero-token design principle:** Filesystem primitives used throughout; no API calls for coordination
@@ -280,6 +304,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
 5. **Modular testing:** Each layer has independent test suite; integration tests verify boundaries
 
 #### Coherence Issues:
+
 1. **Identity mapping file growth:** No rotation policy for identity-map files over very long deployments
 2. **Late-bound configuration:** `cfg()` re-evaluates on every call (intentional for tests, but non-obvious)
 3. **Incremental TS migration:** Some ambiguity about which sidecar modules are typed vs. untyped
@@ -291,6 +316,7 @@ The claude-lead-system is a **production-grade, architecturally sound coordinati
 **Assessment: 9/10** (recent improvements evident)
 
 Evidence of catch-block fixes throughout codebase:
+
 - `tasks.js`: 15+ try-catch blocks with stderr logging
 - `messaging.js`: Error paths in native action queueing, message delivery, inbox management
 - `workers.js`: Graceful handling of missing session files, stale PID tracking
@@ -305,6 +331,7 @@ Pattern observed: **defensive programming** — catch, log to stderr, return nul
 **Overall Debt Load: LOW (2/10 severity)**
 
 ### Documented Debt:
+
 1. **Incremental TypeScript migration:** Sidecar server/routes/runtime are TS, legacy JS modules remain
    - Mitigation: TS modules have `tsx` execution, `tsc --noEmit` typecheck in CI
    - Effort to resolve: ~20-30 hours for legacy JS → TS conversion
@@ -316,6 +343,7 @@ Pattern observed: **defensive programming** — catch, log to stderr, return nul
    - Effort to resolve: ~4-6 hours
 
 ### Undocumented Debt:
+
 - None significant. Code is clean and straightforward.
 
 ---
@@ -323,6 +351,7 @@ Pattern observed: **defensive programming** — catch, log to stderr, return nul
 ## GRADING RUBRIC
 
 ### Code Quality: 9/10
+
 - **Passes all style checks** (shellcheck, ruff, node --check)
 - **Consistent patterns** across modules
 - **Minimal dead code** or TODOs
@@ -330,6 +359,7 @@ Pattern observed: **defensive programming** — catch, log to stderr, return nul
 - **Deduction:** Some nested try-catches, a few terse error messages
 
 ### Security: 9/10
+
 - **No command injection vectors** (all inputs sanitized)
 - **Filesystem hardening** across all platforms
 - **Rate limiting, CSRF, and same-origin enforcement** on HTTP API
@@ -337,6 +367,7 @@ Pattern observed: **defensive programming** — catch, log to stderr, return nul
 - **Deduction:** Optional TLS defaults to HTTP (though 127.0.0.1-only binding is safe)
 
 ### Test Coverage: 9/10
+
 - **817 tests** with 80%+ code coverage enforced
 - **E2E tests** for critical workflows
 - **Platform matrix tests** for compatibility
@@ -344,6 +375,7 @@ Pattern observed: **defensive programming** — catch, log to stderr, return nul
 - **Deduction:** Limited sidecar HTTP stack E2E tests
 
 ### Documentation: 9/10
+
 - **Architecture, Security, Limitations** all comprehensive
 - **API versioning** with deprecation headers
 - **Design principles** documented per mode
@@ -351,6 +383,7 @@ Pattern observed: **defensive programming** — catch, log to stderr, return nul
 - **Deduction:** No OpenAPI spec; some rationale comments missing
 
 ### Production Readiness: 9/10
+
 - **Graceful degradation** throughout
 - **Checkpoints and repair tooling** for recovery
 - **Maintenance sweep** every 15s
@@ -361,17 +394,17 @@ Pattern observed: **defensive programming** — catch, log to stderr, return nul
 
 ## COMPOSITE GRADE: A (94/100)
 
-| Category | Score | Justification |
-|----------|-------|---------------|
-| **Code Quality** | 9/10 | Clean, modular, well-structured; minor nested-try-catch observations |
-| **Security** | 9/10 | Comprehensive hardening; optional TLS defaults to HTTP (acceptable for 127.0.0.1) |
-| **Testing** | 9/10 | 817 tests, 80%+ coverage, good E2E; limited sidecar HTTP stack tests |
-| **Documentation** | 9/10 | Excellent architecture/security/limitations docs; missing OpenAPI spec |
-| **Production Readiness** | 9/10 | Robust error handling, checkpoints, maintenance; eventual consistency model accepted |
-| **Architecture Coherence** | 9/10 | Clean layer separation, zero-token principle, acyclic dependencies; identity-map growth noted |
-| **Technical Debt** | 2/10 | Very low debt; TS migration ongoing, minor rotation policies missing |
-| | | |
-| **COMPOSITE** | **94/100** | **A Grade — Production-ready, professionally engineered, thoroughly tested** |
+| Category                   | Score      | Justification                                                                                 |
+| -------------------------- | ---------- | --------------------------------------------------------------------------------------------- |
+| **Code Quality**           | 9/10       | Clean, modular, well-structured; minor nested-try-catch observations                          |
+| **Security**               | 9/10       | Comprehensive hardening; optional TLS defaults to HTTP (acceptable for 127.0.0.1)             |
+| **Testing**                | 9/10       | 817 tests, 80%+ coverage, good E2E; limited sidecar HTTP stack tests                          |
+| **Documentation**          | 9/10       | Excellent architecture/security/limitations docs; missing OpenAPI spec                        |
+| **Production Readiness**   | 9/10       | Robust error handling, checkpoints, maintenance; eventual consistency model accepted          |
+| **Architecture Coherence** | 9/10       | Clean layer separation, zero-token principle, acyclic dependencies; identity-map growth noted |
+| **Technical Debt**         | 2/10       | Very low debt; TS migration ongoing, minor rotation policies missing                          |
+|                            |            |                                                                                               |
+| **COMPOSITE**              | **94/100** | **A Grade — Production-ready, professionally engineered, thoroughly tested**                  |
 
 ---
 
@@ -388,6 +421,7 @@ The claude-lead-system represents **exceptional software engineering** from a de
 **Recommendation:** This project is **ready for production use**. It provides genuine value to multi-terminal Claude Code workflows and demonstrates engineering practices that exceed many commercial products.
 
 ### Suggestions for Improvement (Non-blocking):
+
 1. Add OpenAPI/Swagger spec for sidecar HTTP API
 2. Implement timeline log rotation policy in maintenance sweep
 3. Consider identity-map compaction to prevent unbounded growth
@@ -399,4 +433,3 @@ The claude-lead-system represents **exceptional software engineering** from a de
 **Assessment by:** AI Analysis Agent  
 **Standards:** Professional-grade software engineering  
 **Verdict:** **A+ (94/100) — PRODUCTION READY**
-

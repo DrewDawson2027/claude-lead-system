@@ -178,7 +178,9 @@ function applyLegacyDeprecationToOutput(toolName, data) {
       return JSON.stringify(parsed, null, 2);
     }
   } catch (e) {
-    process.stderr.write(`[lead-coord] legacy cost deprecation parse: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord] legacy cost deprecation parse: ${e?.message || e}\n`,
+    );
   }
   return `${raw}\n\n[DEPRECATED]\ncanonical_tool=${LEGACY_COST_DEPRECATIONS[toolName].canonical_tool}\ncanonical_command=${LEGACY_COST_DEPRECATIONS[toolName].canonical_command}\n`;
 }
@@ -1746,7 +1748,9 @@ async function main() {
     try {
       handleDrainNativeQueue({});
     } catch (e) {
-      process.stderr.write(`[lead-coord] native queue drain: ${e?.message || e}\n`);
+      process.stderr.write(
+        `[lead-coord] native queue drain: ${e?.message || e}\n`,
+      );
     }
   }, 30_000).unref();
 

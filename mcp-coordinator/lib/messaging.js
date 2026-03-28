@@ -71,12 +71,16 @@ function queueNativeAction(action) {
         const mtime = statSync(join(actionsDir, f)).mtimeMs;
         if (now - mtime > TTL_MS) unlinkSync(join(actionsDir, f));
       } catch (e) {
-        process.stderr.write(`[lead-coord:cleanup] action queue cleanup: ${e?.message || e}\n`);
+        process.stderr.write(
+          `[lead-coord:cleanup] action queue cleanup: ${e?.message || e}\n`,
+        );
       }
     }
     files = readdirSync(actionsDir).filter((f) => f.endsWith(".json"));
   } catch (e) {
-    process.stderr.write(`[lead-coord:io] action queue read: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord:io] action queue read: ${e?.message || e}\n`,
+    );
   }
 
   if (files.length >= MAX_QUEUE_DEPTH) {
@@ -192,7 +196,9 @@ export function handleCheckInbox(args) {
     try {
       if (existsSync(drainFile)) unlinkSync(drainFile);
     } catch (e) {
-      process.stderr.write(`[lead-coord:cleanup] drain file cleanup: ${e?.message || e}\n`);
+      process.stderr.write(
+        `[lead-coord:cleanup] drain file cleanup: ${e?.message || e}\n`,
+      );
     }
     if (!existsSync(inboxFile)) writeFileSecure(inboxFile, "");
     return text("No pending messages.");
@@ -201,7 +207,9 @@ export function handleCheckInbox(args) {
   try {
     if (existsSync(drainFile)) unlinkSync(drainFile);
   } catch (e) {
-    process.stderr.write(`[lead-coord:cleanup] inbox drain cleanup: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord:cleanup] inbox drain cleanup: ${e?.message || e}\n`,
+    );
   }
   if (!existsSync(inboxFile)) writeFileSecure(inboxFile, "");
   const sessionFile = join(TERMINALS_DIR, `session-${sid}.json`);
@@ -213,7 +221,9 @@ export function handleCheckInbox(args) {
         writeFileSecure(sessionFile, JSON.stringify(s, null, 2));
       }
     } catch (e) {
-      process.stderr.write(`[lead-coord:io] session file update: ${e?.message || e}\n`);
+      process.stderr.write(
+        `[lead-coord:io] session file update: ${e?.message || e}\n`,
+      );
     }
   }
 
@@ -311,7 +321,9 @@ export function resolveWorkerName(targetName, teamName = null) {
       }
     }
   } catch (e) {
-    process.stderr.write(`[lead-coord:io] resolve worker: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord:io] resolve worker: ${e?.message || e}\n`,
+    );
   }
   return null;
 }
@@ -439,7 +451,9 @@ function listAvailableSessions() {
       if (rec.task_id) names.add(rec.task_id);
     }
   } catch (e) {
-    process.stderr.write(`[lead-coord:io] identity map read: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord:io] identity map read: ${e?.message || e}\n`,
+    );
   }
   if (names.size === 0) return "(none)";
   return [...names].join(", ");
@@ -538,7 +552,9 @@ export function handleSendMessage(args) {
         lastActive = s.last_active || null;
       }
     } catch (e) {
-      process.stderr.write(`[lead-coord:io] session file message mark: ${e?.message || e}\n`);
+      process.stderr.write(
+        `[lead-coord:io] session file message mark: ${e?.message || e}\n`,
+      );
     }
   }
 
@@ -773,7 +789,9 @@ export function handleSendDirective(args) {
       lastActive = s.last_active || null;
     }
   } catch (e) {
-    process.stderr.write(`[lead-coord:io] session status update: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord:io] session status update: ${e?.message || e}\n`,
+    );
   }
 
   // Determine if session needs waking
