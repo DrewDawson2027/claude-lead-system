@@ -124,6 +124,7 @@ EOF
 3. Click the RIGHT pane, then Cmd+Shift+D to split it horizontally
 
 **Pane assignment:**
+
 - **Left pane (wide):** Lead session
 - **Top-right:** Worker A output
 - **Bottom-right:** Worker B output
@@ -143,6 +144,7 @@ Run `export PS1="%~ %# "` in all 3 panes.
 Shows two terminals both editing src/auth.ts, unaware of each other.
 
 **Top-right pane (Worker A):**
+
 ```bash
 clear && echo '
 Session W-a8f3 • claude-sonnet-4-20250514 • demo-project
@@ -166,6 +168,7 @@ Session W-a8f3 • claude-sonnet-4-20250514 • demo-project
 ```
 
 **Bottom-right pane (Worker B):**
+
 ```bash
 clear && echo '
 Session W-c2e7 • claude-sonnet-4-20250514 • demo-project
@@ -199,6 +202,7 @@ Save as: `two-workers-same-file.png`
 #### Shot 2 — Conflict detected
 
 **Left pane (Lead):**
+
 ```bash
 clear && echo '
 ╔═══════════════════════════════════════════════════════╗
@@ -239,6 +243,7 @@ Save as: `conflict-detected.png`
 #### Shot 3 — Lead dashboard (3 workers, clean state)
 
 **Left pane:**
+
 ```bash
 clear && echo '
 ╔═══════════════════════════════════════════════════════╗
@@ -271,6 +276,7 @@ Save as: `lead-dashboard.png`
 #### Shot 4 — Directive sent
 
 **Left pane:**
+
 ```bash
 clear && echo '
 ● Resolving conflict — reassigning Worker B to avoid overlap.
@@ -296,6 +302,7 @@ Save as: `directive-sent.png`
 #### Shot 5 — Worker receives directive
 
 **Bottom-right pane (Worker B):**
+
 ```bash
 clear && echo '
 Session W-c2e7 • claude-sonnet-4-20250514 • demo-project
@@ -331,6 +338,7 @@ Save as: `directive-received.png`
 #### Shot 6 — Conflict resolved
 
 **Left pane:**
+
 ```bash
 clear && echo '
 ── Dashboard Refresh ──
@@ -367,6 +375,7 @@ Save as: `conflict-resolved.png`
 #### Shot 7 — Broadcast message
 
 **Left pane:**
+
 ```bash
 clear && echo '
 > broadcast "Sync to main before merging — release cut at 3pm"
@@ -389,6 +398,7 @@ Save as: `broadcast.png`
 #### Shot 8 — Task board
 
 **Left pane:**
+
 ```bash
 clear && echo '
 📋 Task Board
@@ -414,6 +424,7 @@ Save as: `task-board.png`
 #### Shot 9 — Health check
 
 **Left pane:**
+
 ```bash
 clear && echo '
 🏥 System Health Check
@@ -456,17 +467,17 @@ source ~/.zshrc
 
 ## Shot Checklist
 
-| # | Group    | Shot                        | Filename                   | Done |
-|---|----------|-----------------------------|----------------------------|------|
-| 1 | Problem  | Two workers, same file      | two-workers-same-file.png  |      |
-| 2 | Problem  | Conflict detected           | conflict-detected.png      |      |
-| 3 | Working  | Lead dashboard (3 workers)  | lead-dashboard.png         |      |
-| 4 | Working  | Directive sent              | directive-sent.png         |      |
-| 5 | Working  | Worker receives directive   | directive-received.png     |      |
-| 6 | Working  | Conflict resolved           | conflict-resolved.png      |      |
-| 7 | Advanced | Broadcast message           | broadcast.png              |      |
-| 8 | Advanced | Task board                  | task-board.png             |      |
-| 9 | Advanced | Health check                | health-check.png           |      |
+| #   | Group    | Shot                       | Filename                  | Done |
+| --- | -------- | -------------------------- | ------------------------- | ---- |
+| 1   | Problem  | Two workers, same file     | two-workers-same-file.png |      |
+| 2   | Problem  | Conflict detected          | conflict-detected.png     |      |
+| 3   | Working  | Lead dashboard (3 workers) | lead-dashboard.png        |      |
+| 4   | Working  | Directive sent             | directive-sent.png        |      |
+| 5   | Working  | Worker receives directive  | directive-received.png    |      |
+| 6   | Working  | Conflict resolved          | conflict-resolved.png     |      |
+| 7   | Advanced | Broadcast message          | broadcast.png             |      |
+| 8   | Advanced | Task board                 | task-board.png            |      |
+| 9   | Advanced | Health check               | health-check.png          |      |
 
 Save all to: `~/claude-lead-system/assets/demo/screenshots/`
 

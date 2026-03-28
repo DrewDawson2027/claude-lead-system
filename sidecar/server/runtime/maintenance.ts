@@ -118,7 +118,9 @@ export function createMaintenanceSweep({
         if (!teamSnap) continue;
         const check = shouldAutoRebalance(teamSnap, autoConfig);
         if (check.trigger) {
-          const cooldownMs = (autoConfig as Record<string, unknown>).cooldown_ms as number || 60000;
+          const cooldownMs =
+            ((autoConfig as Record<string, unknown>).cooldown_ms as number) ||
+            60000;
           const lastTime = autoRebalanceTimes.get(teamEntry.team_name) || 0;
           if (Date.now() - lastTime > cooldownMs) {
             autoRebalanceTimes.set(teamEntry.team_name, Date.now());
@@ -277,17 +279,19 @@ export function createDiagnosticsBundle({
       lock_metrics: lockMetrics.snapshot(),
       terminal_health: checkTerminalHealth(paths),
     };
-    const redacted = redactSecrets(trimLongStrings(bundle, 2048)) as unknown as Record<string, unknown>;
+    const redacted = redactSecrets(
+      trimLongStrings(bundle, 2048),
+    ) as unknown as Record<string, unknown>;
 
     const manifest: Record<string, number> = {};
     for (const [section, value] of Object.entries(redacted)) {
       manifest[section] = JSON.stringify(value).length;
     }
-    redacted['manifest'] = manifest;
+    redacted["manifest"] = manifest;
 
     const withoutChecksum = JSON.stringify(redacted);
     const checksum = createHash("sha256").update(withoutChecksum).digest("hex");
-    redacted['checksum'] = checksum;
+    redacted["checksum"] = checksum;
 
     const file = `${paths.diagnosticsDir}/diag-${Date.now()}.json`;
     writeJSON(file, redacted);
