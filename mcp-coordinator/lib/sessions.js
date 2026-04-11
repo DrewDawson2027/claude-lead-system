@@ -227,7 +227,9 @@ export function handleDiscoverPeers(args) {
       });
     }
   } catch (e) {
-    process.stderr.write(`[lead-coord:io] peer discovery: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord:io] peer discovery: ${e?.message || e}\n`,
+    );
   }
 
   if (peers.length === 0) {

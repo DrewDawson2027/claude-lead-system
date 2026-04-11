@@ -121,7 +121,9 @@ function readLeadSessionRecord(terminalsDir, notifySessionId) {
   try {
     const raw = readFileSync(leadSessionFile, "utf-8");
     if (Buffer.byteLength(raw, "utf-8") > 1048576) {
-      process.stderr.write(`[lead-coord] readLeadSessionRecord: session file exceeds 1MB limit\n`);
+      process.stderr.write(
+        `[lead-coord] readLeadSessionRecord: session file exceeds 1MB limit\n`,
+      );
       return null;
     }
     return JSON.parse(raw);

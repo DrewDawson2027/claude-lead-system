@@ -119,10 +119,15 @@ export function text(content) {
  * @param {object} options - { maxBytes?: number, label?: string }
  * @returns {object|null} Parsed JSON or null on failure
  */
-export function safeParseJSON(raw, { maxBytes = 1048576, label = "unknown" } = {}) {
+export function safeParseJSON(
+  raw,
+  { maxBytes = 1048576, label = "unknown" } = {},
+) {
   if (typeof raw !== "string") return null;
   if (Buffer.byteLength(raw, "utf-8") > maxBytes) {
-    process.stderr.write(`[lead-coord] safeParseJSON: input exceeds ${maxBytes} bytes (${label})\n`);
+    process.stderr.write(
+      `[lead-coord] safeParseJSON: input exceeds ${maxBytes} bytes (${label})\n`,
+    );
     return null;
   }
   try {
