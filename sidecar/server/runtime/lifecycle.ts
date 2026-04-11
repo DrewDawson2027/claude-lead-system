@@ -86,7 +86,7 @@ export function startRuntimeLifecycle({
           const resultsDir =
             (pathsData.resultsDir as string | undefined) ||
             join(
-              String(pathsData.root as string | undefined || ""),
+              String((pathsData.root as string | undefined) || ""),
               "..",
               "terminals",
               "results",

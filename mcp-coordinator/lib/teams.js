@@ -78,7 +78,9 @@ function teamsDir() {
     try {
       ensureSecureDirectory(dir);
     } catch (e) {
-      process.stderr.write(`[lead-coord:sec] ensureSecureDirectory: ${e?.message || e}\n`);
+      process.stderr.write(
+        `[lead-coord:sec] ensureSecureDirectory: ${e?.message || e}\n`,
+      );
     }
   }
   return dir;
@@ -685,12 +687,16 @@ export function handleDeleteTeam(args) {
           unlinkSync(join(tasksDir, f));
           tasksRemoved++;
         } catch (e) {
-          process.stderr.write(`[lead-coord:cleanup] team task cleanup: ${e?.message || e}\n`);
+          process.stderr.write(
+            `[lead-coord:cleanup] team task cleanup: ${e?.message || e}\n`,
+          );
         }
       }
     }
   } catch (e) {
-    process.stderr.write(`[lead-coord:io] team tasks scan: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord:io] team tasks scan: ${e?.message || e}\n`,
+    );
   }
 
   let metasRemoved = 0;
@@ -705,12 +711,16 @@ export function handleDeleteTeam(args) {
           unlinkSync(join(cfg().RESULTS_DIR, f));
           metasRemoved++;
         } catch (e) {
-          process.stderr.write(`[lead-coord:cleanup] team meta cleanup: ${e?.message || e}\n`);
+          process.stderr.write(
+            `[lead-coord:cleanup] team meta cleanup: ${e?.message || e}\n`,
+          );
         }
       }
     }
   } catch (e) {
-    process.stderr.write(`[lead-coord:io] team metas scan: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord:io] team metas scan: ${e?.message || e}\n`,
+    );
   }
 
   return text(

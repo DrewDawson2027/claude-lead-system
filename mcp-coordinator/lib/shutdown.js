@@ -122,7 +122,9 @@ export function handleShutdownRequest(args) {
           writeFileSecure(shutdownFile, JSON.stringify(tracking, null, 2));
         }
       } catch (e) {
-        process.stderr.write(`[lead-coord:io] shutdown tracking write: ${e?.message || e}\n`);
+        process.stderr.write(
+          `[lead-coord:io] shutdown tracking write: ${e?.message || e}\n`,
+        );
       }
     }, forceTimeout * 1000);
   }

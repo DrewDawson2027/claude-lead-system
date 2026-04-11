@@ -81,7 +81,9 @@ export function writeFileSecure(pathValue, data) {
       try {
         unlinkSync(tempPath);
       } catch (e) {
-        process.stderr.write(`[lead-coord:cleanup] temp cleanup: ${e?.message || e}\n`);
+        process.stderr.write(
+          `[lead-coord:cleanup] temp cleanup: ${e?.message || e}\n`,
+        );
       }
     }
   }
@@ -234,12 +236,16 @@ export function acquireExclusiveFileLock(
     try {
       if (lockFd !== undefined) closeSync(lockFd);
     } catch (e) {
-      process.stderr.write(`[lead-coord:cleanup] lock release: ${e?.message || e}\n`);
+      process.stderr.write(
+        `[lead-coord:cleanup] lock release: ${e?.message || e}\n`,
+      );
     }
     try {
       unlinkSync(lockPath);
     } catch (e) {
-      process.stderr.write(`[lead-coord:cleanup] lock file cleanup: ${e?.message || e}\n`);
+      process.stderr.write(
+        `[lead-coord:cleanup] lock file cleanup: ${e?.message || e}\n`,
+      );
     }
   };
 }
@@ -387,7 +393,9 @@ export function normalizeFilePath(filePath, cwd = "") {
       candidate = realpathSync(candidate);
     }
   } catch (e) {
-    process.stderr.write(`[lead-coord:io] realpath resolve: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord:io] realpath resolve: ${e?.message || e}\n`,
+    );
   }
   let normalized = candidate.replace(/\\/g, "/");
   if (PLATFORM === "win32") normalized = normalized.toLowerCase();

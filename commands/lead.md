@@ -100,12 +100,12 @@ Boot rule:
 
 If the default Lead tools (`coord_*`) are still unavailable after those retries, use these shell scripts instead. They cover the core local coordination actions:
 
-| Action           | Bash Fallback                                                                           |
-| ---------------- | --------------------------------------------------------------------------------------- |
+| Action           | Bash Fallback                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------- |
 | Spawn worker     | `bash ~/.claude/lead-tools/spawn_worker.sh <directory> <prompt> [model] [task_id] [layout]` |
-| Send message     | `bash ~/.claude/lead-tools/send_message.sh <from> <to_session_id> <content> [priority]` |
-| Check result     | `bash ~/.claude/lead-tools/get_result.sh <task_id> [tail_lines]`                        |
-| Detect conflicts | `bash ~/.claude/lead-tools/detect_conflicts.sh [my_session_id]`                         |
+| Send message     | `bash ~/.claude/lead-tools/send_message.sh <from> <to_session_id> <content> [priority]`     |
+| Check result     | `bash ~/.claude/lead-tools/get_result.sh <task_id> [tail_lines]`                            |
+| Detect conflicts | `bash ~/.claude/lead-tools/detect_conflicts.sh [my_session_id]`                             |
 
 **MCP first, always.** Attempt `coord_boot_snapshot`, `coord_spawn_worker`, and `coord_spawn_workers` before any bash fallback whenever the coordinator is healthy.
 When ToolSearch is needed, use exact `select:mcp__coordinator__...` selectors, not natural-language searches like `coord_boot_snapshot coordinator`.
