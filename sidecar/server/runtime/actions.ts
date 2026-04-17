@@ -329,7 +329,8 @@ export function createTrackedActionRunner({
               try {
                 const routerData = router as unknown as Record<string, unknown>;
                 const coordinatorFallback = await (
-                  (routerData.coordinator as unknown as Record<string, unknown>).execute as Function
+                  (routerData.coordinator as unknown as Record<string, unknown>)
+                    .execute as Function
                 )(fallbackAction, routedPayload);
                 const fallbackReason = `native direct route failed (${routed?.error?.code || routed?.error?.message || "error"}); coordinator fallback`;
                 raiseIntervention({
@@ -690,7 +691,10 @@ export function createBatchTriageRunner({
       });
       const currentIds = new Set(currentInterrupts.map((i) => i.id));
       let dismissed = 0;
-      const alertsData = store.getSnapshot() as unknown as Record<string, unknown>;
+      const alertsData = store.getSnapshot() as unknown as Record<
+        string,
+        unknown
+      >;
       const freshAlerts = ((alertsData.alerts as unknown[]) || []).filter(
         (a: unknown) => {
           const alert = a as Record<string, unknown>;

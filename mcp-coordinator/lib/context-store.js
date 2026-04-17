@@ -26,7 +26,9 @@ function contextDir() {
     try {
       ensureSecureDirectory(dir);
     } catch (e) {
-      process.stderr.write(`[lead-coord:sec] ensureSecureDirectory: ${e?.message || e}\n`);
+      process.stderr.write(
+        `[lead-coord:sec] ensureSecureDirectory: ${e?.message || e}\n`,
+      );
     }
   }
   return dir;

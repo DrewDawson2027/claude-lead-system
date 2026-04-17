@@ -34,7 +34,9 @@ function normalizeHookLine(line) {
       return parsed.reason.trim();
     }
   } catch (e) {
-    process.stderr.write(`[lead-coord:io] parse rejection reason: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord:io] parse rejection reason: ${e?.message || e}\n`,
+    );
   }
   return text;
 }
@@ -118,7 +120,9 @@ function writeAuditLine(decision, reason, toolInput) {
       }) + "\n",
     );
   } catch (e) {
-    process.stderr.write(`[lead-coord:io] policy event log: ${e?.message || e}\n`);
+    process.stderr.write(
+      `[lead-coord:io] policy event log: ${e?.message || e}\n`,
+    );
   }
 }
 
