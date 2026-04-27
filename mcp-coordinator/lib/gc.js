@@ -49,7 +49,9 @@ export function runGC() {
           if (statSync(join(TERMINALS_DIR, f)).mtimeMs <= cutoff) {
             const raw = readFileSync(join(TERMINALS_DIR, f), "utf-8");
             if (Buffer.byteLength(raw, "utf-8") > 1048576) {
-              process.stderr.write(`[lead-coord:io] gc session scan: file too large\n`);
+              process.stderr.write(
+                `[lead-coord:io] gc session scan: file too large\n`,
+              );
               continue;
             }
             const d = JSON.parse(raw);
@@ -57,7 +59,9 @@ export function runGC() {
               gcTargets.push(f);
           }
         } catch (e) {
-          process.stderr.write(`[lead-coord:io] gc session scan: ${e?.message || e}\n`);
+          process.stderr.write(
+            `[lead-coord:io] gc session scan: ${e?.message || e}\n`,
+          );
         }
       }
     } catch (e) {

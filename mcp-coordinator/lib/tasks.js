@@ -192,7 +192,9 @@ function tasksDir() {
     try {
       ensureSecureDirectory(dir);
     } catch (e) {
-      process.stderr.write(`[lead-coord:sec] ensureSecureDirectory: ${e?.message || e}\n`);
+      process.stderr.write(
+        `[lead-coord:sec] ensureSecureDirectory: ${e?.message || e}\n`,
+      );
     }
   }
   return dir;
@@ -267,11 +269,15 @@ function autoUnblockDependents(completedTaskId, dir) {
           try {
             appendJSONLineSecure(join(INBOX_DIR, f), msg);
           } catch (e) {
-            process.stderr.write(`[lead-coord:io] inbox broadcast: ${e?.message || e}\n`);
+            process.stderr.write(
+              `[lead-coord:io] inbox broadcast: ${e?.message || e}\n`,
+            );
           }
         }
       } catch (e) {
-        process.stderr.write(`[lead-coord:io] inbox broadcast scan: ${e?.message || e}\n`);
+        process.stderr.write(
+          `[lead-coord:io] inbox broadcast scan: ${e?.message || e}\n`,
+        );
       }
     }
   }

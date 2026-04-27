@@ -408,7 +408,8 @@ export async function startSidecarServer(
     if (!opts.limitBytes) {
       const routeMetaReq = req as unknown as Record<string, unknown>;
       const pathname =
-        (routeMetaReq._routeMeta as Record<string, unknown> | undefined)?.routePath as string | undefined ||
+        ((routeMetaReq._routeMeta as Record<string, unknown> | undefined)
+          ?.routePath as string | undefined) ||
         new URL(req.url || "/", "http://127.0.0.1").pathname;
       opts = { ...opts, limitBytes: bodyLimitForRoute(pathname) };
     }
